@@ -1,0 +1,284 @@
+import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiParam,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import { QueryBus } from '@nestjs/cqrs';
+import { SearchTransactionsQuery } from '../application/queries/search-transactions.query';
+import { ListJournalQuery } from '../application/queries/list-journal.query';
+import { FindTransactionQuery } from '../application/queries/find-transaction.query';
+import { SearchTransactionsDto } from '../application/dto/search-transactions.dto';
+import {
+  TransactionType,
+  TransactionStatus,
+} from '../domain/transaction.entity';
+
+@ApiTags('Transactions')
+@ApiBearerAuth('JWT-auth')
+@Controller('transactions')
+export class TransactionsController {
+  constructor(private readonly queryBus: QueryBus) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'Search transactions',
+    description: 'Search and filter transactions with pagination',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number for pagination',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page',
+    example: 25,
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: [
+      'SALE',
+      'PURCHASE',
+      'PAYMENT_IN',
+      'PAYMENT_OUT',
+      'ADJUSTMENT',
+      'VOID_ADJUSTMENT',
+    ],
+    description: 'Filter by transaction type',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['PENDING', 'COMPLETED', 'CANCELLED', 'VOIDED'],
+    description: 'Filter by transaction status',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Transactions retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', example: 'uuid-1234' },
+              type: { type: 'string', example: 'SALE' },
+              status: { type: 'string', example: 'COMPLETED' },
+              total: { type: 'number', example: 150000 },
+              createdAt: { type: 'string', format: 'date-time' },
+              customer: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            page: { type: 'number' },
+            limit: { type: 'number' },
+            total: { type: 'number' },
+            totalPages: { type: 'number' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async search(@Query() query: SearchTransactionsDto) {
+    return this.queryBus.execute(
+      new SearchTransactionsQuery(
+        query.page,
+        query.limit || query.pageSize,
+        query.type,
+        query.status,
+        query.paymentMethod,
+        query.branchId,
+        query.pointOfSaleId,
+        query.customerId,
+        query.supplierId,
+        query.dateFrom,
+        query.dateTo,
+        query.search,
+      ),
+    );
+  }
+
+  @Get('journal')
+  @ApiOperation({
+    summary: 'Get transaction journal',
+    description: 'Get paginated transaction journal with advanced filtering',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    type: Number,
+    description: 'Items per page',
+    example: 25,
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: [
+      'SALE',
+      'PURCHASE',
+      'PAYMENT_IN',
+      'PAYMENT_OUT',
+      'ADJUSTMENT',
+      'VOID_ADJUSTMENT',
+    ],
+    description: 'Filter by transaction type',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['PENDING', 'COMPLETED', 'CANCELLED', 'VOIDED'],
+    description: 'Filter by transaction status',
+  })
+  @ApiQuery({
+    name: 'dateFrom',
+    required: false,
+    type: String,
+    description: 'Start date filter (YYYY-MM-DD)',
+    example: '2024-01-01',
+  })
+  @ApiQuery({
+    name: 'dateTo',
+    required: false,
+    type: String,
+    description: 'End date filter (YYYY-MM-DD)',
+    example: '2024-12-31',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Transaction journal retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              type: { type: 'string' },
+              status: { type: 'string' },
+              total: { type: 'number' },
+              createdAt: { type: 'string', format: 'date-time' },
+              branch: { type: 'object' },
+              pointOfSale: { type: 'object' },
+            },
+          },
+        },
+        pagination: {
+          type: 'object',
+          properties: {
+            page: { type: 'number' },
+            pageSize: { type: 'number' },
+            total: { type: 'number' },
+            totalPages: { type: 'number' },
+          },
+        },
+      },
+    },
+  })
+  async listJournal(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('limit') limit?: string,
+    @Query('filters') filters?: string,
+    @Query('type') type?: string,
+    @Query('status') status?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('search') search?: string,
+  ) {
+    // Convertir a números
+    const pageNum = parseInt(page || '1', 10);
+    const pageSizeNum = parseInt(pageSize || limit || '25', 10);
+
+    return this.queryBus.execute(
+      new ListJournalQuery(
+        pageNum,
+        pageSizeNum,
+        type as TransactionType,
+        status as TransactionStatus,
+        dateFrom,
+        dateTo,
+        search,
+      ),
+    );
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get transaction by ID',
+    description: 'Retrieve detailed information about a specific transaction',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Transaction ID',
+    example: 'uuid-1234-5678-9012',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Transaction details retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        type: { type: 'string' },
+        status: { type: 'string' },
+        total: { type: 'number' },
+        subtotal: { type: 'number' },
+        tax: { type: 'number' },
+        discount: { type: 'number' },
+        createdAt: { type: 'string', format: 'date-time' },
+        completedAt: { type: 'string', format: 'date-time' },
+        customer: { type: 'object' },
+        branch: { type: 'object' },
+        pointOfSale: { type: 'object' },
+        lines: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              product: { type: 'object' },
+              quantity: { type: 'number' },
+              unitPrice: { type: 'number' },
+              total: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Transaction not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async findOne(@Param('id') id: string) {
+    return this.queryBus.execute(new FindTransactionQuery(id));
+  }
+}

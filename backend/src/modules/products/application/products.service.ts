@@ -1,0 +1,225 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Inject } from '@nestjs/common';
+import { Repository, DataSource, In } from 'typeorm';
+import { Product } from '@modules/products/domain/product.entity';
+import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { Tax } from '@modules/taxes/domain/tax.entity';
+import {
+  Transaction,
+  TransactionType,
+  TransactionStatus,
+} from '@modules/transactions/domain/transaction.entity';
+import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
+import { Attribute } from '@modules/attributes/domain/attribute.entity';
+import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
+import { Storage } from '@modules/storages/domain/storage.entity';
+import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
+import {
+  PRICE_LIST_ITEMS_REPOSITORY,
+  PriceListItemsRepositoryPort,
+} from '@modules/price-list-items/application/ports/price-list-items.repository.port';
+import { SearchProductsDto } from './dto/search-products.dto';
+
+type MovementDirection = 'IN' | 'OUT';
+
+const MOVEMENT_DIRECTION: Record<TransactionType, MovementDirection | null> = {
+  [TransactionType.SALE]: 'OUT',
+  [TransactionType.PURCHASE]: 'IN',
+  [TransactionType.PURCHASE_ORDER]: null,
+  [TransactionType.SALE_RETURN]: 'IN',
+  [TransactionType.PURCHASE_RETURN]: 'OUT',
+  [TransactionType.TRANSFER_OUT]: 'OUT',
+  [TransactionType.TRANSFER_IN]: 'IN',
+  [TransactionType.ADJUSTMENT_IN]: 'IN',
+  [TransactionType.ADJUSTMENT_OUT]: 'OUT',
+  [TransactionType.PAYMENT_IN]: null,
+  [TransactionType.PAYMENT_OUT]: null,
+  [TransactionType.PAYMENT_EXECUTION]: null,
+  [TransactionType.CASH_DEPOSIT]: null,
+  [TransactionType.OPERATING_EXPENSE]: null,
+  [TransactionType.CASH_SESSION_OPENING]: null,
+  [TransactionType.CASH_SESSION_WITHDRAWAL]: null,
+  [TransactionType.CASH_SESSION_DEPOSIT]: null,
+  [TransactionType.PAYROLL]: null,
+  [TransactionType.BANK_WITHDRAWAL_TO_SHAREHOLDER]: null,
+  [TransactionType.SUPPLIER_PAYMENT]: null,
+  [TransactionType.EXPENSE_PAYMENT]: null,
+  [TransactionType.CASH_SESSION_CLOSING]: null,
+  [TransactionType.VOID_ADJUSTMENT]: null,
+  [TransactionType.INVENTORY_COUNT]: null,
+  [TransactionType.INVENTORY_RESERVATION]: null,
+  [TransactionType.INVENTORY_BLOCK]: null,
+  [TransactionType.INVENTORY_UNBLOCK]: null,
+};
+
+@Injectable()
+export class ProductsService {
+  constructor(
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
+    @InjectRepository(ProductVariant)
+    private readonly variantRepository: Repository<ProductVariant>,
+    @InjectRepository(Tax)
+    private readonly taxRepository: Repository<Tax>,
+    @InjectRepository(Attribute)
+    private readonly attributeRepository: Repository<Attribute>,
+    @Inject(PRICE_LIST_ITEMS_REPOSITORY)
+    private readonly priceListItemRepository: PriceListItemsRepositoryPort,
+    private readonly dataSource: DataSource,
+  ) {}
+
+  private resolveDirection(type: TransactionType): MovementDirection | null {
+    return MOVEMENT_DIRECTION[type] ?? null;
+  }
+
+  async search(searchDto: SearchProductsDto) {
+    // Basic search implementation: return matching products with their variants
+    const qb = this.productRepository
+      .createQueryBuilder('p')
+      .where('p.deletedAt IS NULL');
+
+    if (searchDto.query) {
+      qb.andWhere('(p.name LIKE :q OR p.brand LIKE :q)', {
+        q: `%${searchDto.query}%`,
+      });
+    }
+
+    const products = await qb.getMany();
+
+    if (!products || products.length === 0) return [];
+
+    // Load variants for the found products and attach price list items
+    const productIds = products.map((p) => p.id);
+    const variants = await this.variantRepository
+      .createQueryBuilder('v')
+      .leftJoinAndSelect(
+        'v.priceListItems',
+        'priceListItem',
+        'priceListItem.deletedAt IS NULL',
+      )
+      .leftJoinAndSelect(
+        'priceListItem.priceList',
+        'priceList',
+        'priceList.deletedAt IS NULL AND priceList.isActive = true',
+      )
+      .leftJoinAndSelect('v.unit', 'unit')
+      .where('v.deletedAt IS NULL')
+      .andWhere('v.productId IN (:...productIds)', { productIds })
+      .getMany();
+
+    const variantsByProduct: Record<string, any[]> = {};
+    for (const v of variants) {
+      if (!variantsByProduct[v.productId || ''])
+        variantsByProduct[v.productId || ''] = [];
+      const priceListItems = (v.priceListItems || []).map((item: any) => ({
+        priceListId: item.priceListId,
+        priceListName: item.priceList?.name || 'Lista sin nombre',
+        currency: item.priceList?.currency || 'CLP',
+        netPrice: Number(item.netPrice),
+        grossPrice: Number(item.grossPrice),
+        taxIds: item.taxIds || [],
+      }));
+      variantsByProduct[v.productId || ''].push({
+        ...v,
+        unitOfMeasure: v.unit?.name || 'Unidad',
+        priceListItems,
+      });
+    }
+
+    const enriched = products.map((p) => ({
+      ...p,
+      variants: variantsByProduct[p.id] ?? [],
+      variantCount: (variantsByProduct[p.id] ?? []).length,
+    }));
+
+    return enriched;
+  }
+
+  async create(data: any) {
+    const product = new Product();
+    product.name = String(data.name || '').trim();
+    product.description = data.description
+      ? String(data.description)
+      : undefined;
+    product.brand = data.brand ? String(data.brand) : undefined;
+    product.categoryId = data.categoryId || undefined;
+    product.productType = data.productType ?? product.productType;
+    product.taxIds = Array.isArray(data.taxIds) ? data.taxIds : undefined;
+    product.isActive =
+      typeof data.isActive === 'boolean' ? data.isActive : true;
+    product.baseUnitId = data.baseUnitId || undefined;
+    try {
+      const saved = await this.productRepository.save(product as any);
+      return { success: true, product: saved };
+    } catch (err) {
+      console.error('Error creating product', err);
+      return {
+        success: false,
+        error: err?.message || 'Error creating product',
+      };
+    }
+  }
+
+  async getStocks(productId: string) {
+    const raw = await this.dataSource
+      .getRepository(StockLevel)
+      .createQueryBuilder('sl')
+      .innerJoin('sl.variant', 'variant')
+      .innerJoin('sl.storage', 'storage')
+      .select('storage.id', 'warehouseId')
+      .addSelect('storage.name', 'warehouseName')
+      .addSelect('COALESCE(SUM(sl.availableStock), 0)', 'stock')
+      .where('variant.productId = :productId', { productId })
+      .andWhere('storage.deletedAt IS NULL')
+      .groupBy('storage.id')
+      .addGroupBy('storage.name')
+      .getRawMany();
+
+    return {
+      success: true,
+      stocks: raw.map((r) => ({
+        warehouseId: r.warehouseId,
+        warehouseName: r.warehouseName ?? null,
+        stock: Number(r.stock ?? 0),
+      })),
+    };
+  }
+
+  async update(id: string, data: any) {
+    const updateData: any = {};
+    if (data.name !== undefined)
+      updateData.name = String(data.name || '').trim();
+    if (data.description !== undefined)
+      updateData.description = data.description
+        ? String(data.description)
+        : null;
+    if (data.brand !== undefined)
+      updateData.brand = data.brand ? String(data.brand) : null;
+    if (data.categoryId !== undefined)
+      updateData.categoryId = data.categoryId || null;
+    if (data.productType !== undefined)
+      updateData.productType = data.productType;
+    if (data.taxIds !== undefined)
+      updateData.taxIds = Array.isArray(data.taxIds) ? data.taxIds : undefined;
+    if (data.isActive !== undefined)
+      updateData.isActive =
+        typeof data.isActive === 'boolean' ? data.isActive : true;
+    if (data.baseUnitId !== undefined)
+      updateData.baseUnitId = data.baseUnitId || null;
+
+    await this.productRepository.update(id, updateData);
+    const updated = await this.productRepository.findOne({ where: { id } });
+    if (!updated)
+      return { success: false, message: 'Product not found', statusCode: 404 };
+    return { success: true, product: updated };
+  }
+
+  async remove(id: string) {
+    const result = await this.productRepository.softDelete(id as any);
+    if (!result.affected) {
+      return { success: false, message: 'Product not found', statusCode: 404 };
+    }
+    return { success: true };
+  }
+}

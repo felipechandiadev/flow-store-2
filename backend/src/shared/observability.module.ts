@@ -1,0 +1,32 @@
+import { Module, Global } from '@nestjs/common';
+import { WinstonLoggerService } from './logging/winston-logger.service';
+import { LoggingInterceptor } from './logging/logging.interceptor';
+import { MetricsService } from './metrics/metrics.service';
+import { MetricsController } from './metrics/metrics.controller';
+import { MetricsInterceptor } from './metrics/metrics.interceptor';
+
+/**
+ * Módulo de Observabilidad
+ *
+ * Proporciona servicios de logging y métricas para todo el backend:
+ * - WinstonLoggerService: Logging estructurado
+ * - MetricsService: Métricas Prometheus
+ * - LoggingInterceptor: Captura automática de requests HTTP
+ */
+@Global()
+@Module({
+  providers: [
+    WinstonLoggerService,
+    LoggingInterceptor,
+    MetricsService,
+    MetricsInterceptor,
+  ],
+  controllers: [MetricsController],
+  exports: [
+    WinstonLoggerService,
+    LoggingInterceptor,
+    MetricsService,
+    MetricsInterceptor,
+  ],
+})
+export class ObservabilityModule {}

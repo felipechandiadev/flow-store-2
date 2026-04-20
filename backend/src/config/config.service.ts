@@ -1,0 +1,181 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import {
+  AppConfig,
+  DatabaseConfig,
+  RedisConfig,
+  JwtConfig,
+  Config,
+  StorageConfig,
+} from './config.interface';
+
+/**
+ * Configuration Service
+ * Provides typed access to all application configuration
+ */
+@Injectable()
+export class AppConfigService {
+  constructor(private configService: ConfigService) {}
+
+  // Application Configuration
+  get app(): AppConfig {
+    return {
+      nodeEnv: this.configService.get<string>('NODE_ENV')! as any,
+      port: parseInt(this.configService.get<string>('PORT')!, 10),
+      apiPrefix: this.configService.get<string>('API_PREFIX')!,
+      cors: {
+        origin: this.configService.get<string>('CORS_ORIGIN')!,
+        credentials:
+          this.configService.get<string>('CORS_CREDENTIALS')! === 'true',
+      },
+      logging: {
+        level: this.configService.get<string>('LOG_LEVEL')! as any,
+        maxSize: this.configService.get<string>('LOG_MAX_SIZE')!,
+        maxFiles: this.configService.get<string>('LOG_MAX_FILES')!,
+      },
+      metrics: {
+        enabled: this.configService.get<string>('METRICS_ENABLED')! === 'true',
+        prefix: this.configService.get<string>('METRICS_PREFIX')!,
+      },
+      security: {
+        bcryptRounds: parseInt(
+          this.configService.get<string>('BCRYPT_ROUNDS')!,
+          10,
+        ),
+        rateLimitTtl: parseInt(
+          this.configService.get<string>('RATE_LIMIT_TTL')!,
+          10,
+        ),
+        rateLimitMax: parseInt(
+          this.configService.get<string>('RATE_LIMIT_MAX')!,
+          10,
+        ),
+      },
+      business: {
+        maxTransactionLines: parseInt(
+          this.configService.get<string>('MAX_TRANSACTION_LINES')!,
+          10,
+        ),
+        defaultCurrency: this.configService.get<string>('DEFAULT_CURRENCY')!,
+        timezone: this.configService.get<string>('TIMEZONE')!,
+      },
+      features: {
+        enableSwagger:
+          this.configService.get<string>('ENABLE_SWAGGER')! === 'true',
+        enableCors: this.configService.get<string>('ENABLE_CORS')! === 'true',
+        enableHealthCheck:
+          this.configService.get<string>('ENABLE_HEALTH_CHECK')! === 'true',
+        enableMetrics:
+          this.configService.get<string>('ENABLE_METRICS')! === 'true',
+        enableCache: this.configService.get<string>('ENABLE_CACHE')! === 'true',
+      },
+    };
+  }
+
+  // Database Configuration
+  get database(): DatabaseConfig {
+    return {
+      type: this.configService.get<string>('DB_TYPE')! as any,
+      host: this.configService.get<string>('DB_HOST')!,
+      port: parseInt(this.configService.get<string>('DB_PORT')!, 10),
+      username: this.configService.get<string>('DB_USERNAME')!,
+      password: this.configService.get<string>('DB_PASSWORD')!,
+      database: this.configService.get<string>('DB_DATABASE')!,
+      synchronize: this.configService.get<string>('DB_SYNCHRONIZE')! === 'true',
+      logging: this.configService.get<string>('DB_LOGGING')! === 'true',
+      ssl: this.configService.get<string>('DB_SSL')! === 'true',
+      maxConnections: parseInt(
+        this.configService.get<string>('DB_MAX_CONNECTIONS')!,
+        10,
+      ),
+      connectionTimeout: parseInt(
+        this.configService.get<string>('DB_CONNECTION_TIMEOUT')!,
+        10,
+      ),
+    };
+  }
+
+  // Redis Configuration
+  get redis(): RedisConfig {
+    return {
+      host: this.configService.get<string>('REDIS_HOST')!,
+      port: parseInt(this.configService.get<string>('REDIS_PORT')!, 10),
+      password: this.configService.get<string>('REDIS_PASSWORD') || undefined,
+      db: parseInt(this.configService.get<string>('REDIS_DB')!, 10),
+      keyPrefix: this.configService.get<string>('REDIS_KEY_PREFIX')!,
+      ttl: parseInt(this.configService.get<string>('REDIS_TTL')!, 10),
+      clusterMode:
+        this.configService.get<string>('REDIS_CLUSTER_MODE')! === 'true',
+    };
+  }
+
+  // JWT Configuration
+  get jwt(): JwtConfig {
+    return {
+      secret: this.configService.get<string>('JWT_SECRET')!,
+      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN')!,
+      refreshSecret: this.configService.get<string>('JWT_REFRESH_SECRET')!,
+      refreshExpiresIn: this.configService.get<string>(
+        'JWT_REFRESH_EXPIRES_IN',
+      )!,
+    };
+  }
+
+  // Multimedia Storage Configuration
+  get storage(): StorageConfig {
+    const allowedMimeTypes = this.configService
+      .get<string>('MEDIA_ALLOWED_MIME_TYPES')!
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    return {
+      strategy: this.configService.get<string>('STORAGE_STRATEGY')! as
+        | 'cloudflare'
+        | 'local',
+      maxFileSize: parseInt(
+        this.configService.get<string>('MEDIA_MAX_FILE_SIZE')!,
+        10,
+      ),
+      allowedMimeTypes,
+      publicBasePath: this.configService.get<string>('MEDIA_PUBLIC_BASE_PATH')!,
+      r2: {
+        accountId: this.configService.get<string>('R2_ACCOUNT_ID') || undefined,
+        endpoint: this.configService.get<string>('R2_ENDPOINT') || undefined,
+        accessKeyId:
+          this.configService.get<string>('R2_ACCESS_KEY_ID') || undefined,
+        secretAccessKey:
+          this.configService.get<string>('R2_SECRET_ACCESS_KEY') || undefined,
+        bucketName: this.configService.get<string>('R2_BUCKET_NAME') || undefined,
+        publicUrl: this.configService.get<string>('R2_PUBLIC_URL') || undefined,
+      },
+      local: {
+        path: this.configService.get<string>('LOCAL_STORAGE_PATH')!,
+      },
+    };
+  }
+
+  // Complete Configuration Object
+  get config(): Config {
+    return {
+      app: this.app,
+      database: this.database,
+      redis: this.redis,
+      jwt: this.jwt,
+      storage: this.storage,
+    };
+  }
+
+  // Utility methods
+  isDevelopment(): boolean {
+    return this.app.nodeEnv === 'development';
+  }
+
+  isProduction(): boolean {
+    return this.app.nodeEnv === 'production';
+  }
+
+  isTest(): boolean {
+    return this.app.nodeEnv === 'test';
+  }
+}

@@ -1,0 +1,34 @@
+import { Module } from '@nestjs/common';
+import { CqrsModule } from '@nestjs/cqrs';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UsersModule } from '@modules/users/users.module';
+import { User } from '@modules/users/domain/user.entity';
+import { AuthController } from './presentation/auth.controller';
+import { AuthService } from './application/auth.service';
+import { AuthServiceAdapter } from './application/auth.service.adapter';
+import { AUTH_REPOSITORY } from './application/ports/auth.repository.port';
+import { TypeOrmAuthRepository } from './infrastructure/repositories/typeorm-auth.repository';
+
+// CQRS Imports
+import { LoginCommandHandler } from './application/handlers/commands/login.handler';
+import { LogoutCommandHandler } from './application/handlers/commands/logout.handler';
+
+@Module({
+  imports: [UsersModule, TypeOrmModule.forFeature([User]), CqrsModule],
+  controllers: [AuthController],
+  providers: [
+    // Legacy service for backward compatibility
+    AuthService,
+    // CQRS Service Adapter
+    AuthServiceAdapter,
+    {
+      provide: AUTH_REPOSITORY,
+      useClass: TypeOrmAuthRepository,
+    },
+    // CQRS Handlers
+    LoginCommandHandler,
+    LogoutCommandHandler,
+  ],
+  exports: [AuthService, AuthServiceAdapter, AUTH_REPOSITORY],
+})
+export class AuthModule {}

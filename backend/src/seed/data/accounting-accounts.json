@@ -1,0 +1,32 @@
+[
+  {"ref":"ASSETS","code":"1","name":"Activos","type":"ASSET"},
+  {"ref":"CASH","code":"1.1.01","name":"Caja General","type":"ASSET","parentRef":"ASSETS"},
+  {"ref":"BANKS","code":"1.1.02","name":"Bancos","type":"ASSET","parentRef":"ASSETS"},
+  {"ref":"INVENTORY","code":"1.1.04","name":"Existencias (Inventario)","type":"ASSET","parentRef":"ASSETS"},
+  {"ref":"VAT_CREDIT","code":"1.1.05","name":"IVA Credito Fiscal","type":"ASSET","parentRef":"ASSETS"},
+
+  {"ref":"LIABILITIES","code":"2","name":"Pasivos","type":"LIABILITY"},
+  {"ref":"SUPPLIERS","code":"2.1.01","name":"Proveedores","type":"LIABILITY","parentRef":"LIABILITIES"},
+  {"ref":"VAT_DEBIT","code":"2.1.02","name":"IVA Debito Fiscal","type":"LIABILITY","parentRef":"LIABILITIES"},
+  {"ref":"WITHHOLDINGS","code":"2.1.03","name":"Retenciones","type":"LIABILITY","parentRef":"LIABILITIES"},
+  {"ref":"PAYROLL_PAYABLE","code":"2.2.01","name":"Remuneraciones por pagar","type":"LIABILITY","parentRef":"LIABILITIES"},
+  {"ref":"AFP_PAYABLE","code":"2.2.02","name":"AFP por pagar","type":"LIABILITY","parentRef":"LIABILITIES"},
+  {"ref":"HEALTH_PAYABLE","code":"2.2.03","name":"Salud por pagar","type":"LIABILITY","parentRef":"LIABILITIES"},
+  {"ref":"OTHER_DEDUCTIONS_PAYABLE","code":"2.2.04","name":"Otras retenciones","type":"LIABILITY","parentRef":"LIABILITIES"},
+
+  {"ref":"EQUITY","code":"3","name":"Patrimonio","type":"EQUITY"},
+  {"ref":"PAID_CAPITAL","code":"3.1.01","name":"Capital Pagado","type":"EQUITY","parentRef":"EQUITY"},
+  {"ref":"RETAINED_EARNINGS","code":"3.1.02","name":"Utilidades Acumuladas","type":"EQUITY","parentRef":"EQUITY"},
+
+  {"ref":"INCOME","code":"4","name":"Ingresos","type":"INCOME"},
+  {"ref":"SALES","code":"4.1.01","name":"Ventas de Mercaderias","type":"INCOME","parentRef":"INCOME"},
+  {"ref":"ADJUSTMENT_GAIN","code":"4.2.02","name":"Ganancia por Ajustes","type":"INCOME","parentRef":"INCOME"},
+
+  {"ref":"EXPENSES","code":"5","name":"Egresos / Gastos","type":"EXPENSE"},
+  {"ref":"COGS","code":"5.1.01","name":"Costo de Ventas (CMV)","type":"EXPENSE","parentRef":"EXPENSES"},
+  {"ref":"ADJUSTMENT_LOSS","code":"5.1.02","name":"Perdida por Ajustes","type":"EXPENSE","parentRef":"EXPENSES"},
+  {"ref":"GENERAL_EXPENSES","code":"5.2.03","name":"Gastos Generales","type":"EXPENSE","parentRef":"EXPENSES"},
+  {"ref":"PAYROLL_EXPENSE","code":"5.3.01","name":"Sueldos y salarios","type":"EXPENSE","parentRef":"EXPENSES"},
+  {"ref":"PAYROLL_CONTRIBUTIONS","code":"5.3.02","name":"Cargas sociales","type":"EXPENSE","parentRef":"EXPENSES"},
+  {"ref":"OTHER_BENEFITS","code":"5.3.03","name":"Otros haberes","type":"EXPENSE","parentRef":"EXPENSES"}
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "userName": "admin",
+    "password": "098098",
+    "role": "ADMIN",
+    "isActive": true,
+    "person": {
+      "type": "INDIVIDUAL",
+      "firstName": "Administrador",
+      "lastName": "Sistema",
+      "documentType": "RUT",
+      "documentNumber": "11111111-1",
+      "email": "admin@flowstore.local",
+      "phone": null,
+      "address": null,
+      "bankAccounts": null
+    },
+    "permissions": "ALL"
+  }
+]

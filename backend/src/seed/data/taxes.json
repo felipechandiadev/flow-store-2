@@ -1,0 +1,20 @@
+[
+  {
+    "code": "IVA",
+    "name": "IVA 19%",
+    "taxType": "IVA",
+    "rate": 19,
+    "description": "Impuesto al Valor Agregado 19%",
+    "isDefault": true,
+    "isActive": true
+  },
+  {
+    "code": "EXENTO",
+    "name": "Exento",
+    "taxType": "EXEMPT",
+    "rate": 0,
+    "description": "Producto exento de impuestos",
+    "isDefault": false,
+    "isActive": true
+  }
+]

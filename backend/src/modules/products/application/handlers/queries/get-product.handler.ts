@@ -1,0 +1,62 @@
+import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
+import { Logger, NotFoundException } from '@nestjs/common';
+import { GetProductQuery } from '../../queries/get-product.query';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ProductOrmEntity } from '@modules/products/infrastructure/orm-mappers/product.orm-entity';
+import { Product } from '../../../domain/product.entity';
+import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
+
+@QueryHandler(GetProductQuery)
+export class GetProductQueryHandler implements IQueryHandler<
+  GetProductQuery,
+  Product
+> {
+  private readonly logger = new Logger(GetProductQueryHandler.name);
+
+  constructor(
+    @InjectRepository(ProductOrmEntity)
+    private readonly productRepository: Repository<ProductOrmEntity>,
+    private readonly multimediaService: MultimediaServiceAdapter,
+  ) {}
+
+  async execute(query: GetProductQuery): Promise<Product> {
+    this.logger.debug(`Fetching product ${query.productId}`);
+
+    const product = await this.productRepository.findOne({
+      where: { id: query.productId, deletedAt: null as any },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product ${query.productId} not found`);
+    }
+
+    // Convert ORM entity to domain entity
+    const assets = await this.multimediaService.listByEntity('product', product.id);
+
+    return new Product({
+      id: product.id,
+      name: product.name,
+      categoryId: product.categoryId,
+      brand: product.brand,
+      description: product.description,
+      isActive: product.isActive,
+      productType: product.productType,
+      taxIds: product.taxIds,
+      primaryImageUrl: assets[0]?.publicUrl ?? null,
+      mediaAssets: assets.map((asset) => ({
+        id: asset.id,
+        publicUrl: asset.publicUrl,
+        mimeType: asset.mimeType,
+        kind: asset.kind,
+      })),
+      resultCenterId: product.resultCenterId ?? null,
+      baseUnitId: product.baseUnitId,
+      metadata: product.metadata,
+      changeHistory: product.changeHistory,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+      deletedAt: product.deletedAt,
+    });
+  }
+}

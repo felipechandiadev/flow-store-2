@@ -1,0 +1,26 @@
+[
+  {
+    "ref": "ALMACEN_PARRAL",
+    "branchRef": "SUCURSAL_PARRAL",
+    "name": "Almacen Sucursal Parral",
+    "code": "ALM-PAR",
+    "type": "STORE",
+    "category": "IN_BRANCH",
+    "capacity": 2000,
+    "location": "Sucursal Parral",
+    "isDefault": true,
+    "isActive": true
+  },
+  {
+    "ref": "BODEGA_CENTRAL",
+    "branchRef": null,
+    "name": "Bodega Central",
+    "code": "BOD-CEN",
+    "type": "WAREHOUSE",
+    "category": "CENTRAL",
+    "capacity": 10000,
+    "location": "Centro de Distribucion",
+    "isDefault": false,
+    "isActive": true
+  }
+]

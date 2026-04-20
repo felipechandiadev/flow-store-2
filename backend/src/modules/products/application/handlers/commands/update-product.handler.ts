@@ -1,0 +1,82 @@
+import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs';
+import { Logger, NotFoundException } from '@nestjs/common';
+import { UpdateProductCommand } from '../../commands/update-product.command';
+import { ProductUpdatedEvent } from '../../../domain/events/product-updated.event';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ProductOrmEntity } from '@modules/products/infrastructure/orm-mappers/product.orm-entity';
+import { Product } from '../../../domain/product.entity';
+
+@CommandHandler(UpdateProductCommand)
+export class UpdateProductCommandHandler implements ICommandHandler<
+  UpdateProductCommand,
+  Product
+> {
+  private readonly logger = new Logger(UpdateProductCommandHandler.name);
+
+  constructor(
+    @InjectRepository(ProductOrmEntity)
+    private readonly productRepository: Repository<ProductOrmEntity>,
+    private readonly eventBus: EventBus,
+  ) {}
+
+  async execute(command: UpdateProductCommand): Promise<Product> {
+    this.logger.debug(`Updating product ${command.productId}`);
+
+    const product = await this.productRepository.findOne({
+      where: { id: command.productId },
+    });
+    if (!product) {
+      throw new NotFoundException(`Product ${command.productId} not found`);
+    }
+
+    const oldName = product.name;
+    const oldActive = product.isActive;
+
+    if (command.name !== undefined) product.name = command.name;
+    if (command.description !== undefined)
+      product.description = command.description;
+    if (command.brand !== undefined) product.brand = command.brand;
+    if (command.categoryId !== undefined)
+      product.categoryId = command.categoryId;
+    if (command.isActive !== undefined) product.isActive = command.isActive;
+
+    const updated = await this.productRepository.save(product);
+
+    const event = new ProductUpdatedEvent(
+      updated.id,
+      command.name !== undefined && command.name !== oldName
+        ? command.name
+        : undefined,
+      command.description,
+      command.isActive !== undefined && command.isActive !== oldActive
+        ? command.isActive
+        : undefined,
+    );
+    event.aggregateVersion = 2;
+    event.userId = command.currentUserId;
+    event.correlationId = command.productId;
+
+    this.eventBus.publish(event);
+    this.logger.debug(`Product ${updated.id} updated successfully`);
+
+    // Convert ORM entity to domain entity
+    return new Product({
+      id: updated.id,
+      name: updated.name,
+      categoryId: updated.categoryId,
+      brand: updated.brand,
+      description: updated.description,
+      isActive: updated.isActive,
+      productType: updated.productType,
+      taxIds: updated.taxIds,
+      resultCenterId: updated.resultCenterId ?? null,
+      baseUnitId: updated.baseUnitId,
+      metadata: updated.metadata,
+      changeHistory: updated.changeHistory,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+      deletedAt: updated.deletedAt,
+    });
+  }
+}

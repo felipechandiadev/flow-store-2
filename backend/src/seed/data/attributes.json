@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Talla",
+    "description": "Tallas disponibles (números)",
+    "options": [
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20",
+      "21"
+    ],
+    "displayOrder": 1,
+    "isActive": true
+  },
+  {
+    "name": "Material",
+    "description": "Materiales comúnmente usados en joyería",
+    "options": [
+      "Oro 18K",
+      "Oro 14K",
+      "Plata 925",
+      "Acero inoxidable",
+      "Titanio",
+      "Platino"
+    ],
+    "displayOrder": 2,
+    "isActive": true
+  }
+]

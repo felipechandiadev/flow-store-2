@@ -1,0 +1,98 @@
+[
+  {
+    "person": {
+      "type": "COMPANY",
+      "businessName": "AuroJoyas Importaciones Ltda.",
+      "documentType": "RUT",
+      "documentNumber": "77.123.456-K",
+      "email": "ventas@aurojoyas.cl",
+      "phone": "+56 2 2234 5678",
+      "address": "Av. El Bosque 345, Santiago"
+    },
+    "supplierType": "MANUFACTURER",
+    "creditTerms": "30 days",
+    "creditLimit": 50000000,
+    "paymentTerms": "Net 30",
+    "notes": "Proveedor principal de oro y metales preciosos",
+    "bankAccounts": [
+      {
+        "bankName": "BANCO_DE_CHILE",
+        "accountTypeName": "CUENTA_CORRIENTE",
+        "accountNumber": "123456789-0",
+        "currency": "CLP"
+      }
+    ]
+  },
+  {
+    "person": {
+      "type": "COMPANY",
+      "businessName": "Bianchi Gemas SpA",
+      "documentType": "RUT",
+      "documentNumber": "78.234.567-1",
+      "email": "contacto@bianchigemas.cl",
+      "phone": "+56 2 2567 8901",
+      "address": "Calle Huérfanos 789, Santiago"
+    },
+    "supplierType": "MANUFACTURER",
+    "creditTerms": "45 days",
+    "creditLimit": 35000000,
+    "paymentTerms": "Net 45",
+    "notes": "Proveedor de piedras preciosas y gemas",
+    "bankAccounts": [
+      {
+        "bankName": "BANCO_SANTANDER",
+        "accountTypeName": "CUENTA_CORRIENTE",
+        "accountNumber": "234567890-1",
+        "currency": "CLP"
+      }
+    ]
+  },
+  {
+    "person": {
+      "type": "COMPANY",
+      "businessName": "Global Diamond Trade Ltda.",
+      "documentType": "RUT",
+      "documentNumber": "79.345.678-2",
+      "email": "sales@globaldiamond.cl",
+      "phone": "+56 2 2890 1234",
+      "address": "Paseo Ahumada 234, Santiago"
+    },
+    "supplierType": "DISTRIBUTOR",
+    "creditTerms": "60 days",
+    "creditLimit": 75000000,
+    "paymentTerms": "Net 60",
+    "notes": "Distribuidor oficial de diamantes certificados",
+    "bankAccounts": [
+      {
+        "bankName": "SCOTIABANK",
+        "accountTypeName": "CUENTA_CORRIENTE",
+        "accountNumber": "345678901-2",
+        "currency": "CLP"
+      }
+    ]
+  },
+  {
+    "person": {
+      "type": "COMPANY",
+      "businessName": "Insumos y Componentes Joyería Emc Ltda.",
+      "documentType": "RUT",
+      "documentNumber": "80.456.789-3",
+      "email": "compras@emcjoyas.cl",
+      "phone": "+56 2 2123 4567",
+      "address": "Av. Libertador Bernardo O'Higgins 1000, Santiago"
+    },
+    "supplierType": "WHOLESALER",
+    "creditTerms": "30 days",
+    "creditLimit": 25000000,
+    "paymentTerms": "Net 30",
+    "notes": "Proveedor de insumos, componentes y herramientas para joyería",
+    "bankAccounts": [
+      {
+        "bankName": "BANCO_ITAU",
+        "accountTypeName": "CUENTA_CORRIENTE",
+        "accountNumber": "456789012-3",
+        "currency": "CLP"
+      }
+    ]
+  }
+]

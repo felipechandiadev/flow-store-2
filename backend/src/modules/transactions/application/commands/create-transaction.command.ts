@@ -1,0 +1,37 @@
+import { CreateTransactionLineDto } from '@modules/transactions/application/dto/create-transaction.dto';
+
+export class CreateTransactionCommand {
+  constructor(
+    readonly transactionType: string,
+    readonly branchId: string,
+    readonly userId: string,
+    readonly total: number,
+    readonly subtotal?: number,
+    readonly taxAmount?: number,
+    readonly discountAmount?: number,
+    readonly paymentMethod?: string,
+    readonly paymentStatus?: string,
+    readonly amountPaid?: number,
+    readonly changeAmount?: number,
+    readonly customerId?: string,
+    readonly supplierId?: string,
+    readonly shareholderId?: string,
+    readonly employeeId?: string,
+    readonly pointOfSaleId?: string,
+    readonly cashSessionId?: string,
+    readonly storageId?: string,
+    readonly targetStorageId?: string,
+    readonly expenseCategoryId?: string,
+    readonly resultCenterId?: string,
+    readonly accountingPeriodId?: string,
+    readonly documentType?: string,
+    readonly documentFolio?: string,
+    readonly paymentDueDate?: string,
+    readonly relatedTransactionId?: string,
+    readonly externalReference?: string,
+    readonly bankAccountKey?: string,
+    readonly notes?: string,
+    readonly metadata?: Record<string, any>,
+    readonly lines?: CreateTransactionLineDto[],
+  ) {}
+}

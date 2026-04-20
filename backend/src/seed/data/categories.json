@@ -1,0 +1,54 @@
+[
+  {
+    "ref": "ANILLOS",
+    "name": "Anillos",
+    "description": "Anillos de oro, plata y piedras preciosas",
+    "sortOrder": 1
+  },
+  {
+    "ref": "ANILLOS_ORO",
+    "name": "Anillos de Oro",
+    "description": "Anillos elaborados en oro 18K, 14K y 10K",
+    "parentRef": "ANILLOS",
+    "sortOrder": 1
+  },
+  {
+    "ref": "ANILLOS_PLATA",
+    "name": "Anillos de Plata",
+    "description": "Anillos de plata esterlina 925",
+    "parentRef": "ANILLOS",
+    "sortOrder": 2
+  },
+  {
+    "ref": "COLLARES",
+    "name": "Collares",
+    "description": "Collares y cadenas finas",
+    "sortOrder": 2
+  },
+  {
+    "ref": "COLLARES_CADENAS",
+    "name": "Cadenas",
+    "description": "Cadenas de diferentes grosores y acabados",
+    "parentRef": "COLLARES",
+    "sortOrder": 1
+  },
+  {
+    "ref": "COLLARES_COLGANTES",
+    "name": "Collares con Colgantes",
+    "description": "Collares con dijes y colgantes",
+    "parentRef": "COLLARES",
+    "sortOrder": 2
+  },
+  {
+    "ref": "PULSERAS",
+    "name": "Pulseras",
+    "description": "Pulseras y brazaletes",
+    "sortOrder": 3
+  },
+  {
+    "ref": "AROS",
+    "name": "Aros",
+    "description": "Aros y pendientes",
+    "sortOrder": 4
+  }
+]

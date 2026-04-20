@@ -1,0 +1,20 @@
+[
+  {
+    "ref": "ADMINISTRACION",
+    "code": "ADM-01",
+    "name": "Administracion",
+    "unitType": "BACKOFFICE",
+    "description": "Unidad administrativa general",
+    "branchRef": "SUCURSAL_PARRAL",
+    "isActive": true
+  },
+  {
+    "ref": "OPERACIONES",
+    "code": "OPS-01",
+    "name": "Operaciones",
+    "unitType": "OPERATIONS",
+    "description": "Unidad operativa",
+    "branchRef": "SUCURSAL_PARRAL",
+    "isActive": true
+  }
+]

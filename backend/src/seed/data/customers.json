@@ -1,0 +1,46 @@
+[
+  {
+    "person": {
+      "type": "NATURAL",
+      "firstName": "Roberto",
+      "lastName": "Mendoza Silva",
+      "documentType": "RUT",
+      "documentNumber": "14.567.890-1",
+      "email": "roberto.mendoza@email.cl",
+      "phone": "+56 9 8765 4300"
+    },
+    "customerType": "RETAIL",
+    "paymentTerms": "30 days",
+    "creditLimit": 500000,
+    "notes": "Cliente minorista regular"
+  },
+  {
+    "person": {
+      "type": "COMPANY",
+      "businessName": "Joyería Premium SpA",
+      "documentType": "RUT",
+      "documentNumber": "76.543.210-K",
+      "email": "ventas@joypremium.cl",
+      "phone": "+56 2 2345 6789"
+    },
+    "customerType": "WHOLESALE",
+    "paymentTerms": "30 days",
+    "creditLimit": 5000000,
+    "notes": "Cliente mayorista"
+  },
+  {
+    "person": {
+      "type": "NATURAL",
+      "firstName": "Ana",
+      "lastName": "García Fuentes",
+      "documentType": "RUT",
+      "documentNumber": "15.678.901-2",
+      "email": "ana.garcia@email.cl",
+      "phone": "+56 9 8765 4301"
+    },
+    "customerType": "RETAIL",
+    "paymentTerms": "7 days",
+    "creditLimit": 1000000,
+    "notes": "Cliente minorista frecuente"
+  }
+]

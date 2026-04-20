@@ -1,0 +1,158 @@
+[
+  {
+    "ref": "SALE_CASH",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "SALE",
+    "paymentMethod": "CASH",
+    "debitAccountRef": "CASH",
+    "creditAccountRef": "SALES",
+    "priority": 1,
+    "isActive": true
+  },
+  {
+    "ref": "SALE_CARD",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "SALE",
+    "paymentMethod": "CREDIT_CARD",
+    "debitAccountRef": "BANKS",
+    "creditAccountRef": "SALES",
+    "priority": 2,
+    "isActive": true
+  },
+  {
+    "ref": "SALE_DEBIT",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "SALE",
+    "paymentMethod": "DEBIT_CARD",
+    "debitAccountRef": "BANKS",
+    "creditAccountRef": "SALES",
+    "priority": 3,
+    "isActive": true
+  },
+  {
+    "ref": "SALE_TRANSFER",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "SALE",
+    "paymentMethod": "TRANSFER",
+    "debitAccountRef": "BANKS",
+    "creditAccountRef": "SALES",
+    "priority": 4,
+    "isActive": true
+  },
+  {
+    "ref": "PURCHASE",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "PURCHASE",
+    "debitAccountRef": "INVENTORY",
+    "creditAccountRef": "SUPPLIERS",
+    "priority": 10,
+    "isActive": true
+  },
+  {
+    "ref": "ADJUSTMENT_IN",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "ADJUSTMENT_IN",
+    "debitAccountRef": "INVENTORY",
+    "creditAccountRef": "ADJUSTMENT_GAIN",
+    "priority": 20,
+    "isActive": true
+  },
+  {
+    "ref": "ADJUSTMENT_OUT",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "ADJUSTMENT_OUT",
+    "debitAccountRef": "ADJUSTMENT_LOSS",
+    "creditAccountRef": "INVENTORY",
+    "priority": 21,
+    "isActive": true
+  },
+  {
+    "ref": "OPERATING_EXPENSE",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "OPERATING_EXPENSE",
+    "debitAccountRef": "PAYROLL_EXPENSE",
+    "creditAccountRef": "SUPPLIERS",
+    "priority": 30,
+    "isActive": true
+  },
+
+  {
+    "ref": "PAYMENT_IN",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "PAYMENT_IN",
+    "debitAccountRef": "BANKS",
+    "creditAccountRef": "PAID_CAPITAL",
+    "priority": 5,
+    "isActive": true
+  },
+  {
+    "ref": "PAYMENT_IN_CASH",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "PAYMENT_IN",
+    "paymentMethod": "CASH",
+    "debitAccountRef": "CASH",
+    "creditAccountRef": "PAID_CAPITAL",
+    "priority": 4,
+    "isActive": true
+  },
+
+  {
+    "ref": "CASH_DEPOSIT",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "CASH_DEPOSIT",
+    "debitAccountRef": "BANKS",
+    "creditAccountRef": "CASH",
+    "priority": 6,
+    "isActive": true
+  },
+
+  {
+    "ref": "BANK_TRANSFER_OUT",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "BANK_WITHDRAWAL_TO_SHAREHOLDER",
+    "debitAccountRef": "GENERAL_EXPENSES",
+    "creditAccountRef": "BANKS",
+    "priority": 7,
+    "isActive": true
+  },
+
+  {
+    "ref": "BANK_WITHDRAWAL",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "CASH_SESSION_WITHDRAWAL",
+    "debitAccountRef": "CASH",
+    "creditAccountRef": "BANKS",
+    "priority": 8,
+    "isActive": true
+  },
+
+  {
+    "ref": "PAYMENT_OUT",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "PAYMENT_OUT",
+    "debitAccountRef": "GENERAL_EXPENSES",
+    "creditAccountRef": "BANKS",
+    "priority": 9,
+    "isActive": true
+  },
+
+  {
+    "ref": "SUPPLIER_PAYMENT",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "SUPPLIER_PAYMENT",
+    "debitAccountRef": "SUPPLIERS",
+    "creditAccountRef": "BANKS",
+    "priority": 10,
+    "isActive": true
+  },
+
+  {
+    "ref": "EXPENSE_PAYMENT",
+    "appliesTo": "TRANSACTION",
+    "transactionType": "EXPENSE_PAYMENT",
+    "debitAccountRef": "GENERAL_EXPENSES",
+    "creditAccountRef": "BANKS",
+    "priority": 11,
+    "isActive": true
+  }
+]

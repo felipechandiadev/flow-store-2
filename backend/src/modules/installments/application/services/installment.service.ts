@@ -1,0 +1,681 @@
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import {
+  Installment,
+  InstallmentStatus,
+  InstallmentSourceType,
+} from '@modules/installments/domain/installment.entity';
+import { InstallmentRepository } from '@modules/installments/infrastructure/installment.repository';
+import { CreateInstallmentDto } from '@modules/installments/presentation/dto/create-installment.dto';
+import { PayInstallmentDto } from '@modules/installments/presentation/dto/pay-installment.dto';
+import { Transaction } from '@modules/transactions/domain/transaction.entity';
+import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
+import {
+  PaymentMethod,
+  TransactionType,
+} from '@modules/transactions/domain/transaction.entity';
+import { TransactionsService } from '@modules/transactions/application/transactions.service';
+
+@Injectable()
+export class InstallmentService {
+  constructor(
+    private readonly repo: InstallmentRepository,
+    private readonly transactionsService: TransactionsService,
+    @InjectRepository(Transaction)
+    private readonly transactionsRepository: Repository<Transaction>,
+  ) {}
+
+  async getInstallmentsForSale(
+    saleTransactionId: string,
+  ): Promise<Installment[]> {
+    return this.repo.getInstallmentsByTransaction(saleTransactionId);
+  }
+
+  async createInstallmentsFromSchedule(
+    transactionId: string,
+    schedule: Array<{ amount: number; dueDate: string | Date }>,
+    options: {
+      sourceType: InstallmentSourceType;
+      payeeType: string;
+      payeeId?: string;
+    },
+  ): Promise<Installment[]> {
+    const totalInstallments = schedule.length;
+    const installments: Installment[] = [];
+
+    for (let i = 0; i < schedule.length; i += 1) {
+      const item = schedule[i];
+      const dueDate =
+        item.dueDate instanceof Date ? item.dueDate : new Date(item.dueDate);
+
+      const installment = this.repo.create({
+        sourceType: options.sourceType,
+        sourceTransactionId: transactionId,
+        saleTransactionId:
+          options.sourceType === InstallmentSourceType.SALE
+            ? transactionId
+            : undefined,
+        payeeType: options.payeeType,
+        payeeId: options.payeeId,
+        installmentNumber: i + 1,
+        totalInstallments,
+        amount: Number(item.amount || 0),
+        dueDate,
+        status: InstallmentStatus.PENDING,
+        amountPaid: 0,
+        metadata: {
+          installmentNumber: i + 1,
+          totalInstallments,
+        },
+      });
+
+      const saved = await this.repo.save(installment);
+      installments.push(saved);
+    }
+
+    return installments;
+  }
+
+  private resolvePaymentTransactionType(
+    sourceType: InstallmentSourceType,
+  ): TransactionType {
+    switch (sourceType) {
+      case InstallmentSourceType.SALE:
+        return TransactionType.PAYMENT_IN;
+      case InstallmentSourceType.PURCHASE:
+        return TransactionType.SUPPLIER_PAYMENT;
+      case InstallmentSourceType.OPERATING_EXPENSE:
+        return TransactionType.EXPENSE_PAYMENT;
+      case InstallmentSourceType.PAYROLL:
+        return TransactionType.PAYMENT_EXECUTION;
+      default:
+        return TransactionType.PAYMENT_OUT;
+    }
+  }
+
+  /**
+   * Crear cuotas automáticamente cuando se crea una SALE/PURCHASE a plazo
+   *
+   * @example
+   * // SALE $300,000 con 3 cuotas mensuales
+   * await this.createInstallmentsForTransaction(
+   *     'sale-123',
+   *     300000,
+   *     3,
+   *     new Date('2026-03-22'), // Fecha de vencimiento primera cuota
+   *     'SALE' // Tipo de transacción origen
+   * );
+   */
+  async createInstallmentsForTransaction(
+    transactionId: string,
+    totalAmount: number,
+    numberOfInstallments: number,
+    firstDueDate: Date,
+    sourceType?: InstallmentSourceType,
+  ): Promise<Installment[]> {
+    const amountPerInstallment = totalAmount / numberOfInstallments;
+    const installments: Installment[] = [];
+
+    // Determinar sourceType (default SALE para compatibilidad)
+    const type = sourceType || InstallmentSourceType.SALE;
+
+    for (let i = 1; i <= numberOfInstallments; i++) {
+      const dueDate = new Date(firstDueDate);
+      dueDate.setMonth(dueDate.getMonth() + (i - 1));
+
+      const installment = this.repo.create({
+        sourceType: type,
+        sourceTransactionId: transactionId,
+        installmentNumber: i,
+        totalInstallments: numberOfInstallments,
+        amount: amountPerInstallment,
+        dueDate,
+        status: InstallmentStatus.PENDING,
+        amountPaid: 0,
+        // Para compatibilidad con código legacy de SALE
+        saleTransactionId:
+          type === InstallmentSourceType.SALE ? transactionId : undefined,
+      });
+
+      const saved = await this.repo.save(installment);
+      installments.push(saved);
+    }
+
+    return installments;
+  }
+
+  /**
+   * Crear una cuota única para PAYROLL, OPERATING_EXPENSE, etc.
+   *
+   * @example
+   * // PAYROLL $800,000 para empleado
+   * await this.createSingleInstallment(
+   *     'payroll-456',
+   *     800000,
+   *     new Date('2026-03-01'), // Fecha de pago
+   *     {
+   *         sourceType: 'PAYROLL',
+   *         payeeType: 'EMPLOYEE',
+   *         payeeId: 'emp-123',
+   *         metadata: { employeeName: 'Juan Pérez', period: '2026-02' }
+   *     }
+   * );
+   */
+  async createSingleInstallment(
+    transactionId: string,
+    amount: number,
+    dueDate: Date,
+    options: {
+      sourceType: InstallmentSourceType;
+      payeeType: string;
+      payeeId?: string;
+      metadata?: Record<string, any>;
+    },
+  ): Promise<Installment> {
+    const installment = this.repo.create({
+      sourceType: options.sourceType,
+      sourceTransactionId: transactionId,
+      payeeType: options.payeeType,
+      payeeId: options.payeeId,
+      installmentNumber: 1,
+      totalInstallments: 1,
+      amount,
+      dueDate,
+      status: InstallmentStatus.PENDING,
+      amountPaid: 0,
+      metadata: options.metadata,
+      // Para compatibilidad con código legacy de SALE
+      saleTransactionId:
+        options.sourceType === InstallmentSourceType.SALE
+          ? transactionId
+          : undefined,
+    });
+
+    const saved = await this.repo.save(installment);
+    return saved;
+  }
+
+  /**
+   * Actualizar cuota cuando se registra un pago (PAYMENT_IN/SUPPLIER_PAYMENT)
+   */
+  async updateInstallmentFromPayment(
+    installmentId: string,
+    paymentAmount: number,
+    paymentTransactionId: string,
+  ): Promise<Installment> {
+    const installment = await this.repo.findOneBy({ id: installmentId });
+
+    if (!installment) {
+      throw new Error('Installment not found');
+    }
+
+    installment.amountPaid =
+      parseFloat(installment.amountPaid.toString()) + paymentAmount;
+    installment.paymentTransactionId = paymentTransactionId;
+
+    // Recalcular estado
+    if (installment.amountPaid >= parseFloat(installment.amount.toString())) {
+      installment.status = InstallmentStatus.PAID;
+    } else if (parseFloat(installment.amountPaid.toString()) > 0) {
+      installment.status = InstallmentStatus.PARTIAL;
+    }
+
+    // Marcar como OVERDUE si está vencida y no pagada
+    if (
+      installment.isOverdue() &&
+      installment.status === InstallmentStatus.PENDING
+    ) {
+      installment.status = InstallmentStatus.OVERDUE;
+    }
+
+    return this.repo.save(installment);
+  }
+
+  /**
+   * Obtener cuotas de una transacción
+   */
+  async getInstallmentsByTransaction(
+    transactionId: string,
+  ): Promise<Installment[]> {
+    return this.repo.getInstallmentsByTransaction(transactionId);
+  }
+
+  /**
+   * Obtener estado de cartera de una transacción
+   */
+  async getTransactionCarteraStatus(transactionId: string) {
+    return this.repo.getTransactionCarteraStatus(transactionId);
+  }
+
+  /**
+   * Reporte: Cartera por Vencer
+   */
+  async getCarteraByDueDate(
+    fromDate: Date,
+    toDate: Date,
+  ): Promise<
+    {
+      dueDate: Date;
+      totalAmount: number;
+      totalPaid: number;
+      pendingAmount: number;
+      installmentsCount: number;
+    }[]
+  > {
+    const installments = await this.repo.getCarteraByDueDate(fromDate, toDate);
+
+    const grouped = installments.reduce(
+      (acc, inst) => {
+        const key = inst.dueDate.toISOString().split('T')[0];
+        if (!acc[key]) {
+          acc[key] = {
+            dueDate: inst.dueDate,
+            totalAmount: 0,
+            totalPaid: 0,
+            pendingAmount: 0,
+            installmentsCount: 0,
+          };
+        }
+        acc[key].totalAmount += parseFloat(inst.amount.toString());
+        acc[key].totalPaid += parseFloat(inst.amountPaid.toString());
+        acc[key].pendingAmount += inst.getPendingAmount();
+        acc[key].installmentsCount++;
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
+
+    return Object.values(grouped);
+  }
+
+  /**
+   * Reporte: Morosidad
+   */
+  async getOverdueReport(today: Date = new Date()) {
+    return this.repo.getOverdueSummary(today);
+  }
+
+  /**
+   * Obtener todas las cuentas por pagar (CENTRALIZED ACCOUNTS PAYABLE)
+   * Incluye: Receptions (PURCHASE), Payroll, Operating Expenses
+   *
+   * @param filters - Filtros opcionales
+   * @returns Lista de obligaciones de pago pendientes y atrasadas
+   */
+  async getAccountsPayable(filters?: {
+    sourceType?: InstallmentSourceType | InstallmentSourceType[]; // Filtrar por tipo: PURCHASE, PAYROLL, OPERATING_EXPENSE
+    status?: InstallmentStatus | InstallmentStatus[]; // Filtrar por estado: PENDING, PARTIAL, OVERDUE
+    payeeType?: string; // Filtrar por tipo de beneficiario: SUPPLIER, EMPLOYEE
+    fromDate?: Date; // Fecha de vencimiento desde
+    toDate?: Date; // Fecha de vencimiento hasta
+  }) {
+    const queryBuilder = this.repo.createQueryBuilder('installment');
+
+    // Join con transaction para obtener detalles
+    queryBuilder.leftJoinAndSelect(
+      'installment.saleTransaction',
+      'transaction',
+    );
+    queryBuilder.leftJoinAndMapOne(
+      'installment.sourceTransaction',
+      Transaction,
+      'sourceTransaction',
+      'sourceTransaction.id = installment.sourceTransactionId',
+    );
+    queryBuilder.leftJoinAndSelect(
+      'installment.paymentTransaction',
+      'paymentTransaction',
+    );
+    queryBuilder.leftJoinAndSelect(
+      'sourceTransaction.supplier',
+      'sourceSupplier',
+    );
+    queryBuilder.leftJoinAndSelect(
+      'sourceSupplier.person',
+      'sourceSupplierPerson',
+    );
+
+    // Filtro por sourceType (ej: solo PURCHASE y PAYROLL)
+    if (filters?.sourceType) {
+      const sourceTypes = Array.isArray(filters.sourceType)
+        ? filters.sourceType
+        : [filters.sourceType];
+      queryBuilder.andWhere('installment.sourceType IN (:...sourceTypes)', {
+        sourceTypes,
+      });
+    } else {
+      // Por defecto, excluir SALE (cuentas por cobrar) para mostrar solo cuentas por pagar
+      queryBuilder.andWhere('installment.sourceType != :saleType', {
+        saleType: InstallmentSourceType.SALE,
+      });
+    }
+
+    // Filtro por status (default: PENDING, PARTIAL, OVERDUE - excluir PAID)
+    if (filters?.status) {
+      const statuses = Array.isArray(filters.status)
+        ? filters.status
+        : [filters.status];
+      queryBuilder.andWhere('installment.status IN (:...statuses)', {
+        statuses,
+      });
+    } else {
+      queryBuilder.andWhere('installment.status IN (:...defaultStatuses)', {
+        defaultStatuses: [
+          InstallmentStatus.PENDING,
+          InstallmentStatus.PARTIAL,
+          InstallmentStatus.OVERDUE,
+        ],
+      });
+    }
+
+    // Filtro por payeeType
+    if (filters?.payeeType) {
+      queryBuilder.andWhere('installment.payeeType = :payeeType', {
+        payeeType: filters.payeeType,
+      });
+    }
+
+    // Filtro por rango de fechas de vencimiento
+    if (filters?.fromDate) {
+      queryBuilder.andWhere('installment.dueDate >= :fromDate', {
+        fromDate: filters.fromDate,
+      });
+    }
+    if (filters?.toDate) {
+      queryBuilder.andWhere('installment.dueDate <= :toDate', {
+        toDate: filters.toDate,
+      });
+    }
+
+    // Ordenar por pagos recientes (nulls al final), luego por vencimiento descendente
+    queryBuilder.orderBy('paymentTransaction.createdAt IS NULL', 'ASC');
+    queryBuilder.addOrderBy('paymentTransaction.createdAt', 'DESC');
+    queryBuilder.addOrderBy('installment.dueDate', 'DESC');
+
+    return queryBuilder.getMany();
+  }
+
+  /**
+   * Obtener cuentas por cobrar (SALE)
+   */
+  async getAccountsReceivable(filters?: {
+    status?: InstallmentStatus | InstallmentStatus[];
+    includePaid?: boolean;
+    customerId?: string;
+    search?: string;
+    fromDate?: Date;
+    toDate?: Date;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const page = Math.max(Number(filters?.page ?? 1), 1);
+    const pageSize = Math.min(
+      Math.max(Number(filters?.pageSize ?? 50), 1),
+      200,
+    );
+
+    const queryBuilder = this.repo.createQueryBuilder('installment');
+
+    queryBuilder
+      .leftJoinAndSelect('installment.saleTransaction', 'transaction')
+      .leftJoinAndSelect('transaction.customer', 'customer')
+      .leftJoinAndSelect('customer.person', 'person');
+
+    queryBuilder.andWhere('installment.sourceType = :saleType', {
+      saleType: InstallmentSourceType.SALE,
+    });
+
+    if (filters?.status) {
+      const statuses = Array.isArray(filters.status)
+        ? filters.status
+        : [filters.status];
+      queryBuilder.andWhere('installment.status IN (:...statuses)', {
+        statuses,
+      });
+    } else if (!filters?.includePaid) {
+      queryBuilder.andWhere('installment.status IN (:...defaultStatuses)', {
+        defaultStatuses: [
+          InstallmentStatus.PENDING,
+          InstallmentStatus.PARTIAL,
+          InstallmentStatus.OVERDUE,
+        ],
+      });
+    }
+
+    if (filters?.customerId) {
+      queryBuilder.andWhere('transaction.customerId = :customerId', {
+        customerId: filters.customerId,
+      });
+    }
+
+    if (filters?.search) {
+      const search = `%${filters.search.trim()}%`;
+      queryBuilder.andWhere(
+        '(transaction.documentNumber LIKE :search OR person.businessName LIKE :search OR person.firstName LIKE :search OR person.lastName LIKE :search)',
+        { search },
+      );
+    }
+
+    if (filters?.fromDate) {
+      queryBuilder.andWhere('installment.dueDate >= :fromDate', {
+        fromDate: filters.fromDate,
+      });
+    }
+    if (filters?.toDate) {
+      queryBuilder.andWhere('installment.dueDate <= :toDate', {
+        toDate: filters.toDate,
+      });
+    }
+
+    queryBuilder.orderBy('installment.dueDate', 'ASC');
+    queryBuilder.skip((page - 1) * pageSize).take(pageSize);
+
+    const [rows, total] = await queryBuilder.getManyAndCount();
+    return { rows, total, page, pageSize };
+  }
+
+  /**
+   * Obtener una cuota por ID
+   */
+  async getInstallmentById(id: string): Promise<Installment | null> {
+    return this.repo.findOneBy({ id });
+  }
+
+  /**
+   * Contexto para registrar pago directo de una cuota
+   */
+  async getPaymentContext(installmentId: string) {
+    const installment = await this.repo.findOneBy({ id: installmentId });
+    if (!installment) {
+      throw new NotFoundException('Installment not found');
+    }
+
+    const sourceTransaction = await this.transactionsRepository.findOne({
+      where: { id: installment.sourceTransactionId },
+      relations: {
+        supplier: { person: true },
+        employee: { person: true },
+        branch: { company: true },
+      },
+    });
+
+    if (!sourceTransaction) {
+      throw new NotFoundException('Source transaction not found');
+    }
+
+    const supplierPerson = sourceTransaction.supplier?.person;
+    const employeePerson = sourceTransaction.employee?.person;
+
+    const payeeName =
+      sourceTransaction.supplier?.alias ||
+      supplierPerson?.businessName ||
+      [supplierPerson?.firstName, supplierPerson?.lastName]
+        .filter(Boolean)
+        .join(' ')
+        .trim() ||
+      [employeePerson?.firstName, employeePerson?.lastName]
+        .filter(Boolean)
+        .join(' ')
+        .trim() ||
+      installment.metadata?.supplierName ||
+      installment.metadata?.employeeName ||
+      null;
+
+    const payeeAccounts =
+      supplierPerson?.bankAccounts || employeePerson?.bankAccounts || [];
+    const companyAccounts =
+      sourceTransaction.branch?.company?.bankAccounts ?? [];
+
+    return {
+      payment: {
+        id: installment.id,
+        documentNumber: sourceTransaction.documentNumber ?? '-',
+        supplierName: payeeName,
+        total: Number(installment.amount),
+        pendingAmount: installment.getPendingAmount(),
+        paymentMethod: sourceTransaction.paymentMethod ?? null,
+      },
+      supplierAccounts: payeeAccounts,
+      companyAccounts,
+    };
+  }
+
+  /**
+   * Registrar pago directo de una cuota
+   */
+  async payInstallment(installmentId: string, dto: PayInstallmentDto) {
+    const installment = await this.repo.findOneBy({ id: installmentId });
+    if (!installment) {
+      throw new NotFoundException('Installment not found');
+    }
+
+    const pendingAmount = installment.getPendingAmount();
+    const amount = dto.amount ?? pendingAmount;
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Monto de pago inválido');
+    }
+
+    if (amount > pendingAmount) {
+      throw new BadRequestException('El monto supera el saldo pendiente');
+    }
+
+    const sourceTransaction = await this.transactionsRepository.findOne({
+      where: { id: installment.sourceTransactionId },
+      relations: {
+        supplier: true,
+        employee: true,
+        branch: true,
+      },
+    });
+
+    if (!sourceTransaction) {
+      throw new NotFoundException('Source transaction not found');
+    }
+
+    if (!sourceTransaction.branchId) {
+      throw new BadRequestException(
+        'No se pudo determinar la sucursal para el pago',
+      );
+    }
+
+    if (!sourceTransaction.userId) {
+      throw new BadRequestException(
+        'No se pudo determinar el usuario para el pago',
+      );
+    }
+
+    if (
+      dto.paymentMethod === PaymentMethod.TRANSFER &&
+      !dto.companyAccountKey
+    ) {
+      throw new BadRequestException(
+        'Debe seleccionar la cuenta bancaria de la compañía',
+      );
+    }
+
+    const transactionType = this.resolvePaymentTransactionType(
+      installment.sourceType,
+    );
+    const createDto = new CreateTransactionDto();
+    createDto.transactionType = transactionType;
+    createDto.branchId = sourceTransaction.branchId;
+    createDto.userId = sourceTransaction.userId;
+    createDto.subtotal = amount;
+    createDto.taxAmount = 0;
+    createDto.discountAmount = 0;
+    createDto.total = amount;
+    createDto.amountPaid = amount;
+    createDto.paymentMethod = dto.paymentMethod;
+    createDto.relatedTransactionId = installment.sourceTransactionId;
+    createDto.bankAccountKey = dto.companyAccountKey || undefined;
+    createDto.notes = dto.note || undefined;
+    createDto.metadata = {
+      paidQuotaId: installment.id,
+      sourceType: installment.sourceType,
+      payeeType: installment.payeeType,
+    };
+
+    if (transactionType === TransactionType.SUPPLIER_PAYMENT) {
+      createDto.supplierId =
+        sourceTransaction.supplierId || installment.payeeId || undefined;
+      if (!createDto.supplierId) {
+        throw new BadRequestException(
+          'No se pudo determinar el proveedor del pago',
+        );
+      }
+    }
+
+    if (transactionType === TransactionType.EXPENSE_PAYMENT) {
+      createDto.expenseCategoryId =
+        sourceTransaction.expenseCategoryId || undefined;
+      if (!createDto.expenseCategoryId) {
+        throw new BadRequestException(
+          'No se pudo determinar la categoría del gasto',
+        );
+      }
+    }
+
+    if (transactionType === TransactionType.PAYMENT_EXECUTION) {
+      createDto.employeeId =
+        sourceTransaction.employeeId || installment.payeeId || undefined;
+    }
+
+    const transaction =
+      await this.transactionsService.createTransaction(createDto);
+
+    return {
+      success: true,
+      transaction,
+    };
+  }
+
+  /**
+   * Validar si cuota puede recibir una transacción de pago
+   */
+  async validatePayment(
+    installmentId: string,
+    paymentAmount: number,
+  ): Promise<boolean> {
+    const installment = await this.getInstallmentById(installmentId);
+
+    if (!installment) {
+      throw new Error('Installment not found');
+    }
+
+    const pendingAmount = installment.getPendingAmount();
+
+    if (paymentAmount > pendingAmount) {
+      throw new Error(
+        `Payment amount ${paymentAmount} exceeds pending amount ${pendingAmount}`,
+      );
+    }
+
+    return true;
+  }
+}

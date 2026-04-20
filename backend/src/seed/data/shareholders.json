@@ -1,0 +1,32 @@
+[
+  {
+    "companyId": "joyarte-spa",
+    "person": {
+      "type": "NATURAL",
+      "firstName": "Carlos",
+      "lastName": "González Ramírez",
+      "documentType": "RUT",
+      "documentNumber": "12.345.678-9",
+      "email": "carlos@joyarte.cl",
+      "phone": "+56 9 8765 4321"
+    },
+    "role": "Socio Fundador",
+    "ownershipPercentage": 60,
+    "notes": "Socio mayoritario con participación del 60%"
+  },
+  {
+    "companyId": "joyarte-spa",
+    "person": {
+      "type": "NATURAL",
+      "firstName": "María",
+      "lastName": "López Martínez",
+      "documentType": "RUT",
+      "documentNumber": "13.456.789-0",
+      "email": "maria@joyarte.cl",
+      "phone": "+56 9 8765 4322"
+    },
+    "role": "Socia",
+    "ownershipPercentage": 40,
+    "notes": "Socia con participación del 40%"
+  }
+]

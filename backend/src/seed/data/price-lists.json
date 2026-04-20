@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Lista General",
+    "priceListType": "RETAIL",
+    "currency": "CLP",
+    "priority": 0,
+    "isDefault": true,
+    "isActive": true,
+    "description": "Lista de precios general para ventas minoristas"
+  },
+  {
+    "name": "Lista Mayorista",
+    "priceListType": "WHOLESALE",
+    "currency": "CLP",
+    "priority": 1,
+    "isDefault": false,
+    "isActive": true,
+    "description": "Lista de precios para clientes mayoristas"
+  }
+]

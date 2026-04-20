@@ -1,0 +1,34 @@
+[
+  {
+    "symbol": "UN",
+    "name": "Unidad",
+    "dimension": "count",
+    "conversionFactor": 1,
+    "allowDecimals": false,
+    "isBase": true
+  },
+  {
+    "symbol": "KG",
+    "name": "Kilogramo",
+    "dimension": "mass",
+    "conversionFactor": 1,
+    "allowDecimals": true,
+    "isBase": true
+  },
+  {
+    "symbol": "M",
+    "name": "Metro",
+    "dimension": "length",
+    "conversionFactor": 1,
+    "allowDecimals": true,
+    "isBase": true
+  },
+  {
+    "symbol": "L",
+    "name": "Litro",
+    "dimension": "volume",
+    "conversionFactor": 1,
+    "allowDecimals": true,
+    "isBase": true
+  }
+]

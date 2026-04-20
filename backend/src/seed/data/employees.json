@@ -1,0 +1,40 @@
+[
+  {
+    "person": {
+      "type": "NATURAL",
+      "firstName": "María",
+      "lastName": "González Pérez",
+      "documentType": "RUT",
+      "documentNumber": "18.234.567-8",
+      "email": "maria.gonzalez@flowstore.cl",
+      "phone": "+56 9 8765 4320",
+      "address": "Av. Providencia 1234, Santiago"
+    },
+    "employmentType": "FULL_TIME",
+    "status": "ACTIVE",
+    "hireDate": "2024-01-15",
+    "baseSalary": 650000,
+    "position": "Vendedora Senior",
+    "department": "Ventas",
+    "branchRef": "HQ"
+  },
+  {
+    "person": {
+      "type": "NATURAL",
+      "firstName": "Carlos",
+      "lastName": "Rodríguez López",
+      "documentType": "RUT",
+      "documentNumber": "19.345.678-9",
+      "email": "carlos.rodriguez@flowstore.cl",
+      "phone": "+56 9 8765 4321",
+      "address": "Calle Las Condes 5678, Santiago"
+    },
+    "employmentType": "FULL_TIME",
+    "status": "ACTIVE",
+    "hireDate": "2023-06-01",
+    "baseSalary": 750000,
+    "position": "Jefe de Bodega",
+    "department": "Operaciones",
+    "branchRef": "HQ"
+  }
+]

@@ -1,0 +1,142 @@
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Transaction, TransactionType, TransactionStatus } from '../../domain/transaction.entity';
+import { TransactionLine } from '../../../transaction-lines/domain/transaction-line.entity';
+import { Product } from '../../../products/domain/product.entity';
+import { ProductVariant } from '../../../product-variants/domain/product-variant.entity';
+import { Storage } from '../../../storages/domain/storage.entity';
+import { Branch } from '../../../branches/domain/branch.entity';
+import { User } from '../../../users/domain/user.entity';
+import { TransactionRepositoryPort } from '../../application/ports/transaction.repository.port';
+import { EventBus } from '@nestjs/cqrs';
+import { InventoryCountCreatedEvent } from '../../domain/events/inventory-events';
+import { CreateInventoryCountDto } from '../dto/inventory.dto';
+
+export class CreateInventoryCountCommand {
+  constructor(
+    public readonly dto: CreateInventoryCountDto,
+    public readonly userId: string,
+  ) {}
+}
+
+@Injectable()
+@CommandHandler(CreateInventoryCountCommand)
+export class CreateInventoryCountUseCase implements ICommandHandler<CreateInventoryCountCommand> {
+  constructor(
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
+    @InjectRepository(TransactionLine)
+    private readonly transactionLineRepository: Repository<TransactionLine>,
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
+    @InjectRepository(ProductVariant)
+    private readonly productVariantRepository: Repository<ProductVariant>,
+    @InjectRepository(Storage)
+    private readonly storageRepository: Repository<Storage>,
+    @InjectRepository(Branch)
+    private readonly branchRepository: Repository<Branch>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    private readonly transactionRepositoryPort: TransactionRepositoryPort,
+    private readonly eventBus: EventBus,
+  ) {}
+
+  async execute(command: CreateInventoryCountCommand): Promise<string> {
+    const { dto, userId } = command;
+
+    // Validate branch exists
+    const branch = await this.branchRepository.findOne({ where: { id: dto.branchId } });
+    if (!branch) {
+      throw new NotFoundException(`Branch with ID ${dto.branchId} not found`);
+    }
+
+    // Validate storage exists and belongs to branch
+    const storage = await this.storageRepository.findOne({
+      where: { id: dto.storageId, branch: { id: dto.branchId } }
+    });
+    if (!storage) {
+      throw new NotFoundException(`Storage with ID ${dto.storageId} not found in branch ${dto.branchId}`);
+    }
+
+    // Validate user exists
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    // Validate all products exist and calculate differences
+    const linesWithDifferences = [];
+    for (const line of dto.lines) {
+      const product = await this.productRepository.findOne({ where: { id: line.productId } });
+      if (!product) {
+        throw new NotFoundException(`Product with ID ${line.productId} not found`);
+      }
+
+      let variant: ProductVariant | null = null;
+      if (line.variantId) {
+        variant = await this.productVariantRepository.findOne({
+          where: { id: line.variantId, product: { id: line.productId } }
+        });
+        if (!variant) {
+          throw new NotFoundException(`Variant with ID ${line.variantId} not found for product ${line.productId}`);
+        }
+      }
+
+      // Calculate difference (physical - expected)
+      const difference = line.physicalCount - (line.expectedQuantity || 0);
+
+      linesWithDifferences.push({
+        ...line,
+        difference,
+        product,
+        variant,
+      });
+    }
+
+    // Generate document number
+    const documentNumber = `IC-${Date.now()}`;
+
+    // Create inventory count transaction
+    const transaction = this.transactionRepository.create({
+      documentNumber,
+      transactionType: TransactionType.INVENTORY_COUNT,
+      status: TransactionStatus.COMPLETED,
+      branchId: dto.branchId,
+      storageId: dto.storageId,
+      userId: userId,
+      total: 0, // Inventory counts don't have monetary value
+    });
+
+    const savedTransaction = await this.transactionRepository.save(transaction);
+
+    // Create transaction lines for each count
+    for (const lineData of linesWithDifferences) {
+      const transactionLine = this.transactionLineRepository.create({
+        transactionId: savedTransaction.id,
+        productId: lineData.productId,
+        productVariantId: lineData.variantId,
+        productName: lineData.product.name,
+        variantName: lineData.variant?.name,
+        quantity: lineData.physicalCount,
+        unitPrice: 0, // No monetary value
+        total: 0,
+        notes: `Count: ${lineData.physicalCount}, Expected: ${lineData.expectedQuantity || 0}, Difference: ${lineData.difference}${lineData.notes ? ` - ${lineData.notes}` : ''}`,
+      });
+
+      await this.transactionLineRepository.save(transactionLine);
+    }
+
+    // Publish domain event
+    this.eventBus.publish(new InventoryCountCreatedEvent(
+      savedTransaction.id,
+      dto.branchId,
+      dto.storageId,
+      linesWithDifferences.length,
+      linesWithDifferences.filter(l => l.difference !== 0).length,
+    ));
+
+    return savedTransaction.id;
+  }
+}
