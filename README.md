@@ -39,8 +39,8 @@ flow-store-2/
    ```
 
 ## 📖 Instrucciones para Agentes de Copilot
-- **Siempre** lee y sigue `.git/info/backend.instruction` para desarrollo backend.
-- **Siempre** lee y sigue `.git/info/webadmin.instruction` para desarrollo frontend.
+- **Siempre** lee y sigue `.instructions/backend.instruction` para desarrollo backend.
+- **Siempre** lee y sigue `.instructions/webadmin.instruction` para desarrollo frontend.
 - Consulta `WEBADMIN_FRONTEND_GUIDE.md` para detalles completos.
 
 ## 🔧 Configuración
