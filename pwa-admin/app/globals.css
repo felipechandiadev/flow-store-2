@@ -1,9 +1,9 @@
+/* Leaflet CSS - Must come before other imports per CSS rules */
+@import 'leaflet/dist/leaflet.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Leaflet CSS - Must come before other imports per CSS rules */
-@import 'leaflet/dist/leaflet.css';
 
 /* LocationPicker - Custom cursor styles for map interactions */
 .leaflet-container {

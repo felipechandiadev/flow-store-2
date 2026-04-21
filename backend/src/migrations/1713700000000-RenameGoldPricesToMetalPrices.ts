@@ -1,4 +1,4 @@
-import { MigrationInterface, QueryRunner, TableRename } from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class RenameGoldPricesToMetalPrices1713700000000
   implements MigrationInterface

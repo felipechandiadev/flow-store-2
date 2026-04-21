@@ -29,7 +29,7 @@ import { CompanyOrmEntity } from '@modules/companies/infrastructure/orm-mappers/
 import { CustomerOrmEntity } from '@modules/customers/infrastructure/orm-mappers/customer.orm-entity';
 import { EmployeeOrmEntity } from '@modules/employees/infrastructure/orm-mappers/employee.orm-entity';
 import { ExpenseCategoryOrmEntity } from '@modules/expense-categories/infrastructure/orm-mappers/expense-category.orm-entity';
-import { GoldPriceOrmEntity } from '@modules/gold-prices/infrastructure/orm-mappers/gold-price.orm-entity';
+import { MetalPriceOrmEntity } from '@modules/metal-prices/infrastructure/orm-mappers/metal-price.orm-entity';
 import { LedgerEntryOrmEntity } from '@modules/ledger-entries/infrastructure/orm-mappers/ledger-entry.orm-entity';
 import { OperationalExpenseOrmEntity } from '@modules/operational-expenses/infrastructure/orm-mappers/operational-expense.orm-entity';
 import { OrganizationalUnitOrmEntity } from '@modules/organizational-units/infrastructure/orm-mappers/organizational-unit.orm-entity';
@@ -69,7 +69,7 @@ import { Company } from '@modules/companies/domain/company.entity';
 import { Customer } from '@modules/customers/domain/customer.entity';
 import { Employee } from '@modules/employees/domain/employee.entity';
 import { ExpenseCategory } from '@modules/expense-categories/domain/expense-category.entity';
-import { GoldPrice } from '@modules/gold-prices/domain/gold-price.entity';
+import { MetalPrice } from '@modules/metal-prices/domain/metal-price.entity';
 import { LedgerEntry } from '@modules/ledger-entries/domain/ledger-entry.entity';
 import { OperationalExpense } from '@modules/operational-expenses/domain/operational-expense.entity';
 import { OrganizationalUnit } from '@modules/organizational-units/domain/organizational-unit.entity';
@@ -135,7 +135,7 @@ export const REPOSITORY_PROVIDERS = [
   createRepositoryProvider(Shareholder, ShareholderOrmEntity),
 
   // Pricing Domain
-  createRepositoryProvider(GoldPrice, GoldPriceOrmEntity),
+  createRepositoryProvider(MetalPrice, MetalPriceOrmEntity),
   createRepositoryProvider(PriceList, PriceListOrmEntity),
   createRepositoryProvider(PriceListItem, PriceListItemOrmEntity),
   createRepositoryProvider(Tax, TaxOrmEntity),
