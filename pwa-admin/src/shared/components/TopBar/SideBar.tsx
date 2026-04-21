@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, User, Key, LogOut, ImageOff, Image as ImageIcon } from 'lucide-react';
+import { ChevronRight, User, Lock, LogOut, ImageOff, Image as ImageIcon } from 'lucide-react';
 import { Button } from '../Button/Button';
 import IconButton from '../IconButton/IconButton';
 
@@ -191,7 +191,7 @@ const SideBar: React.FC<SideBarProps> = ({
                 </div>
               </div>
               <IconButton
-                icon="Key"
+                icon="Lock"
                 variant="basic"
                 size="sm"
                 onClick={onOpenChangePassword}
