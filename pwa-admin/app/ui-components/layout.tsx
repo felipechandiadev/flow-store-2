@@ -3,8 +3,8 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { TopBar } from '@/shared/components/TopBar/TopBar';
-import SideBar, { SideBarMenuItem } from '@/shared/components/TopBar/SideBar';
+import TopBar from '@/shared/components/TopBar/TopBar';
+import { SideBarMenuItem } from '@/shared/components/TopBar/SideBar';
 import ChangePasswordDialog from '@/shared/components/Dialog/ChangePasswordDialog';
 
 export default function UIComponentsLayout({
@@ -37,6 +37,8 @@ export default function UIComponentsLayout({
     return null;
   }
 
+  const user = session?.user as Record<string, unknown> | undefined;
+
   // Menu items structure
   const menuItems: SideBarMenuItem[] = [
     { label: 'Dashboard', url: '/dashboard' },
@@ -54,18 +56,16 @@ export default function UIComponentsLayout({
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <SideBar
+    <div className="flex h-screen overflow-hidden flex-col">
+      <TopBar
+        title="Flow Store Admin"
+        logoSrc="/logo.png"
         menuItems={menuItems}
-        logoUrl="/logo.png"
         onOpenChangePassword={() => setIsDialogOpen(true)}
       />
-      <div className="flex flex-col flex-1">
-        <TopBar logoSrc="/logo.png" />
-        <main className="flex-1 overflow-auto bg-gray-50">
-          {children}
-        </main>
-      </div>
+      <main className="flex-1 overflow-auto bg-gray-50">
+        {children}
+      </main>
       <ChangePasswordDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
