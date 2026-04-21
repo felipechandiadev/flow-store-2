@@ -1,4 +1,5 @@
-@import "tailwindcss/preflight";
+@tailwind base;
+@tailwind components;
 @tailwind utilities;
 
 /* Leaflet CSS */
@@ -101,6 +102,7 @@
 
 /* Bounce effect on land */
 @keyframes marker-bounce {
+
   0%,
   100% {
     transform: translateY(0);
@@ -158,287 +160,103 @@ body {
 }
 
 @layer components {
-  /* Button Styles - Using inline CSS instead of @apply */
+  /* Button Styles */
   .btn-contained-primary {
-    background-color: var(--color-primary);
-    color: var(--color-background);
-    font-weight: 300;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    padding: 0.5rem 1rem;
-    text-align: center;
-    transition: background-color 0.2s, color 0.2s;
+    @apply bg-primary text-background font-light rounded-md text-sm px-4 py-2 text-center hover:bg-accent transition-colors duration-200 active:scale-90 active:shadow-inner;
     min-width: max-content;
     white-space: nowrap;
-  }
-
-  .btn-contained-primary:hover {
-    background-color: var(--color-accent);
-  }
-
-  .btn-contained-primary:active {
-    transform: scale(0.9);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .btn-contained-secondary {
-    background-color: var(--color-secondary);
-    color: var(--color-background);
-    font-weight: 300;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    padding: 0.5rem 1rem;
-    text-align: center;
-    transition: background-color 0.2s;
+    @apply bg-secondary text-background font-light rounded-md text-sm px-4 py-2 text-center hover:bg-accent transition-colors duration-200 active:scale-90 active:shadow-inner;
     min-width: max-content;
     white-space: nowrap;
-  }
-
-  .btn-contained-secondary:hover {
-    background-color: var(--color-accent);
-  }
-
-  .btn-contained-secondary:active {
-    transform: scale(0.9);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .btn-outlined {
-    border: 1px solid var(--color-foreground);
-    color: var(--color-foreground);
-    background-color: transparent;
-    font-weight: 300;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    padding: 0.5rem 1rem;
-    text-align: center;
-    transition: background-color 0.2s, color 0.2s;
+    @apply border border-foreground text-foreground bg-transparent font-light rounded-md text-sm px-4 py-2 text-center hover:bg-accent hover:text-background transition-colors duration-200 active:scale-90 active:shadow-inner;
     min-width: max-content;
     white-space: nowrap;
-  }
-
-  .btn-outlined:hover {
-    background-color: var(--color-accent);
-    color: var(--color-background);
-  }
-
-  .btn-outlined:active {
-    transform: scale(0.9);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .btn-outlined-secondary {
-    border: 1px solid var(--color-secondary);
-    color: var(--color-secondary);
-    background-color: transparent;
-    font-weight: 300;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    padding: 0.5rem 1rem;
-    text-align: center;
-    transition: background-color 0.2s, color 0.2s;
+    @apply border border-secondary text-secondary bg-transparent font-light rounded-md text-sm px-4 py-2 text-center hover:bg-secondary hover:text-background transition-colors duration-200 active:scale-90 active:shadow-inner;
     min-width: max-content;
     white-space: nowrap;
-  }
-
-  .btn-outlined-secondary:hover {
-    background-color: var(--color-secondary);
-    color: var(--color-background);
-  }
-
-  .btn-outlined-secondary:active {
-    transform: scale(0.9);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .btn-text {
-    color: var(--color-primary);
-    background-color: transparent;
-    font-weight: 300;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    padding: 0.5rem 1rem;
-    text-align: center;
-    transition: transform 0.2s;
+    @apply text-primary bg-transparent font-light rounded-md text-sm px-4 py-2 text-center hover:scale-110 active:scale-90;
     min-width: max-content;
     white-space: nowrap;
-  }
-
-  .btn-text:hover {
-    transform: scale(1.1);
-  }
-
-  .btn-text:active {
-    transform: scale(0.9);
   }
 
   .btn-contained-danger {
-    background-color: var(--color-error);
-    color: var(--color-background);
-    font-weight: 300;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    padding: 0.5rem 1rem;
-    text-align: center;
-    transition: background-color 0.2s;
+    @apply bg-error text-background font-light rounded-md text-sm px-4 py-2 text-center hover:bg-opacity-80 transition-colors duration-200 active:scale-90 active:shadow-inner;
     min-width: max-content;
     white-space: nowrap;
   }
 
-  .btn-contained-danger:hover {
-    background-color: rgba(244, 67, 54, 0.8);
-  }
-
-  .btn-contained-danger:active {
-    transform: scale(0.9);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
-  }
-
-  /* Pill Button Styles */
   .btn-pill-primary {
-    background-color: var(--color-primary);
-    color: var(--color-background);
-    font-weight: 300;
-    border-radius: 9999px;
-    font-size: 0.875rem;
-    padding: 0.5rem 1rem;
-    text-align: center;
-    transition: background-color 0.2s;
+    @apply bg-primary text-background font-light rounded-full text-sm px-4 py-2 text-center hover:bg-accent transition-colors duration-200 active:scale-90 active:shadow-inner;
     min-width: max-content;
     white-space: nowrap;
-  }
-
-  .btn-pill-primary:hover {
-    background-color: var(--color-accent);
-  }
-
-  .btn-pill-primary:active {
-    transform: scale(0.9);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .btn-pill-secondary {
-    background-color: var(--color-secondary);
-    color: var(--color-background);
-    font-weight: 300;
-    border-radius: 9999px;
-    font-size: 0.875rem;
-    padding: 0.5rem 1rem;
-    text-align: center;
-    transition: background-color 0.2s;
+    @apply bg-secondary text-background font-light rounded-full text-sm px-4 py-2 text-center hover:bg-accent transition-colors duration-200 active:scale-90 active:shadow-inner;
     min-width: max-content;
     white-space: nowrap;
-  }
-
-  .btn-pill-secondary:hover {
-    background-color: var(--color-accent);
-  }
-
-  .btn-pill-secondary:active {
-    transform: scale(0.9);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   /* Alert/Badge Styles */
   .alert-success {
-    background-color: rgba(76, 175, 80, 0.3);
-    color: var(--color-foreground);
-    border-color: var(--color-success);
+    @apply bg-opacity-30 bg-success text-foreground border border-success rounded-lg p-4;
   }
 
   .alert-info {
-    background-color: rgba(33, 150, 243, 0.3);
-    color: var(--color-foreground);
-    border-color: var(--color-info);
+    @apply bg-opacity-30 bg-info text-foreground border border-info rounded-lg p-4;
   }
 
   .alert-warning {
-    background-color: rgba(255, 193, 7, 0.3);
-    color: var(--color-foreground);
-    border-color: var(--color-warning);
+    @apply bg-opacity-30 bg-warning text-foreground border border-warning rounded-lg p-4;
   }
 
   .alert-error {
-    background-color: rgba(244, 67, 54, 0.3);
-    color: var(--color-foreground);
-    border-color: var(--color-error);
+    @apply bg-opacity-30 bg-error text-foreground border border-error rounded-lg p-4;
   }
 
   /* Icon Button Styles */
   .icon-button-contained-primary {
-    background-color: var(--color-primary);
-    color: var(--color-background);
-    border-radius: 0.375rem;
-    transition: background-color 0.2s;
-  }
-
-  .icon-button-contained-primary:hover {
-    background-color: var(--color-accent);
+    @apply bg-primary text-background rounded hover:bg-accent transition-colors;
   }
 
   .icon-button-contained-secondary {
-    background-color: var(--color-secondary);
-    color: var(--color-background);
-    border-radius: 0.375rem;
-    transition: background-color 0.2s;
-  }
-
-  .icon-button-contained-secondary:hover {
-    background-color: var(--color-accent);
+    @apply bg-secondary text-background rounded hover:bg-accent transition-colors;
   }
 
   .icon-button-text {
-    background-color: transparent;
-    color: var(--color-primary);
-    transition: color 0.2s;
-  }
-
-  .icon-button-text:hover {
-    color: var(--color-accent);
+    @apply bg-transparent text-primary hover:text-accent transition-colors;
   }
 
   .icon-button-basic {
-    background-color: transparent;
-    color: var(--color-foreground);
-    transition: color 0.2s;
-  }
-
-  .icon-button-basic:hover {
-    color: var(--color-primary);
+    @apply bg-transparent text-foreground hover:text-primary transition-colors;
   }
 
   .icon-button-outlined {
-    border: 1px solid var(--color-border);
-    background-color: transparent;
-    color: var(--color-foreground);
-    border-radius: 0.375rem;
-    transition: all 0.2s;
-  }
-
-  .icon-button-outlined:hover {
-    background-color: var(--color-accent);
-    color: var(--color-background);
-    border-color: var(--color-accent);
+    @apply border border-border bg-transparent text-foreground rounded hover:bg-accent hover:text-background hover:border-accent transition-all;
   }
 
   .icon-button-ghost {
-    background-color: transparent;
-    color: var(--color-foreground);
-    transition: background-color 0.2s;
-  }
-
-  .icon-button-ghost:hover {
-    background-color: var(--color-neutral);
+    @apply bg-transparent text-foreground hover:bg-neutral transition-colors;
   }
 
   .icon-button-disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    @apply opacity-50 cursor-not-allowed;
   }
 
   .icon-button-disabled:hover {
-    background-color: inherit;
-    text-color: inherit;
+    @apply bg-inherit text-inherit;
   }
 
   /* IconButton Size Classes */
@@ -460,5 +278,98 @@ body {
 
   .icon-size-xl {
     font-size: 40px;
+  }
+
+  /* Form Styles */
+  .form-input {
+    @apply w-full px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium text-foreground mb-1;
+  }
+
+  .form-group {
+    @apply mb-4;
+  }
+
+  /* Dropdown/Select Styles */
+  .dropdown-menu {
+    @apply absolute left-0 mt-2 w-full min-w-max bg-background border border-border rounded-md shadow-lg z-50;
+  }
+
+  .dropdown-item {
+    @apply px-4 py-2 text-sm text-foreground hover:bg-accent hover:text-background cursor-pointer transition-colors;
+  }
+
+  .dropdown-item.active {
+    @apply bg-primary text-background;
+  }
+
+  .dropdown-item.disabled {
+    @apply opacity-50 cursor-not-allowed hover:bg-transparent hover:text-foreground;
+  }
+
+  /* Alert Box Styles */
+  .alert {
+    @apply rounded-lg p-4 border;
+  }
+
+  .alert-success-box {
+    @apply bg-success/20 border-success text-success;
+  }
+
+  .alert-info-box {
+    @apply bg-info/20 border-info text-info;
+  }
+
+  .alert-warning-box {
+    @apply bg-warning/20 border-warning text-warning;
+  }
+
+  .alert-error-box {
+    @apply bg-error/20 border-error text-error;
+  }
+
+  /* Text Color Utilities */
+  .text-primary-color {
+    @apply text-primary;
+  }
+
+  .text-secondary-color {
+    @apply text-secondary;
+  }
+
+  .text-foreground-color {
+    @apply text-foreground;
+  }
+
+  .text-muted-color {
+    @apply text-muted;
+  }
+
+  .text-background-color {
+    @apply text-background;
+  }
+
+  /* Background Color Utilities */
+  .bg-primary-color {
+    @apply bg-primary;
+  }
+
+  .bg-secondary-color {
+    @apply bg-secondary;
+  }
+
+  .bg-foreground-color {
+    @apply bg-foreground;
+  }
+
+  .bg-muted-color {
+    @apply bg-muted;
+  }
+
+  .bg-background-color {
+    @apply bg-background;
   }
 }
