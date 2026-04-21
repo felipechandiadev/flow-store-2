@@ -1,6 +1,6 @@
 'use client';
 
-import { Card } from '@/shared/components/Card/Card';
+import Card from '@/shared/components/Card/Card';
 
 export default function CardPage() {
   return (

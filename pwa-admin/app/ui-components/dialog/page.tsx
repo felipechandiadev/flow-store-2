@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Dialog } from '@/shared/components/Dialog/Dialog';
+import Dialog from '@/shared/components/Dialog/Dialog';
 import { Button } from '@/shared/components/Button/Button';
 
 export default function DialogPage() {
