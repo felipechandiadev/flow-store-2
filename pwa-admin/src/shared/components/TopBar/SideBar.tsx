@@ -191,7 +191,7 @@ const SideBar: React.FC<SideBarProps> = ({
                 </div>
               </div>
               <IconButton
-                icon="KeyVertical"
+                icon="Key"
                 variant="basic"
                 size="sm"
                 onClick={onOpenChangePassword}
