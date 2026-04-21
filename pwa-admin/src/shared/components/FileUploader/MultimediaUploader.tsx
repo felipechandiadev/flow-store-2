@@ -1,5 +1,6 @@
 "use client";
 import React, { useRef, useState } from 'react';
+import { User, ImageOff, Image as ImageIcon, RotateCcw, Plus } from 'lucide-react';
 import { Button } from '../Button/Button';
 import IconButton from '../IconButton/IconButton';
 // TODO: Create shared/hooks/useAlert hook
@@ -203,14 +204,12 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
                 className="w-full h-full object-cover rounded-full"
               />
             ) : (
-              <span className="material-symbols-outlined text-secondary" style={{ fontSize: '4rem' }}>
-                person
-              </span>
+              <User className="text-secondary" size={64} />
             )}
           </div>
 
           <IconButton
-            icon="add"
+            icon="Plus"
             variant="containedSecondary"
             onClick={() => inputRef.current?.click()}
             ariaLabel="Seleccionar avatar"
@@ -230,14 +229,12 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
                 className="w-full h-full object-cover rounded-lg"
               />
             ) : (
-              <span className="material-symbols-outlined text-secondary" style={{ fontSize: '4rem' }}>
-                image
-              </span>
+              <ImageIcon className="text-secondary" size={64} />
             )}
           </div>
 
           <IconButton
-            icon="add"
+            icon="Plus"
             variant="containedSecondary"
             onClick={() => inputRef.current?.click()}
             ariaLabel="Seleccionar imagen"
@@ -307,9 +304,18 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
 
                   {/* Indicador de tipo de archivo */}
                   <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white p-2 rounded-full flex items-center justify-center">
-                    <span className="material-symbols-outlined text-sm leading-none">
-                      {isVideo ? 'videocam' : 'image'}
-                    </span>
+                    {isVideo ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                      </svg>
+                    )}
                   </div>
                 </div>
               );

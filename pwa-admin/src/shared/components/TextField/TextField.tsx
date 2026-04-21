@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { Eye, EyeOff } from 'lucide-react';
 
 interface TextFieldProps {
   label: string;
@@ -359,10 +360,10 @@ export const TextField: React.FC<TextFieldProps> = ({
       <div className={`relative ${className}`} data-test-id="text-field-root">
       {typeof startIcon === 'string' && startIcon.length > 0 && (
         <span
-          className={`input-icon material-symbols-outlined ${isDisabled ? 'text-muted-foreground opacity-50' : 'text-secondary'}`}
+          className={`input-icon ${isDisabled ? 'text-muted-foreground opacity-50' : 'text-secondary'}`}
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-
         >
+          {/* Icon rendering placeholder - should be replaced with lucide icon logic */}
           {startIcon}
         </span>
       )}
@@ -449,13 +450,11 @@ export const TextField: React.FC<TextFieldProps> = ({
               aria-pressed={showPassword}
               data-test-id="password-visibility-toggle"
             >
-              <span
-                className="material-symbols-outlined"
-                style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                aria-hidden
-              >
-                {showPassword ? "visibility_off" : "visibility"}
-              </span>
+              {showPassword ? (
+                <EyeOff size={20} aria-hidden />
+              ) : (
+                <Eye size={20} aria-hidden />
+              )}
             </button>
           )}
         </div>
@@ -499,10 +498,10 @@ export const TextField: React.FC<TextFieldProps> = ({
       </label>
       {typeof endIcon === 'string' && endIcon.length > 0 && (
         <span
-          className={`input-icon-right material-symbols-outlined ${isDisabled ? 'text-muted-foreground opacity-50' : 'text-secondary'}`}
+          className={`input-icon-right ${isDisabled ? 'text-muted-foreground opacity-50' : 'text-secondary'}`}
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-
         >
+          {/* End icon rendering placeholder - should be replaced with lucide icon logic */}
           {endIcon}
         </span>
       )}

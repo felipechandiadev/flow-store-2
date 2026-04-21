@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useRef } from 'react';
+import { Minus, Plus } from 'lucide-react';
 
 interface NumberStepperProps {
   label?: string; // Ahora opcional
@@ -185,7 +186,12 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
     if (!label && !icon) return null;
 
     const iconElement = icon ? (
-      <span className="material-symbols-outlined text-gray-600 text-xs">
+      <span className="text-gray-600 text-xs">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M12 16v-4M12 8h.01"></path>
+        </svg>
+      </span>
         {icon}
       </span>
     ) : null;
@@ -251,7 +257,7 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
           className={`${buttonClasses} rounded-l-md border-r-[1px] border-border`}
           data-test-id={`${props['data-test-id']}-decrement`}
         >
-          <span className="material-symbols-outlined text-gray-600 text-sm">remove</span>
+          <Minus className="text-gray-600" size={16} />
         </button>
 
         {/* Input y Label/Icono - Contenedor centrado */}
@@ -284,7 +290,7 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
           className={`${buttonClasses} rounded-r-md border-l-[1px] border-border`}
           data-test-id={`${props['data-test-id']}-increment`}
         >
-          <span className="material-symbols-outlined text-gray-600 text-sm">add</span>
+          <Plus className="text-gray-600" size={16} />
         </button>
       </div>
     </>

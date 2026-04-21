@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TopBar, { type SideBarMenuItem } from '@/shared/components/TopBar/TopBar';
 import ChangePasswordDialog from '@/shared/components/Dialog/ChangePasswordDialog';
 
@@ -15,11 +15,12 @@ export default function DashboardLayout({
   const router = useRouter();
   const [showChangePassword, setShowChangePassword] = useState(false);
 
-  // Redirect to login if not authenticated
-  if (status === 'unauthenticated') {
-    router.push('/');
-    return null;
-  }
+  // Handle redirect to login if not authenticated using useEffect to avoid setState during render
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/');
+    }
+  }, [status, router]);
 
   if (status === 'loading') {
     return (
@@ -30,6 +31,10 @@ export default function DashboardLayout({
         </div>
       </div>
     );
+  }
+
+  if (status === 'unauthenticated') {
+    return null;
   }
 
   const user = session?.user as Record<string, unknown> | undefined;

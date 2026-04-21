@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { ChevronRight, User, Key, LogOut, ImageOff, Image as ImageIcon } from 'lucide-react';
 import { Button } from '../Button/Button';
 import IconButton from '../IconButton/IconButton';
 
@@ -104,15 +105,10 @@ const SideBar: React.FC<SideBarProps> = ({
             data-test-id={`side-bar-parent-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
           >
             <span>{item.label}</span>
-            <svg
-              className={`h-4 w-4 transform transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+            <ChevronRight
+              size={16}
+              className={`transform transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+            />
           </button>
           <ul className={`pl-6 space-y-1 mt-1 ${isOpen ? '' : 'hidden'}`}>
             {item.children!.map((child, cIdx) => (
@@ -156,9 +152,7 @@ const SideBar: React.FC<SideBarProps> = ({
             {(!logoLoaded || logoError) && (
               <div className="h-20 w-20 bg-neutral-300 rounded-lg flex items-center justify-center mx-auto mb-2" data-test-id="side-bar-logo-skeleton">
                 {logoError && (
-                  <span className="material-symbols-outlined text-neutral-400" style={{ fontSize: 32 }}>
-                    image_not_supported
-                  </span>
+                  <ImageOff className="text-neutral-400" size={32} />
                 )}
               </div>
             )}
@@ -191,14 +185,14 @@ const SideBar: React.FC<SideBarProps> = ({
           <div className="w-full px-6 mb-6">
             <div className="flex items-center justify-between gap-3 border border-gray-300 rounded-lg px-3 py-2" style={{ background: 'transparent', borderWidth: '0.3px' }}>
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <span className="material-symbols-outlined text-black text-3xl">person</span>
+                <User className="text-black flex-shrink-0" size={32} />
                 <div className="flex flex-col min-w-0">
                   <span className="text-base font-bold truncate">{displayName}</span>
                   <span className="text-xs opacity-60 capitalize truncate">{roleKey ? ROLE_LABELS[roleKey] ?? roleKey : ''}</span>
                 </div>
               </div>
               <IconButton
-                icon="key_vertical"
+                icon="KeyVertical"
                 variant="basic"
                 size="sm"
                 onClick={onOpenChangePassword}
@@ -218,12 +212,13 @@ const SideBar: React.FC<SideBarProps> = ({
       <div className="w-full mt-auto px-6 pb-2">
         <Button
           variant="outlined"
-          className="w-full"
+          className="w-full flex items-center justify-center gap-2"
           onClick={async () => {
             await signOut({ callbackUrl: '/' });
           }}
           data-test-id="side-bar-logout-btn"
         >
+          <LogOut size={18} />
           Cerrar sesión
         </Button>
       </div>

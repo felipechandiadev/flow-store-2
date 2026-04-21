@@ -1,6 +1,7 @@
 'use client'
 import React, { useState, useContext, useTransition } from 'react';
 import Image from 'next/image';
+import { Menu, ImageOff, Image as ImageIcon } from 'lucide-react';
 import SideBar, { SideBarMenuItem } from './SideBar';
 // TODO: Implement NotificationBell and useNotificationsSocket when notifications feature is created
 // import { NotificationBell } from '@/features/notifications/components/NotificationBell';
@@ -77,9 +78,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
                 {(!logoLoaded || logoError) && (
                   <div className="h-10 w-10 bg-neutral-300 rounded-lg flex items-center justify-center" data-test-id="top-bar-logo-skeleton">
                     {logoError && (
-                      <span className="material-symbols-outlined text-neutral-400" style={{ fontSize: 20 }}>
-                        image_not_supported
-                      </span>
+                      <ImageOff className="text-neutral-400" size={20} />
                     )}
                   </div>
                 )}
@@ -98,9 +97,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
               </>
             ) : (
               <div className="h-10 w-10 bg-neutral-300 rounded-lg flex items-center justify-center" data-test-id="top-bar-logo-placeholder">
-                <span className="material-symbols-outlined text-neutral-400" style={{ fontSize: 20 }}>
-                  image
-                </span>
+                <ImageIcon className="text-neutral-400" size={20} />
               </div>
             )}
             {title && title.trim() && (
@@ -144,9 +141,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
               data-test-id="top-bar-menu-button"
               aria-label="Abrir menú"
             >
-              <span className="material-symbols-outlined text-2xl" aria-hidden>
-                menu
-              </span>
+              <Menu size={24} aria-hidden />
             </button>
           </div>
         </header>
