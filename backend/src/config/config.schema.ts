@@ -30,7 +30,7 @@ export const configSchema = Joi.object({
   // Redis Cache
   REDIS_HOST: Joi.string().default('localhost'),
   REDIS_PORT: Joi.number().default(6379),
-  REDIS_PASSWORD: Joi.string().optional(),
+  REDIS_PASSWORD: Joi.string().allow('').optional(),
   REDIS_DB: Joi.number().default(0),
   REDIS_KEY_PREFIX: Joi.string().default('flow:'),
   REDIS_TTL: Joi.number().default(3600), // 1 hour default
@@ -59,14 +59,14 @@ export const configSchema = Joi.object({
   HEALTH_CHECK_ENABLED: Joi.boolean().default(true),
 
   // External APIs
-  GOLD_API_URL: Joi.string().optional(),
-  GOLD_API_KEY: Joi.string().optional(),
+  GOLD_API_URL: Joi.string().allow('').optional(),
+  GOLD_API_KEY: Joi.string().allow('').optional(),
 
   // Email (future use)
-  SMTP_HOST: Joi.string().optional(),
+  SMTP_HOST: Joi.string().allow('').optional(),
   SMTP_PORT: Joi.number().optional(),
-  SMTP_USER: Joi.string().optional(),
-  SMTP_PASS: Joi.string().optional(),
+  SMTP_USER: Joi.string().allow('').optional(),
+  SMTP_PASS: Joi.string().allow('').optional(),
 
   // File Upload
   UPLOAD_DEST: Joi.string().default('./uploads'),

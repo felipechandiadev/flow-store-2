@@ -8,8 +8,20 @@ import { InventoryController } from './presentation/controllers/inventory.contro
 import { TransactionsService } from './application/transactions.service';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
+import { TransactionOrmEntity } from './infrastructure/orm-mappers/transaction.orm-entity';
+import { BranchOrmEntity } from '@modules/branches/infrastructure/orm-mappers/branch.orm-entity';
+import { CustomerOrmEntity } from '@modules/customers/infrastructure/orm-mappers/customer.orm-entity';
+import { TransactionLineOrmEntity } from '@modules/transaction-lines/infrastructure/orm-mappers/transaction-line.orm-entity';
+import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
+import { Product } from '@modules/products/domain/product.entity';
+import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { Storage } from '@modules/storages/domain/storage.entity';
+import { User } from '@modules/users/domain/user.entity';
+import { Customer } from '@modules/customers/domain/customer.entity';
 import { LedgerEntriesModule } from '@modules/ledger-entries/ledger-entries.module';
 import { AccountingPeriodsModule } from '@modules/accounting-periods/accounting-periods.module';
+import { CacheModule } from '@shared/cache/cache.module';
+import { TransactionRepository } from './infrastructure/repositories/transaction.repository';
 
 // CQRS Handlers
 import { CreateTransactionCommandHandler } from './application/handlers/commands/create-transaction.handler';
@@ -41,11 +53,25 @@ import { EventStoreModule } from './infrastructure/event-store/event-store.modul
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Transaction, Branch]),
+    TypeOrmModule.forFeature([
+      Transaction,
+      TransactionOrmEntity,
+      TransactionLineOrmEntity,
+      TransactionLine,
+      Product,
+      ProductVariant,
+      Storage,
+      Branch,
+      BranchOrmEntity,
+      User,
+      Customer,
+      CustomerOrmEntity,
+    ]),
     LedgerEntriesModule,
     AccountingPeriodsModule,
     CqrsModule,
     EventStoreModule,
+    CacheModule,
   ],
   controllers: [
     TransactionsController,
@@ -56,6 +82,11 @@ import { EventStoreModule } from './infrastructure/event-store/event-store.modul
   providers: [
     TransactionsService, // Adapter for backward compatibility
     TransactionsServiceAdapter,
+    TransactionRepository,
+    {
+      provide: 'TransactionRepositoryPort',
+      useClass: TransactionRepository,
+    },
     // Command Handlers
     CreateTransactionCommandHandler,
     CompleteSupplierPaymentCommandHandler,

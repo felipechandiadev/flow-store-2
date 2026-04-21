@@ -4,6 +4,7 @@ import { LoggingInterceptor } from './logging/logging.interceptor';
 import { MetricsService } from './metrics/metrics.service';
 import { MetricsController } from './metrics/metrics.controller';
 import { MetricsInterceptor } from './metrics/metrics.interceptor';
+import { AppConfigModule } from '../config/config.module';
 
 /**
  * Módulo de Observabilidad
@@ -15,6 +16,7 @@ import { MetricsInterceptor } from './metrics/metrics.interceptor';
  */
 @Global()
 @Module({
+  imports: [AppConfigModule],
   providers: [
     WinstonLoggerService,
     LoggingInterceptor,

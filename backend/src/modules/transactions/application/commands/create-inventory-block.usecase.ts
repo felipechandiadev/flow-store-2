@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -47,6 +48,7 @@ export class CreateInventoryBlockUseCase implements ICommandHandler<CreateInvent
     private readonly branchRepository: Repository<Branch>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @Inject('TransactionRepositoryPort')
     private readonly transactionRepositoryPort: TransactionRepositoryPort,
     private readonly eventBus: EventBus,
   ) {}

@@ -3,6 +3,7 @@ import { CachePort } from './cache.port';
 import { RedisCacheAdapter } from './redis-cache.adapter';
 import { CacheService } from './cache.service';
 import { CacheInvalidationInterceptor } from './cache-invalidation.interceptor';
+import { AppConfigModule } from '../../config/config.module';
 
 /**
  * Cache Module - Infrastructure Layer
@@ -11,6 +12,7 @@ import { CacheInvalidationInterceptor } from './cache-invalidation.interceptor';
  * Sigue el patrón de Dependency Inversion: Application depende de abstracciones.
  */
 @Module({
+  imports: [AppConfigModule],
   providers: [
     // Implementación concreta de CachePort
     {

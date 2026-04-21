@@ -48,6 +48,7 @@ import {
     SuppliersServiceAdapter,
 
     // Repository implementation
+    SuppliersRepository,
     {
       provide: SUPPLIERS_REPOSITORY,
       useClass: SuppliersRepository,

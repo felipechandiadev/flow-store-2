@@ -8,6 +8,7 @@ import { Customer } from '@modules/customers/domain/customer.entity';
 import { Person } from '@modules/persons/domain/person.entity';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
 import { InstallmentsModule } from '@modules/installments/installments.module';
+import { CustomerOrmEntity } from './infrastructure/orm-mappers/customer.orm-entity';
 
 // CQRS Imports
 import { CreateCustomerHandler } from './application/handlers/commands/create-customer.handler';
@@ -34,7 +35,7 @@ import {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Customer, Person, Transaction]),
+    TypeOrmModule.forFeature([Customer, CustomerOrmEntity, Person, Transaction]),
     InstallmentsModule,
     CqrsModule,
   ],

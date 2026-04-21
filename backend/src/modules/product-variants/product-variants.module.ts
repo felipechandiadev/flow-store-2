@@ -8,12 +8,15 @@ import { ProductVariantsController } from './presentation/product-variants.contr
 import { TypeOrmProductVariantsRepository } from './infrastructure/repositories/typeorm-product-variants.repository';
 import { PRODUCT_VARIANTS_REPOSITORY } from './application/ports/product-variants.repository.port';
 import { MultimediaModule } from '@modules/multimedia/multimedia.module';
+import { PriceListItemsModule } from '@modules/price-list-items/price-list-items.module';
+import { ProductVariantOrmEntity } from './infrastructure/orm-mappers/product-variant.orm-entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ProductVariant, PriceListItem]),
+    TypeOrmModule.forFeature([ProductVariant, ProductVariantOrmEntity, PriceListItem]),
     CqrsModule,
     MultimediaModule,
+    PriceListItemsModule,
   ],
   providers: [
     ProductVariantsService,

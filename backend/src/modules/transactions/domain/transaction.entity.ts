@@ -24,7 +24,7 @@ import { AccountingPeriod } from '@modules/accounting-periods/domain/accounting-
 import { Employee } from '@modules/employees/domain/employee.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
 import type { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
-import { Installment } from './installment.entity';
+import { Installment } from '@modules/installments/domain/installment.entity';
 
 /**
  * TIPOS DE TRANSACCIONES - Sistema Flow Store
@@ -387,7 +387,7 @@ export class Transaction {
   @OneToMany(() => Transaction, (t) => t.parent)
   children?: Transaction[];
 
-  @OneToMany(() => Installment, (i) => i.transaction)
+  @OneToMany(() => Installment, (i) => i.saleTransaction)
   installments?: Installment[];
 
   // Use globalThis lookup for TransactionLine to avoid constructor-identity/minification issues and prevent circular imports

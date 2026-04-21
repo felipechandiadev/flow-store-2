@@ -10,7 +10,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Contraseña', type: 'password' },
       },
       async authorize(credentials) {
-        const res = await fetch(`${process.env.BACKEND_API_URL}/auth/login`, {
+        const res = await fetch(`${process.env.BACKEND_API_URL}/api/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -23,9 +23,9 @@ export const authOptions: NextAuthOptions = {
         if (res.ok && data.user) {
           return {
             id: data.user.id,
-            name: data.user.name,
+            name: `${data.user.person?.firstName || ''} ${data.user.person?.lastName || ''}`.trim() || data.user.userName,
             email: data.user.email,
-            accessToken: data.access_token,  // Token del backend
+            accessToken: data.user.id,  // Use user ID as token for now (adjust if backend provides JWT)
           };
         }
         return null;

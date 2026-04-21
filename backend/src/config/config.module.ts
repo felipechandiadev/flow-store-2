@@ -16,11 +16,10 @@ import { AppConfigService } from './config.service';
         // Load environment-specific file first
         path.resolve(
           __dirname,
-          '..',
-          `.env.${process.env.NODE_ENV || 'development'}`,
+          `../../.env.${process.env.NODE_ENV || 'development'}`,
         ),
         // Fallback to default .env file
-        path.resolve(__dirname, '..', '.env'),
+        path.resolve(__dirname, '../../.env'),
       ],
       validationSchema: configSchema,
       validationOptions: {

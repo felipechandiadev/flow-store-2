@@ -13,6 +13,8 @@ import { ProductsPosService } from './application/products-pos.service';
 import { ProductsServiceAdapter } from './application/products.service.adapter';
 import { ProductsRepository } from './infrastructure/products.repository';
 import { PRODUCTS_REPOSITORY } from './application/ports/products.repository.port';
+import { ProductOrmEntity } from './infrastructure/orm-mappers/product.orm-entity';
+import { ProductVariantOrmEntity } from '@modules/product-variants/infrastructure/orm-mappers/product-variant.orm-entity';
 import { PRICE_LIST_ITEMS_REPOSITORY } from '@modules/price-list-items/application/ports/price-list-items.repository.port';
 import { TypeOrmPriceListItemsRepository } from '@modules/price-list-items/infrastructure/repositories/typeorm-price-list-items.repository';
 import { MultimediaModule } from '@modules/multimedia/multimedia.module';
@@ -29,7 +31,9 @@ import { SearchProductsQueryHandler } from './application/handlers/queries/searc
   imports: [
     TypeOrmModule.forFeature([
       Product,
+      ProductOrmEntity,
       ProductVariant,
+      ProductVariantOrmEntity,
       Tax,
       Attribute,
       PriceListItem,

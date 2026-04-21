@@ -7,6 +7,9 @@ import { InventoryServiceAdapter } from './application/inventory.service.adapter
 import { StoragesModule } from '../storages/storages.module';
 import { TransactionsModule } from '../transactions/transactions.module';
 import { User } from '@modules/users/domain/user.entity';
+import { StockLevelOrmEntity } from '@modules/stock-levels/infrastructure/orm-mappers/stock-level.orm-entity';
+import { STOCK_LEVELS_REPOSITORY } from './application/ports/stock-levels.repository.port';
+import { StockLevelsRepository } from './infrastructure/repositories/stock-levels.repository';
 
 // CQRS Handlers
 import { GetStockFiltersQueryHandler } from './application/handlers/queries/get-stock.handlers';
@@ -17,7 +20,7 @@ import { GetStockMovementHistoryQueryHandler } from './application/handlers/quer
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, StockLevelOrmEntity]),
     StoragesModule,
     TransactionsModule,
     CqrsModule,
@@ -26,6 +29,11 @@ import { GetStockMovementHistoryQueryHandler } from './application/handlers/quer
   providers: [
     InventoryService,
     InventoryServiceAdapter,
+    {
+      provide: STOCK_LEVELS_REPOSITORY,
+      useClass: StockLevelsRepository,
+    },
+    StockLevelsRepository,
     GetStockFiltersQueryHandler,
     GetAllStocksQueryHandler,
     GetStockByIdQueryHandler,

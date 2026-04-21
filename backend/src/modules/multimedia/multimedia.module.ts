@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppConfigService } from '../../config/config.service';
+import { AppConfigModule } from '../../config/config.module';
 import { MultimediaController } from './presentation/multimedia.controller';
 import { MultimediaServiceAdapter } from './application/services/multimedia.service.adapter';
 import { MultimediaAsset } from './domain/multimedia-asset.entity';
@@ -21,7 +22,11 @@ import { GetMultimediaAssetQueryHandler } from './application/handlers/queries/g
 import { ListMultimediaAssetsQueryHandler } from './application/handlers/queries/list-multimedia-assets.handler';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([MultimediaAsset, MultimediaLink]), CqrsModule],
+  imports: [
+    AppConfigModule,
+    TypeOrmModule.forFeature([MultimediaAsset, MultimediaLink]),
+    CqrsModule,
+  ],
   controllers: [MultimediaController],
   providers: [
     MultimediaServiceAdapter,

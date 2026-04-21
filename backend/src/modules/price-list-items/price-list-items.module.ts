@@ -7,6 +7,7 @@ import { PriceListItemsController } from './presentation/price-list-items.contro
 import { GetAllPriceListItemsQueryHandler } from './application/handlers/queries/get-all-price-list-items.handler';
 import { GetPriceListItemByIdQueryHandler } from './application/handlers/queries/get-price-list-item-by-id.handler';
 import { TypeOrmPriceListItemsRepository } from './infrastructure/repositories/typeorm-price-list-items.repository';
+import { PRICE_LIST_ITEMS_REPOSITORY } from './application/ports/price-list-items.repository.port';
 
 @Module({
   imports: [CqrsModule, TypeOrmModule.forFeature([PriceListItemOrmEntity])],
@@ -17,9 +18,17 @@ import { TypeOrmPriceListItemsRepository } from './infrastructure/repositories/t
       provide: 'PriceListItemsRepositoryPort',
       useClass: TypeOrmPriceListItemsRepository,
     },
+    {
+      provide: PRICE_LIST_ITEMS_REPOSITORY,
+      useClass: TypeOrmPriceListItemsRepository,
+    },
     GetAllPriceListItemsQueryHandler,
     GetPriceListItemByIdQueryHandler,
   ],
-  exports: [PriceListItemsServiceAdapter, 'PriceListItemsRepositoryPort'],
+  exports: [
+    PriceListItemsServiceAdapter,
+    'PriceListItemsRepositoryPort',
+    PRICE_LIST_ITEMS_REPOSITORY,
+  ],
 })
 export class PriceListItemsModule {}
