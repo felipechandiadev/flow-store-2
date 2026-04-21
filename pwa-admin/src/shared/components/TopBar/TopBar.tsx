@@ -3,6 +3,8 @@ import React, { useState, useContext, useTransition } from 'react';
 import Image from 'next/image';
 import { Menu, ImageOff, Image as ImageIcon } from 'lucide-react';
 import SideBar, { SideBarMenuItem } from './SideBar';
+
+export type { SideBarMenuItem };
 // TODO: Implement NotificationBell and useNotificationsSocket when notifications feature is created
 // import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 // import { useNotificationsSocket } from '@/features/notifications/hooks/useNotificationsSocket';
@@ -71,7 +73,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
   return (
     <SideBarContext.Provider value={{ open, close, isOpen: showSidebar, expanded: sidebarExpanded, setExpanded: setSidebarExpanded }}>
         <div data-test-id="top-bar-root">
-      <header className={`fixed top-0 z-30 w-full flex items-center justify-between px-10 py-2 pb-3 bg-background border-b-[2px] border-primary ${className}`}>
+      <header className={`fixed top-0 z-30 w-full flex items-center justify-between px-10 py-2 pb-3 bg-background border-b-2 border-primary ${className}`}>
           <div className="flex items-center gap-3">
             {logoSrc ? (
               <>

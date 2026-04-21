@@ -3,7 +3,8 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import TopBar, { type SideBarMenuItem } from '@/shared/components/TopBar/TopBar';
+import TopBar from '@/shared/components/TopBar/TopBar';
+import { SideBarMenuItem } from '@/shared/components/TopBar/SideBar';
 import ChangePasswordDialog from '@/shared/components/Dialog/ChangePasswordDialog';
 
 export default function DashboardLayout({

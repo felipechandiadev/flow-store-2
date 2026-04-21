@@ -99,7 +99,7 @@ const SideBar: React.FC<SideBarProps> = ({
       return (
         <li key={id}>
           <button
-            className="block px-4 py-2 rounded-lg text-gray-900 hover:bg-white/70 hover:backdrop-blur-sm hover:shadow-md hover:text-secondary transition-all duration-200 font-medium w-full flex justify-between items-center text-sm"
+            className="px-4 py-2 rounded-lg text-gray-900 hover:bg-white/70 hover:backdrop-blur-sm hover:shadow-md hover:text-secondary transition-all duration-200 font-medium w-full flex justify-between items-center text-sm"
             onClick={() => toggleOpen(id)}
             aria-expanded={isOpen}
             data-test-id={`side-bar-parent-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -185,7 +185,7 @@ const SideBar: React.FC<SideBarProps> = ({
           <div className="w-full px-6 mb-6">
             <div className="flex items-center justify-between gap-3 border border-gray-300 rounded-lg px-3 py-2" style={{ background: 'transparent', borderWidth: '0.3px' }}>
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <User className="text-black flex-shrink-0" size={32} />
+                <User className="text-black shrink-0" size={32} />
                 <div className="flex flex-col min-w-0">
                   <span className="text-base font-bold truncate">{displayName}</span>
                   <span className="text-xs opacity-60 capitalize truncate">{roleKey ? ROLE_LABELS[roleKey] ?? roleKey : ''}</span>
