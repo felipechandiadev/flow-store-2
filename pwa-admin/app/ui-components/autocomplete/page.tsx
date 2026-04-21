@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AutoComplete } from '@/shared/components/AutoComplete/AutoComplete';
+import AutoComplete from '@/shared/components/AutoComplete/AutoComplete';
 
 export default function AutocompletePage() {
   const [selectedValue1, setSelectedValue1] = useState('');

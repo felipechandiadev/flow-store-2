@@ -101,7 +101,6 @@
 
 /* Bounce effect on land */
 @keyframes marker-bounce {
-
   0%,
   100% {
     transform: translateY(0);
@@ -156,264 +155,290 @@ body {
     margin: 0 auto;
     padding: 0 2rem;
   }
+}
 
-  /* Button Styles */
+@layer components {
+  /* Button Styles - Using inline CSS instead of @apply */
   .btn-contained-primary {
-    @apply bg-primary text-background font-light rounded-md text-sm px-4 py-2 text-center hover:bg-accent transition-colors duration-200 active:scale-90 active:shadow-inner;
+    background-color: var(--color-primary);
+    color: var(--color-background);
+    font-weight: 300;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    transition: background-color 0.2s, color 0.2s;
     min-width: max-content;
     white-space: nowrap;
+  }
+
+  .btn-contained-primary:hover {
+    background-color: var(--color-accent);
+  }
+
+  .btn-contained-primary:active {
+    transform: scale(0.9);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .btn-contained-secondary {
-    @apply bg-secondary text-background font-light rounded-md text-sm px-4 py-2 text-center hover:bg-accent transition-colors duration-200 active:scale-90 active:shadow-inner;
+    background-color: var(--color-secondary);
+    color: var(--color-background);
+    font-weight: 300;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    transition: background-color 0.2s;
     min-width: max-content;
     white-space: nowrap;
+  }
+
+  .btn-contained-secondary:hover {
+    background-color: var(--color-accent);
+  }
+
+  .btn-contained-secondary:active {
+    transform: scale(0.9);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .btn-outlined {
-    @apply border border-foreground text-foreground bg-transparent font-light rounded-md text-sm px-4 py-2 text-center hover:bg-accent hover:text-background transition-colors duration-200 active:scale-90 active:shadow-inner;
+    border: 1px solid var(--color-foreground);
+    color: var(--color-foreground);
+    background-color: transparent;
+    font-weight: 300;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    transition: background-color 0.2s, color 0.2s;
     min-width: max-content;
     white-space: nowrap;
+  }
+
+  .btn-outlined:hover {
+    background-color: var(--color-accent);
+    color: var(--color-background);
+  }
+
+  .btn-outlined:active {
+    transform: scale(0.9);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .btn-outlined-secondary {
-    @apply border border-secondary text-secondary bg-transparent font-light rounded-md text-sm px-4 py-2 text-center hover:bg-secondary hover:text-background transition-colors duration-200 active:scale-90 active:shadow-inner;
+    border: 1px solid var(--color-secondary);
+    color: var(--color-secondary);
+    background-color: transparent;
+    font-weight: 300;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    transition: background-color 0.2s, color 0.2s;
     min-width: max-content;
     white-space: nowrap;
+  }
+
+  .btn-outlined-secondary:hover {
+    background-color: var(--color-secondary);
+    color: var(--color-background);
+  }
+
+  .btn-outlined-secondary:active {
+    transform: scale(0.9);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .btn-text {
-    @apply text-primary bg-transparent font-light rounded-md text-sm px-4 py-2 text-center hover:scale-110 active:scale-90;
+    color: var(--color-primary);
+    background-color: transparent;
+    font-weight: 300;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    transition: transform 0.2s;
     min-width: max-content;
     white-space: nowrap;
+  }
+
+  .btn-text:hover {
+    transform: scale(1.1);
+  }
+
+  .btn-text:active {
+    transform: scale(0.9);
   }
 
   .btn-contained-danger {
-    @apply bg-error text-background font-light rounded-md text-sm px-4 py-2 text-center hover:bg-error/80 transition-colors duration-200 active:scale-90 active:shadow-inner;
+    background-color: var(--color-error);
+    color: var(--color-background);
+    font-weight: 300;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    transition: background-color 0.2s;
     min-width: max-content;
     white-space: nowrap;
   }
 
+  .btn-contained-danger:hover {
+    background-color: rgba(244, 67, 54, 0.8);
+  }
+
+  .btn-contained-danger:active {
+    transform: scale(0.9);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Pill Button Styles */
   .btn-pill-primary {
-    @apply bg-primary text-background font-light rounded-full text-sm px-4 py-2 text-center hover:bg-accent transition-colors duration-200 active:scale-90 active:shadow-inner;
+    background-color: var(--color-primary);
+    color: var(--color-background);
+    font-weight: 300;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    transition: background-color 0.2s;
     min-width: max-content;
     white-space: nowrap;
+  }
+
+  .btn-pill-primary:hover {
+    background-color: var(--color-accent);
+  }
+
+  .btn-pill-primary:active {
+    transform: scale(0.9);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .btn-pill-secondary {
-    @apply bg-secondary text-background font-light rounded-full text-base px-6 py-2 text-center shadow-sm transition-colors duration-200 hover:bg-accent active:scale-90 active:shadow-inner;
+    background-color: var(--color-secondary);
+    color: var(--color-background);
+    font-weight: 300;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    transition: background-color 0.2s;
     min-width: max-content;
     white-space: nowrap;
   }
 
-  .btn-pill-outlined {
-    @apply border border-primary text-primary bg-transparent font-light rounded-full text-base px-6 py-2 text-center transition-colors duration-200 hover:bg-accent hover:text-background hover:border-accent active:scale-90;
-    min-width: max-content;
-    white-space: nowrap;
+  .btn-pill-secondary:hover {
+    background-color: var(--color-accent);
   }
 
-  .placeholder-muted {
-    color: var(--color-muted);
-    opacity: 0.7;
+  .btn-pill-secondary:active {
+    transform: scale(0.9);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
-  input::placeholder,
-  textarea::placeholder {
-    color: var(--color-muted);
-    opacity: 0.7;
-  }
-
-  /* Alert Variants */
+  /* Alert/Badge Styles */
   .alert-success {
-    background-color: color-mix(in srgb, var(--color-success) 30%, transparent);
+    background-color: rgba(76, 175, 80, 0.3);
     color: var(--color-foreground);
     border-color: var(--color-success);
-    @apply text-sm font-light;
   }
 
   .alert-info {
-    background-color: color-mix(in srgb, var(--color-info) 30%, transparent);
+    background-color: rgba(33, 150, 243, 0.3);
     color: var(--color-foreground);
     border-color: var(--color-info);
-    @apply text-sm font-light;
   }
 
   .alert-warning {
-    background-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
+    background-color: rgba(255, 193, 7, 0.3);
     color: var(--color-foreground);
     border-color: var(--color-warning);
-    @apply text-sm font-light;
   }
 
   .alert-error {
-    background-color: color-mix(in srgb, var(--color-error) 30%, transparent);
+    background-color: rgba(244, 67, 54, 0.3);
     color: var(--color-foreground);
     border-color: var(--color-error);
-    @apply text-sm font-light;
   }
 
-  /* Typography */
-  .italic {
-    font-family: 'Inter', sans-serif;
-    font-style: italic;
-  }
-
-  .title-base-form {
-    @apply text-2xl font-bold text-primary leading-tight;
-  }
-
-  .subtitle-base-form {
-    @apply text-base font-light text-foreground leading-snug;
-  }
-
-  .title {
-    @apply text-2xl font-bold text-primary leading-tight;
-  }
-
-  .subtitle {
-    @apply text-base font-light text-foreground leading-snug;
-  }
-
-  /* Masonry Layout */
-  .masonry-columns {
-    column-count: 1;
-    column-gap: 1.5rem;
-  }
-
-  @media (min-width: 768px) {
-    .masonry-columns {
-      column-count: 2;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .masonry-columns {
-      column-count: 3;
-    }
-  }
-
-  @media (min-width: 1536px) {
-    .masonry-columns {
-      column-count: 4;
-    }
-  }
-
-  .masonry-columns>* {
-    break-inside: avoid;
-    margin-bottom: 1.5rem;
-  }
-
-  /* Dropdown List Styles */
-  .dropdown-list {
-    @apply absolute w-full rounded border border-border max-h-56 overflow-auto;
-    z-index: 60;
-    background-color: var(--color-background);
-    color: var(--color-foreground);
-  }
-
-  /* Portal mode: rendered at body level to escape overflow constraints */
-  .dropdown-list-portal {
-    @apply rounded border border-border max-h-56 overflow-auto shadow-lg;
-    position: fixed !important;
-    z-index: 9999 !important;
-    background-color: var(--color-background);
-    color: var(--color-foreground);
-  }
-
-  .dropdown-option {
-    @apply px-3 py-2 cursor-pointer text-sm font-light transition-colors duration-200;
-  }
-
-  .dropdown-option:hover {
-    background-color: var(--color-neutral);
-  }
-
-  .dropdown-option-active {
-    @apply bg-secondary-30 font-medium;
-  }
-
-  .dropdown-divider {
-    @apply h-px bg-border my-1;
-  }
-
-  .dropdown-header {
-    @apply px-3 py-2 text-xs font-semibold uppercase tracking-wide;
-    color: var(--color-muted);
-  }
-
-  .dropdown-footer {
-    @apply px-3 py-2 border-t border-border text-xs;
-    color: var(--color-muted);
-  }
-
-  /* IconButton Styles */
-  .icon-button-base {
-    @apply inline-flex items-center justify-center align-middle p-2 gap-0 leading-none rounded-full transition-all duration-200 ease-in-out border-none outline-none cursor-pointer active:scale-90;
-  }
-
+  /* Icon Button Styles */
   .icon-button-contained-primary {
-    @apply icon-button-base bg-primary text-background hover:bg-accent;
+    background-color: var(--color-primary);
+    color: var(--color-background);
+    border-radius: 0.375rem;
+    transition: background-color 0.2s;
   }
 
-  .icon-button-contained-primary:disabled {
-    @apply bg-primary text-background opacity-50 cursor-not-allowed active:scale-100;
+  .icon-button-contained-primary:hover {
+    background-color: var(--color-accent);
   }
 
   .icon-button-contained-secondary {
-    @apply icon-button-base bg-secondary text-background hover:bg-accent;
+    background-color: var(--color-secondary);
+    color: var(--color-background);
+    border-radius: 0.375rem;
+    transition: background-color 0.2s;
   }
 
-  .icon-button-contained-secondary:disabled {
-    @apply bg-secondary text-background opacity-50 cursor-not-allowed active:scale-100;
+  .icon-button-contained-secondary:hover {
+    background-color: var(--color-accent);
   }
 
   .icon-button-text {
-    @apply icon-button-base bg-transparent text-secondary hover:text-accent;
+    background-color: transparent;
+    color: var(--color-primary);
+    transition: color 0.2s;
   }
 
-  .icon-button-text:disabled {
-    @apply bg-transparent text-secondary opacity-50 cursor-not-allowed active:scale-100;
+  .icon-button-text:hover {
+    color: var(--color-accent);
   }
 
   .icon-button-basic {
-    @apply icon-button-base bg-transparent text-primary hover:text-accent;
+    background-color: transparent;
+    color: var(--color-foreground);
+    transition: color 0.2s;
   }
 
-  .icon-button-basic:disabled {
-    @apply bg-transparent text-primary opacity-50 cursor-not-allowed active:scale-100;
-  }
-
-  .icon-button-basic-secondary {
-    @apply icon-button-base bg-transparent text-secondary hover:text-accent;
-  }
-
-  .icon-button-basic-secondary:disabled {
-    @apply bg-transparent text-secondary opacity-50 cursor-not-allowed active:scale-100;
+  .icon-button-basic:hover {
+    color: var(--color-primary);
   }
 
   .icon-button-outlined {
-    @apply icon-button-base border border-primary text-primary bg-transparent hover:bg-accent hover:text-background;
+    border: 1px solid var(--color-border);
+    background-color: transparent;
+    color: var(--color-foreground);
+    border-radius: 0.375rem;
+    transition: all 0.2s;
   }
 
-  .icon-button-outlined:disabled {
-    @apply border border-primary text-primary bg-transparent opacity-50 cursor-not-allowed active:scale-100;
+  .icon-button-outlined:hover {
+    background-color: var(--color-accent);
+    color: var(--color-background);
+    border-color: var(--color-accent);
   }
 
   .icon-button-ghost {
-    @apply inline-flex items-center justify-center align-middle p-2 gap-0 leading-none rounded-full transition-all duration-200 ease-in-out border border-transparent outline-none cursor-pointer active:scale-90 bg-transparent text-primary hover:border-primary hover:bg-transparent;
+    background-color: transparent;
+    color: var(--color-foreground);
+    transition: background-color 0.2s;
   }
 
-  .icon-button-ghost:disabled {
-    @apply bg-transparent text-primary opacity-50 cursor-not-allowed active:scale-100 hover:border-transparent;
+  .icon-button-ghost:hover {
+    background-color: var(--color-neutral);
   }
 
-  /* Fallback disabled class for all variants */
   .icon-button-disabled {
-    @apply opacity-50 cursor-not-allowed;
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .icon-button-disabled:hover {
-    @apply bg-inherit! text-inherit!;
+    background-color: inherit;
+    text-color: inherit;
   }
 
   /* IconButton Size Classes */
@@ -422,7 +447,7 @@ body {
   }
 
   .icon-size-sm {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .icon-size-md {
@@ -435,217 +460,5 @@ body {
 
   .icon-size-xl {
     font-size: 40px;
-  }
-
-  /* Text Color Utilities */
-  .text-primary {
-    color: var(--color-primary);
-  }
-
-  .text-secondary {
-    color: var(--color-secondary);
-  }
-
-  .text-foreground {
-    color: var(--color-foreground);
-  }
-
-  .text-muted-foreground {
-    color: var(--color-muted);
-  }
-
-  .text-background {
-    color: var(--color-background);
-  }
-
-  /* Background Color Utilities */
-  .bg-background {
-    background-color: var(--color-background);
-  }
-
-  .bg-foreground {
-    background-color: var(--color-foreground);
-  }
-
-  .bg-muted {
-    background-color: var(--color-muted);
-  }
-
-  .bg-primary {
-    background-color: var(--color-primary);
-  }
-
-  .bg-secondary {
-    background-color: var(--color-secondary);
-  }
-
-  .bg-accent {
-    background-color: var(--color-accent);
-  }
-
-  .bg-secondary-20 {
-    background-color: color-mix(in srgb, var(--color-secondary) 20%, transparent);
-  }
-
-  .bg-secondary-30 {
-    background-color: color-mix(in srgb, var(--color-secondary) 30%, transparent);
-  }
-
-  /* Border Color Utilities */
-  .border-primary {
-    border-color: var(--color-primary);
-  }
-
-  .border-border {
-    border-color: var(--color-border);
-  }
-
-  .border-secondary {
-    border-color: var(--color-secondary);
-  }
-
-  .border-accent {
-    border-color: var(--color-accent);
-  }
-
-  .border-background {
-    border-color: var(--color-background);
-  }
-
-  /* Form Components */
-  .form-container {
-    @apply w-full flex flex-col gap-4 p-4;
-  }
-
-  .form-group {
-    @apply w-full flex flex-col gap-1;
-  }
-
-  .form-actions {
-    @apply flex justify-between mt-4 w-full;
-  }
-
-  .form-field {
-    @apply w-full;
-  }
-
-  /* Input Components */
-  .input-container {
-    @apply relative w-full pt-2;
-  }
-
-  .input-base {
-    @apply w-full px-3 py-2 border border-border rounded-md text-sm font-light text-foreground focus:outline-none focus:border-accent disabled:opacity-50;
-    background-color: var(--color-background);
-  }
-
-  .input-base[readonly] {
-    cursor: text;
-    color: var(--color-foreground);
-    opacity: 1;
-    background-color: var(--color-background);
-  }
-
-  .input-icon {
-    @apply absolute left-3 top-1/2 -translate-y-1/2 text-xl pointer-events-none flex items-center justify-center z-10;
-  }
-
-  .input-icon-right {
-    @apply absolute right-3 top-1/2 -translate-y-1/2 text-xl flex items-center justify-center z-10;
-  }
-
-  .password-toggle-button {
-    @apply absolute right-3 top-1/2 -translate-y-1/2 text-xl flex items-center justify-center z-10;
-  }
-
-  /* Select Components */
-  .select-container {
-    @apply relative w-full pt-2;
-  }
-
-  .select-trigger {
-    @apply w-full px-3 py-2 border border-border rounded-md bg-background text-left flex items-center justify-between cursor-pointer focus:outline-none text-sm font-light text-foreground disabled:opacity-50;
-  }
-
-  .select-dropdown {
-    @apply absolute w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-auto;
-    z-index: 60;
-  }
-
-  .select-option:hover {
-    @apply cursor-pointer text-sm font-light text-foreground transition-colors duration-200;
-    background-color: var(--color-neutral);
-  }
-
-  .select-option-active {
-    @apply font-medium;
-    background-color: color-mix(in srgb, var(--color-secondary) 30%, transparent);
-  }
-
-  /* Range Slider Components */
-  .range-container {
-    @apply relative w-full h-8 select-none;
-  }
-
-  .range-track {
-    @apply absolute w-full h-2 top-1/2 -translate-y-1/2 rounded-lg;
-    background-color: var(--color-neutral);
-  }
-
-  .range-fill {
-    @apply absolute h-2 top-1/2 -translate-y-1/2 bg-primary rounded-lg;
-  }
-
-  .range-thumb {
-    @apply absolute w-6 h-6 bg-primary rounded-full top-1/2 -translate-y-1/2 appearance-none cursor-pointer border-2 border-background focus:outline-none focus:ring-1 focus:ring-primary shadow;
-  }
-
-  .range-thumb:hover {
-    @apply shadow-lg;
-  }
-
-  /* Upload Components */
-  .upload-dropzone {
-    @apply border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-accent transition-colors duration-200;
-  }
-
-  .upload-preview {
-    @apply relative w-full h-32 border border-border rounded-lg overflow-hidden;
-  }
-
-  /* Location Components */
-  .location-container {
-    @apply w-full h-96 border border-gray-300 rounded-lg overflow-hidden;
-  }
-
-  /* AutoComplete Components */
-  .autocomplete-container {
-    @apply relative w-full pt-0.5;
-  }
-
-  .autocomplete-input {
-    @apply w-full px-3 py-2 border border-border rounded-md bg-background text-sm font-light text-foreground focus:outline-none disabled:opacity-50;
-  }
-
-  /* Switch Components */
-  .switch-container {
-    @apply flex items-center gap-3 cursor-pointer;
-  }
-
-  .switch-track {
-    @apply relative w-12 h-6 rounded-full transition-colors duration-200;
-    background-color: var(--color-neutral);
-  }
-
-  .switch-thumb {
-    @apply absolute top-0.5 left-0.5 w-5 h-5 bg-background rounded-full transition-transform duration-200 shadow-sm;
-  }
-
-  .switch-checked .switch-track {
-    @apply bg-primary;
-  }
-
-  .switch-checked .switch-thumb {
-    @apply translate-x-6;
   }
 }
