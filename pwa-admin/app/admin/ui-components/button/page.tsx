@@ -35,7 +35,7 @@ export default function ButtonPage() {
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Loading</p>
-            <Button isLoading>Loading</Button>
+            <Button loading>Loading</Button>
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Full Width</p>

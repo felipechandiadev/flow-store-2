@@ -52,12 +52,15 @@ export const Button: React.FC<ButtonProps> = ({
   const sizeClass = sizeClasses[size] || sizeClasses.md;
   const buttonClasses = `${baseClasses} ${sizeClass} ${className}`;
 
+  // Filter out non-HTML button attributes
+  const { color, fullWidth, ...buttonProps } = props;
+
   return (
     <button
       className={buttonClasses}
       data-test-id="button-root"
       disabled={disabled || loading}
-      {...props}
+      {...buttonProps}
     >
       <div className="flex items-center justify-center gap-2">
         {loading && (
