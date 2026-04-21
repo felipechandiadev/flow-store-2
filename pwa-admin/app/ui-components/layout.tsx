@@ -7,7 +7,7 @@ import { TopBar } from '@/shared/components/TopBar/TopBar';
 import { SideBarMenuItem, SideBar } from '@/shared/components/TopBar/SideBar';
 import ChangePasswordDialog from '@/shared/components/Dialog/ChangePasswordDialog';
 
-export default function DashboardLayout({
+export default function UIComponentsLayout({
   children,
 }: {
   children: React.ReactNode;
