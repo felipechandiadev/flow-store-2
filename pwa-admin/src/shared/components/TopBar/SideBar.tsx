@@ -142,7 +142,7 @@ const SideBar: React.FC<SideBarProps> = ({
 
   return (
     <aside
-      className={`fixed top-0 left-0 z-50 w-64 h-full bg-white/60 backdrop-blur backdrop-saturate-150 text-black flex flex-col items-center py-6 shadow-xl border border-white/20 ${className ? className : ''}`}
+      className={`fixed top-0 left-0 z-50 w-64 h-full bg-white/40 backdrop-blur backdrop-saturate-150 text-black flex flex-col items-center py-6 shadow-xl border border-white/20 ${className ? className : ''}`}
       style={style}
       data-test-id="side-bar-root"
     >
@@ -172,7 +172,6 @@ const SideBar: React.FC<SideBarProps> = ({
         {/* <div className="text-sm opacity-70" data-test-id="side-bar-app-version">{'1.2.12'}</div> */}
         <div className="text-lg font-bold text-gray-800" data-test-id="side-bar-app-name">{APP_NAME}</div>
         <div className="text-sm text-gray-600" data-test-id="side-bar-app-version">v{APP_VERSION}</div>
-        <div className="text-xs text-gray-500" data-test-id="side-bar-app-release">Release: {APP_RELEASE}</div>
       </div>
 
       {session?.user && (() => {
