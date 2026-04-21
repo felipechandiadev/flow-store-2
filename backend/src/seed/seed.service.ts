@@ -47,7 +47,7 @@ import { ProductVariant } from '@modules/product-variants/domain/product-variant
 import { MultimediaAsset } from '@modules/multimedia/domain/multimedia-asset.entity';
 import { MultimediaLink } from '@modules/multimedia/domain/multimedia-link.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
-import { GoldPrice } from '@modules/gold-prices/domain/gold-price.entity';
+import { MetalPrice } from '@modules/metal-prices/domain/metal-price.entity';
 import {
   AccountingAccount,
   AccountType,
@@ -199,7 +199,7 @@ export class SeedService {
       );
       const priceLists = await this.readSeedJson<any[]>('price-lists.json');
       const taxes = await this.readSeedJson<any[]>('taxes.json');
-      const goldPrices = await this.readSeedJson<any[]>('gold-prices.json');
+      const metalPrices = await this.readSeedJson<any[]>('metal-prices.json');
       const accountingAccounts = await this.readSeedJson<any[]>(
         'accounting-accounts.json',
       );
@@ -263,17 +263,17 @@ export class SeedService {
         }
       }
 
-      // 3. Create Gold Prices
-      if (goldPrices && goldPrices.length > 0) {
-        for (const priceData of goldPrices) {
-          const goldPrice = this.dataSource.manager.create(GoldPrice, {
+      // 3. Create Metal Prices
+      if (metalPrices && metalPrices.length > 0) {
+        for (const priceData of metalPrices) {
+          const metalPrice = this.dataSource.manager.create(MetalPrice, {
             metal: priceData.metal || 'Oro 18K',
             date: new Date(priceData.date),
             valueCLP: priceData.valueCLP,
             notes: priceData.notes ?? undefined,
           });
-          await this.dataSource.manager.save(goldPrice);
-          this.logger.log(`   ✓ Precio metal '${goldPrice.metal}' creado`);
+          await this.dataSource.manager.save(metalPrice);
+          this.logger.log(`   ✓ Metal price '${metalPrice.metal}' created`);
         }
       }
 

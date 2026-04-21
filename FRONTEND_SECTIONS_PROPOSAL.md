@@ -298,7 +298,7 @@ Este documento propone una estructura de secciones para el frontend **pwa-admin*
   ├── hooks/
   └── types/
   ```
-- **Módulos Backend**: `audits`, `analytics`, `gold-prices`
+- **Módulos Backend**: `audits`, `analytics`, `metal-prices`
 
 ---
 

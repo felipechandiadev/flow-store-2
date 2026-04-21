@@ -1,14 +1,17 @@
 import { IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
 
-export class CreateGoldPriceDto {
+export class UpdateMetalPriceDto {
+  @IsOptional()
   @IsDateString()
-  date: string;
+  date?: string;
 
+  @IsOptional()
   @IsNumber()
-  valueCLP: number;
+  valueCLP?: number;
 
+  @IsOptional()
   @IsString()
-  metal: string;
+  metal?: string;
 
   @IsOptional()
   @IsString()

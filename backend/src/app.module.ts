@@ -16,7 +16,7 @@ import { CustomersModule } from './modules/customers/customers.module';
 import { ProductsModule } from './modules/products/products.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
-import { GoldPricesModule } from './modules/gold-prices/gold-prices.module';
+import { MetalPricesModule } from './modules/metal-prices/metal-prices.module';
 import { AuditsModule } from './modules/audits/audits.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { CategoriesModule } from './modules/categories/categories.module';
@@ -87,7 +87,7 @@ import { ObservabilityModule } from './shared/observability.module';
     ProductsModule,
     PaymentsModule,
     TransactionsModule,
-    GoldPricesModule,
+    MetalPricesModule,
     AuditsModule,
     AccountingModule,
     AccountingPeriodsModule,

@@ -31,7 +31,7 @@ import { AccountingPeriodSnapshot } from '@modules/accounting-period-snapshots/d
 import { AccountBalance } from '@modules/account-balances/domain/account-balance.entity';
 import { Attribute } from '@modules/attributes/domain/attribute.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
-import { GoldPrice } from '@modules/gold-prices/domain/gold-price.entity';
+import { MetalPrice } from '@modules/metal-prices/domain/metal-price.entity';
 import { Audit } from '@modules/audits/domain/audit.entity';
 import { Permission } from '@modules/permissions/domain/permission.enum';
 import { LedgerEntry } from '@modules/ledger-entries/domain/ledger-entry.entity';
@@ -88,7 +88,7 @@ export const typeOrmConfig = (
       AccountBalance,
       Attribute,
       PriceListItem,
-      GoldPrice,
+      MetalPrice,
       Audit,
       Permission,
       LedgerEntry,

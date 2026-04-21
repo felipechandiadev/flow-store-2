@@ -1,4 +1,3 @@
-import 'reflect-metadata';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -7,13 +6,13 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
 } from 'typeorm';
-import { MetalType } from '@modules/gold-prices/domain/metal.enum';
+import { MetalType } from '@modules/metal-prices/domain/metal.enum';
 
 /**
- * Entidad para registrar el precio histórico del oro.
+ * ORM Entity for historical metal prices.
  */
-@Entity('gold_prices')
-export class GoldPrice {
+@Entity('metal_prices')
+export class MetalPriceOrmEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

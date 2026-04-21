@@ -1,19 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { GoldPrice } from '../domain/gold-price.entity';
-import { CreateGoldPriceDto } from './dto/create-gold-price.dto';
-import { UpdateGoldPriceDto } from './dto/update-gold-price.dto';
+import { MetalPrice } from '../domain/metal-price.entity';
+import { CreateMetalPriceDto } from './dto/create-metal-price.dto';
+import { UpdateMetalPriceDto } from './dto/update-metal-price.dto';
 
 @Injectable()
-export class GoldPricesService {
+export class MetalPricesService {
   constructor(
-    @InjectRepository(GoldPrice)
-    private readonly goldPriceRepository: Repository<GoldPrice>,
+    @InjectRepository(MetalPrice)
+    private readonly metalPriceRepository: Repository<MetalPrice>,
   ) {}
 
   async findAll() {
-    const prices = await this.goldPriceRepository.find({
+    const prices = await this.metalPriceRepository.find({
       order: { date: 'DESC' },
     });
 
@@ -30,10 +30,10 @@ export class GoldPricesService {
   }
 
   async findOne(id: string) {
-    const price = await this.goldPriceRepository.findOne({ where: { id } });
+    const price = await this.metalPriceRepository.findOne({ where: { id } });
 
     if (!price) {
-      throw new NotFoundException('Precio de oro no encontrado');
+      throw new NotFoundException('Metal price not found');
     }
 
     return {
@@ -48,15 +48,15 @@ export class GoldPricesService {
     };
   }
 
-  async create(createDto: CreateGoldPriceDto) {
-    const price = this.goldPriceRepository.create({
+  async create(createDto: CreateMetalPriceDto) {
+    const price = this.metalPriceRepository.create({
       date: new Date(createDto.date),
       valueCLP: createDto.valueCLP,
       metal: createDto.metal,
       notes: createDto.notes,
     });
 
-    const saved = await this.goldPriceRepository.save(price);
+    const saved = await this.metalPriceRepository.save(price);
 
     return {
       success: true,
@@ -70,11 +70,11 @@ export class GoldPricesService {
     };
   }
 
-  async update(id: string, updateDto: UpdateGoldPriceDto) {
-    const price = await this.goldPriceRepository.findOne({ where: { id } });
+  async update(id: string, updateDto: UpdateMetalPriceDto) {
+    const price = await this.metalPriceRepository.findOne({ where: { id } });
 
     if (!price) {
-      throw new NotFoundException('Precio de oro no encontrado');
+      throw new NotFoundException('Metal price not found');
     }
 
     if (updateDto.date) price.date = new Date(updateDto.date);
@@ -82,7 +82,7 @@ export class GoldPricesService {
     if (updateDto.metal) price.metal = updateDto.metal;
     if (updateDto.notes !== undefined) price.notes = updateDto.notes;
 
-    const saved = await this.goldPriceRepository.save(price);
+    const saved = await this.metalPriceRepository.save(price);
 
     return {
       success: true,
@@ -97,17 +97,17 @@ export class GoldPricesService {
   }
 
   async remove(id: string) {
-    const price = await this.goldPriceRepository.findOne({ where: { id } });
+    const price = await this.metalPriceRepository.findOne({ where: { id } });
 
     if (!price) {
-      throw new NotFoundException('Precio de oro no encontrado');
+      throw new NotFoundException('Metal price not found');
     }
 
-    await this.goldPriceRepository.remove(price);
+    await this.metalPriceRepository.remove(price);
 
     return {
       success: true,
-      message: 'Precio de oro eliminado',
+      message: 'Metal price deleted',
     };
   }
 }
