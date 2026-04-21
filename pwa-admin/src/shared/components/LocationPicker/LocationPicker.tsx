@@ -360,7 +360,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     >
       {/* Banner de error de geolocalización (no bloquea uso manual del mapa). */}
       {locationError && (
-        <div className="absolute top-2 right-2 z-[1000] max-w-xs">
+        <div className="absolute top-2 right-2 z-1000 max-w-xs">
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 shadow-sm">
             <div className="flex items-center gap-2">
               <AlertCircle className="text-red-500" size={20} />
@@ -373,7 +373,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
       {/* Ripple visual al seleccionar una coordenada por click. */}
       {isEditable && showClickEffect && clickPosition && (
         <div
-          className="absolute pointer-events-none z-[1000]"
+          className="absolute pointer-events-none z-1000"
           style={{
             left: clickPosition.x - 20,
             top: clickPosition.y - 20,

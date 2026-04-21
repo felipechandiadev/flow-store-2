@@ -1,5 +1,4 @@
-@tailwind base;
-@tailwind components;
+@import "tailwindcss/preflight";
 @tailwind utilities;
 
 /* Leaflet CSS */
@@ -172,13 +171,13 @@ body {
   }
 
   .btn-outlined {
-    @apply border-[1px] border-foreground text-foreground bg-transparent font-light rounded-md text-sm px-4 py-2 text-center hover:bg-accent hover:text-background transition-colors duration-200 active:scale-90 active:shadow-inner;
+    @apply border border-foreground text-foreground bg-transparent font-light rounded-md text-sm px-4 py-2 text-center hover:bg-accent hover:text-background transition-colors duration-200 active:scale-90 active:shadow-inner;
     min-width: max-content;
     white-space: nowrap;
   }
 
   .btn-outlined-secondary {
-    @apply border-[1px] border-secondary text-secondary bg-transparent font-light rounded-md text-sm px-4 py-2 text-center hover:bg-secondary hover:text-background transition-colors duration-200 active:scale-90 active:shadow-inner;
+    @apply border border-secondary text-secondary bg-transparent font-light rounded-md text-sm px-4 py-2 text-center hover:bg-secondary hover:text-background transition-colors duration-200 active:scale-90 active:shadow-inner;
     min-width: max-content;
     white-space: nowrap;
   }
@@ -414,7 +413,7 @@ body {
   }
 
   .icon-button-disabled:hover {
-    @apply !bg-inherit !text-inherit;
+    @apply bg-inherit! text-inherit!;
   }
 
   /* IconButton Size Classes */

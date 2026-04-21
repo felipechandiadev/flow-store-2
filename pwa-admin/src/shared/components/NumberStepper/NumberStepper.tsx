@@ -254,7 +254,7 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
           type="button"
           onClick={decrement}
           disabled={disabled || (min !== undefined && value <= min)}
-          className={`${buttonClasses} rounded-l-md border-r-[1px] border-border`}
+          className={`${buttonClasses} rounded-l-md border-r border-border`}
           data-test-id={`${props['data-test-id']}-decrement`}
         >
           <Minus className="text-gray-600" size={16} />
@@ -287,7 +287,7 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
           type="button"
           onClick={increment}
           disabled={disabled || (max !== undefined && value >= max)}
-          className={`${buttonClasses} rounded-r-md border-l-[1px] border-border`}
+          className={`${buttonClasses} rounded-r-md border-l border-border`}
           data-test-id={`${props['data-test-id']}-increment`}
         >
           <Plus className="text-gray-600" size={16} />
