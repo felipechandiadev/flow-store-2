@@ -1,6 +1,5 @@
 'use client'
 import React, { useState, useContext, useTransition } from 'react';
-import Image from 'next/image';
 import { Menu, ImageOff, Image as ImageIcon } from 'lucide-react';
 import SideBar, { SideBarMenuItem } from './SideBar';
 
@@ -85,12 +84,10 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
                   </div>
                 )}
                 {!logoError && (
-                  <Image
+                  <img
                     src={logoSrc}
                     alt="Logo"
-                    width={40}
-                    height={40}
-                    className={`h-10 w-10 object-contain transition-opacity duration-300 ${!logoLoaded ? 'opacity-0 absolute' : 'opacity-100'}`}
+                    className={`h-10 w-10 object-contain transition-opacity duration-300 ${!logoLoaded ? 'opacity-0' : 'opacity-100'}`}
                     data-test-id="top-bar-logo"
                     onLoad={() => setLogoLoaded(true)}
                     onError={() => setLogoError(true)}
