@@ -1,0 +1,234 @@
+'use client';
+
+import React, { useState } from 'react';
+import { signOut, useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { Button } from '../Button/Button';
+import IconButton from '../IconButton/IconButton';
+
+export interface SideBarMenuItem {
+  id?: string;
+  label: string;
+  url?: string;
+  children?: SideBarMenuItem[];
+}
+
+interface SideBarProps {
+  menuItems: SideBarMenuItem[];
+  onClose?: () => void;
+  className?: string;
+  style?: React.CSSProperties;
+  logoUrl?: string;
+  expandedState?: Record<string, boolean>;
+  onExpandedChange?: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  onOpenChangePassword?: () => void;
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Administrador',
+  operator: 'Operador',
+  inspector: 'Inspector',
+  director: 'Director',
+};
+
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Ventas AYG';
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '1.2.0';
+const APP_RELEASE = process.env.NEXT_PUBLIC_APP_RELEASE || '21-Diciembre-2025';
+
+const SideBar: React.FC<SideBarProps> = ({
+  menuItems,
+  className,
+  style,
+  onClose,
+  logoUrl,
+  expandedState,
+  onExpandedChange,
+  onOpenChangePassword,
+}) => {
+  const { data: session } = useSession();
+
+  // Track which parent items are open using their id or label
+  const [localOpenIds, setLocalOpenIds] = useState<Record<string, boolean>>({});
+  const [logoLoaded, setLogoLoaded] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  const openIds = expandedState ?? localOpenIds;
+
+  const applyOpenState = (next: Record<string, boolean>) => {
+    if (typeof onExpandedChange === 'function') {
+      onExpandedChange(next);
+    } else {
+      setLocalOpenIds(next);
+    }
+  };
+
+  const toggleOpen = (id: string) => {
+    const next = { ...openIds, [id]: !openIds[id] };
+    applyOpenState(next);
+  };
+
+  const router = useRouter();
+
+  const handleNavigate = (url?: string) => {
+    if (!url) return;
+    // Close sidebar BEFORE navigating for faster perceived response
+    if (typeof onClose === 'function') onClose();
+    // External URLs: open in same tab
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      window.location.href = url;
+      return;
+    }
+    // if already on the target url, do nothing (no flash)
+    if (typeof window !== 'undefined') {
+      const current = window.location.pathname + window.location.search;
+      if (current === url) {
+        return;
+      }
+    }
+    // use next/router push to avoid full reload
+    router.push(url);
+  };
+
+  const renderMenuItem = (item: SideBarMenuItem, idx: number) => {
+    const id = item.id ?? `${item.label}-${idx}`;
+    const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+
+    if (hasChildren) {
+      const isOpen = !!openIds[id];
+      return (
+        <li key={id}>
+          <button
+            className="block px-4 py-2 rounded-lg text-gray-900 hover:bg-white/70 hover:backdrop-blur-sm hover:shadow-md hover:text-secondary transition-all duration-200 font-medium w-full flex justify-between items-center text-sm"
+            onClick={() => toggleOpen(id)}
+            aria-expanded={isOpen}
+            data-test-id={`side-bar-parent-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+          >
+            <span>{item.label}</span>
+            <svg
+              className={`h-4 w-4 transform transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+          <ul className={`pl-6 space-y-1 mt-1 ${isOpen ? '' : 'hidden'}`}>
+            {item.children!.map((child, cIdx) => (
+              <li key={(child.id ?? `${child.label}-${cIdx}`)}>
+                <button
+                  className="w-full text-left px-4 py-2 rounded hover:bg-white/70 hover:backdrop-blur-sm hover:shadow-sm hover:text-secondary transition-all duration-200 font-medium cursor-pointer text-sm"
+                  onClick={() => handleNavigate(child.url)}
+                  data-test-id={`side-bar-child-${child.label.toLowerCase().replace(/\s+/g, '-')}`}
+                >
+                  {child.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </li>
+      );
+    }
+
+    return (
+      <li key={id}>
+        <button
+          className="w-full text-left px-4 py-2 rounded hover:bg-white/20  hover:shadow-sm hover:text-primary transition-all duration-200 font-medium cursor-pointer text-sm"
+          onClick={() => handleNavigate(item.url)}
+          data-test-id={`side-bar-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+        >
+          {item.label}
+        </button>
+      </li>
+    );
+  };
+
+  return (
+    <aside
+      className={`fixed top-0 left-0 z-50 w-64 h-full bg-white/60 backdrop-blur backdrop-saturate-150 text-black flex flex-col items-center py-6 shadow-xl border border-white/20 ${className ? className : ''}`}
+      style={style}
+      data-test-id="side-bar-root"
+    >
+      <div className="mb-6 text-center">
+        {logoUrl ? (
+          <div className="">
+            {(!logoLoaded || logoError) && (
+              <div className="h-20 w-20 bg-neutral-300 rounded-lg flex items-center justify-center mx-auto mb-2" data-test-id="side-bar-logo-skeleton">
+                {logoError && (
+                  <span className="material-symbols-outlined text-neutral-400" style={{ fontSize: 32 }}>
+                    image_not_supported
+                  </span>
+                )}
+              </div>
+            )}
+            {!logoError && (
+              <img
+                src={logoUrl}
+                alt={`${APP_NAME} Logo`}
+                className={`h-20 w-auto mx-auto object-contain transition-opacity duration-300 ${!logoLoaded ? 'opacity-0 absolute' : 'opacity-100'}`}
+                data-test-id="side-bar-logo"
+                onLoad={() => setLogoLoaded(true)}
+                onError={() => setLogoError(true)}
+              />
+            )}
+          </div>
+        ) : null}
+        {/* <div className="text-xl font-bold" data-test-id="side-bar-app-name">{APP_NAME}</div> */}
+        {/* <div className="text-sm opacity-70" data-test-id="side-bar-app-version">{'1.2.12'}</div> */}
+        <div className="text-lg font-bold text-gray-800" data-test-id="side-bar-app-name">{APP_NAME}</div>
+        <div className="text-sm text-gray-600" data-test-id="side-bar-app-version">v{APP_VERSION}</div>
+        <div className="text-xs text-gray-500" data-test-id="side-bar-app-release">Release: {APP_RELEASE}</div>
+      </div>
+
+      {session?.user && (() => {
+        const user = session.user as Record<string, unknown>;
+        const displayName = (user.userName as string | undefined)
+          || (user.name as string | undefined)
+          || 'Usuario';
+        const roleKey = (user.role as string | undefined)?.toLowerCase();
+        return (
+          <div className="w-full px-6 mb-6">
+            <div className="flex items-center justify-between gap-3 border border-gray-300 rounded-lg px-3 py-2" style={{ background: 'transparent', borderWidth: '0.3px' }}>
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <span className="material-symbols-outlined text-black text-3xl">person</span>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-base font-bold truncate">{displayName}</span>
+                  <span className="text-xs opacity-60 capitalize truncate">{roleKey ? ROLE_LABELS[roleKey] ?? roleKey : ''}</span>
+                </div>
+              </div>
+              <IconButton
+                icon="key_vertical"
+                variant="basic"
+                size="sm"
+                onClick={onOpenChangePassword}
+                title="Cambiar contraseña"
+              />
+            </div>
+          </div>
+        );
+      })()}
+
+      <nav className="w-full px-4 flex-1 mt-2 overflow-y-auto">
+        <ul className="flex flex-col gap-2 w-full">
+          {menuItems.map((item, idx) => renderMenuItem(item, idx))}
+        </ul>
+      </nav>
+
+      <div className="w-full mt-auto px-6 pb-2">
+        <Button
+          variant="outlined"
+          className="w-full"
+          onClick={async () => {
+            await signOut({ callbackUrl: '/' });
+          }}
+          data-test-id="side-bar-logout-btn"
+        >
+          Cerrar sesión
+        </Button>
+      </div>
+    </aside>
+  );
+};
+
+export default SideBar;
