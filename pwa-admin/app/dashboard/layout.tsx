@@ -42,28 +42,16 @@ export default function DashboardLayout({
 
   // Menu items structure
   const menuItems: SideBarMenuItem[] = [
-    { label: 'Dashboard', url: '/dashboard' },
+    { label: 'Dashboard', url: '/admin' },
     {
-      label: 'Gestión',
+      label: 'UI Components',
       children: [
-        { label: 'Productos', url: '/dashboard/productos' },
-        { label: 'Inventario', url: '/dashboard/inventario' },
-        { label: 'Clientes', url: '/dashboard/clientes' },
-        { label: 'Proveedores', url: '/dashboard/proveedores' },
-      ],
-    },
-    {
-      label: 'Operaciones',
-      children: [
-        { label: 'Ventas', url: '/dashboard/ventas' },
-        { label: 'Compras', url: '/dashboard/compras' },
-      ],
-    },
-    {
-      label: 'Configuración',
-      children: [
-        { label: 'Usuarios', url: '/dashboard/usuarios' },
-        { label: 'Reportes', url: '/dashboard/reportes' },
+        { label: 'Button', url: '/admin/ui-components/button' },
+        { label: 'Icon Button', url: '/admin/ui-components/icon-button' },
+        { label: 'Autocomplete', url: '/admin/ui-components/autocomplete' },
+        { label: 'Select', url: '/admin/ui-components/select' },
+        { label: 'Dialog', url: '/admin/ui-components/dialog' },
+        { label: 'Card', url: '/admin/ui-components/card' },
       ],
     },
   ];
