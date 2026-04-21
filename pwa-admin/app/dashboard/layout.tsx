@@ -72,7 +72,7 @@ export default function DashboardLayout({
     <>
       <TopBar
         title="Flow Store Admin"
-        logoSrc="/logo.svg"
+        logoSrc="/logo.png"
         menuItems={menuItems}
         showUserButton={true}
         userName={user?.userName as string | undefined}
