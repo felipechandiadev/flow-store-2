@@ -1,6 +1,21 @@
 @import "tailwindcss/preflight";
 @tailwind utilities;
 
+@theme {
+  --color-primary: #1C2046;
+  --color-background: #ffffff;
+  --color-foreground: #131615;
+  --color-border: #c1c1c2;
+  --color-accent: #2563a8;
+  --color-secondary: #04C9E7;
+  --color-muted: #6b7280;
+  --color-success: #4CAF50;
+  --color-info: #2196F3;
+  --color-warning: #FFC107;
+  --color-error: #F44336;
+  --color-neutral: #F3F4F6;
+}
+
 /* Leaflet CSS */
 @import 'leaflet/dist/leaflet.css';
 
@@ -121,20 +136,7 @@
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='%23184367' stroke-width='2'/%3E%3Cline x1='16' y1='4' x2='16' y2='12' stroke='%23184367' stroke-width='2'/%3E%3Cline x1='16' y1='20' x2='16' y2='28' stroke='%23184367' stroke-width='2'/%3E%3Cline x1='4' y1='16' x2='12' y2='16' stroke='%23184367' stroke-width='2'/%3E%3Cline x1='20' y1='16' x2='28' y2='16' stroke='%23184367' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23184367'/%3E%3C/svg%3E") 16 16, crosshair;
 }
 
-:root {
-  --color-primary: #1C2046;
-  --color-background: #ffffff;
-  --color-foreground: #131615;
-  --color-border: #c1c1c2;
-  --color-accent: #2563a8;
-  --color-secondary: #04C9E7;
-  --color-muted: #6b7280;
-  --color-success: #4CAF50;
-  --color-info: #2196F3;
-  --color-warning: #FFC107;
-  --color-error: #F44336;
-  --color-neutral: #F3F4F6;
-}
+/* CSS variables are now defined in @theme directive above */
 
 body {
   background-color: var(--color-background);
