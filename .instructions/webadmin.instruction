@@ -11,7 +11,7 @@ Estas instrucciones guían a los agentes de Copilot para desarrollar y mantener 
 ## 📁 Estructura de Carpetas Obligatoria
 ```
 src/
-├── app/                          # Rutas Next.js
+├── app/                          # Rutas Next.js (usa TopBar/SideBar en layouts)
 ├── features/{feature}/
 │   ├── actions/                  # Server Actions (*.action.ts)
 │   ├── application/              # Use Cases (*.usecase.ts)
@@ -20,10 +20,20 @@ src/
 │   ├── components/               # UI tonta
 │   ├── hooks/                    # Estado UI (*.hook.ts)
 │   └── types/                    # Tipos
-├── shared/                       # UI/components
-├── providers/                    # AuthProvider, etc.
+├── shared/
+│   ├── components/               # Componentes compartidos
+│   │   ├── TopBar/               # Header con logo, usuario, menú
+│   │   ├── TopBar/SideBar.tsx    # Navegación lateral (children, logout)
+│   │   └── ...otros componentes
+│   └── ...providers, lib
+├── providers/                    # AuthProvider, ErrorHandler
 └── lib/                          # Auth, utils
 ```
+
+### 🎨 Componentes Compartidos Obligatorios
+- **TopBar** (`@/shared/components/TopBar/TopBar.tsx`): Header con logo, usuario, botón menú
+- **SideBar** (`@/shared/components/TopBar/SideBar.tsx`): Navegación lateral, logout
+- Usar en layouts del `app/` para mantener consistencia visual
 
 ## 🔴 REGLAS CRÍTICAS (NO NEGOCIABLES)
 - **NO** fetch en componentes o hooks.
@@ -51,6 +61,7 @@ src/
 - Lógica en actions.
 - Mezclar patrones.
 - UI con negocio.
+- **Crear componentes Header/Sidebar personalizados**: Usar TopBar + SideBar compartidos siempre.
 
 ## 🧾 Checklist por Feature
 - [ ] Server Actions only.
@@ -58,6 +69,9 @@ src/
 - [ ] Token enviado en todas las fetches.
 - [ ] Componentes tontos.
 - [ ] Validaciones en domain.
+- [ ] **Layouts en `app/` integran TopBar + SideBar compartidos**.
+- [ ] **Menú items definido en layout, no en componentes**.
+- [ ] **Usuario mostrado desde `session.user` de NextAuth**.
 
 ## 📋 Ejemplo de Implementación
 Para una feature `products`:
@@ -127,5 +141,52 @@ Para una feature `products`:
 - Proteger rutas con middleware.
 
 ## 🧾 Conclusión
-Sigue estas instrucciones estrictamente. Arquitectura Server Actions only asegura compatibilidad con backend. Si rompes reglas, rompes la app.</content>
+Sigue estas instrucciones estrictamente. Arquitectura Server Actions only asegura compatibilidad con backend. Si rompes reglas, rompes la app.
+
+## 📐 Layout Principal Obligatorio
+**Todos los layouts en `app/` DEBEN usar TopBar + SideBar**:
+
+```tsx
+// app/layout.tsx
+'use client';
+import { useSession } from 'next-auth/react';
+import TopBar, { type SideBarMenuItem } from '@/shared/components/TopBar/TopBar';
+import ChangePasswordDialog from '@/shared/components/Dialog/ChangePasswordDialog';
+import { useState } from 'react';
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession();
+  const [showChangePassword, setShowChangePassword] = useState(false);
+
+  const menuItems: SideBarMenuItem[] = [
+    { label: 'Dashboard', url: '/dashboard' },
+    { label: 'Módulos', children: [
+      { label: 'Productos', url: '/dashboard/productos' },
+      { label: 'Inventario', url: '/dashboard/inventario' },
+    ] },
+  ];
+
+  return (
+    <>
+      <TopBar
+        title="Flow Store Admin"
+        logoSrc="/logo.png"
+        menuItems={menuItems}
+        showUserButton={true}
+        userName={session?.user?.userName as string}
+        firstName={(session?.user as any)?.firstName}
+        lastName={(session?.user as any)?.lastName}
+        onOpenChangePassword={() => setShowChangePassword(true)}
+      />
+      <main className="pt-20 px-6 pb-6">
+        {children}
+      </main>
+      <ChangePasswordDialog
+        isOpen={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+      />
+    </>
+  );
+}
+```</content>
 <parameter name="filePath">/Users/felipe/dev/flow-store-2/WEBADMIN_INSTRUCTIONS.md
