@@ -6,6 +6,9 @@ import { useSession, signOut } from 'next-auth/react';
 import TextField from '@/shared/components/TextField';
 import { Button } from '@/shared/components/Button';
 import Alert from '@/shared/components/Alert';
+import Dialog from './Dialog';
+
+const CHANGE_PASSWORD_FORM_ID = 'change-password-form';
 
 interface ChangePasswordDialogProps {
   isOpen: boolean;
@@ -44,7 +47,6 @@ export default function ChangePasswordDialog({ isOpen, onClose }: ChangePassword
         throw new Error(data.message || 'Error al cambiar la contraseña');
       }
 
-      // Close modal and logout
       onClose();
       await signOut({ callbackUrl: '/' });
     } catch (err) {
@@ -54,68 +56,61 @@ export default function ChangePasswordDialog({ isOpen, onClose }: ChangePassword
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-foreground">Cambiar Contraseña</h2>
-        </div>
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      title="Cambiar contraseña"
+      size="custom"
+      maxWidth="28rem"
+      actionsJustify="between"
+      data-test-id="change-password-dialog"
+      actions={
+        <>
+          <Button type="button" variant="outlined" onClick={onClose} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={CHANGE_PASSWORD_FORM_ID}
+            variant="primary"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Cambiando…' : 'Cambiar contraseña'}
+          </Button>
+        </>
+      }
+    >
+      <form id={CHANGE_PASSWORD_FORM_ID} onSubmit={handleSubmit} className="space-y-4">
+        {error && <Alert variant="error">{error}</Alert>}
 
-        <form onSubmit={handleSubmit} className="space-y-4 px-6 py-4">
-          {error && (
-            <Alert variant="error">
-              {error}
-            </Alert>
-          )}
+        <TextField
+          label="Contraseña actual"
+          type="password"
+          value={currentPassword}
+          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setCurrentPassword(e.target.value)}
+          required
+          name="currentPassword"
+        />
 
-          <TextField
-            label="Contraseña Actual"
-            type="password"
-            value={currentPassword}
-            onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setCurrentPassword(e.target.value)}
-            required
-            name="currentPassword"
-          />
+        <TextField
+          label="Nueva contraseña"
+          type="password"
+          value={newPassword}
+          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setNewPassword(e.target.value)}
+          required
+          name="newPassword"
+        />
 
-          <TextField
-            label="Nueva Contraseña"
-            type="password"
-            value={newPassword}
-            onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setNewPassword(e.target.value)}
-            required
-            name="newPassword"
-          />
-
-          <TextField
-            label="Confirmar Contraseña"
-            type="password"
-            value={confirmPassword}
-            onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setConfirmPassword(e.target.value)}
-            required
-            name="confirmPassword"
-          />
-
-          <div className="flex gap-3 pt-4 justify-between">
-            <Button
-              type="button"
-              variant="outlined"
-              onClick={onClose}
-              disabled={isLoading}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Cambiando...' : 'Cambiar Contraseña'}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <TextField
+          label="Confirmar contraseña"
+          type="password"
+          value={confirmPassword}
+          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setConfirmPassword(e.target.value)}
+          required
+          name="confirmPassword"
+        />
+      </form>
+    </Dialog>
   );
 }

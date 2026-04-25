@@ -1,4 +1,5 @@
 import React from "react";
+import "./button.css";
 
 export type ButtonVariant = "primary" | "secondary" | "outlined" | "outlinedSecondary" | "text" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
@@ -10,15 +11,19 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   className?: string;
   disabled?: boolean;
   loading?: boolean;
+  /** Ignored (compat); use className w-full for full width */
+  fullWidth?: boolean;
+  /** Ignored (compat) */
+  color?: string;
 }
 
 const variantClasses: Record<string, string> = {
-  primary: "btn-contained-primary cursor-pointer",
-  secondary: "btn-contained-secondary cursor-pointer",
-  outlined: "btn-outlined cursor-pointer",
-  outlinedSecondary: "btn-outlined-secondary cursor-pointer",
-  text: "btn-text cursor-pointer",
-  danger: "btn-contained-danger cursor-pointer",
+  primary: "fs-button fs-button--contained-primary",
+  secondary: "fs-button fs-button--contained-secondary",
+  outlined: "fs-button fs-button--outlined",
+  outlinedSecondary: "fs-button fs-button--outlined-secondary",
+  text: "fs-button fs-button--text",
+  danger: "fs-button fs-button--contained-danger",
 };
 
 const sizeClasses: Record<string, string> = {
@@ -28,12 +33,12 @@ const sizeClasses: Record<string, string> = {
 };
 
 const disabledClasses: Record<string, string> = {
-  primary: "btn-contained-primary opacity-50 cursor-not-allowed",
-  secondary: "btn-contained-secondary opacity-50 cursor-not-allowed",
-  outlined: "btn-outlined opacity-50 cursor-not-allowed",
-  outlinedSecondary: "btn-outlined-secondary opacity-50 cursor-not-allowed",
-  text: "btn-text opacity-50 cursor-not-allowed",
-  danger: "btn-contained-danger opacity-50 cursor-not-allowed",
+  primary: "fs-button fs-button--contained-primary opacity-50 cursor-not-allowed",
+  secondary: "fs-button fs-button--contained-secondary opacity-50 cursor-not-allowed",
+  outlined: "fs-button fs-button--outlined opacity-50 cursor-not-allowed",
+  outlinedSecondary: "fs-button fs-button--outlined-secondary opacity-50 cursor-not-allowed",
+  text: "fs-button fs-button--text opacity-50 cursor-not-allowed",
+  danger: "fs-button fs-button--contained-danger opacity-50 cursor-not-allowed",
 };
 
 export const Button: React.FC<ButtonProps> = ({

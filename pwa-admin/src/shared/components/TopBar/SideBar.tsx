@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, User, Lock, LogOut, ImageOff, Image as ImageIcon } from 'lucide-react';
+import { ChevronRight, User, LogOut, ImageOff, Image as ImageIcon } from 'lucide-react';
 import { Button } from '../Button/Button';
 import IconButton from '../IconButton/IconButton';
 
@@ -35,6 +35,10 @@ const ROLE_LABELS: Record<string, string> = {
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'FlowStore';
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.1.0';
 const APP_RELEASE = process.env.NEXT_PUBLIC_APP_RELEASE || '21-Diciembre-2025';
+
+/** Padding vertical reducido; mismo hover en padres, hojas e hijos (como el antiguo segundo nivel). */
+const MENU_ITEM_CLASSES =
+  "px-3 py-1 rounded text-foreground font-medium text-sm tracking-tighter transition-all duration-200 hover:bg-background/80 hover:backdrop-blur-sm hover:shadow-sm hover:text-secondary";
 
 const SideBar: React.FC<SideBarProps> = ({
   menuItems,
@@ -99,7 +103,7 @@ const SideBar: React.FC<SideBarProps> = ({
       return (
         <li key={id}>
           <button
-            className="px-4 py-2 rounded-lg text-gray-900 hover:bg-white/70 hover:backdrop-blur-sm hover:shadow-md hover:text-secondary transition-all duration-200 font-medium w-full flex justify-between items-center text-sm"
+            className={`${MENU_ITEM_CLASSES} w-full flex justify-between items-center`}
             onClick={() => toggleOpen(id)}
             aria-expanded={isOpen}
             data-test-id={`side-bar-parent-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -110,11 +114,11 @@ const SideBar: React.FC<SideBarProps> = ({
               className={`transform transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
             />
           </button>
-          <ul className={`pl-6 space-y-1 mt-1 ${isOpen ? '' : 'hidden'}`}>
+          <ul className={`pl-5 space-y-0.5 mt-0.5 ${isOpen ? '' : 'hidden'}`}>
             {item.children!.map((child, cIdx) => (
               <li key={(child.id ?? `${child.label}-${cIdx}`)}>
                 <button
-                  className="w-full text-left px-4 py-2 rounded hover:bg-white/70 hover:backdrop-blur-sm hover:shadow-sm hover:text-secondary transition-all duration-200 font-medium cursor-pointer text-sm"
+                  className={`${MENU_ITEM_CLASSES} w-full text-left cursor-pointer`}
                   onClick={() => handleNavigate(child.url)}
                   data-test-id={`side-bar-child-${child.label.toLowerCase().replace(/\s+/g, '-')}`}
                 >
@@ -130,7 +134,7 @@ const SideBar: React.FC<SideBarProps> = ({
     return (
       <li key={id}>
         <button
-          className="w-full text-left px-4 py-2 rounded hover:bg-white/20  hover:shadow-sm hover:text-primary transition-all duration-200 font-medium cursor-pointer text-sm"
+          className={`${MENU_ITEM_CLASSES} w-full text-left cursor-pointer`}
           onClick={() => handleNavigate(item.url)}
           data-test-id={`side-bar-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
         >
@@ -142,11 +146,11 @@ const SideBar: React.FC<SideBarProps> = ({
 
   return (
     <aside
-      className={`fixed top-0 left-0 z-50 w-64 h-full bg-white/40 backdrop-blur backdrop-saturate-150 text-black flex flex-col items-center py-6 shadow-xl border border-white/20 ${className ? className : ''}`}
+      className={`flex h-full min-h-0 w-[13.6rem] shrink-0 flex-col items-center bg-white/40 py-4 text-black shadow-xl backdrop-blur backdrop-saturate-150 ${className ? className : ''}`}
       style={style}
       data-test-id="side-bar-root"
     >
-      <div className="mb-6 text-center">
+      <div className="mb-4 text-center">
         {logoUrl ? (
           <div className="">
             {(!logoLoaded || logoError) && (
@@ -170,8 +174,8 @@ const SideBar: React.FC<SideBarProps> = ({
         ) : null}
         {/* <div className="text-xl font-bold" data-test-id="side-bar-app-name">{APP_NAME}</div> */}
         {/* <div className="text-sm opacity-70" data-test-id="side-bar-app-version">{'1.2.12'}</div> */}
-        <div className="text-lg font-bold text-gray-800" data-test-id="side-bar-app-name">{APP_NAME}</div>
-        <div className="text-sm text-gray-600" data-test-id="side-bar-app-version">v{APP_VERSION}</div>
+        <div className="text-lg font-bold text-foreground" data-test-id="side-bar-app-name">{APP_NAME}</div>
+        <div className="text-sm text-muted" data-test-id="side-bar-app-version">v{APP_VERSION}</div>
       </div>
 
       {session?.user && (() => {
@@ -181,18 +185,26 @@ const SideBar: React.FC<SideBarProps> = ({
           || 'Usuario';
         const roleKey = (user.role as string | undefined)?.toLowerCase();
         return (
-          <div className="w-full px-6 mb-6">
-            <div className="flex items-center justify-between gap-3 border border-gray-300 rounded-lg px-3 py-2" style={{ background: 'transparent', borderWidth: '0.3px' }}>
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <User className="text-black shrink-0" size={32} />
-                <div className="flex flex-col min-w-0">
-                  <span className="text-base font-bold truncate">{displayName}</span>
-                  <span className="text-xs opacity-60 capitalize truncate">{roleKey ? ROLE_LABELS[roleKey] ?? roleKey : ''}</span>
+          <div className="w-full px-4 mb-4">
+            <div className="flex items-start justify-between gap-2.5 border border-border rounded-lg px-2.5 py-1.5" style={{ background: "transparent", borderWidth: "0.3px" }}>
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <User className="mt-0.5 shrink-0 text-black" size={24} />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span
+                    className="line-clamp-2 break-words text-left text-[11px] font-semibold leading-snug text-foreground"
+                    title={displayName}
+                  >
+                    {displayName}
+                  </span>
+                  <span className="mt-0.5 truncate text-left text-[10px] capitalize leading-tight opacity-60">
+                    {roleKey ? ROLE_LABELS[roleKey] ?? roleKey : ''}
+                  </span>
                 </div>
               </div>
               <IconButton
-                icon="Lock"
-                variant="basic"
+                className="shrink-0 self-center"
+                icon="KeyRound"
+                variant="basicSecondary"
                 size="sm"
                 onClick={onOpenChangePassword}
                 title="Cambiar contraseña"
@@ -202,13 +214,13 @@ const SideBar: React.FC<SideBarProps> = ({
         );
       })()}
 
-      <nav className="w-full px-4 flex-1 mt-2 overflow-y-auto">
-        <ul className="flex flex-col gap-2 w-full">
+      <nav className="w-full px-3 flex-1 mt-1.5 overflow-y-auto">
+        <ul className="flex w-full flex-col gap-1">
           {menuItems.map((item, idx) => renderMenuItem(item, idx))}
         </ul>
       </nav>
 
-      <div className="w-full mt-auto px-6 pb-2">
+      <div className="w-full mt-auto px-4 pb-1.5">
         <Button
           variant="outlined"
           className="w-full flex items-center justify-center gap-2"

@@ -11,8 +11,8 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 
-// Import local del CSS para garantizar estilos del mapa en cualquier ruta que use el componente.
-import 'leaflet/dist/leaflet.css';
+// Leaflet + overrides del mapa (sin depender de app/globals.css).
+import './location-picker.css';
 
 // Íconos de marcador inicializados únicamente en cliente.
 let customIcon: L.Icon | null = null;
@@ -102,7 +102,7 @@ const roundedClasses: Record<LocationPickerRounded, string> = {
 };
 
 const variantClasses: Record<LocationPickerVariant, string> = {
-  default: 'border border-gray-200',
+  default: 'border border-border',
   flat: '',
   borderless: '',
 };

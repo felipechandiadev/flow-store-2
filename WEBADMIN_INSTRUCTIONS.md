@@ -20,10 +20,14 @@ src/
 │   ├── components/               # UI tonta
 │   ├── hooks/                    # Estado UI (*.hook.ts)
 │   └── types/                    # Tipos
-├── shared/                       # UI/components
+├── shared/                       # UI/components (incl. Dialog, TopBar, etc.)
 ├── providers/                    # AuthProvider, etc.
 └── lib/                          # Auth, utils
 ```
+
+### Modales (pwa-admin)
+- **Solo** el **Dialog** compartido: `pwa-admin/src/shared/components/Dialog/Dialog.tsx`.
+- **Prohibido** implementar o usar otro patrón de diálogo (overlays a mano, otra librería de modal, duplicar el componente) salvo excepción acordada y documentada.
 
 ## 🔴 REGLAS CRÍTICAS (NO NEGOCIABLES)
 - **NO** fetch en componentes o hooks.
@@ -46,11 +50,19 @@ src/
 - Imports: `import { z } from 'zod'`
 - Fetches: Siempre con `getServerSession` y token.
 
+### DataGrid: columna de acciones (norma)
+- Encabezado: `headerName: ''` (sin texto en el header de acciones).
+- `IconButton` en celdas de acciones: `variant="basicSecondary"`, `size="sm"`. Ver `pwa-admin/src/shared/components/DataGrid/components/RowActions.tsx`.
+
+### Cards: IconButton
+- En **tarjetas** (`Card` y acciones con icono), `IconButton` **solo** `variant="basicSecondary"` (y `size="sm"`). El `Card` compartido fija el variant en acciones con `icon`/`ariaLabel`.
+
 ## 🚫 Anti-Patrones Prohibidos
 - Fetch en components/hooks.
 - Lógica en actions.
 - Mezclar patrones.
 - UI con negocio.
+- Diálogos distintos del **Dialog** compartido.
 
 ## 🧾 Checklist por Feature
 - [ ] Server Actions only.
@@ -58,6 +70,7 @@ src/
 - [ ] Token enviado en todas las fetches.
 - [ ] Componentes tontos.
 - [ ] Validaciones en domain.
+- [ ] Modales: solo el **Dialog** compartido.
 
 ## 📋 Ejemplo de Implementación
 Para una feature `products`:

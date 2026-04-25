@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Eye, EyeOff } from 'lucide-react';
 
+import "./textfield.css";
+
 interface TextFieldProps {
   label: string;
   required?: boolean;
@@ -355,12 +357,25 @@ export const TextField: React.FC<TextFieldProps> = ({
 
   const isTextArea = type === "textarea" || typeof rows === "number";
 
+  const hasStartAdornment =
+    (typeof startIcon === "string" && startIcon.length > 0) || Boolean(startAdornment);
+  /** pl-* solo en clases: el CSS del input no usa padding shorthand para no pisar esto. */
+  const hasWideStart = Boolean(startAdornment) && !(
+    typeof startIcon === "string" && startIcon.length > 0
+  );
+  const startPaddingClass = hasStartAdornment
+    ? hasWideStart
+      ? "pl-12"
+      : "pl-10"
+    : "pl-3";
+  const floatingStartLeft = hasStartAdornment ? (hasWideStart ? "3rem" : "2.5rem") : "0.75rem";
+
   return (
-    <div className={variante === "autocomplete" ? "relative w-full" : "input-container"}>
+    <div className={variante === "autocomplete" ? "relative w-full" : "fs-text-field"}>
       <div className={`relative ${className}`} data-test-id="text-field-root">
-      {typeof startIcon === 'string' && startIcon.length > 0 && (
+      {typeof startIcon === "string" && startIcon.length > 0 && (
         <span
-          className={`input-icon ${isDisabled ? 'text-muted-foreground opacity-50' : 'text-secondary'}`}
+          className={`fs-text-field__icon ${isDisabled ? "text-muted opacity-50" : "text-secondary"}`}
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         >
           {/* Icon rendering placeholder - should be replaced with lucide icon logic */}
@@ -369,7 +384,7 @@ export const TextField: React.FC<TextFieldProps> = ({
       )}
       {startIcon === undefined && startAdornment && (
         <span
-          className={`input-icon ${isDisabled ? 'text-muted-foreground opacity-50' : 'text-secondary'}`}
+          className={`fs-text-field__icon ${isDisabled ? "text-muted opacity-50" : "text-secondary"}`}
           style={{ fontSize: 14, width: 'auto', minWidth: 16, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', paddingRight: 4 }}
         >
           {startAdornment}
@@ -384,7 +399,7 @@ export const TextField: React.FC<TextFieldProps> = ({
           onBlur={() => setFocused(false)}
           onChange={handleChange}
           onKeyDown={onKeyDown}
-          className={`${placeholderClassRef.current ?? ''} input-base block min-w-[180px] pr-4 ${((typeof startIcon === 'string' && startIcon.length > 0) || startAdornment) ? " pl-9" : ""} ${variantInput} ${disabledStyles} z-0`}
+          className={`${placeholderClassRef.current ?? ""} fs-text-field__input block min-w-[180px] pr-4 ${startPaddingClass} ${variantInput} ${disabledStyles} z-0`}
           placeholder={
             type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
             (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))
@@ -416,7 +431,7 @@ export const TextField: React.FC<TextFieldProps> = ({
             onBlur={() => setFocused(false)}
             onChange={type === "dni" ? handleDNIChange : type === "currency" ? handleCurrencyChange : handleChange}
             onKeyDown={onKeyDown}
-            className={`${placeholderClassRef.current ?? ''} input-base block min-w-[180px] ${((typeof startIcon === 'string' && startIcon.length > 0) || startAdornment) ? " pl-9" : ""} ${(endIcon || (type === "password" && passwordVisibilityToggle)) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} z-0`}
+            className={`${placeholderClassRef.current ?? ""} fs-text-field__input block min-w-[180px] ${startPaddingClass} ${(endIcon || (type === "password" && passwordVisibilityToggle)) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} z-0`}
             placeholder={
               type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
               (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))
@@ -435,7 +450,7 @@ export const TextField: React.FC<TextFieldProps> = ({
             <button
               type="button"
               disabled={isDisabled}
-              className={`password-toggle-button inline-flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 hover:bg-primary/10 active:scale-95 ${focused ? "text-primary" : "text-secondary"} ${showPassword ? "bg-primary/10 text-primary" : "bg-transparent"} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`fs-text-field__password-toggle inline-flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 hover:bg-primary/10 active:scale-95 ${focused ? "text-primary" : "text-secondary"} ${showPassword ? "bg-primary/10 text-primary" : "bg-transparent"} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               style={{ padding: 0 }}
               onMouseDown={(event) => {
                 if (isDisabled) return;
@@ -462,10 +477,10 @@ export const TextField: React.FC<TextFieldProps> = ({
       {/* Placeholder personalizado para campos requeridos */}
       {required && !shrink && showPlaceholder && (
         <div
-          className={`absolute pointer-events-none text-sm font-medium text-gray-400 transition-opacity duration-300 ${shrink ? 'opacity-0' : 'opacity-100'}`}
+          className={`absolute pointer-events-none text-sm font-medium text-muted transition-opacity duration-300 ${shrink ? 'opacity-0' : 'opacity-100'}`}
           style={{
             backgroundColor: "var(--color-background)",
-            left: ((typeof startIcon === 'string' && startIcon.length > 0) || startAdornment) ? '36px' : '12px',
+            left: floatingStartLeft,
             paddingRight: (endIcon || (type === "password" && passwordVisibilityToggle)) ? '40px' : '12px',
             top: isTextArea ? '1.25rem' : '50%',
             transform: isTextArea ? 'none' : 'translateY(-50%)'
@@ -498,7 +513,7 @@ export const TextField: React.FC<TextFieldProps> = ({
       </label>
       {typeof endIcon === 'string' && endIcon.length > 0 && (
         <span
-          className={`input-icon-right ${isDisabled ? 'text-muted-foreground opacity-50' : 'text-secondary'}`}
+          className={`fs-text-field__icon--end ${isDisabled ? "text-muted opacity-50" : "text-secondary"}`}
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         >
           {/* End icon rendering placeholder - should be replaced with lucide icon logic */}

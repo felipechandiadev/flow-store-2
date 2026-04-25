@@ -1,7 +1,16 @@
 // UI Base Components
 export { default as Alert } from './Alert';
 export { Button, ButtonPill } from './Button';
-export { Card } from './Card';
+export { Card, StatisticsCard } from './Cards';
+export type {
+  CardProps,
+  CardAction,
+  CardTextAction,
+  CardIconAction,
+  LucideIconName,
+  StatisticsCardProps,
+  StatisticsValueTone,
+} from './Cards';
 export { default as TextField } from './TextField';
 export { Badge } from './Badge';
 export { default as Switch } from './Switch';

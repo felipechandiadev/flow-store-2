@@ -53,15 +53,15 @@ const Body: React.FC<BodyProps> = ({
               {/* Expand/Collapse button */}
               {expandable && (
                 <div
-                  className="w-10 min-w-[40px] px-1 py-1 border-b border-gray-200 flex items-center justify-center"
-                  style={{
-                    backgroundColor: hoveredRowId === rowId ? 'var(--color-hover, #f5f5f5)' : 'transparent',
+                  className="w-10 min-w-[40px] px-1 py-1 border-b border-border flex items-center justify-center"
+                    style={{
+                    backgroundColor: hoveredRowId === rowId ? "var(--color-hover)" : "transparent",
                   }}
                   onMouseEnter={() => setHoveredRowId(rowId)}
                   onMouseLeave={() => setHoveredRowId(null)}
                 >
                   <IconButton
-                    icon="expand_more"
+                    icon="ChevronDown"
                     variant="basic"
                     size="sm"
                     onClick={() => onToggleExpand?.(rowId)}
@@ -77,9 +77,7 @@ const Body: React.FC<BodyProps> = ({
                 const isPinnedActionsColumn =
                   pinActionsColumn && column.field === actionsColumnField;
                 const rowBackgroundColor =
-                  hoveredRowId === rowId
-                    ? 'var(--color-hover, #f5f5f5)'
-                    : 'var(--color-background, #ffffff)';
+                  hoveredRowId === rowId ? "var(--color-hover)" : "var(--color-background)";
 
                 const cellStyle = {
                   ...style,
@@ -89,7 +87,7 @@ const Body: React.FC<BodyProps> = ({
                         position: 'sticky' as const,
                         right: 0,
                         zIndex: 8,
-                        borderLeft: '1px solid #e5e7eb',
+                        borderLeft: "1px solid var(--color-border)",
                         flex: '0 0 auto',
                       }
                     : {}),
@@ -106,7 +104,7 @@ const Body: React.FC<BodyProps> = ({
                   return (
                     <div
                       key={`${column.field}-${rowId}`}
-                      className="px-3 py-1 border-b border-gray-200 text-xs flex items-center justify-start"
+                      className="px-3 py-1 border-b border-border text-xs flex items-center justify-start"
                       style={cellStyle}
                       onMouseEnter={() => setHoveredRowId(rowId)}
                       onMouseLeave={() => setHoveredRowId(null)}
@@ -121,7 +119,7 @@ const Body: React.FC<BodyProps> = ({
                   return (
                     <div
                       key={`${column.field}-${rowId}`}
-                      className="px-3 py-1 border-b border-gray-200 text-xs flex items-center justify-start"
+                      className="px-3 py-1 border-b border-border text-xs flex items-center justify-start"
                       style={cellStyle}
                       onMouseEnter={() => setHoveredRowId(rowId)}
                       onMouseLeave={() => setHoveredRowId(null)}
@@ -134,7 +132,7 @@ const Body: React.FC<BodyProps> = ({
                 return (
                   <div
                     key={`${column.field}-${rowId}`}
-                    className="px-3 py-1 border-b border-gray-200 text-xs flex items-center justify-start"
+                    className="px-3 py-1 border-b border-border text-xs flex items-center justify-start"
                     style={cellStyle}
                     onMouseEnter={() => setHoveredRowId(rowId)}
                     onMouseLeave={() => setHoveredRowId(null)}
@@ -147,7 +145,7 @@ const Body: React.FC<BodyProps> = ({
             {/* Expanded content panel */}
             {expandable && isExpanded && expandableRowContent && (
               <div 
-                className="min-w-full bg-gray-50 border-b border-gray-200 overflow-hidden"
+                className="min-w-full bg-neutral/50 border-b border-border overflow-hidden"
                 style={{ minWidth: 'max-content' }}
                 data-test-id="data-grid-expanded-row"
               >

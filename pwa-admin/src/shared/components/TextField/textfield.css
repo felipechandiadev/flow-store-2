@@ -1,0 +1,64 @@
+/**
+ * TextField y agrupación de formulario. Colores: --color-* (tema en globals :root).
+ */
+.fs-text-field {
+  position: relative;
+  width: 100%;
+}
+
+/* Sin shorthand `padding` aquí: si no, pisa el padding-left de Tailwind (pl-9) y el texto tapa al icono. */
+.fs-text-field__input {
+  width: 100%;
+  min-height: 2.75rem;
+  min-width: 180px;
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-border, #c1c1c2);
+  background-color: var(--color-background, #fff);
+  color: var(--color-foreground, #131615);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  padding-right: 0.75rem;
+  /* padding-left: clases pl-* en el componente */
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.fs-text-field__input:focus {
+  outline: none;
+  border-color: transparent;
+  box-shadow: 0 0 0 1px var(--color-primary, #1c2046);
+}
+
+.fs-text-field__icon {
+  pointer-events: none;
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  z-index: 1;
+  transform: translateY(-50%);
+}
+
+.fs-text-field__icon--end {
+  pointer-events: none;
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  z-index: 1;
+  transform: translateY(-50%);
+}
+
+.fs-text-field__password-toggle {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+}
+
+/* Campo o grupo con margen inferior (formularios base) */
+.fs-form-group {
+  margin-bottom: 1rem;
+}

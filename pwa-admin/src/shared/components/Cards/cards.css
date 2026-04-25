@@ -1,0 +1,94 @@
+/**
+ * Módulo Cards: estilos viven junto a los componentes (no en app/globals.css).
+ * Colores: variables --color-* del tema (mismas que tailwind.config.ts / :root de la app).
+ */
+.fs-card {
+  background-color: var(--color-background, #fff);
+  border: 1px solid
+    color-mix(in srgb, var(--color-border, #c1c1c2) 70%, transparent);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  overflow: hidden;
+}
+
+/* Modo legado: cuerpo con padding */
+.fs-card--legacy {
+  padding: 1rem;
+  overflow: visible;
+}
+
+.fs-card--clickable {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.fs-card--clickable:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--color-neutral, #f3f4f6) 45%,
+    var(--color-background, #fff)
+  );
+}
+
+.fs-card__header {
+  padding: 1rem 1rem 0.75rem 1rem;
+}
+
+.fs-card__title {
+  color: var(--color-foreground);
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+}
+.fs-card__subtitle {
+  margin-top: 0.125rem;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.fs-card__header-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.fs-card__header-end {
+  flex-shrink: 0;
+}
+
+.fs-card__content {
+  padding: 1rem;
+}
+
+.fs-card__actions {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-top: 1px solid
+    color-mix(in srgb, var(--color-border, #c1c1c2) 70%, transparent);
+  padding: 0.75rem 1rem 1rem 1rem;
+}
+
+.fs-statistics-card__label {
+  margin-bottom: 0.5rem;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.fs-statistics-card__value {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+}
+.fs-statistics-card__value--primary { color: var(--color-primary); }
+.fs-statistics-card__value--success { color: var(--color-success); }
+.fs-statistics-card__value--info { color: var(--color-info); }
+.fs-statistics-card__value--warning { color: var(--color-warning); }
+
+.fs-statistics-card__hint {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--color-muted);
+  opacity: 0.9;
+}

@@ -79,7 +79,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           variant="text"
           title="Ordenar por primer campo (asc)"
           onClick={handleQuickSort}
-          icon="sort"
+          icon="ArrowUpDown"
           className={isSortActive ? 'text-primary' : 'text-secondary'}
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         />
@@ -104,7 +104,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             }
             onToggleFilterMode?.();
           }}
-          icon={filterMode ? 'filter_alt_off' : 'filter_alt'}
+          icon={filterMode ? 'FilterX' : 'Filter'}
           className="text-secondary"
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         />
@@ -115,7 +115,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           variant="text"
           title="Exportar a Excel"
           onClick={handleExportExcel}
-          icon="file_download"
+          icon="Download"
           className="text-secondary"
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         />

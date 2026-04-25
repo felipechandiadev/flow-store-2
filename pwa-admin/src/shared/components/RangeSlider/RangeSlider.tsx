@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import "./range-slider.css";
 
 interface RangeSliderProps {
     min?: number;
@@ -52,19 +53,19 @@ const RangeSlider: React.FC<RangeSliderProps> = ({ min = 0, max = 100, value, on
             <div className="mb-1 flex items-center justify-between">
                 <span className="text-xs text-foreground font-light" data-test-id="range-slider-label">Rango</span>
             </div>
-            <div className="range-container" ref={trackRef} data-test-id="range-slider-track">
+            <div className="fs-range-slider" ref={trackRef} data-test-id="range-slider-track">
                 {/* Track */}
-                <div className="range-track" data-test-id="range-slider-bg" />
+                <div className="fs-range-slider__track" data-test-id="range-slider-bg" />
                 {/* Filled Range */}
                 <div
-                    className="range-fill"
+                    className="fs-range-slider__fill"
                     style={{ left: `${getPercent(values[0])}%`, width: `${getPercent(values[1]) - getPercent(values[0])}%` }}
                     data-test-id="range-slider-fill"
                 />
                 {/* Thumbs */}
                 <button
                     type="button"
-                    className="range-thumb"
+                    className="fs-range-slider__thumb"
                     style={{ left: `${getPercent(values[0])}%`, transform: "translate(-50%, -50%)" }}
                     onMouseDown={() => setDragging("min")}
                     aria-label="Min value"
@@ -72,7 +73,7 @@ const RangeSlider: React.FC<RangeSliderProps> = ({ min = 0, max = 100, value, on
                 />
                 <button
                     type="button"
-                    className="range-thumb"
+                    className="fs-range-slider__thumb"
                     style={{ left: `${getPercent(values[1])}%`, transform: "translate(-50%, -50%)" }}
                     onMouseDown={() => setDragging("max")}
                     aria-label="Max value"

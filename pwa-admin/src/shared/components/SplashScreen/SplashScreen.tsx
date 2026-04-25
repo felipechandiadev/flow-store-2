@@ -6,8 +6,7 @@ import DotProgress from "../DotProgress/DotProgress";
 const SplashScreen = () => {
   return (
     <div
-      className="min-h-screen w-full flex items-center justify-center"
-      style={{ backgroundColor: "#ffffff" }}
+      className="min-h-screen w-full flex items-center justify-center bg-background"
       data-test-id="splash-root"
     >
       <div className="w-full max-w-2xl px-6">
@@ -21,7 +20,7 @@ const SplashScreen = () => {
             className="h-64 w-64 mb-4"
           />
           <div style={{ marginTop: "10vh" }}>
-            <DotProgress size={16} gap={10} colorPrimary="#1976D2" colorNeutral="#1976D2" />
+            <DotProgress size={16} gap={10} />
           </div>
         </div>
       </div>

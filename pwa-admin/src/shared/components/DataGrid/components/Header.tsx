@@ -1,5 +1,6 @@
 'use client'
 import React, { useState, useCallback } from 'react';
+import { Search } from 'lucide-react';
 import IconButton from '@/shared/components/IconButton';
 import Toolbar from './Toolbar';
 import TextField from '@/shared/components/TextField';
@@ -115,7 +116,7 @@ const Header: React.FC<HeaderProps> = ({
         {(createForm || onAddClick) && (
           <div className="flex items-center mr-4">
             <IconButton 
-              icon="add" 
+              icon="Plus" 
               variant="ghost" 
               size="md"
               onClick={onAddClick || (() => setIsCreateModalOpen(true))}
@@ -126,7 +127,7 @@ const Header: React.FC<HeaderProps> = ({
         )}
         
         {/* Title */}
-        <div className="text-lg font-semibold text-gray-800 mr-6 whitespace-nowrap">
+        <div className="text-lg font-semibold text-foreground mr-6 whitespace-nowrap">
           {title}
         </div>
 
@@ -164,7 +165,7 @@ const Header: React.FC<HeaderProps> = ({
                 value={searchInput}
                 onChange={handleChange}
                 placeholder="Buscar..."
-                startIcon="search"
+                startAdornment={<Search className="h-4 w-4 shrink-0 text-secondary" aria-hidden />}
                 className="w-full sm:w-64"
                 data-test-id="data-grid-search-input"
               />
@@ -207,7 +208,7 @@ const Header: React.FC<HeaderProps> = ({
               name="datagrid-search-mobile"
               value={searchInput}
               onChange={handleChange}
-              startIcon={"search"}
+              startAdornment={<Search className="h-4 w-4 shrink-0 text-secondary" aria-hidden />}
               className="text-sm w-full"
             />
           </div>

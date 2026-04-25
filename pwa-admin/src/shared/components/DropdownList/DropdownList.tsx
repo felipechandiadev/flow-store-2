@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
+import "./dropdown.css";
+
 // Option row style for dropdown
-export const dropdownOptionClass = "dropdown-option";
+export const dropdownOptionClass = "fs-dropdown__option";
 
 interface DropdownListProps {
   open: boolean;
@@ -102,19 +104,14 @@ const DropdownList: React.FC<DropdownListProps> = ({
           const currentClassName = child.props.className || '';
           const hoverClass = 
             highlightedIndex === idx 
-              ? 'bg-secondary-30' 
+              ? 'bg-primary/10 text-foreground' 
               : hoveredIndex === idx
-              ? 'bg-secondary-20'
+              ? 'bg-neutral'
               : '';
-          
-          // Get total children count for first/last detection
-          const isFirst = idx === 0;
-          const isLast = idx === childrenArray.length - 1;
-          const roundedClass = isFirst ? 'rounded-t' : isLast ? 'rounded-b' : '';
           
           return React.cloneElement(child, {
             key: child.key ?? idx,
-            className: `${currentClassName} ${hoverClass} ${roundedClass}`.trim(),
+            className: `${currentClassName} ${hoverClass}`.trim(),
             onMouseEnter: () => handleMouseEnter(idx),
             onMouseLeave: () => handleMouseLeave(),
           } as any);
@@ -140,7 +137,7 @@ const DropdownList: React.FC<DropdownListProps> = ({
   const dropdownElement = (
     <ul
       ref={dropdownRef}
-      className={`dropdown-list ${usePortal ? 'dropdown-list-portal' : ''} ${className}`}
+      className={`fs-dropdown__list ${usePortal ? "fs-dropdown__list--portal" : ""} ${className}`.trim()}
       style={usePortal && position ? { ...portalStyle, ...style } : (dropUp || Object.keys(style || {}).length > 0 ? { ...dropStyle, ...style } : { ...dropStyle })}
       data-test-id={testId || "dropdown-list"}
     >

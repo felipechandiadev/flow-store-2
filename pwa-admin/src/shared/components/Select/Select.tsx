@@ -1,5 +1,6 @@
 'use client'
 import React, { useState, useEffect, useRef } from "react";
+import { ChevronDown } from "lucide-react";
 import DropdownList, { dropdownOptionClass } from "../DropdownList/DropdownList";
 import IconButton from "../IconButton/IconButton";
 import { TextField } from "../TextField/TextField";
@@ -29,7 +30,10 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
   const [focused, setFocused] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const selected = options.find(opt => opt.id === value);
+  const selected =
+    value === null || value === undefined
+      ? undefined
+      : options.find((opt) => String(opt.id) === String(value));
   const shrink = focused || selected;
   const onChangeRef = useRef(onChange);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -107,7 +111,7 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
   const hasClear = allowClear && hasValue;
 
   return (
-    <div className="select-container" ref={containerRef}>
+    <div className="fs-dropdown-container" ref={containerRef}>
       {variant === 'minimal' ? (
         // Variante Minimal: Contenedor compacto con icono de despliegue
         <div
@@ -142,12 +146,12 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
           />
 
           <div
-            className={`flex items-center rounded-md border border-border bg-background py-2 text-sm transition-colors ${
+            className={`flex min-h-10 items-center rounded-md border border-border bg-background px-3 py-2 text-sm transition-colors ${
               focused ? 'border-primary ring-2 ring-primary/20' : 'hover:border-border/80'
-            } ${disabled ? 'bg-muted text-muted-foreground' : ''} ${hasClear ? 'pr-12 pl-3' : 'pr-8 pl-3'}`.trim()}
+            } ${disabled ? 'bg-muted text-muted-foreground' : ''} ${hasClear ? 'pr-12' : 'pr-8'}`.trim()}
           >
             <span
-              className={`flex-1 truncate text-sm font-light ${
+              className={`min-h-[1.25rem] flex-1 truncate text-sm font-light leading-normal ${
                 hasValue ? 'text-foreground' : 'text-muted-foreground'
               }`}
               style={hasValue ? { color: 'var(--color-foreground)' } : undefined}
@@ -158,7 +162,7 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
           
           {allowClear && value !== null && value !== undefined && (
             <IconButton
-              icon="close_small"
+              icon="X"
               variant="text"
               className={`absolute right-10 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20 ${focused ? 'text-primary' : 'text-secondary'}`}
               onClick={() => onChange?.(null)}
@@ -170,12 +174,12 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
           )}
 
           <span
-            className={`material-symbols-outlined pointer-events-none absolute ${hasClear ? 'right-3.5' : 'right-3'} top-1/2 -translate-y-1/2 text-base transition-colors ${
+            className={`pointer-events-none absolute ${hasClear ? 'right-3.5' : 'right-3'} top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center text-base transition-colors ${
               focused ? 'text-primary' : 'text-secondary'
             }`}
             aria-hidden="true"
           >
-            expand_more
+            <ChevronDown className="h-4 w-4" strokeWidth={2} />
           </span>
 
           <DropdownList 
@@ -267,7 +271,7 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
         
           {allowClear && value !== null && value !== undefined && (
             <IconButton
-              icon="close_small"
+              icon="X"
               variant="text"
               className={`absolute right-10 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20 ${focused ? 'text-primary' : 'text-secondary'}`}
               onClick={() => onChange?.(null)}
@@ -279,7 +283,7 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
           )}
         
           <IconButton
-            icon="arrow_drop_down"
+            icon="ChevronDown"
             variant="text"
             className={`absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center ${focused ? 'text-primary' : 'text-secondary'}`}
             tabIndex={-1}

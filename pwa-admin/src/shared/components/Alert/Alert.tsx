@@ -1,5 +1,7 @@
 import React from "react";
 
+import "./alert.css";
+
 export type AlertVariant = "success" | "info" | "warning" | "error";
 
 interface AlertProps {
@@ -9,21 +11,20 @@ interface AlertProps {
   ["data-test-id"]?: string;
 }
 
-const variantStyles: Record<AlertVariant, string> = {
-  success: "alert-success",
-  info: "alert-info", 
-  warning: "alert-warning",
-  error: "alert-error",
+const variantClass: Record<AlertVariant, string> = {
+  success: "fs-alert--success",
+  info: "fs-alert--info",
+  warning: "fs-alert--warning",
+  error: "fs-alert--error",
 };
 
 const Alert: React.FC<AlertProps> = ({ variant = "info", children, className = "", ...props }) => {
   const dataTestId = props["data-test-id"];
   return (
     <div className="relative w-full">
-      {/* Fondo blanco con opacidad reducida para overlay */}
-      <div className="absolute inset-0 bg-white/70 rounded z-0 pointer-events-none" />
+      <div className="fs-alert__scrim" aria-hidden />
       <div
-        className={`relative w-full px-4 py-2 rounded border font-light flex items-center gap-2 ${variantStyles[variant]} ${className}`}
+        className={`fs-alert ${variantClass[variant]} ${className}`.trim()}
         role="alert"
         data-test-id={dataTestId || `alert-${variant}`}
       >

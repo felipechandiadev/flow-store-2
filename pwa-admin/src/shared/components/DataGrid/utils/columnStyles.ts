@@ -143,10 +143,10 @@ export const DataGridStyles = {
 
   // Headers de columna
   headerRow: 'flex min-w-full',
-  headerCell: 'px-3 py-2 text-sm font-medium text-gray-700 border-r border-gray-200 last:border-r-0',
+  headerCell: 'px-3 py-2 text-sm font-medium text-foreground border-r border-border last:border-r-0',
 
   // Celdas del body (desde Cell.tsx)
-  bodyCell: 'px-3 py-1 text-sm text-gray-900 border-b border-gray-200 border-r border-gray-200 bg-background whitespace-pre-line break-words min-h-[22px] flex-auto last:border-r-0',
+  bodyCell: 'px-3 py-1 text-sm text-foreground border-b border-border border-r border-border bg-background whitespace-pre-line break-words min-h-[22px] flex-auto last:border-r-0',
 
   // Responsive breakpoints
   responsive: {

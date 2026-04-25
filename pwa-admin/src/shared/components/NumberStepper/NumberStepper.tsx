@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useRef } from 'react';
 import { Minus, Plus } from 'lucide-react';
+import './number-stepper.css';
 
 interface NumberStepperProps {
   label?: string; // Ahora opcional
@@ -156,16 +157,17 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
 
   // Estilos base similares a TextField
   const baseInputClasses = `
+    fs-number-stepper__input
     block w-full py-1 text-sm font-light text-foreground appearance-none
     focus:outline-none focus:border-primary
     transition-colors duration-200 px-3 bg-transparent
-    ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''}
+    ${disabled ? 'bg-neutral cursor-not-allowed' : ''}
     ${className}
   `;
 
   const labelClasses = `
-    text-xs font-medium text-gray-700 leading-tight
-    ${required ? "after:content-['*'] after:text-red-500 after:ml-1" : ""}
+    text-xs font-medium text-foreground leading-tight
+    ${required ? "after:content-['*'] after:text-error after:ml-1" : ""}
   `;
 
   const buttonClasses = `
@@ -177,7 +179,7 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
 
   const containerClasses = `
     flex items-center border-[1px] border-border rounded-md bg-transparent
-    ${disabled ? 'bg-gray-100' : ''}
+    ${disabled ? 'bg-neutral' : ''}
   `;
 
   // Función para renderizar label/icono
@@ -186,12 +188,11 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
     if (!label && !icon) return null;
 
     const iconElement = icon ? (
-      <span className="text-gray-600 text-xs">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="10"></circle>
-          <path d="M12 16v-4M12 8h.01"></path>
+      <span className="flex items-center gap-1 text-xs text-muted">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 16v-4M12 8h.01" />
         </svg>
-      </span>
         {icon}
       </span>
     ) : null;
@@ -236,18 +237,6 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
 
   return (
     <>
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          input[type="number"]::-webkit-inner-spin-button,
-          input[type="number"]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-          }
-          input[type="number"] {
-            -moz-appearance: textfield;
-          }
-        `
-      }} />
       <div className={containerClasses} data-test-id="number-stepper-root">
         {/* Botón decrementar */}
         <button
@@ -257,7 +246,7 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
           className={`${buttonClasses} rounded-l-md border-r border-border`}
           data-test-id={`${props['data-test-id']}-decrement`}
         >
-          <Minus className="text-gray-600" size={16} />
+          <Minus className="text-muted" size={16} />
         </button>
 
         {/* Input y Label/Icono - Contenedor centrado */}
@@ -290,7 +279,7 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
           className={`${buttonClasses} rounded-r-md border-l border-border`}
           data-test-id={`${props['data-test-id']}-increment`}
         >
-          <Plus className="text-gray-600" size={16} />
+          <Plus className="text-muted" size={16} />
         </button>
       </div>
     </>

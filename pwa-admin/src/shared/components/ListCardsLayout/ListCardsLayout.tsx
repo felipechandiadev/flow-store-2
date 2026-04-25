@@ -129,7 +129,7 @@ function ListCardsLayout<T>({
         <div className="flex min-w-0 items-center">
           <div className="mr-4 flex items-center">
             <IconButton
-              icon="add"
+              icon="Plus"
               variant="ghost"
               size="md"
               onClick={onAddClick}
@@ -138,7 +138,7 @@ function ListCardsLayout<T>({
             />
           </div>
 
-          <h2 className="truncate whitespace-nowrap text-lg font-semibold text-gray-800">{title}</h2>
+          <h2 className="truncate whitespace-nowrap text-lg font-semibold text-foreground">{title}</h2>
         </div>
 
         <div className="flex w-full items-center gap-3 sm:ml-auto sm:w-auto">
@@ -161,7 +161,7 @@ function ListCardsLayout<T>({
       <div className="px-4 pb-4" data-test-id="list-cards-layout-content">
         {cards.length === 0 ? (
           emptyState || (
-            <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-muted-foreground">
+            <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
               No hay resultados para mostrar.
             </div>
           )

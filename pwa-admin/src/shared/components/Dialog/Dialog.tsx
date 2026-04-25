@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '../Button/Button';
+import './dialog.css';
 
 interface DialogProps {
   open: boolean;
@@ -37,10 +38,12 @@ interface DialogProps {
   className?: string;
   // Inline style forwarded to dialog content (useful for child-specific widths)
   contentStyle?: React.CSSProperties;
-  // Actions to display in the footer
+  // Actions to display in the footer (rendered in a row with justify-between by default)
   actions?: React.ReactNode;
   // Hide the actions area (useful when actions are handled internally by children)
   hideActions?: boolean;
+  // Layout for the actions row: default space-between (edges). Use "end" to align all buttons to the right.
+  actionsJustify?: 'between' | 'start' | 'end' | 'center';
   // Show close button in the top-right corner
   showCloseButton?: boolean;
   // Text for the close button (default: "cerrar")
@@ -123,6 +126,7 @@ const Dialog: React.FC<DialogProps> = ({
   contentStyle,
   actions,
   hideActions = false,
+  actionsJustify = 'between',
   showCloseButton = false,
   closeButtonText = 'cerrar',
   onCloseButtonClick,
@@ -202,7 +206,7 @@ const Dialog: React.FC<DialogProps> = ({
   const marginClasses = fullWidth ? 'mx-4 sm:mx-4 md:mx-4' : 'mx-4 sm:mx-8 md:mx-12';
 
   const contentClass = [
-    'bg-white rounded-lg shadow-lg',
+    'fs-dialog__paper',
     'p-0 overflow-hidden',
     marginClasses,
     'relative',
@@ -267,8 +271,11 @@ const Dialog: React.FC<DialogProps> = ({
         data-test-id={dataTestId || 'dialog-content'}
       >
         {title && title !== '' && (
-          <div className="flex items-center mb-2 p-4 pb-0">
-            <h2 className="title p-1 flex-1" data-test-id="dialog-title">
+          <div className="flex items-center gap-2 border-b border-border/70 px-4 pt-4 pb-3">
+            <h2
+              className="title flex-1 text-left text-lg font-semibold text-foreground"
+              data-test-id="dialog-title"
+            >
               {title}
             </h2>
             {showCloseButton && (
@@ -287,7 +294,11 @@ const Dialog: React.FC<DialogProps> = ({
         )}
 
         <div
-          className={`w-full ${title && title !== '' ? 'pt-2 px-4 pb-4' : 'pt-0'} ${scroll === 'paper' ? 'flex-1 overflow-y-auto' : ''}`}
+          className={`w-full ${
+            title && title !== ''
+              ? 'mt-3 px-4 pb-4 pt-0'
+              : 'p-4'
+          } ${scroll === 'paper' ? 'flex-1 overflow-y-auto' : ''}`}
           data-test-id="dialog-body"
         >
           {children}
@@ -295,7 +306,18 @@ const Dialog: React.FC<DialogProps> = ({
 
         {/* Actions area - conditionally rendered */}
         {!hideActions && actions && (
-          <div className="w-full pt-4 mt-4" data-test-id="dialog-actions">
+          <div
+            className={`flex w-full flex-wrap items-center gap-2 border-t border-border/70 px-4 pb-4 pt-3 ${
+              actionsJustify === 'between'
+                ? 'justify-between'
+                : actionsJustify === 'start'
+                  ? 'justify-start'
+                  : actionsJustify === 'end'
+                    ? 'justify-end'
+                    : 'justify-center'
+            }`}
+            data-test-id="dialog-actions"
+          >
             {actions}
           </div>
         )}

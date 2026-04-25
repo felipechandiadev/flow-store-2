@@ -541,11 +541,11 @@ import { DeleteBaseForm } from '@/shared/components';
 ### 1. **Importación Centralizada**
 ```tsx
 // ✅ Bien - Una importación
-import { Button, Card, Alert } from '@/shared/components';
+import { Button, Card, StatisticsCard, Alert } from '@/shared/components';
 
 // ❌ Evitar - Importación individual
 import Button from '@/shared/components/Button';
-import Card from '@/shared/components/Card';
+import { Card, StatisticsCard } from '@/shared/components/Cards';
 ```
 
 ### 2. **Tipado Completo**

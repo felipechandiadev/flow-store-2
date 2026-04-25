@@ -250,7 +250,7 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
                   {label}
                 </span>
                 <IconButton
-                  icon="add"
+                  icon="Plus"
                   variant="containedSecondary"
                   onClick={() => inputRef.current?.click()}
                   ariaLabel="Subir multimedia"
@@ -296,7 +296,7 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
                   )}
                   <IconButton
                     aria-label="Eliminar archivo"
-                    icon="close"
+                    icon="X"
                     variant="containedSecondary"
                     onClick={() => handleRemove(idx)}
                     style={{ position: 'absolute', top: 2, right: 2, borderRadius: '50%', minWidth: 24, minHeight: 24, padding: 0, width: 24, height: 24, lineHeight: 1 }}

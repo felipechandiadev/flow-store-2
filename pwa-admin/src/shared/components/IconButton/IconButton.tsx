@@ -8,6 +8,8 @@ interface IconButtonProps {
 	icon: LucideIconName;
 	variant?: 'containedPrimary' | 'containedSecondary' | 'text' | 'basic' | 'basicSecondary' | 'outlined' | 'ghost';
 	size?: IconButtonSize;
+	/** Grosor del trazo del icono Lucide (por defecto 2). Valores mayores = icono más “fuerte”. */
+	strokeWidth?: number;
 	disabled?: boolean;
 	isLoading?: boolean;
 	className?: string;
@@ -21,7 +23,8 @@ const variantClasses: Record<string, string> = {
 	containedSecondary: 'bg-secondary text-white hover:bg-secondary/90 active:bg-secondary/80',
 	text: 'text-primary hover:bg-primary/10 active:bg-primary/20',
 	basic: 'text-foreground hover:bg-foreground/10 active:bg-foreground/20',
-	basicSecondary: 'text-secondary hover:bg-secondary/10 active:bg-secondary/20',
+	basicSecondary:
+		'text-secondary hover:text-primary hover:bg-primary/10 active:bg-primary/20 transition-colors',
 	outlined: 'border border-primary text-primary hover:bg-primary/10 active:bg-primary/20',
 	ghost: 'hover:bg-foreground/5 active:bg-foreground/10',
 };
@@ -46,6 +49,7 @@ const IconButton: React.FC<IconButtonProps> = ({
 	icon,
 	variant = 'containedPrimary',
 	size = 'md',
+	strokeWidth = 2,
 	disabled = false,
 	isLoading = false,
 	className = '',
@@ -91,6 +95,7 @@ const IconButton: React.FC<IconButtonProps> = ({
 		>
 			<IconComponent
 				size={iconSize}
+				strokeWidth={strokeWidth}
 				className={`select-none ${isLoading ? 'animate-spin' : ''}`}
 				aria-hidden
 			/>

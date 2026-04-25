@@ -33,7 +33,13 @@ src/
 ### 🎨 Componentes Compartidos Obligatorios
 - **TopBar** (`@/shared/components/TopBar/TopBar.tsx`): Header con logo, usuario, botón menú
 - **SideBar** (`@/shared/components/TopBar/SideBar.tsx`): Navegación lateral, logout
-- Usar en layouts del `app/` para mantener consistencia visual
+- **Dialog** (`@/shared/components/Dialog/Dialog.tsx`): **único** componente permitido para modales/diálogos en toda la app
+- Usar en layouts del `app/` para mantener consistencia visual (TopBar/SideBar). Para cualquier flujo de confirmación, formulario en modal, etc., usar **solo** el Dialog compartido.
+
+### Modales y diálogos (obligatorio)
+- **TODOS** los diálogos/modales deben implementarse con el **Dialog compartido** (`src/shared/components/Dialog/Dialog.tsx`).
+- Queda **prohibido** crear o usar otros patrones de diálogo: overlays manuales (`fixed inset-0`, capas a medida), `<dialog>` nativo distinto, librerías de modal ad hoc, o duplicar el patrón en otro componente, salvo excepción explícita documentada en el repo.
+- Componer título, cuerpo (`children`), acciones (`actions`) y props (`open`, `onClose`, `size`, etc.) según el API del Dialog compartido.
 
 ## 🔴 REGLAS CRÍTICAS (NO NEGOCIABLES)
 - **NO** fetch en componentes o hooks.
@@ -56,12 +62,21 @@ src/
 - Imports: `import { z } from 'zod'`
 - Fetches: Siempre con `getServerSession` y token.
 
+### DataGrid: columna de acciones (norma fija)
+- **Encabezado:** `headerName` **siempre cadena vacía** `''` (sin etiqueta de texto en la columna de acciones).
+- **IconButton** dentro de celdas de acciones: **`variant="basicSecondary"`** y **`size="sm"`** (referencia: `DataGrid/components/RowActions.tsx`). No mezclar `variant="text"` con colores arbitrarios en `className` para “semántica” de botón; si hace falta distinción, acordar otro criterio en diseño, no atajos de color ad hoc.
+- La columna suele ir con `field: 'actions'`, `sortable: false`, `filterable: false`; si se usa `pinActionsColumn`, el field por defecto es `actions`.
+
+### Cards: IconButton (norma fija)
+- Cualquier **IconButton** usado en el contexto de **tarjetas** (pie de `Card` con `actions` que usan `icon`, tarjetas compuestas a mano, acciones al pie de un `Card`, etc.) debe ser **exclusivamente** `variant="basicSecondary"` (y, si aplica, `size="sm"`). El componente compartido `Card` aplica `basicSecondary` automáticamente a las acciones con icono. En JSX manual dentro de cards, no usar `contained*`, `text` u otras variantes para IconButton salvo excepción aprobada en diseño.
+
 ## 🚫 Anti-Patrones Prohibidos
 - Fetch en components/hooks.
 - Lógica en actions.
 - Mezclar patrones.
 - UI con negocio.
 - **Crear componentes Header/Sidebar personalizados**: Usar TopBar + SideBar compartidos siempre.
+- **Cualquier diálogo/modal que no sea el `Dialog` compartido** (incl. overlays a mano, otros kits de modal).
 
 ## 🧾 Checklist por Feature
 - [ ] Server Actions only.
@@ -72,6 +87,7 @@ src/
 - [ ] **Layouts en `app/` integran TopBar + SideBar compartidos**.
 - [ ] **Menú items definido en layout, no en componentes**.
 - [ ] **Usuario mostrado desde `session.user` de NextAuth**.
+- [ ] **Modales: solo `Dialog` compartido**; sin alternativas ad hoc.
 
 ## 📋 Ejemplo de Implementación
 Para una feature `products`:

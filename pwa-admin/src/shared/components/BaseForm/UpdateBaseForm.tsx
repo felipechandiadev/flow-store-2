@@ -241,7 +241,7 @@ const UpdateBaseForm: React.FC<UpdateBaseFormProps> = ({
 		if (field.type === "image" || field.type === "video" || field.type === "avatar") {
 			return (
 				<div>
-					<label className="block text-sm font-medium text-gray-700 mb-2">
+					<label className="block text-sm font-medium text-foreground mb-2">
 						{field.label}
 					</label>
 					<MultimediaUpdater
@@ -333,9 +333,9 @@ const UpdateBaseForm: React.FC<UpdateBaseFormProps> = ({
 				const containerStyle = columnCount > 1 ? { gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`, gap: gapValue ?? "4px" } : { gap: gapValue ?? "4px" };
 
 				return (
-					<div key={group.id} className="form-group w-full">
-						{group.title && <h4 className="text-base font-semibold text-gray-900">{group.title}</h4>}
-						{group.subtitle && <p className="text-sm text-gray-600">{group.subtitle}</p>}
+					<div key={group.id} className="fs-form-group w-full">
+						{group.title && <h4 className="text-base font-semibold text-foreground">{group.title}</h4>}
+						{group.subtitle && <p className="text-sm text-muted">{group.subtitle}</p>}
 						<div className={`${containerClass}`} style={containerStyle as React.CSSProperties}>
 							{group.fields.map((field, index) => (
 								<div key={`${group.id}-${field.name}-${index}`} className="mb-0">

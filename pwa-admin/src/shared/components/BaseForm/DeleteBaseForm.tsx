@@ -41,12 +41,12 @@ const DeleteBaseForm: React.FC<DeleteBaseFormProps> = ({
         >
             {/* Encabezado */}
             {(title || subtitle) && (
-                <div className="px-6 py-4 border-b border-gray-200">
+                <div className="px-6 py-4 border-b border-border">
                     {title && title !== "" && (
                         <h2 className="text-lg font-bold text-foreground">{title}</h2>
                     )}
                     {subtitle && subtitle !== "" && (
-                        <p className="text-sm text-gray-600 mt-1">{subtitle}</p>
+                        <p className="text-sm text-muted mt-1">{subtitle}</p>
                     )}
                 </div>
             )}
@@ -85,7 +85,7 @@ const DeleteBaseForm: React.FC<DeleteBaseFormProps> = ({
                 </div>
 
                 {/* Footer con botones */}
-                <div className="px-6 py-4 border-t border-gray-200 flex gap-3 justify-between">
+                <div className="px-6 py-4 border-t border-border flex gap-3 justify-between">
                     {cancelButton && onCancel && (
                         <Button
                             variant="outlined"

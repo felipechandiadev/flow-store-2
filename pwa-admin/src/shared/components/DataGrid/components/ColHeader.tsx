@@ -146,21 +146,21 @@ export const ColHeader: React.FC<ColHeaderProps> = ({
     router.replace(`?${params.toString()}`, { scroll: false });
   };
 
-  // Determine which icon to show and its color
-  let iconName: string;
+  // Determine which icon to show and its color (Lucide names for IconButton)
+  let iconName: 'ArrowUp' | 'ArrowDown';
   let iconColor: string;
   
   if (!column.sortable) {
-    iconName = 'arrow_upward_alt';
-    iconColor = 'text-gray-300';
+    iconName = 'ArrowUp';
+    iconColor = "text-muted";
   } else if (isThisColumnSorted) {
     // If this column is sorted, show the appropriate direction icon in primary color
-    iconName = currentSort === 'asc' ? 'arrow_upward_alt' : 'arrow_downward_alt';
+    iconName = currentSort === 'asc' ? 'ArrowUp' : 'ArrowDown';
     iconColor = 'text-primary';
   } else {
     // If sortable but not sorted, show upward arrow in secondary color (lighter)
-    iconName = 'arrow_upward_alt';
-    iconColor = 'text-gray-400 hover:text-secondary';
+    iconName = 'ArrowUp';
+    iconColor = "text-muted hover:text-secondary";
   }
 
   const headerStyle = {
@@ -172,7 +172,7 @@ export const ColHeader: React.FC<ColHeaderProps> = ({
 
   return (
     <div
-      className="px-3 border-b font-semibold text-xs text-gray-700 flex items-stretch text-left"
+      className="px-3 border-b font-semibold text-xs text-foreground flex items-stretch text-left"
       style={{
         backgroundColor: 'var(--color-background)',
         height: '56px',

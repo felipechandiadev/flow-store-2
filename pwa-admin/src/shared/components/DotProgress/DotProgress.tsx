@@ -1,22 +1,16 @@
 'use client';
 
 import React, { useEffect, useState } from "react";
+import "./dot-progress.css";
 
 interface DotProgressProps {
-  /** Tamaño de cada dot en px */
   size?: number;
-  /** Espaciado entre dots en px */
   gap?: number;
-  /** Color principal (activo) */
   colorPrimary?: string;
-  /** Color neutral (inactivo) */
   colorNeutral?: string;
   className?: string;
-  /** Intervalo de animación en ms */
   interval?: number;
-  /** Número total de pasos (si no se proporciona, usa 5) */
   totalSteps?: number;
-  /** Paso activo (si se proporciona, no anima) */
   activeStep?: number;
 }
 
@@ -39,13 +33,10 @@ const DotProgress: React.FC<DotProgressProps> = ({
   const [active, setActive] = useState(activeStep ?? 0);
 
   useEffect(() => {
-    // Si activeStep está definido, lo usamos y no animamos
     if (activeStep !== undefined) {
       setActive(activeStep);
       return;
     }
-
-    // Si no está definido, hacemos la animación automática
     const timer = setInterval(() => {
       setActive((prev) => (prev + 1) % totalSteps);
     }, interval);
@@ -54,29 +45,27 @@ const DotProgress: React.FC<DotProgressProps> = ({
 
   return (
     <div className={`flex items-center ${className}`} style={{ gap }} data-test-id="dot-progress-root">
-      {[...Array(totalSteps)].map((_, i) => (
-        <div
-          key={i}
-          style={{
-            width: size,
-            height: size,
-            borderRadius: "50%",
-            backgroundColor: i === active ? colorPrimary : colorNeutral,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "background-color 0.2s",
-            animation: i === active && activeStep === undefined ? "dotPulse 1s infinite ease-in-out" : undefined,
-            cursor: "default",
-          }}
-        ></div>
-      ))}
-      <style>{`
-        @keyframes dotPulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.3); opacity: 1; }
-        }
-      `}</style>
+      {[...Array(totalSteps)].map((_, i) => {
+        const isActive = i === active;
+        const pulse = isActive && activeStep === undefined;
+        return (
+          <div
+            key={i}
+            className={pulse ? "fs-dot-progress__dot--pulse" : undefined}
+            style={{
+              width: size,
+              height: size,
+              borderRadius: "50%",
+              backgroundColor: isActive ? colorPrimary : colorNeutral,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background-color 0.2s",
+              cursor: "default",
+            }}
+          />
+        );
+      })}
     </div>
   );
 };

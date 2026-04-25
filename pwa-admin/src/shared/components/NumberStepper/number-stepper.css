@@ -1,0 +1,10 @@
+/* Ocultar spin nativo; coherente con TextField (tema en Tailwind) */
+input.fs-number-stepper__input[type='number']::-webkit-inner-spin-button,
+input.fs-number-stepper__input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input.fs-number-stepper__input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

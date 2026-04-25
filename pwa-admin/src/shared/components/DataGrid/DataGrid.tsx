@@ -35,7 +35,10 @@ export interface DataGridColumn {
   headerAlign?: 'left' | 'right' | 'center';
   hide?: boolean;
   sticky?: boolean; // Fijar columna al lado derecho (compatibilidad hacia atrás)
-  // Componente para acciones que operan sobre la fila completa
+  /**
+   * Acciones de fila. Norma: columna con `field` típ. `'actions'`, `headerName: ''`, `filterable: false`, `sortable: false`;
+   * en el componente, IconButtons con `variant="basicSecondary"` y `size="sm"`.
+   */
   actionComponent?: React.ComponentType<{ row: any; column: DataGridColumn }>;
 }
 
@@ -205,7 +208,7 @@ const DataGrid: React.FC<DataGridProps> = ({
         >
           {/* Expand column header placeholder */}
           {expandable && (
-            <div className="w-10 min-w-[40px] border-b border-gray-200" />
+            <div className="w-10 min-w-[40px] border-b border-border" />
           )}
           {visibleColumns.map((column, i) => {
             const style = computedStyles[i];

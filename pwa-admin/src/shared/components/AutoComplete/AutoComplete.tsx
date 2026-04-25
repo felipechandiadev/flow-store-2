@@ -153,7 +153,7 @@ const AutoComplete = <T = Option,>({
   };
 
   return (
-    <div className="autocomplete-container" ref={containerRef} data-test-id={props["data-test-id"] || "auto-complete-root"} data-has-options={options.length > 0 ? "true" : "false"}>
+    <div className="fs-dropdown-container" ref={containerRef} data-test-id={props["data-test-id"] || "auto-complete-root"} data-has-options={options.length > 0 ? "true" : "false"}>
       <div
         className="relative w-full border border-border rounded-md focus-within:border-primary"
         onFocus={() => { setFocused(true); setOpen(true); setIsNavigating(false); }}
@@ -189,7 +189,7 @@ const AutoComplete = <T = Option,>({
 
         {value && !disabled && (
           <IconButton
-            icon="close_small"
+            icon="X"
             variant="text"
             className={`absolute right-10 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20 ${focused ? 'text-primary' : 'text-secondary'}`}
             onClick={handleClear}
@@ -201,7 +201,7 @@ const AutoComplete = <T = Option,>({
 
         {!disabled && (
           <IconButton
-            icon="arrow_drop_down"
+            icon="ChevronDown"
             variant="text"
             className={`absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20 ${focused ? 'text-primary' : 'text-secondary'}`}
             tabIndex={-1}

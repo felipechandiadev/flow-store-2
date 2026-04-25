@@ -127,13 +127,13 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
       if (variant === 'avatar') {
         return <User className="text-secondary" size={64} />;
       }
-      return <div className="flex items-center justify-center h-full text-gray-400">Sin multimedia</div>;
+      return <div className="flex items-center justify-center h-full text-muted">Sin multimedia</div>;
     }
 
     if (imageError) {
       return (
-        <div className="flex items-center justify-center h-full bg-gray-100">
-          <ImageOff className="text-gray-400" size={48} />
+        <div className="flex items-center justify-center h-full bg-neutral">
+          <ImageOff className="text-muted" size={48} />
         </div>
       );
     }
@@ -224,7 +224,7 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
               </span>
             )}
             <IconButton
-              icon="add"
+              icon="Plus"
               variant="containedSecondary"
               onClick={() => fileInputRef.current?.click()}
               ariaLabel="Subir multimedia"

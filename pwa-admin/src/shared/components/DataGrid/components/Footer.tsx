@@ -16,7 +16,7 @@ const Footer: React.FC<FooterProps> = ({ total = 0, totalGeneral }) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '10');
+  const limit = parseInt(searchParams.get('limit') || '25', 10);
 
   const updateSearchParams = (newParams: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -44,7 +44,7 @@ const Footer: React.FC<FooterProps> = ({ total = 0, totalGeneral }) => {
 
   if (isMobile) {
     return (
-      <div className="flex flex-col p-4 space-y-4 min-h-[120px] border-t border-t-gray-300" data-test-id="data-grid-footer">
+      <div className="flex flex-col p-4 space-y-4 min-h-[120px] border-t border-t-border" data-test-id="data-grid-footer">
         {/* Fila superior: Paginación */}
         <div className="flex justify-center">
           <Pagination total={total} totalGeneral={totalGeneral} mobileMode={true} />
@@ -71,7 +71,7 @@ const Footer: React.FC<FooterProps> = ({ total = 0, totalGeneral }) => {
   }
 
   return (
-    <div className="p-0 border-t border-t-gray-300" data-test-id="data-grid-footer">
+    <div className="p-0 border-t border-t-border" data-test-id="data-grid-footer">
       <Pagination
         total={total}
         totalGeneral={totalGeneral}

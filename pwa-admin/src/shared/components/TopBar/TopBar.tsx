@@ -1,6 +1,8 @@
 'use client'
-import React, { useState, useContext, useTransition } from 'react';
-import { Menu, ImageOff, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useContext } from 'react';
+import { useSession } from 'next-auth/react';
+import { ImageOff, Image as ImageIcon } from 'lucide-react';
+import IconButton from '@/shared/components/IconButton';
 import SideBar, { SideBarMenuItem } from './SideBar';
 
 export type { SideBarMenuItem };
@@ -11,7 +13,10 @@ export type { SideBarMenuItem };
 // import UserProfileDropdown from 'TopBar/UserProfileDropdown';
 
 interface TopBarProps {
+  /** Nombre de producto / marca (ej. FlowStore). */
   title: string;
+  /** Línea secundaria bajo el título: tipografía más pequeña y color suave (ej. «Panel de administración»). */
+  subtitle?: string;
   logoSrc: string;
   menuItems: SideBarMenuItem[];
   showUserButton?: boolean;
@@ -43,6 +48,7 @@ export function useSideBar() {
 
 const TopBar: React.FC<TopBarProps & { className?: string }> = ({
   title,
+  subtitle,
   logoSrc,
   menuItems = [],
   showUserButton = false,
@@ -52,6 +58,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
   onOpenChangePassword,
   className = ""
 }) => {
+  const { data: session } = useSession();
   const [showSidebar, setShowSidebar] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState<Record<string, boolean>>({});
   const [logoLoaded, setLogoLoaded] = useState(false);
@@ -69,10 +76,16 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
   const open = () => setShowSidebar(true);
   const close = () => setShowSidebar(false);
 
+  const fromProps = [firstName, lastName].filter(Boolean).join(' ').trim();
+  const personName =
+    fromProps
+    || (typeof session?.user?.name === 'string' ? session.user.name.trim() : '')
+    || '';
+
   return (
     <SideBarContext.Provider value={{ open, close, isOpen: showSidebar, expanded: sidebarExpanded, setExpanded: setSidebarExpanded }}>
         <div data-test-id="top-bar-root">
-      <header className={`fixed top-0 z-30 w-full flex items-center justify-between px-10 py-2 pb-3 bg-background border-b-2 border-primary ${className}`}>
+      <header className={`fixed top-0 z-30 w-full flex items-center justify-between px-10 py-2 pb-3 bg-background border-b border-border ${className}`}>
           <div className="flex items-center gap-3">
             {logoSrc ? (
               <>
@@ -100,16 +113,47 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
               </div>
             )}
             {title && title.trim() && (
-              <span className="text-lg font-bold text-foreground" data-test-id="top-bar-title">{title}</span>
+              <div
+                className={
+                  subtitle?.trim()
+                    ? 'flex flex-col gap-0 leading-none'
+                    : 'flex min-h-10 items-center'
+                }
+              >
+                <span
+                  className="block text-lg font-bold leading-tight tracking-tight text-foreground"
+                  data-test-id="top-bar-title"
+                >
+                  {title}
+                </span>
+                {subtitle?.trim() ? (
+                  <span
+                    className="-mt-px block text-[11px] font-normal leading-tight text-muted sm:text-xs"
+                    data-test-id="top-bar-subtitle"
+                  >
+                    {subtitle}
+                  </span>
+                ) : null}
+              </div>
             )}
           </div>
 
-          {/* Right side elements */}
-          <div className="flex items-center gap-2">
-            {/* Display persona name + username before menu button */}
-            {(firstName || lastName || userName) && (
-              <span className="text-sm font-normal text-foreground" data-test-id="top-bar-user-name">
-                {firstName || ''} {lastName || ''}{userName ? ` @${userName}` : ''}
+          {/* Right side: nombre de la persona a la izquierda del menú; sesión o props */}
+          <div className="flex min-w-0 max-w-full items-center justify-end gap-2">
+            {(personName || userName) && (
+              <span
+                className="min-w-0 max-w-[min(11rem,42vw)] truncate text-right text-sm font-medium text-foreground sm:max-w-xs md:max-w-sm"
+                data-test-id="top-bar-user-name"
+                title={
+                  [personName, userName ? `@${userName}` : ''].filter(Boolean).join(' ').trim() || undefined
+                }
+              >
+                {personName}
+                {personName && userName ? (
+                  <span className="font-normal text-muted">{' '}@{userName}</span>
+                ) : !personName && userName ? (
+                  <span>@{userName}</span>
+                ) : null}
               </span>
             )}
 
@@ -132,27 +176,23 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
               </>
             )}
 
-            {/* Menu button */}
-            <button
-              type="button"
+            <IconButton
+              icon="Menu"
+              variant="basicSecondary"
+              size="md"
+              strokeWidth={2.5}
               onClick={open}
-              className="flex h-10 w-10 items-center justify-center rounded-full transition-colors text-foreground hover:text-secondary focus:outline-none"
+              ariaLabel="Abrir menú"
               data-test-id="top-bar-menu-button"
-              aria-label="Abrir menú"
-            >
-              <Menu size={24} aria-hidden />
-            </button>
+            />
           </div>
         </header>
-        {/* Renderizar SideBar como modal, solo si showSidebar está activo */}
         {showSidebar && (
-          <>
-            <div
-              className="fixed inset-0 z-40 bg-black/10"
-              onClick={close}
-              aria-label="Cerrar menú lateral"
-              data-test-id="sidebar-overlay"
-            />
+          <div
+            className="fixed inset-0 z-40 flex"
+            data-test-id="sidebar-shell"
+            role="presentation"
+          >
             <SideBar
               menuItems={menuItems}
               onClose={close}
@@ -161,7 +201,13 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
               onExpandedChange={setSidebarExpanded}
               onOpenChangePassword={onOpenChangePassword}
             />
-          </>
+            <div
+              className="min-h-0 min-w-0 flex-1 cursor-default bg-black/10"
+              aria-label="Cerrar menú lateral"
+              data-test-id="sidebar-overlay"
+              onClick={close}
+            />
+          </div>
         )}
         {/* Children se renderizan fuera de TopBar, en el layout */}
       </div>
