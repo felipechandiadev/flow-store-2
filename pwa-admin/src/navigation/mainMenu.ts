@@ -10,6 +10,7 @@ const uiComponentItems: SideBarMenuItem[] = [
   { id: 'ui-dialog', label: 'Dialog', url: '/ui-components/dialog' },
   { id: 'ui-dot-progress', label: 'Dot progress', url: '/ui-components/dot-progress' },
   { id: 'ui-icon-button', label: 'Icon Button', url: '/ui-components/icon-button' },
+  { id: 'ui-list-page-layout', label: 'List page layout', url: '/ui-components/list-page-layout' },
   { id: 'ui-number-stepper', label: 'Number stepper', url: '/ui-components/number-stepper' },
   { id: 'ui-range-slider', label: 'Range slider', url: '/ui-components/range-slider' },
   { id: 'ui-select', label: 'Select', url: '/ui-components/select' },

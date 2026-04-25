@@ -46,6 +46,7 @@ export { default as SplashScreen } from './SplashScreen';
 
 // Layout
 export { default as TopBar } from './TopBar';
+export { ListPageLayout, type ListPageLayoutProps } from './layouts';
 
 // Form Generators
 export { CreateBaseForm, UpdateBaseForm, DeleteBaseForm } from './BaseForm';
