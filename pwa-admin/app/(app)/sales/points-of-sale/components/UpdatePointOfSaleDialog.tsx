@@ -7,31 +7,30 @@ import { Button } from "@/shared/components/Button";
 import { TextField } from "@/shared/components/TextField/TextField";
 import Select from "@/shared/components/Select/Select";
 import Switch from "@/shared/components/Switch/Switch";
+import type { PointOfSaleListItem } from "@/features/sales-points-of-sale/types/point-of-sale.types";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
-import { createPointOfSaleAction } from "@/features/sales-points-of-sale/actions/point-of-sale.action";
+import { updatePointOfSaleAction } from "@/features/sales-points-of-sale/actions/point-of-sale.action";
 
-export type CreatePointOfSaleDialogProps = {
+export type UpdatePointOfSaleDialogProps = {
   open: boolean;
   onClose: () => void;
-  /** Tras crear correctamente: revalidación y `router.refresh()` desde la página. */
+  point: PointOfSaleListItem;
   onSuccess?: () => void | Promise<void>;
   branches: BranchListItem[];
   priceListCatalog: PriceListListItem[];
 };
 
-/**
- * Campos alineados a `PointOfSale` / `PosService.createPointOfSale`.
- */
-export function CreatePointOfSaleDialog({
+export function UpdatePointOfSaleDialog({
   open,
   onClose,
+  point,
   onSuccess,
   branches,
   priceListCatalog,
-}: CreatePointOfSaleDialogProps) {
+}: UpdatePointOfSaleDialogProps) {
   const [name, setName] = useState("");
-  const [branchId, setBranchId] = useState<string>(branches[0]?.id ?? "");
+  const [branchId, setBranchId] = useState<string>("");
   const [deviceId, setDeviceId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
@@ -46,7 +45,6 @@ export function CreatePointOfSaleDialog({
 
   const hasBranches = branchOptions.length > 0;
 
-  /** Solo listas marcadas; sin fila "automático". */
   const defaultListOptions = useMemo(() => {
     return selectedListIds
       .map((id) => priceListCatalog.find((p) => p.id === id))
@@ -58,16 +56,29 @@ export function CreatePointOfSaleDialog({
     if (!open) {
       return;
     }
-    setName("");
-    setDeviceId("");
-    setIsActive(true);
-    setSelectedListIds([]);
-    setDefaultListId(null);
+    setName(point.name);
+    const resolvedBranchId =
+      point.branchId && branches.some((b) => b.id === point.branchId)
+        ? point.branchId
+        : branches[0]?.id ?? "";
+    setBranchId(resolvedBranchId);
+    setDeviceId(
+      point.deviceId != null && String(point.deviceId).trim() ? String(point.deviceId) : "",
+    );
+    setIsActive(point.isActive);
+    setSelectedListIds(
+      (point.priceLists && point.priceLists.length > 0
+        ? point.priceLists.map((p) => p.id)
+        : []),
+    );
+    setDefaultListId(
+      point.defaultPriceListId && point.priceLists?.some((p) => p.id === point.defaultPriceListId)
+        ? point.defaultPriceListId
+        : null,
+    );
     setError(null);
-    setBranchId(branches[0]?.id ?? "");
-  }, [open, branches]);
+  }, [open, point, branches]);
 
-  /** Sin opción "automática": al cambiar asignación, fija la preferente en una lista concreta (la primera de la selección). */
   useEffect(() => {
     if (selectedListIds.length === 0) {
       setDefaultListId(null);
@@ -82,12 +93,6 @@ export function CreatePointOfSaleDialog({
   }, [selectedListIds]);
 
   const handleClose = () => {
-    setName("");
-    setBranchId(branches[0]?.id ?? "");
-    setDeviceId("");
-    setIsActive(true);
-    setSelectedListIds([]);
-    setDefaultListId(null);
     setError(null);
     onClose();
   };
@@ -114,7 +119,8 @@ export function CreatePointOfSaleDialog({
 
     startTransition(() => {
       void (async () => {
-        const r = await createPointOfSaleAction({
+        const r = await updatePointOfSaleAction({
+          id: point.id,
           name: name.trim(),
           branchId,
           deviceId,
@@ -136,14 +142,14 @@ export function CreatePointOfSaleDialog({
     <Dialog
       open={open}
       onClose={handleClose}
-      title="Crear punto de venta"
+      title="Actualizar punto de venta"
       size="md"
       scroll="paper"
       maxHeight="min(90vh, 640px)"
-      data-test-id="point-of-sale-create-dialog"
+      data-test-id="pos-update-dialog"
       alertArea={
         error ? (
-          <Alert variant="error" data-test-id="pos-create-error">
+          <Alert variant="error" data-test-id="pos-update-error">
             {error}
           </Alert>
         ) : null
@@ -155,7 +161,7 @@ export function CreatePointOfSaleDialog({
             size="md"
             onClick={handleClose}
             disabled={isPending}
-            data-test-id="pos-create-cancel"
+            data-test-id="pos-update-cancel"
           >
             Cancelar
           </Button>
@@ -164,9 +170,9 @@ export function CreatePointOfSaleDialog({
             size="md"
             onClick={handleSubmit}
             disabled={!name.trim() || isPending || !branchId || !hasBranches}
-            data-test-id="pos-create-submit"
+            data-test-id="pos-update-submit"
           >
-            Crear
+            Actualizar
           </Button>
         </>
       }
@@ -174,17 +180,17 @@ export function CreatePointOfSaleDialog({
       <div className="flex w-full min-w-0 flex-col gap-4">
         <TextField
           label="Nombre"
-          name="pos-name"
+          name="pos-update-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nombre"
           required
-          data-test-id="pos-create-name"
+          data-test-id="pos-update-name"
         />
         {hasBranches ? (
           <Select
             label="Sucursal"
-            name="pos-branch"
+            name="pos-update-branch"
             value={branchId}
             onChange={(id) => {
               if (id != null && id !== "") {
@@ -194,20 +200,20 @@ export function CreatePointOfSaleDialog({
             options={branchOptions}
             placeholder="Sucursal"
             required
-            data-test-id="pos-create-branch"
+            data-test-id="pos-update-branch"
           />
         ) : (
-          <p className="text-sm text-muted-foreground" data-test-id="pos-create-branch-hint">
-            No hay sucursales. Crea al menos una en Ajustes → Sucursales para poder asignar el punto de venta.
+          <p className="text-sm text-muted-foreground" data-test-id="pos-update-branch-hint">
+            No hay sucursales disponibles. Crea al menos una en Ajustes → Sucursales.
           </p>
         )}
         <TextField
           label="ID de dispositivo (opcional)"
-          name="pos-device"
+          name="pos-update-device"
           value={deviceId}
           onChange={(e) => setDeviceId(e.target.value)}
           placeholder="ID de dispositivo"
-          data-test-id="pos-create-device"
+          data-test-id="pos-update-device"
         />
         <div className="pt-1">
           <Switch
@@ -215,27 +221,27 @@ export function CreatePointOfSaleDialog({
             onChange={setIsActive}
             label="Punto de venta activo"
             labelPosition="right"
-            data-test-id="pos-create-active"
+            data-test-id="pos-update-active"
           />
         </div>
         <div className="space-y-2">
           <p className="text-sm font-medium text-foreground">Listas de precio</p>
           <p className="text-xs text-muted-foreground">Marca las listas asociadas a este punto de venta.</p>
           {priceListCatalog.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No hay listas de precio. Créalas en Ventas → Listas de precio.</p>
+            <p className="text-sm text-muted-foreground">No hay listas de precio en el catálogo.</p>
           ) : (
             <ul className="max-h-40 space-y-2 overflow-y-auto rounded-md border border-border p-2">
               {priceListCatalog.map((pl) => (
                 <li key={pl.id} className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id={`pos-create-pl-${pl.id}`}
+                    id={`pos-update-pl-${pl.id}`}
                     className="h-4 w-4 shrink-0 rounded border-border"
                     checked={selectedListIds.includes(pl.id)}
                     onChange={() => toggleList(pl.id)}
-                    data-test-id={`pos-create-pl-${pl.id}`}
+                    data-test-id={`pos-update-pl-${pl.id}`}
                   />
-                  <label htmlFor={`pos-create-pl-${pl.id}`} className="min-w-0 flex-1 cursor-pointer text-sm">
+                  <label htmlFor={`pos-update-pl-${pl.id}`} className="min-w-0 flex-1 cursor-pointer text-sm">
                     {pl.name}
                     {!pl.isActive && (
                       <span className="ml-1 text-xs text-muted-foreground">(inactiva)</span>
@@ -249,13 +255,13 @@ export function CreatePointOfSaleDialog({
         {selectedListIds.length > 1 && (
           <Select
             label="Lista de precio preferente en este POS"
-            name="pos-default-list"
+            name="pos-update-default-list"
             value={defaultListId ?? defaultListOptions[0]?.id}
             onChange={onDefaultListChange}
             options={defaultListOptions}
             required
             placeholder="Elegir lista"
-            data-test-id="pos-create-default-list"
+            data-test-id="pos-update-default-list"
           />
         )}
       </div>

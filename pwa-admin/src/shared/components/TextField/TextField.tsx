@@ -350,6 +350,9 @@ export const TextField: React.FC<TextFieldProps> = ({
   ? "bg-foreground text-background"
   : "bg-background text-foreground";
 
+  const borderlessInputClass =
+    variante === "autocomplete" ? "fs-text-field__input--borderless" : "";
+
   // Estilos para estado disabled
   const disabledStyles = isDisabled
     ? "opacity-50 cursor-not-allowed bg-muted"
@@ -399,7 +402,7 @@ export const TextField: React.FC<TextFieldProps> = ({
           onBlur={() => setFocused(false)}
           onChange={handleChange}
           onKeyDown={onKeyDown}
-          className={`${placeholderClassRef.current ?? ""} fs-text-field__input block min-w-[180px] pr-4 ${startPaddingClass} ${variantInput} ${disabledStyles} z-0`}
+          className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${borderlessInputClass} block min-w-[180px] pr-4 ${startPaddingClass} ${variantInput} ${disabledStyles} z-0`}
           placeholder={
             type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
             (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))
@@ -431,7 +434,7 @@ export const TextField: React.FC<TextFieldProps> = ({
             onBlur={() => setFocused(false)}
             onChange={type === "dni" ? handleDNIChange : type === "currency" ? handleCurrencyChange : handleChange}
             onKeyDown={onKeyDown}
-            className={`${placeholderClassRef.current ?? ""} fs-text-field__input block min-w-[180px] ${startPaddingClass} ${(endIcon || (type === "password" && passwordVisibilityToggle)) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} z-0`}
+            className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${borderlessInputClass} block min-w-[180px] ${startPaddingClass} ${(endIcon || (type === "password" && passwordVisibilityToggle)) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} z-0`}
             placeholder={
               type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
               (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))

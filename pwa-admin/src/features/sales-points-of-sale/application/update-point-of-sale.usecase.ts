@@ -1,20 +1,20 @@
-import { CreatePointOfSaleFormSchema } from "../domain/point-of-sale.entity";
+import { UpdatePointOfSaleFormSchema } from "../domain/point-of-sale.entity";
 import { PointOfSaleRequest } from "../infrastructure/point-of-sale.request";
-import type { CreatePointOfSaleResult } from "../types/point-of-sale.types";
+import type { UpdatePointOfSaleResult } from "../types/point-of-sale.types";
 
-export class CreatePointOfSaleUseCase {
-  static async execute(input: unknown): Promise<CreatePointOfSaleResult> {
-    const parsed = CreatePointOfSaleFormSchema.safeParse(input);
+export class UpdatePointOfSaleUseCase {
+  static async execute(input: unknown): Promise<UpdatePointOfSaleResult> {
+    const parsed = UpdatePointOfSaleFormSchema.safeParse(input);
     if (!parsed.success) {
       const msg = parsed.error.issues[0]?.message ?? "Datos no válidos";
       return { success: false, error: msg };
     }
     const d = parsed.data;
-    return PointOfSaleRequest.create({
+    return PointOfSaleRequest.update(d.id, {
       name: d.name.trim(),
       branchId: d.branchId,
       deviceId: d.deviceId,
-      isActive: d.isActive,
+      isActive: d.isActive !== false,
       priceLists: d.priceLists,
       defaultPriceListId: d.defaultPriceListId ?? null,
     });

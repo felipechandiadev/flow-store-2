@@ -163,8 +163,8 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
           {allowClear && value !== null && value !== undefined && (
             <IconButton
               icon="X"
-              variant="text"
-              className={`absolute right-10 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20 ${focused ? 'text-primary' : 'text-secondary'}`}
+              variant="basicSecondary"
+              className="absolute right-10 top-1/2 -translate-y-1/2 z-20 w-6 h-6 min-w-6 min-h-6 p-0"
               onClick={() => onChange?.(null)}
               aria-label="Limpiar selección"
               data-test-id="select-clear-btn"
@@ -174,9 +174,7 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
           )}
 
           <span
-            className={`pointer-events-none absolute ${hasClear ? 'right-3.5' : 'right-3'} top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center text-base transition-colors ${
-              focused ? 'text-primary' : 'text-secondary'
-            }`}
+            className={`pointer-events-none absolute ${hasClear ? 'right-3.5' : 'right-3'} top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center text-base text-secondary transition-colors`}
             aria-hidden="true"
           >
             <ChevronDown className="h-4 w-4" strokeWidth={2} />
@@ -272,8 +270,8 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
           {allowClear && value !== null && value !== undefined && (
             <IconButton
               icon="X"
-              variant="text"
-              className={`absolute right-10 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20 ${focused ? 'text-primary' : 'text-secondary'}`}
+              variant="basicSecondary"
+              className="absolute right-10 top-1/2 -translate-y-1/2 z-20 w-6 h-6 min-w-6 min-h-6 p-0"
               onClick={() => onChange?.(null)}
               aria-label="Limpiar selección"
               data-test-id="select-clear-btn"
@@ -284,8 +282,8 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
         
           <IconButton
             icon="ChevronDown"
-            variant="text"
-            className={`absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center ${focused ? 'text-primary' : 'text-secondary'}`}
+            variant="basicSecondary"
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 min-w-6 min-h-6 p-0"
             tabIndex={-1}
             aria-label="Desplegar opciones"
             onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); !disabled && setOpen(!open); }}

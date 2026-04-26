@@ -32,6 +32,19 @@
   box-shadow: 0 0 0 1px var(--color-primary, #1c2046);
 }
 
+/* Comboboxes (Select/AutoComplete): el borde va en el contenedor; el input no debe duplicar marco. */
+.fs-text-field__input.fs-text-field__input--borderless {
+  border: none;
+  box-shadow: none;
+  background-color: transparent;
+}
+
+.fs-text-field__input.fs-text-field__input--borderless:focus {
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
 /* Mismo aspecto de placeholder en input y textarea (incl. Firefox opacity). */
 .fs-text-field__input::placeholder {
   color: var(--color-muted, #6b7280);

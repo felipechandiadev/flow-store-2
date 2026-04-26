@@ -21,10 +21,14 @@ async function authHeaders(): Promise<HeadersInit> {
 }
 
 export class PointOfSaleRequest {
-  static async findAll(): Promise<{ success: true; pointsOfSale: PointOfSaleListItem[] } | { success: false; error: string; pointsOfSale: [] }> {
+  /** Listado; `includeInactive` alineado a `GET /api/points-of-sale?includeInactive=…` (admin: todos). */
+  static async findAll(
+    includeInactive = true,
+  ): Promise<{ success: true; pointsOfSale: PointOfSaleListItem[] } | { success: false; error: string; pointsOfSale: [] }> {
     const headers = await authHeaders();
+    const q = includeInactive ? "?includeInactive=true" : "";
     try {
-      const res = await fetch(apiUrl("points-of-sale"), {
+      const res = await fetch(`${apiUrl("points-of-sale")}${q}`, {
         method: "GET",
         headers,
         cache: "no-store",
@@ -44,9 +48,59 @@ export class PointOfSaleRequest {
     }
   }
 
+  static async update(
+    id: string,
+    body: {
+      name: string;
+      branchId: string;
+      deviceId: string | null;
+      isActive: boolean;
+      priceLists: Array<{ id: string; name: string; isActive: boolean }>;
+      defaultPriceListId: string | null;
+    },
+  ): Promise<
+    { success: true; pointOfSale: PointOfSaleListItem } | { success: false; error: string }
+  > {
+    const headers = await authHeaders();
+    try {
+      const res = await fetch(apiUrl(`points-of-sale/${encodeURIComponent(id)}`), {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          name: body.name,
+          branchId: body.branchId,
+          deviceId: body.deviceId,
+          isActive: body.isActive,
+          priceLists: body.priceLists,
+          defaultPriceListId: body.defaultPriceListId,
+        }),
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        pointOfSale?: PointOfSaleListItem;
+        error?: string;
+      };
+      if (!res.ok) {
+        return { success: false, error: data.error || res.statusText };
+      }
+      if (data.success && data.pointOfSale) {
+        return { success: true, pointOfSale: data.pointOfSale };
+      }
+      return { success: false, error: data.error || "No se pudo actualizar el punto de venta" };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al actualizar punto de venta";
+      return { success: false, error: err };
+    }
+  }
+
   static async create(body: {
     name: string;
-    deviceId?: string | null;
+    branchId: string;
+    deviceId: string | null;
+    isActive: boolean;
+    priceLists: Array<{ id: string; name: string; isActive: boolean }>;
+    defaultPriceListId: string | null;
   }): Promise<{ success: true; pointOfSale: PointOfSaleListItem } | { success: false; error: string }> {
     const headers = await authHeaders();
     try {
@@ -55,7 +109,11 @@ export class PointOfSaleRequest {
         headers,
         body: JSON.stringify({
           name: body.name,
-          deviceId: body.deviceId && body.deviceId.trim() ? body.deviceId.trim() : null,
+          branchId: body.branchId,
+          deviceId: body.deviceId,
+          isActive: body.isActive,
+          priceLists: body.priceLists,
+          defaultPriceListId: body.defaultPriceListId,
         }),
         cache: "no-store",
       });

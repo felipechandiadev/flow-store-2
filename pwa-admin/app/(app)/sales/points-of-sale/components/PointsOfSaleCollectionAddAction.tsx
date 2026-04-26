@@ -2,13 +2,23 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
+import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { CreatePointOfSaleDialog } from "./CreatePointOfSaleDialog";
+
+type PointsOfSaleCollectionAddActionProps = {
+  branches: BranchListItem[];
+  priceListCatalog: PriceListListItem[];
+};
 
 /**
  * Controles de “añadir” para CollectionPageLayout: abre el diálogo; el alta pasa por server action.
  */
-export function PointsOfSaleCollectionAddAction() {
+export function PointsOfSaleCollectionAddAction({
+  branches,
+  priceListCatalog,
+}: PointsOfSaleCollectionAddActionProps) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
@@ -25,8 +35,10 @@ export function PointsOfSaleCollectionAddAction() {
       <CreatePointOfSaleDialog
         open={open}
         onClose={() => setOpen(false)}
-        onSuccess={() => {
-          router.refresh();
+        branches={branches}
+        priceListCatalog={priceListCatalog}
+        onSuccess={async () => {
+          await router.refresh();
         }}
       />
     </>

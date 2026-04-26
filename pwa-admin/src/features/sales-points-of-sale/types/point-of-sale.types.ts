@@ -22,4 +22,8 @@ export type CreatePointOfSaleResult =
   | { success: true; pointOfSale: PointOfSaleListItem }
   | { success: false; error: string };
 
+export type UpdatePointOfSaleResult =
+  | { success: true; pointOfSale: PointOfSaleListItem }
+  | { success: false; error: string };
+
 export type DeletePointOfSaleResult = { success: true } | { success: false; error: string };
