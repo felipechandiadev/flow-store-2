@@ -26,8 +26,8 @@ export class TaxOrmEntity {
   @Column({ type: 'varchar', length: 100 })
   name!: string;
 
-  @Column({ type: 'varchar', length: 20, unique: true })
-  code!: string;
+  @Column({ type: 'varchar', length: 20, nullable: true, unique: true })
+  code!: string | null;
 
   @Column({ type: 'varchar', length: 50, default: TaxType.IVA })
   taxType!: TaxType;

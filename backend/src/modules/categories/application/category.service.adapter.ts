@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
-import { Category } from '../domain/category.entity';
-import { CategoryService } from './category.service';
 import { CreateCategoryCommand } from './commands/create-category.command';
 import { UpdateCategoryCommand } from './commands/update-category.command';
 import { RemoveCategoryCommand } from './commands/remove-category.command';
@@ -10,15 +8,18 @@ import { GetCategoryQuery } from './queries/get-category.query';
 import { CategoryWithCountsDto } from './dto/category-with-counts.dto';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 
+/**
+ * CQRS-backed category API. Intentionally does not extend the legacy
+ * `CategoryService`: subclassing would make Nest inject the parent constructor
+ * dependencies into the `CommandBus` / `QueryBus` parameter slots.
+ */
 @Injectable()
-export class CategoryServiceAdapter extends CategoryService {
+export class CategoryServiceAdapter {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
     private readonly multimediaAdapter: MultimediaServiceAdapter,
-  ) {
-    super(null as any, null as any, null as any); // Adapter bypasses legacy repositories
-  }
+  ) {}
 
   async findAll(query: any) {
     const result = await this.queryBus.execute(

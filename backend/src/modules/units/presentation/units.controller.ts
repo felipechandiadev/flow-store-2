@@ -38,6 +38,7 @@ export class UnitsController {
       conversionFactor: number;
       allowDecimals?: boolean;
       isBase?: boolean;
+      baseUnitId?: string | null;
     },
   ) {
     return this.unitsService.createUnit(data);
@@ -49,10 +50,13 @@ export class UnitsController {
     @Body()
     data: Partial<{
       name: string;
+      symbol: string;
       dimension: string;
       conversionFactor: number;
       allowDecimals: boolean;
       active: boolean;
+      isBase: boolean;
+      baseUnitId: string | null;
     }>,
   ) {
     return this.unitsService.updateUnit(id, data);

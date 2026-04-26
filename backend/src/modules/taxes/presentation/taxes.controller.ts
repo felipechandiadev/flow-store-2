@@ -44,7 +44,7 @@ export class TaxesController {
     data: {
       companyId: string;
       name: string;
-      code: string;
+      code?: string | null;
       taxType?: string;
       rate: number;
       description?: string | null;
@@ -61,7 +61,7 @@ export class TaxesController {
     @Body()
     data: Partial<{
       name: string;
-      code: string;
+      code: string | null;
       taxType: string;
       rate: number;
       description: string | null;

@@ -34,17 +34,21 @@ export class TaxesService {
   async createTax(data: {
     companyId: string;
     name: string;
-    code: string;
+    code?: string | null;
     taxType?: TaxType | string;
     rate: number;
     description?: string | null;
     isDefault?: boolean;
     isActive?: boolean;
   }) {
+    const code =
+      data.code != null && String(data.code).trim() !== ''
+        ? String(data.code).trim().slice(0, 20)
+        : null;
     const tax = this.taxRepository.create({
       companyId: data.companyId,
       name: data.name,
-      code: data.code,
+      code,
       taxType: (data.taxType as TaxType) ?? TaxType.IVA,
       rate: data.rate,
       description: data.description ?? undefined,
@@ -62,7 +66,7 @@ export class TaxesService {
     id: string,
     data: Partial<{
       name: string;
-      code: string;
+      code: string | null;
       taxType: TaxType | string;
       rate: number;
       description: string | null;
@@ -70,12 +74,19 @@ export class TaxesService {
       isActive: boolean;
     }>,
   ) {
-    const updateData: any = { ...data };
+    const updateData: Record<string, unknown> = { ...data };
+    if ('code' in data) {
+      const raw = data.code;
+      updateData.code =
+        raw != null && String(raw).trim() !== ''
+          ? String(raw).trim().slice(0, 20)
+          : null;
+    }
     if (updateData.taxType) {
       updateData.taxType = updateData.taxType as TaxType;
     }
 
-    await this.taxRepository.update(id, updateData);
+    await this.taxRepository.update(id, updateData as DeepPartial<Tax>);
     const updated = await this.getTaxById(id);
 
     if (!updated) {

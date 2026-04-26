@@ -1,0 +1,69 @@
+"use client";
+
+import { useMemo } from "react";
+import { useSearchParams } from "next/navigation";
+import { CollectionPageLayout } from "@/shared/components/layouts";
+import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
+import { storageCategoryLabel, storageTypeLabel } from "@/features/inventory-storages/types/storage.types";
+import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
+import { StoragesCollectionAddAction } from "./StoragesCollectionAddAction";
+import { StorageCard } from "./StorageCard";
+
+type StoragesCollectionProps = {
+  initialStorages: StorageListItem[];
+  branches: BranchListItem[];
+};
+
+export function StoragesCollection({ initialStorages, branches }: StoragesCollectionProps) {
+  const searchParams = useSearchParams();
+  const q = (searchParams.get("search") ?? "").trim().toLowerCase();
+
+  const filtered = useMemo(() => {
+    if (!q) {
+      return initialStorages;
+    }
+    return initialStorages.filter((s) => {
+      const branch = s.branch?.name?.toLowerCase() ?? "";
+      const code = (s.code ?? "").toLowerCase();
+      const loc = (s.location ?? "").toLowerCase();
+      const type = storageTypeLabel(s.type).toLowerCase();
+      const cat = storageCategoryLabel(s.category).toLowerCase();
+      return (
+        s.name.toLowerCase().includes(q) ||
+        branch.includes(q) ||
+        code.includes(q) ||
+        loc.includes(q) ||
+        type.includes(q) ||
+        cat.includes(q)
+      );
+    });
+  }, [initialStorages, q]);
+
+  return (
+    <CollectionPageLayout
+      title="Almacenes"
+      addAction={<StoragesCollectionAddAction branches={branches} />}
+      showSearch
+      searchParamName="search"
+      searchLabel="Buscar"
+      searchPlaceholder="Buscar por nombre, sucursal, código, ubicación o tipo"
+      contentEmptyMessage="No hay almacenes que mostrar"
+      contentItems={
+        filtered.length > 0
+          ? filtered.map((s) => (
+              <StorageCard
+                key={s.id}
+                storage={s}
+                branches={branches}
+                data-test-id={`storage-card-${s.id}`}
+              />
+            ))
+          : []
+      }
+      contentGridColumns={{ default: 1, md: 2, lg: 3 }}
+      contentGridGapClassName="gap-4"
+      contentGridItemsAlign="stretch"
+      data-test-id="storages-collection"
+    />
+  );
+}

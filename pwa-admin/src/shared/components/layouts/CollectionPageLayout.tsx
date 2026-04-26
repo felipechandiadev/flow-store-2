@@ -69,6 +69,12 @@ export type CollectionPageLayoutProps = {
    * Clases extra en el contenedor de la grilla (p. ej. alineación o `self-stretch`).
    */
   contentGridClassName?: string;
+  /**
+   * Alineación vertical de las celdas en la grilla. `stretch` iguala la altura de la fila
+   * a la card más alta (útil con cards `fillHeight`).
+   * @default 'start'
+   */
+  contentGridItemsAlign?: "start" | "stretch";
   className?: string;
   "data-test-id"?: string;
 };
@@ -127,6 +133,7 @@ function renderContentSection(
   contentGridGapClassName: string | undefined,
   contentGridClassName: string | undefined,
   contentEmptyMessage: string | undefined,
+  contentGridItemsAlign: "start" | "stretch" | undefined,
   children: React.ReactNode
 ) {
   if (contentItems !== undefined) {
@@ -145,13 +152,18 @@ function renderContentSection(
       contentGridColumns ?? 1
     );
     const gap = contentGridGapClassName?.trim() || "gap-4";
+    const alignClass = contentGridItemsAlign === "stretch" ? "items-stretch" : "items-start";
+    const cellClass =
+      contentGridItemsAlign === "stretch"
+        ? "flex h-full min-h-0 min-w-0 flex-col"
+        : "min-w-0";
     return (
       <div
-        className={`grid w-full min-w-0 items-start ${colClass} ${gap} ${contentGridClassName ?? ""}`.trim()}
+        className={`grid w-full min-w-0 ${alignClass} ${colClass} ${gap} ${contentGridClassName ?? ""}`.trim()}
         data-test-id="collection-page-layout-grid"
       >
         {contentItems.map((item, i) => (
-          <div key={i} className="min-w-0" data-test-id={`collection-page-layout-cell-${i}`}>
+          <div key={i} className={cellClass} data-test-id={`collection-page-layout-cell-${i}`}>
             {item}
           </div>
         ))}
@@ -177,6 +189,7 @@ function CollectionPageLayoutView({
   contentGridGapClassName,
   contentGridClassName,
   contentEmptyMessage,
+  contentGridItemsAlign,
   className = "",
   "data-test-id": dataTestId,
 }: CollectionPageLayoutProps) {
@@ -280,6 +293,7 @@ function CollectionPageLayoutView({
           contentGridGapClassName,
           contentGridClassName,
           contentEmptyMessage,
+          contentGridItemsAlign,
           children
         )}
       </section>
@@ -299,6 +313,7 @@ function CollectionPageLayoutFallback({
   contentGridGapClassName,
   contentGridClassName,
   contentEmptyMessage,
+  contentGridItemsAlign,
   className,
 }: CollectionPageLayoutProps) {
   const showHeading = Boolean((title && title.trim()) || (subtitle && subtitle.trim()));
@@ -309,6 +324,7 @@ function CollectionPageLayoutFallback({
   const hasDefaultAdd = !hasCustomAdd && onAddClick != null;
   const hasAddSlot = hasCustomAdd || hasDefaultAdd;
   const emptyText = (contentEmptyMessage ?? DEFAULT_CONTENT_EMPTY_MESSAGE).trim() || DEFAULT_CONTENT_EMPTY_MESSAGE;
+  const fallbackAlignClass = contentGridItemsAlign === "stretch" ? "items-stretch" : "items-start";
   return (
     <div className={`flex w-full min-w-0 max-w-full flex-col gap-4 ${className ?? ""}`.trim()}>
       {showHeading ? (
@@ -336,7 +352,7 @@ function CollectionPageLayoutFallback({
       <section className="min-w-0 w-full max-w-full">
         {hasGrid && contentItems ? (
           <div
-            className={`grid w-full min-w-0 items-start ${buildContentGridClassNames(
+            className={`grid w-full min-w-0 ${fallbackAlignClass} ${buildContentGridClassNames(
               contentGridColumns ?? 1
             )} ${contentGridGapClassName?.trim() || "gap-4"} ${contentGridClassName ?? ""}`.trim()}
           >

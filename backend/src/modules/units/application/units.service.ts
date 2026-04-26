@@ -1,7 +1,40 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { Unit } from '../domain/unit.entity';
+import { UnitDimension } from '../domain/unit-dimension.enum';
+
+export type UnitListRow = {
+  id: string;
+  name: string;
+  symbol: string;
+  dimension: UnitDimension;
+  conversionFactor: number;
+  allowDecimals: boolean;
+  isBase: boolean;
+  baseUnitId: string | null;
+  baseUnitName: string | null;
+  baseUnitSymbol: string | null;
+  activeDerivedCount: number;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+const DIMENSION_VALUES = new Set<string>(Object.values(UnitDimension));
+
+function assertDimension(d: string): UnitDimension {
+  if (!DIMENSION_VALUES.has(d)) {
+    throw new BadRequestException(
+      `Dimensión inválida. Use: ${[...DIMENSION_VALUES].join(', ')}`,
+    );
+  }
+  return d as UnitDimension;
+}
 
 @Injectable()
 export class UnitsService {
@@ -10,60 +43,83 @@ export class UnitsService {
     private readonly unitRepository: Repository<Unit>,
   ) {}
 
-  async getAllUnits(status?: string) {
-    try {
-      const query = this.unitRepository.createQueryBuilder('unit');
+  private toRow(
+    unit: Unit,
+    activeDerivedCountByBaseId: Map<string, number>,
+  ): UnitListRow {
+    const base = unit.baseUnit;
+    return {
+      id: unit.id,
+      name: unit.name,
+      symbol: unit.symbol,
+      dimension: unit.dimension,
+      conversionFactor: Number(unit.conversionFactor),
+      allowDecimals: unit.allowDecimals,
+      isBase: unit.isBase,
+      baseUnitId: unit.baseUnitId ?? null,
+      baseUnitName: base?.name ?? null,
+      baseUnitSymbol: base?.symbol ?? null,
+      activeDerivedCount: unit.isBase
+        ? activeDerivedCountByBaseId.get(unit.id) ?? 0
+        : 0,
+      active: unit.active,
+      createdAt: unit.createdAt,
+      updatedAt: unit.updatedAt,
+    };
+  }
 
-      // Filter by status if provided
-      if (status === 'active') {
-        query.where('unit.active = :active', { active: true });
-      } else if (status === 'inactive') {
-        query.where('unit.active = :active', { active: false });
+  private buildDerivedCountMap(units: Unit[]): Map<string, number> {
+    const m = new Map<string, number>();
+    for (const u of units) {
+      if (u.baseUnitId && u.active) {
+        m.set(u.baseUnitId, (m.get(u.baseUnitId) ?? 0) + 1);
       }
-      // If status is 'all' or not provided, return all units including soft deleted
+    }
+    return m;
+  }
 
-      const units = await query.orderBy('unit.symbol', 'ASC').getMany();
+  async getAllUnits(status?: string): Promise<UnitListRow[]> {
+    try {
+      const where: { deletedAt: ReturnType<typeof IsNull>; active?: boolean } =
+        {
+          deletedAt: IsNull(),
+        };
+      if (status === 'active') {
+        where.active = true;
+      } else if (status === 'inactive') {
+        where.active = false;
+      }
 
-      return units.map((unit) => ({
-        id: unit.id,
-        name: unit.name,
-        symbol: unit.symbol,
-        dimension: unit.dimension,
-        conversionFactor: unit.conversionFactor,
-        allowDecimals: unit.allowDecimals,
-        isBase: unit.isBase,
-        active: unit.active,
-        createdAt: unit.createdAt,
-        updatedAt: unit.updatedAt,
-      }));
+      const units = await this.unitRepository.find({
+        where,
+        relations: ['baseUnit'],
+        order: { dimension: 'ASC', symbol: 'ASC' },
+      });
+
+      const derivedMap = this.buildDerivedCountMap(units);
+      return units.map((u) => this.toRow(u, derivedMap));
     } catch (error) {
       console.error('Error fetching units:', error);
       return [];
     }
   }
 
-  async getUnitById(id: string) {
+  async getUnitById(id: string): Promise<UnitListRow | null> {
     try {
       const unit = await this.unitRepository.findOne({
-        where: { id },
+        where: { id, deletedAt: IsNull() },
+        relations: ['baseUnit'],
       });
 
       if (!unit) {
         return null;
       }
 
-      return {
-        id: unit.id,
-        name: unit.name,
-        symbol: unit.symbol,
-        dimension: unit.dimension,
-        conversionFactor: unit.conversionFactor,
-        allowDecimals: unit.allowDecimals,
-        isBase: unit.isBase,
-        active: unit.active,
-        createdAt: unit.createdAt,
-        updatedAt: unit.updatedAt,
-      };
+      const all = await this.unitRepository.find({
+        where: { deletedAt: IsNull() },
+      });
+      const derivedMap = this.buildDerivedCountMap(all);
+      return this.toRow(unit, derivedMap);
     } catch (error) {
       console.error('Error fetching unit:', error);
       return null;
@@ -77,72 +133,329 @@ export class UnitsService {
     conversionFactor: number;
     allowDecimals?: boolean;
     isBase?: boolean;
-  }) {
-    try {
+    baseUnitId?: string | null;
+  }): Promise<UnitListRow> {
+    const name = data.name?.trim();
+    const symbol = data.symbol?.trim();
+    if (!name) {
+      throw new BadRequestException('El nombre es obligatorio');
+    }
+    if (!symbol) {
+      throw new BadRequestException('El símbolo es obligatorio');
+    }
+
+    const dimension = assertDimension(data.dimension);
+    const factor = Number(data.conversionFactor);
+    if (!Number.isFinite(factor) || factor <= 0) {
+      throw new BadRequestException(
+        'El factor de conversión debe ser un número mayor que 0',
+      );
+    }
+
+    const isBase = data.isBase === true;
+    const allowDecimals = data.allowDecimals !== false;
+
+    if (isBase) {
+      if (factor !== 1) {
+        throw new BadRequestException(
+          'Una unidad base debe tener factor de conversión 1',
+        );
+      }
+      if (data.baseUnitId) {
+        throw new BadRequestException(
+          'Una unidad base no debe tener unidad base asociada',
+        );
+      }
+
+      const otherBase = await this.unitRepository.findOne({
+        where: {
+          dimension,
+          isBase: true,
+          active: true,
+          deletedAt: IsNull(),
+        },
+      });
+      if (otherBase) {
+        throw new BadRequestException(
+          'Ya existe una unidad base activa en esta dimensión',
+        );
+      }
+
       const unit = this.unitRepository.create({
-        name: data.name,
-        symbol: data.symbol,
-        dimension: data.dimension as any,
-        conversionFactor: data.conversionFactor,
-        allowDecimals: data.allowDecimals ?? true,
-        isBase: data.isBase ?? false,
+        name,
+        symbol,
+        dimension,
+        conversionFactor: 1,
+        allowDecimals,
+        isBase: true,
+        baseUnitId: null,
         active: true,
       });
-
-      const savedUnit = await this.unitRepository.save(unit);
-
-      return {
-        id: savedUnit.id,
-        name: savedUnit.name,
-        symbol: savedUnit.symbol,
-        dimension: savedUnit.dimension,
-        conversionFactor: savedUnit.conversionFactor,
-        allowDecimals: savedUnit.allowDecimals,
-        isBase: savedUnit.isBase,
-        active: savedUnit.active,
-        createdAt: savedUnit.createdAt,
-        updatedAt: savedUnit.updatedAt,
-      };
-    } catch (error) {
-      console.error('Error creating unit:', error);
-      throw error;
+      const saved = await this.unitRepository.save(unit);
+      const row = await this.getUnitById(saved.id);
+      if (!row) {
+        throw new BadRequestException('No se pudo cargar la unidad creada');
+      }
+      return row;
     }
+
+    const baseUnitId = data.baseUnitId ?? null;
+    if (!baseUnitId) {
+      throw new BadRequestException(
+        'Las unidades derivadas requieren una unidad base',
+      );
+    }
+
+    const base = await this.unitRepository.findOne({
+      where: { id: baseUnitId, deletedAt: IsNull() },
+    });
+    if (!base) {
+      throw new BadRequestException('Unidad base no encontrada');
+    }
+    if (!base.isBase) {
+      throw new BadRequestException(
+        'La unidad seleccionada no es una unidad base',
+      );
+    }
+    if (base.dimension !== dimension) {
+      throw new BadRequestException(
+        'La unidad base debe pertenecer a la misma dimensión',
+      );
+    }
+    if (!base.active) {
+      throw new BadRequestException(
+        'No se puede crear una derivada apuntando a una base inactiva',
+      );
+    }
+
+    const unit = this.unitRepository.create({
+      name,
+      symbol,
+      dimension,
+      conversionFactor: factor,
+      allowDecimals,
+      isBase: false,
+      baseUnitId,
+      active: true,
+    });
+    const saved = await this.unitRepository.save(unit);
+    const row = await this.getUnitById(saved.id);
+    if (!row) {
+      throw new BadRequestException('No se pudo cargar la unidad creada');
+    }
+    return row;
   }
 
   async updateUnit(
     id: string,
     data: Partial<{
       name: string;
+      symbol: string;
       dimension: string;
       conversionFactor: number;
       allowDecimals: boolean;
       active: boolean;
+      isBase: boolean;
+      baseUnitId: string | null;
     }>,
-  ) {
-    try {
-      const updateData: any = { ...data };
-
-      // Ensure dimension is properly typed if provided
-      if (updateData.dimension) {
-        updateData.dimension = updateData.dimension;
-      }
-
-      await this.unitRepository.update(id, updateData);
-
-      return this.getUnitById(id);
-    } catch (error) {
-      console.error('Error updating unit:', error);
-      throw error;
+  ): Promise<UnitListRow> {
+    const unit = await this.unitRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+      relations: ['baseUnit'],
+    });
+    if (!unit) {
+      throw new NotFoundException(`Unidad ${id} no encontrada`);
     }
+
+    const all = await this.unitRepository.find({
+      where: { deletedAt: IsNull() },
+    });
+    const derivedMap = this.buildDerivedCountMap(all);
+    const activeDerived = derivedMap.get(unit.id) ?? 0;
+
+    if (data.name !== undefined) {
+      const n = data.name.trim();
+      if (!n) {
+        throw new BadRequestException('El nombre es obligatorio');
+      }
+      unit.name = n;
+    }
+    if (data.symbol !== undefined) {
+      const s = data.symbol.trim();
+      if (!s) {
+        throw new BadRequestException('El símbolo es obligatorio');
+      }
+      unit.symbol = s;
+    }
+    if (data.dimension !== undefined) {
+      unit.dimension = assertDimension(data.dimension);
+    }
+    if (data.allowDecimals !== undefined) {
+      unit.allowDecimals = data.allowDecimals;
+    }
+
+    let nextIsBase = unit.isBase;
+    let nextBaseId = unit.baseUnitId ?? null;
+    let nextFactor = Number(unit.conversionFactor);
+
+    if (data.isBase !== undefined && data.isBase !== unit.isBase) {
+      if (unit.isBase && !data.isBase) {
+        if (activeDerived > 0) {
+          throw new BadRequestException(
+            'No puedes convertir la base en derivada mientras tenga derivadas activas',
+          );
+        }
+        if (data.conversionFactor === undefined) {
+          throw new BadRequestException(
+            'Indica el factor de conversión al pasar de base a derivada',
+          );
+        }
+        nextIsBase = false;
+        const nid = data.baseUnitId ?? null;
+        if (!nid) {
+          throw new BadRequestException(
+            'Indica la unidad base al convertir en derivada',
+          );
+        }
+        nextBaseId = nid;
+      } else if (!unit.isBase && data.isBase) {
+        const otherBase = await this.unitRepository.findOne({
+          where: {
+            dimension: unit.dimension,
+            isBase: true,
+            active: true,
+            deletedAt: IsNull(),
+            id: Not(id),
+          },
+        });
+        if (otherBase) {
+          throw new BadRequestException(
+            'Ya existe una unidad base activa en esta dimensión',
+          );
+        }
+        nextIsBase = true;
+        nextBaseId = null;
+        nextFactor = 1;
+      }
+    }
+
+    if (data.baseUnitId !== undefined && !nextIsBase) {
+      nextBaseId = data.baseUnitId;
+    }
+
+    if (nextIsBase) {
+      nextFactor = 1;
+      nextBaseId = null;
+    } else if (data.conversionFactor !== undefined) {
+      const f = Number(data.conversionFactor);
+      if (!Number.isFinite(f) || f <= 0) {
+        throw new BadRequestException(
+          'El factor de conversión debe ser un número mayor que 0',
+        );
+      }
+      nextFactor = f;
+    }
+
+    if (!nextIsBase) {
+      if (!nextBaseId) {
+        throw new BadRequestException(
+          'Las unidades derivadas requieren una unidad base',
+        );
+      }
+      const base = await this.unitRepository.findOne({
+        where: { id: nextBaseId, deletedAt: IsNull() },
+      });
+      if (!base) {
+        throw new BadRequestException('Unidad base no encontrada');
+      }
+      if (!base.isBase) {
+        throw new BadRequestException(
+          'La unidad seleccionada no es una unidad base',
+        );
+      }
+      if (base.dimension !== unit.dimension) {
+        throw new BadRequestException(
+          'La unidad base debe pertenecer a la misma dimensión',
+        );
+      }
+      if (!base.active) {
+        throw new BadRequestException(
+          'No se puede usar una unidad base inactiva como referencia',
+        );
+      }
+    }
+
+    if (data.active !== undefined) {
+      const nextActive = data.active;
+      if (!nextActive && unit.isBase && activeDerived > 0) {
+        throw new BadRequestException(
+          'Desactiva o reasigna las derivadas activas antes de desactivar la base',
+        );
+      }
+      if (nextActive && !unit.isBase && nextBaseId) {
+        const base = await this.unitRepository.findOne({
+          where: { id: nextBaseId, deletedAt: IsNull() },
+        });
+        if (base && !base.active) {
+          throw new BadRequestException(
+            'No puedes activar una derivada mientras su base esté inactiva',
+          );
+        }
+      }
+      unit.active = nextActive;
+    }
+
+    if (nextIsBase && unit.active) {
+      const otherBase = await this.unitRepository.findOne({
+        where: {
+          dimension: unit.dimension,
+          isBase: true,
+          active: true,
+          deletedAt: IsNull(),
+          id: Not(id),
+        },
+      });
+      if (otherBase) {
+        throw new BadRequestException(
+          'Ya existe otra unidad base activa en esta dimensión',
+        );
+      }
+    }
+
+    unit.isBase = nextIsBase;
+    unit.baseUnitId = nextBaseId;
+    unit.conversionFactor = nextFactor;
+
+    await this.unitRepository.save(unit);
+    const row = await this.getUnitById(id);
+    if (!row) {
+      throw new NotFoundException(`Unidad ${id} no encontrada`);
+    }
+    return row;
   }
 
   async deleteUnit(id: string) {
-    try {
-      await this.unitRepository.softDelete(id);
-      return { success: true };
-    } catch (error) {
-      console.error('Error deleting unit:', error);
-      throw error;
+    const unit = await this.unitRepository.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
+    if (!unit) {
+      throw new NotFoundException(`Unidad ${id} no encontrada`);
     }
+    if (unit.isBase) {
+      const n = await this.unitRepository.count({
+        where: {
+          baseUnitId: id,
+          active: true,
+          deletedAt: IsNull(),
+        },
+      });
+      if (n > 0) {
+        throw new BadRequestException(
+          'No se puede eliminar la base mientras tenga derivadas activas',
+        );
+      }
+    }
+    await this.unitRepository.softDelete(id);
+    return { success: true };
   }
 }

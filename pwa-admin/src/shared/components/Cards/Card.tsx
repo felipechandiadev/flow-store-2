@@ -56,6 +56,11 @@ export type CardProps = {
    * Los iconos usan `IconButton` fijo a `basicSecondary` (ver instrucciones webadmin).
    */
   actions?: CardAction[];
+  /**
+   * Ocupa la altura del contenedor (`height: 100%`) y hace que `.fs-card__content` crezca
+   * para alinear el bloque de acciones al pie (p. ej. grillas con `items-stretch`).
+   */
+  fillHeight?: boolean;
 };
 
 function useStructured(p: CardProps) {
@@ -65,7 +70,8 @@ function useStructured(p: CardProps) {
     p.subtitle != null ||
     p.headerEnd != null ||
     p.content !== undefined ||
-    (Array.isArray(p.actions) && p.actions.length > 0)
+    (Array.isArray(p.actions) && p.actions.length > 0) ||
+    p.fillHeight === true
   );
 }
 
@@ -95,6 +101,7 @@ export function Card({
   content,
   children,
   actions,
+  fillHeight = false,
 }: CardProps) {
   const structured = useStructured({
     className,
@@ -107,6 +114,7 @@ export function Card({
     content,
     children,
     actions,
+    fillHeight,
   });
 
   if (!structured) {
@@ -125,17 +133,21 @@ export function Card({
   const hasHeader = title != null || subtitle != null || headerEnd != null;
   const hasActions = Array.isArray(actions) && actions.length > 0;
 
+  const rootClass = [cardRootClass(true, onClick, className), fillHeight ? 'fs-card--fill-height' : '']
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div onClick={onClick} data-test-id={dataTestId} className={cardRootClass(true, onClick, className)}>
+    <div onClick={onClick} data-test-id={dataTestId} className={rootClass}>
       {media != null ? (
-        <div className="w-full" data-test-id="card-media">
+        <div className={fillHeight ? "w-full shrink-0" : "w-full"} data-test-id="card-media">
           {media}
         </div>
       ) : null}
 
       {hasHeader ? (
         <div
-          className={`fs-card__header ${
+          className={`fs-card__header ${fillHeight ? "shrink-0" : ""} ${
             headerEnd != null && (title != null || subtitle != null)
               ? 'flex items-start justify-between gap-3'
               : headerEnd != null

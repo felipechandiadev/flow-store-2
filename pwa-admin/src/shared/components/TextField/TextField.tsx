@@ -81,8 +81,13 @@ export const TextField: React.FC<TextFieldProps> = ({
     }
   }, [value, type]);
 
-  // Determinar si el campo está efectivamente deshabilitado
+  /** Bloquea edición (onChange, etc.); incluye solo lectura. */
   const isDisabled = disabled || readOnly;
+  /**
+   * Apariencia “deshabilitada” (opacidad, cursor prohibido). No aplica a autocomplete+readOnly
+   * (p. ej. Select): el input es solo lectura pero el combo debe verse activo y con cursor adecuado.
+   */
+  const showDisabledChrome = disabled || (readOnly && variante !== "autocomplete");
 
   // Controlador de cambios que respeta el estado disabled
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -353,10 +358,12 @@ export const TextField: React.FC<TextFieldProps> = ({
   const borderlessInputClass =
     variante === "autocomplete" ? "fs-text-field__input--borderless" : "";
 
-  // Estilos para estado disabled
-  const disabledStyles = isDisabled
+  const disabledStyles = showDisabledChrome
     ? "opacity-50 cursor-not-allowed bg-muted"
     : "";
+
+  const comboReadOnlyCursor =
+    readOnly && variante === "autocomplete" && !disabled ? "cursor-pointer" : "";
 
   const isTextArea = type === "textarea" || typeof rows === "number";
 
@@ -378,7 +385,7 @@ export const TextField: React.FC<TextFieldProps> = ({
       <div className={`relative ${className}`} data-test-id="text-field-root">
       {typeof startIcon === "string" && startIcon.length > 0 && (
         <span
-          className={`fs-text-field__icon ${isDisabled ? "text-muted opacity-50" : "text-secondary"}`}
+          className={`fs-text-field__icon ${showDisabledChrome ? "text-muted opacity-50" : "text-secondary"}`}
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         >
           {/* Icon rendering placeholder - should be replaced with lucide icon logic */}
@@ -387,7 +394,7 @@ export const TextField: React.FC<TextFieldProps> = ({
       )}
       {startIcon === undefined && startAdornment && (
         <span
-          className={`fs-text-field__icon ${isDisabled ? "text-muted opacity-50" : "text-secondary"}`}
+          className={`fs-text-field__icon ${showDisabledChrome ? "text-muted opacity-50" : "text-secondary"}`}
           style={{ fontSize: 14, width: 'auto', minWidth: 16, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', paddingRight: 4 }}
         >
           {startAdornment}
@@ -402,7 +409,7 @@ export const TextField: React.FC<TextFieldProps> = ({
           onBlur={() => setFocused(false)}
           onChange={handleChange}
           onKeyDown={onKeyDown}
-          className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${borderlessInputClass} block min-w-[180px] pr-4 ${startPaddingClass} ${variantInput} ${disabledStyles} z-0`}
+          className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${borderlessInputClass} block min-w-[180px] pr-4 ${startPaddingClass} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
           placeholder={
             type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
             (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))
@@ -434,7 +441,7 @@ export const TextField: React.FC<TextFieldProps> = ({
             onBlur={() => setFocused(false)}
             onChange={type === "dni" ? handleDNIChange : type === "currency" ? handleCurrencyChange : handleChange}
             onKeyDown={onKeyDown}
-            className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${borderlessInputClass} block min-w-[180px] ${startPaddingClass} ${(endIcon || (type === "password" && passwordVisibilityToggle)) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} z-0`}
+            className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${borderlessInputClass} block min-w-[180px] ${startPaddingClass} ${(endIcon || (type === "password" && passwordVisibilityToggle)) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
             placeholder={
               type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
               (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))
@@ -509,7 +516,7 @@ export const TextField: React.FC<TextFieldProps> = ({
       </label>
       {typeof endIcon === 'string' && endIcon.length > 0 && (
         <span
-          className={`fs-text-field__icon--end ${isDisabled ? "text-muted opacity-50" : "text-secondary"}`}
+              className={`fs-text-field__icon--end ${showDisabledChrome ? "text-muted opacity-50" : "text-secondary"}`}
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         >
           {/* End icon rendering placeholder - should be replaced with lucide icon logic */}
