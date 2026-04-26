@@ -31,10 +31,12 @@ function normalizeUnit(row: unknown): UnitListItem | null {
   }
   const o = row as Record<string, unknown>;
   const id = o.id != null ? String(o.id) : "";
-  const name = o.name != null ? String(o.name) : "";
-  const symbol = o.symbol != null ? String(o.symbol) : "";
-  const dimRaw = o.dimension != null ? String(o.dimension) : "";
-  if (!id || !name || !symbol || !isDimension(dimRaw)) {
+  const name = o.name != null ? String(o.name).trim() : "";
+  const symbolTrim = o.symbol != null ? String(o.symbol).trim() : "";
+  const symbol = symbolTrim.length > 0 ? symbolTrim : "—";
+  const dimRaw =
+    o.dimension != null ? String(o.dimension).trim().toLowerCase() : "";
+  if (!id || !name || !isDimension(dimRaw)) {
     return null;
   }
   const baseId =

@@ -1,6 +1,39 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
-import type { ProductGridRow, ProductPriceListItemRow, ProductVariantGridRow } from "../types/product-grid.types";
+import type {
+  ProductGridRow,
+  ProductPriceListItemRow,
+  ProductVariantGridRow,
+  ProductVariantMediaAsset,
+} from "../types/product-grid.types";
+
+function parseAttributeValuesRecord(raw: unknown): Record<string, string> | undefined {
+  if (raw == null) {
+    return undefined;
+  }
+  if (typeof raw === "string") {
+    try {
+      const p = JSON.parse(raw) as unknown;
+      if (typeof p === "object" && p != null && !Array.isArray(p)) {
+        return parseAttributeValuesRecord(p);
+      }
+    } catch {
+      return undefined;
+    }
+    return undefined;
+  }
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      const val = v == null ? "" : String(v).trim();
+      if (val) {
+        out[String(k).trim()] = val;
+      }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+  return undefined;
+}
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -57,14 +90,59 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
         })
         .filter((x): x is ProductPriceListItemRow => x != null)
     : [];
+  const mediaRaw = o.mediaAssets;
+  const mediaAssets: ProductVariantMediaAsset[] | undefined = Array.isArray(mediaRaw)
+    ? mediaRaw
+        .map((m): ProductVariantMediaAsset | null => {
+          if (!m || typeof m !== "object") {
+            return null;
+          }
+          const x = m as Record<string, unknown>;
+          const mid = x.id != null ? String(x.id) : "";
+          const url = x.publicUrl != null ? String(x.publicUrl) : "";
+          if (!mid || !url) {
+            return null;
+          }
+          return {
+            id: mid,
+            publicUrl: url,
+            mimeType: x.mimeType != null ? String(x.mimeType) : "",
+            kind: x.kind != null ? String(x.kind) : "",
+          };
+        })
+        .filter((x): x is ProductVariantMediaAsset => x != null)
+    : undefined;
+  const w =
+    o.weight != null && o.weight !== ""
+      ? typeof o.weight === "number"
+        ? o.weight
+        : Number(o.weight)
+      : null;
+  const weightNum = w != null && Number.isFinite(w) ? w : null;
+
   return {
     id,
     sku: sku || "—",
+    productId: o.productId != null ? String(o.productId) : undefined,
+    unitId: o.unitId != null ? String(o.unitId) : undefined,
     barcode: o.barcode != null && String(o.barcode).trim() ? String(o.barcode) : null,
     unitOfMeasure: o.unitOfMeasure != null ? String(o.unitOfMeasure) : null,
     isActive: o.isActive !== false,
     basePrice: typeof o.basePrice === "number" ? o.basePrice : o.basePrice != null ? Number(o.basePrice) : undefined,
     baseCost: typeof o.baseCost === "number" ? o.baseCost : o.baseCost != null ? Number(o.baseCost) : undefined,
+    pmp: typeof o.pmp === "number" ? o.pmp : o.pmp != null ? Number(o.pmp) : undefined,
+    displayName:
+      o.displayName != null && String(o.displayName).trim() ? String(o.displayName).trim() : null,
+    attributeValues: parseAttributeValuesRecord(o.attributeValues),
+    trackInventory: typeof o.trackInventory === "boolean" ? o.trackInventory : undefined,
+    allowNegativeStock: typeof o.allowNegativeStock === "boolean" ? o.allowNegativeStock : undefined,
+    weight: weightNum,
+    weightUnit: o.weightUnit != null ? String(o.weightUnit) : undefined,
+    primaryImageUrl:
+      o.primaryImageUrl != null && String(o.primaryImageUrl).trim()
+        ? String(o.primaryImageUrl).trim()
+        : null,
+    mediaAssets: mediaAssets && mediaAssets.length > 0 ? mediaAssets : undefined,
     priceListItems,
   };
 }
@@ -184,17 +262,36 @@ export class ProductRequest {
     basePrice: number;
     unitId: string;
     isActive?: boolean;
+    priceListItems: Array<{
+      priceListId: string;
+      netPrice: number;
+      grossPrice: number;
+      taxIds?: string[];
+    }>;
+    pmp: number;
+    attributeValues?: Record<string, string>;
   }): Promise<{ success: true; id: string } | { success: false; error: string }> {
     const headers = await authHeaders();
     const payload: Record<string, unknown> = {
       productId: body.productId,
       sku: body.sku.trim(),
-      basePrice: Number.isFinite(body.basePrice) ? body.basePrice : 0,
+      basePrice: Number.isFinite(body.basePrice) ? Math.round(body.basePrice) : 0,
       unitId: body.unitId,
       isActive: body.isActive !== false,
+      pmp: Math.max(0, Math.round(Number(body.pmp) || 0)),
+      priceListItems: body.priceListItems.map((item) => ({
+        priceListId: item.priceListId,
+        netPrice: Math.round(Number(item.netPrice)) || 0,
+        grossPrice: Math.round(Number(item.grossPrice)) || 0,
+        taxIds:
+          Array.isArray(item.taxIds) && item.taxIds.length > 0 ? item.taxIds : undefined,
+      })),
     };
     if (body.barcode?.trim()) {
       payload.barcode = body.barcode.trim();
+    }
+    if (body.attributeValues != null && Object.keys(body.attributeValues).length > 0) {
+      payload.attributeValues = body.attributeValues;
     }
     try {
       const res = await fetch(apiUrl("product-variants"), {

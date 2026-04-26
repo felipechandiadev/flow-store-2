@@ -9,6 +9,7 @@ import { TypeOrmProductVariantsRepository } from './infrastructure/repositories/
 import { PRODUCT_VARIANTS_REPOSITORY } from './application/ports/product-variants.repository.port';
 import { MultimediaModule } from '@modules/multimedia/multimedia.module';
 import { PriceListItemsModule } from '@modules/price-list-items/price-list-items.module';
+import { AttributesModule } from '@modules/attributes/attributes.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { PriceListItemsModule } from '@modules/price-list-items/price-list-items
     CqrsModule,
     MultimediaModule,
     PriceListItemsModule,
+    AttributesModule,
   ],
   providers: [
     ProductVariantsService,

@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -17,12 +17,16 @@ export class PriceListItemInputDto {
   @IsUUID()
   priceListId!: string;
 
+  @Transform(({ value }) => Math.round(Number(value)))
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
+  @Min(0)
   netPrice!: number;
 
+  @Transform(({ value }) => Math.round(Number(value)))
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
+  @Min(0)
   grossPrice!: number;
 
   @IsOptional()

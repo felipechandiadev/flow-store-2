@@ -23,9 +23,11 @@ interface SelectProps {
   allowClear?: boolean;
   disabled?: boolean;
   className?: string;
+  /** Mantiene visible la etiqueta del campo aunque no haya valor seleccionado. */
+  alwaysShowLabel?: boolean;
 }
 
-const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = null, onChange, required = false, name, variant = 'default', allowClear = false, disabled = false, className = '', ...props }) => {
+const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = null, onChange, required = false, name, variant = 'default', allowClear = false, disabled = false, className = '', alwaysShowLabel = false, ...props }) => {
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -265,6 +267,7 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
             variante="autocomplete"
             readOnly={true}
             disabled={disabled}
+            alwaysShowLabel={alwaysShowLabel}
           />
         
           {allowClear && value !== null && value !== undefined && (

@@ -53,6 +53,7 @@ export function PriceListCollection({ initialPriceLists }: PriceListCollectionPr
       }
       contentGridColumns={{ default: 1, md: 2, lg: 3 }}
       contentGridGapClassName="gap-4"
+      contentGridItemsAlign="stretch"
       data-test-id="price-lists-collection"
     />
   );

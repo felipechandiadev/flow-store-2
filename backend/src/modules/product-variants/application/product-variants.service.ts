@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Inject,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
@@ -12,6 +17,7 @@ import {
   PriceListItemsRepositoryPort,
 } from '@modules/price-list-items/application/ports/price-list-items.repository.port';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
+import { AttributesService } from '@modules/attributes/application/attributes.service';
 
 @Injectable()
 export class ProductVariantsService {
@@ -21,6 +27,7 @@ export class ProductVariantsService {
     @Inject(PRICE_LIST_ITEMS_REPOSITORY)
     private readonly priceListItemRepository: PriceListItemsRepositoryPort,
     private readonly multimediaService: MultimediaServiceAdapter,
+    private readonly attributesService: AttributesService,
   ) {}
 
   async findAll(params?: Record<string, any>) {
@@ -113,6 +120,7 @@ export class ProductVariantsService {
         barcode: variant.barcode,
         basePrice: Number(variant.basePrice),
         baseCost: Number(variant.baseCost),
+        pmp: Number(variant.pmp ?? 0),
         unitId: variant.unitId,
         unitOfMeasure: variant.unit?.name || 'Unidad',
         attributeValues: variant.attributeValues || {},
@@ -130,6 +138,84 @@ export class ProductVariantsService {
     }
 
     return Array.from(productMap.values());
+  }
+
+  /**
+   * Rejects payloads where the same price list appears more than once per variant.
+   */
+  private assertUniquePriceListIdsInPayload(items: unknown): void {
+    if (!Array.isArray(items) || items.length === 0) {
+      return;
+    }
+    const ids = items
+      .map((item: any) =>
+        typeof item?.priceListId === 'string' ? item.priceListId.trim() : '',
+      )
+      .filter((id: string) => id.length > 0);
+    const unique = new Set(ids);
+    if (unique.size !== ids.length) {
+      throw new BadRequestException(
+        'No puede repetir la misma lista de precios en más de una fila.',
+      );
+    }
+  }
+
+  private attributeValuesSignature(
+    av: Record<string, string> | null | undefined,
+  ): string | null {
+    if (!av || typeof av !== 'object' || Object.keys(av).length === 0) {
+      return null;
+    }
+    const sortedKeys = Object.keys(av).sort();
+    const norm: Record<string, string> = {};
+    for (const k of sortedKeys) {
+      norm[k] = String((av as any)[k]).trim();
+    }
+    return JSON.stringify(norm);
+  }
+
+  private parseAttributeValuesRow(raw: unknown): Record<string, string> | null {
+    if (raw == null) {
+      return null;
+    }
+    if (typeof raw === 'string') {
+      try {
+        const p = JSON.parse(raw);
+        if (typeof p === 'object' && p != null && !Array.isArray(p)) {
+          return p as Record<string, string>;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    }
+    if (typeof raw === 'object' && !Array.isArray(raw)) {
+      return raw as Record<string, string>;
+    }
+    return null;
+  }
+
+  private async assertUniqueAttributeValuesAmongSiblings(
+    productId: string | null | undefined,
+    normalized: Record<string, string> | null,
+    excludeVariantId?: string,
+  ): Promise<void> {
+    const sig = this.attributeValuesSignature(normalized);
+    if (!sig || !productId) {
+      return;
+    }
+    const siblings = await this.variantRepository.findAll({ productId });
+    for (const s of siblings) {
+      if (excludeVariantId && (s as any).id === excludeVariantId) {
+        continue;
+      }
+      const av = this.parseAttributeValuesRow((s as any).attributeValues);
+      if (this.attributeValuesSignature(av) === sig) {
+        throw new BadRequestException(
+          'Ya existe una variante de este producto con la misma combinación de atributos.',
+        );
+      }
+    }
   }
 
   private generateDisplayName(variant: any): string {
@@ -174,6 +260,17 @@ export class ProductVariantsService {
       : undefined;
     delete sanitizedData.multimediaAssetIds;
 
+    this.assertUniquePriceListIdsInPayload(sanitizedData.priceListItems);
+
+    const normalizedAttrValues =
+      await this.attributesService.validateAndNormalizeAttributeValues(
+        sanitizedData.attributeValues,
+      );
+    await this.assertUniqueAttributeValuesAmongSiblings(
+      sanitizedData.productId || null,
+      normalizedAttrValues,
+    );
+
     const variant = {
       productId: sanitizedData.productId || null,
       sku: sanitizedData.sku || '',
@@ -184,7 +281,7 @@ export class ProductVariantsService {
       unitId: sanitizedData.unitId,
       weight: sanitizedData.weight ?? null,
       weightUnit: sanitizedData.weightUnit ?? 'kg',
-      attributeValues: sanitizedData.attributeValues ?? null,
+      attributeValues: normalizedAttrValues,
       taxIds: sanitizedData.taxIds ?? null,
       trackInventory:
         typeof sanitizedData.trackInventory === 'boolean'
@@ -252,7 +349,26 @@ export class ProductVariantsService {
         : null;
     if (!v) throw new NotFoundException('Product variant not found');
 
+    this.assertUniquePriceListIdsInPayload(sanitizedData.priceListItems);
+
+    let normalizedAttrValues: Record<string, string> | null | undefined;
+    if (Object.prototype.hasOwnProperty.call(sanitizedData, 'attributeValues')) {
+      normalizedAttrValues =
+        await this.attributesService.validateAndNormalizeAttributeValues(
+          sanitizedData.attributeValues,
+        );
+      delete sanitizedData.attributeValues;
+    }
+
     Object.assign(v, sanitizedData);
+    if (normalizedAttrValues !== undefined) {
+      await this.assertUniqueAttributeValuesAmongSiblings(
+        (v as any).productId || null,
+        normalizedAttrValues,
+        id,
+      );
+      (v as any).attributeValues = normalizedAttrValues;
+    }
     const saved = await this.variantRepository.save(v);
 
     if (

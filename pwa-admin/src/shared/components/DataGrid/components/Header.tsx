@@ -109,7 +109,7 @@ const Header: React.FC<HeaderProps> = ({
 
   // border-b border-gray-300 bg-gray-100
   return (
-    <div className="w-full" data-test-id="data-grid-header">
+    <div className="w-full pb-4" data-test-id="data-grid-header">
       {/* Primera fila: Add button + Title + (Toolbar + Search en desktop) */}
       <div className="flex w-full items-center gap-2 py-0">
         {/* Add button - usa onAddClick si está definido, sino abre el modal interno */}

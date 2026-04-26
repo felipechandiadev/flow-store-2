@@ -36,6 +36,8 @@ interface TextFieldProps {
   allowLetters?: boolean; // Permitir letras en teléfono (default: false)
   passwordVisibilityToggle?: boolean; // Mostrar/ocultar toggle de visibilidad para password (default: true)
   autoComplete?: string;
+  /** Si es true, la etiqueta flotante permanece visible (p. ej. Select con placeholder vacío). */
+  alwaysShowLabel?: boolean;
   ["data-test-id"]?: string;
 }
 
@@ -66,6 +68,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   allowLetters = false,
   passwordVisibilityToggle = true, // Default: true para mostrar toggle en password
   autoComplete,
+  alwaysShowLabel = false,
   ...props
 }) => {
   const [focused, setFocused] = useState(false);
@@ -313,7 +316,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   };
 
   const displayValue = getDisplayValue();
-  const labelAlwaysVisible = type === 'date';
+  const labelAlwaysVisible = type === 'date' || alwaysShowLabel;
   const shrink = labelAlwaysVisible || focused || (displayValue && displayValue.length > 0);
   const [showPlaceholder, setShowPlaceholder] = useState(labelAlwaysVisible ? false : !shrink);
 

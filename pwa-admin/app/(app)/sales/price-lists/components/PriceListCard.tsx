@@ -143,34 +143,37 @@ export function PriceListCard({ priceList, "data-test-id": dataTestId }: PriceLi
 
   return (
     <>
-      <Card
-        className="overflow-hidden border-border/90 shadow-sm transition-shadow duration-200 hover:shadow-md"
-        data-test-id={dataTestId}
-        media={media}
-        title={priceList.name}
-        headerEnd={headerEnd}
-        content={content}
-        actions={[
-          {
-            id: "update",
-            icon: "Pencil",
-            ariaLabel: "Actualizar lista de precio",
-            onClick: () => setUpdateOpen(true),
-            "data-test-id": "price-list-card-update",
-          },
-          {
-            id: "delete",
-            icon: "Trash2",
-            ariaLabel: "Eliminar lista de precio",
-            disabled: isDeleting,
-            onClick: () => {
-              setDeleteErrors([]);
-              setDeleteOpen(true);
+      <div className="flex h-full min-h-0 flex-col">
+        <Card
+          fillHeight
+          className="h-full min-h-0 overflow-hidden border-border/90 shadow-sm transition-shadow duration-200 hover:shadow-md"
+          data-test-id={dataTestId}
+          media={media}
+          title={priceList.name}
+          headerEnd={headerEnd}
+          content={content}
+          actions={[
+            {
+              id: "update",
+              icon: "Pencil",
+              ariaLabel: "Actualizar lista de precio",
+              onClick: () => setUpdateOpen(true),
+              "data-test-id": "price-list-card-update",
             },
-            "data-test-id": "price-list-card-delete",
-          },
-        ]}
-      />
+            {
+              id: "delete",
+              icon: "Trash2",
+              ariaLabel: "Eliminar lista de precio",
+              disabled: isDeleting,
+              onClick: () => {
+                setDeleteErrors([]);
+                setDeleteOpen(true);
+              },
+              "data-test-id": "price-list-card-delete",
+            },
+          ]}
+        />
+      </div>
       <UpdatePriceListDialog
         open={updateOpen}
         onClose={() => setUpdateOpen(false)}

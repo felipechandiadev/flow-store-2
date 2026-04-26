@@ -6,6 +6,7 @@ import { Barcode } from "lucide-react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import IconButton from "@/shared/components/IconButton/IconButton";
+import Badge from "@/shared/components/Badge/Badge";
 import type { ProductGridRow, ProductVariantGridRow } from "@/features/inventory-products/types/product-grid.types";
 import { CreateProductDialog } from "./CreateProductDialog";
 import { CreateProductVariantDialog } from "./CreateProductVariantDialog";
@@ -15,6 +16,16 @@ type ProductsDataGridProps = {
   total: number;
 };
 
+function averageReferencePmp(row: ProductGridRow): number {
+  const positives = (row.variants ?? [])
+    .map((v) => (typeof v.pmp === "number" && Number.isFinite(v.pmp) ? v.pmp : 0))
+    .filter((n) => n > 0);
+  if (positives.length === 0) {
+    return 0;
+  }
+  return Math.round(positives.reduce((a, b) => a + b, 0) / positives.length);
+}
+
 function formatMoney(amount: number, currency: string): string {
   try {
     return new Intl.NumberFormat("es-CL", { style: "currency", currency: currency || "CLP" }).format(amount);
@@ -23,13 +34,135 @@ function formatMoney(amount: number, currency: string): string {
   }
 }
 
-function priceListsCell(v: ProductVariantGridRow): string {
-  if (!v.priceListItems.length) {
-    return "—";
+function formatNumber(n: number): string {
+  return new Intl.NumberFormat("es-CL", { maximumFractionDigits: 3 }).format(n);
+}
+
+function variantTitle(v: ProductVariantGridRow): string {
+  const dn = v.displayName?.trim();
+  if (dn) {
+    return dn;
   }
-  return v.priceListItems
-    .map((p) => `${p.priceListName}: ${formatMoney(p.netPrice, p.currency)}`)
-    .join(" · ");
+  const av = v.attributeValues;
+  if (av && Object.keys(av).length > 0) {
+    const parts = Object.values(av).filter(Boolean);
+    if (parts.length > 0) {
+      return parts.join(", ");
+    }
+  }
+  return v.sku;
+}
+
+function ProductVariantExpandCard({ v }: { v: ProductVariantGridRow }) {
+  const img = v.primaryImageUrl?.trim() || null;
+  const extraMedia = (v.mediaAssets?.length ?? 0) > 1 ? (v.mediaAssets!.length - 1) : 0;
+  const weightLine =
+    v.weight != null && Number.isFinite(v.weight)
+      ? `${formatNumber(v.weight)} ${(v.weightUnit ?? "kg").trim()}`
+      : null;
+  const track = v.trackInventory !== false;
+  const neg = v.allowNegativeStock === true;
+
+  return (
+    <article
+      className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm"
+      data-test-id={`products-expand-variant-card-${v.id}`}
+    >
+      {img ? (
+        <div className="relative aspect-[16/9] w-full shrink-0 bg-muted">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
+          {extraMedia > 0 ? (
+            <span className="absolute bottom-2 right-2 rounded-md bg-background/90 px-2 py-0.5 text-xs font-medium text-foreground shadow">
+              +{extraMedia} {extraMedia === 1 ? "imagen" : "imágenes"}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h4 className="truncate text-base font-semibold leading-snug text-foreground" title={variantTitle(v)}>
+              {variantTitle(v)}
+            </h4>
+            <p className="mt-0.5 font-mono text-xs text-muted-foreground" title={v.sku}>
+              SKU: {v.sku}
+            </p>
+          </div>
+          <Badge variant={v.isActive !== false ? "success" : "secondary-outlined"} className="shrink-0">
+            {v.isActive !== false ? "Activa" : "Inactiva"}
+          </Badge>
+        </div>
+
+        <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
+          <div className="min-w-0 sm:col-span-2">
+            <dt className="font-medium text-muted-foreground">Código de barras</dt>
+            <dd className="mt-0.5 font-mono text-foreground">{v.barcode?.trim() ? v.barcode : "—"}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="font-medium text-muted-foreground">Unidad</dt>
+            <dd className="mt-0.5 text-foreground">{v.unitOfMeasure?.trim() ? v.unitOfMeasure : "—"}</dd>
+          </div>
+          {weightLine ? (
+            <div className="min-w-0">
+              <dt className="font-medium text-muted-foreground">Peso</dt>
+              <dd className="mt-0.5 tabular-nums text-foreground">{weightLine}</dd>
+            </div>
+          ) : null}
+          <div className="min-w-0">
+            <dt className="font-medium text-muted-foreground">PMP</dt>
+            <dd className="mt-0.5 tabular-nums text-foreground">
+              {v.pmp != null && Number.isFinite(v.pmp) ? formatMoney(v.pmp, "CLP") : "—"}
+            </dd>
+          </div>
+          <div className="min-w-0 sm:col-span-2">
+            <dt className="font-medium text-muted-foreground">Inventario</dt>
+            <dd className="mt-0.5 text-foreground">
+              {track ? "Rastreado" : "Sin rastreo"}
+              {track ? (
+                <>
+                  {" · "}
+                  {neg ? "Permite stock negativo" : "No permite stock negativo"}
+                </>
+              ) : null}
+            </dd>
+          </div>
+        </dl>
+
+        <div className="border-t border-border pt-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Precios por lista
+          </p>
+          {v.priceListItems.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Sin precios por lista.</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {v.priceListItems.map((p) => (
+                <li
+                  key={p.priceListId}
+                  className="rounded-lg border border-border/60 bg-muted/25 px-3 py-2 text-xs"
+                  data-test-id={`products-expand-pl-${v.id}-${p.priceListId}`}
+                >
+                  <p className="font-medium text-foreground">{p.priceListName}</p>
+                  <p className="mt-1 tabular-nums text-muted-foreground">
+                    Neto: <span className="text-foreground">{formatMoney(p.netPrice, p.currency)}</span>
+                    {" · "}
+                    Bruto: <span className="text-foreground">{formatMoney(p.grossPrice, p.currency)}</span>
+                  </p>
+                  {p.taxIds && p.taxIds.length > 0 ? (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {p.taxIds.length} impuesto{p.taxIds.length === 1 ? "" : "s"} en esta lista
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function ProductExpandPanel({
@@ -57,35 +190,13 @@ function ProductExpandPanel({
       </div>
 
       {hasVariants ? (
-        <div className="w-full min-w-0 overflow-x-auto rounded-md bg-muted/20">
-          <table className="w-full min-w-0 table-fixed text-left text-sm">
-            <thead>
-              <tr className="border-b border-border/60 bg-muted/30 text-xs text-muted-foreground">
-                <th className="w-[14%] px-3 py-2 font-medium">SKU</th>
-                <th className="w-[14%] px-3 py-2 font-medium">Código de barras</th>
-                <th className="w-[10%] px-3 py-2 font-medium">Unidad</th>
-                <th className="w-[12%] px-3 py-2 text-right font-medium">Precio base</th>
-                <th className="w-[42%] px-3 py-2 font-medium">Precios por lista</th>
-                <th className="w-[8%] px-3 py-2 font-medium">Activo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {row.variants!.map((v) => (
-                <tr key={v.id} className="border-b border-border/40 last:border-0">
-                  <td className="px-3 py-2 font-mono text-xs text-foreground">{v.sku}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{v.barcode ?? "—"}</td>
-                  <td className="px-3 py-2 text-foreground">{v.unitOfMeasure ?? "—"}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-foreground">
-                    {v.basePrice != null && Number.isFinite(v.basePrice) ? formatMoney(v.basePrice, "CLP") : "—"}
-                  </td>
-                  <td className="min-w-0 break-words px-3 py-2 text-xs leading-snug text-foreground">
-                    {priceListsCell(v)}
-                  </td>
-                  <td className="px-3 py-2 text-foreground">{v.isActive !== false ? "Sí" : "No"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div
+          className="grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+          data-test-id="products-expand-variant-cards"
+        >
+          {row.variants!.map((v) => (
+            <ProductVariantExpandCard key={v.id} v={v} />
+          ))}
         </div>
       ) : (
         <div
@@ -119,10 +230,18 @@ function ProductExpandPanel({
 export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
-  const [variantDialog, setVariantDialog] = useState<{ productId: string; productName: string } | null>(null);
+  const [variantDialog, setVariantDialog] = useState<{
+    productId: string;
+    productName: string;
+    referencePmp: number;
+  } | null>(null);
 
   const openVariantDialog = useCallback((r: ProductGridRow) => {
-    setVariantDialog({ productId: r.id, productName: r.name });
+    setVariantDialog({
+      productId: r.id,
+      productName: r.name,
+      referencePmp: averageReferencePmp(r),
+    });
   }, []);
 
   const columns: DataGridColumn[] = useMemo(
@@ -183,6 +302,7 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
         onClose={() => setVariantDialog(null)}
         productId={variantDialog?.productId ?? ""}
         productName={variantDialog?.productName ?? ""}
+        referencePmp={variantDialog?.referencePmp ?? 0}
         onSuccess={async () => {
           await router.refresh();
         }}

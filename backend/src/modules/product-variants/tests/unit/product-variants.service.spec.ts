@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ProductVariantsService } from '@modules/product-variants/application/product-variants.service';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 import { ProductVariantsRepositoryPort } from '@modules/product-variants/application/ports/product-variants.repository.port';
@@ -21,6 +21,9 @@ describe('ProductVariantsService', () => {
     unlink: jest.Mock;
     link: jest.Mock;
   };
+  let attributesService: {
+    validateAndNormalizeAttributeValues: jest.Mock;
+  };
 
   beforeEach(() => {
     variantRepository = {
@@ -38,11 +41,15 @@ describe('ProductVariantsService', () => {
       unlink: jest.fn(),
       link: jest.fn(),
     };
+    attributesService = {
+      validateAndNormalizeAttributeValues: jest.fn().mockResolvedValue(null),
+    };
 
     service = new ProductVariantsService(
       variantRepository as unknown as ProductVariantsRepositoryPort,
       priceListItemRepository as unknown as PriceListItemsRepositoryPort,
       multimediaService as unknown as MultimediaServiceAdapter,
+      attributesService as any,
     );
   });
 
@@ -185,6 +192,22 @@ describe('ProductVariantsService', () => {
         primaryImageUrl: '/multimedia/files/asset-9',
       },
     });
+  });
+
+  it('should reject create when price list ids are duplicated', async () => {
+    await expect(
+      service.create({
+        productId: 'product-1',
+        sku: 'SKU-1',
+        basePrice: 100,
+        unitId: 'unit-1',
+        priceListItems: [
+          { priceListId: 'same-list', netPrice: 90, grossPrice: 100 },
+          { priceListId: 'same-list', netPrice: 80, grossPrice: 90 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(variantRepository.save).not.toHaveBeenCalled();
   });
 
   it('should throw when updating a missing variant', async () => {
