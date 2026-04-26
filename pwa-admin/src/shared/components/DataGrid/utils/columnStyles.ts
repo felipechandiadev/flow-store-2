@@ -141,8 +141,9 @@ export const DataGridStyles = {
   // Contenedor scrollable
   scrollContainer: 'flex-1 overflow-auto',
 
-  // Headers de columna
-  headerRow: 'flex min-w-full',
+  // Headers de columna: un solo border-b en la fila (headerRow) evita doble trazo
+  // cuando columnas sticky se superponen al hacer scroll horizontal.
+  headerRow: 'flex min-w-full border-b border-border',
   headerCell: 'px-3 py-2 text-sm font-medium text-foreground border-r border-border last:border-r-0',
 
   // Celdas del body (desde Cell.tsx)

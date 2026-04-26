@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProductOrmEntity } from './orm-mappers/product.orm-entity';
 import { Product } from '@modules/products/domain/product.entity';
 import {
   ProductsRepositoryPort,
@@ -11,11 +10,11 @@ import {
 @Injectable()
 export class ProductsRepository implements ProductsRepositoryPort {
   constructor(
-    @InjectRepository(ProductOrmEntity)
-    private readonly repo: Repository<ProductOrmEntity>,
+    @InjectRepository(Product)
+    private readonly repo: Repository<Product>,
   ) {}
 
-  private toDomain(e: ProductOrmEntity): Product {
+  private toDomain(e: Product): Product {
     return new Product({
       id: e.id,
       categoryId: e.categoryId,
@@ -35,8 +34,8 @@ export class ProductsRepository implements ProductsRepositoryPort {
     });
   }
 
-  private toOrm(d: Product): ProductOrmEntity {
-    const e = new ProductOrmEntity();
+  private toOrm(d: Product): Product {
+    const e = new Product();
     e.id = d.id;
     e.categoryId = d.categoryId;
     e.name = d.name;
@@ -54,7 +53,7 @@ export class ProductsRepository implements ProductsRepositoryPort {
 
   async save(product: Product): Promise<Product> {
     const orm = this.toOrm(product);
-    const saved = await this.repo.save(orm as any);
+    const saved = await this.repo.save(orm);
     return this.toDomain(saved);
   }
 

@@ -231,60 +231,88 @@ function CollectionPageLayoutView({
     }, SEARCH_DEBOUNCE_MS);
   };
 
-  const showHeading = Boolean((title && title.trim()) || (subtitle && subtitle.trim()));
+  const titleTrim = title?.trim() ?? "";
+  const subtitleTrim = subtitle?.trim() ?? "";
   const hasCustomAdd = addAction !== undefined;
   const hasDefaultAdd = !hasCustomAdd && onAddClick != null;
   const hasAddSlot = hasCustomAdd || hasDefaultAdd;
+  /** Misma idea que el header del DataGrid: fila con +, título y búsqueda (desktop). */
+  const showTitleRow = hasAddSlot || Boolean(titleTrim) || showSearch;
+  const showSubtitle = Boolean(subtitleTrim);
+  const showHeaderBlock = showTitleRow || showSubtitle;
 
   return (
     <div
       className={`flex w-full min-w-0 max-w-full flex-col gap-4 ${className}`.trim()}
       data-test-id={dataTestId ?? "collection-page-layout-root"}
     >
-      {showHeading ? (
-        <header className="min-w-0">
-          {title && title.trim() ? (
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
+      {showHeaderBlock ? (
+        <header className="w-full min-w-0" data-test-id="collection-page-layout-header">
+          {showTitleRow ? (
+            <>
+              <div className="flex w-full items-center gap-2 py-0">
+                {hasAddSlot ? (
+                  <div className="flex shrink-0 items-center" data-test-id="collection-page-layout-add-wrap">
+                    {hasCustomAdd ? (
+                      addAction
+                    ) : hasDefaultAdd ? (
+                      <IconButton
+                        icon="Plus"
+                        variant="basicSecondary"
+                        size="md"
+                        ariaLabel={addButtonAriaLabel}
+                        onClick={onAddClick!}
+                        data-test-id="collection-page-layout-add"
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+                {titleTrim ? (
+                  <h1 className="whitespace-nowrap text-lg font-semibold tracking-tight text-foreground">
+                    {titleTrim}
+                  </h1>
+                ) : null}
+                <div className="min-w-0 flex-1" aria-hidden />
+                {showSearch ? (
+                  <div className="hidden items-center gap-2 sm:flex">
+                    <TextField
+                      label=""
+                      value={searchInput}
+                      onChange={handleSearchChange}
+                      placeholder={searchPlaceholder}
+                      name={searchParamName}
+                      startAdornment={
+                        <Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />
+                      }
+                      className="w-full sm:w-64"
+                      data-test-id="collection-page-layout-search"
+                    />
+                  </div>
+                ) : null}
+              </div>
+              {showSearch ? (
+                <div className="mt-0 flex items-start justify-end gap-2 sm:hidden">
+                  <div className="flex min-w-0 flex-1 flex-col items-stretch">
+                    <TextField
+                      label={searchLabel}
+                      value={searchInput}
+                      onChange={handleSearchChange}
+                      placeholder={searchPlaceholder}
+                      name={`${searchParamName}-mobile`}
+                      startAdornment={
+                        <Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />
+                      }
+                      className="text-sm w-full"
+                      data-test-id="collection-page-layout-search-mobile"
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : null}
-          {subtitle && subtitle.trim() ? (
-            <p className="mt-1 text-sm text-muted">{subtitle}</p>
-          ) : null}
+          {showSubtitle ? <p className="mt-1 text-sm text-muted">{subtitleTrim}</p> : null}
         </header>
       ) : null}
-
-      <div
-        className={`flex w-full flex-row flex-wrap items-end gap-3 ${
-          hasAddSlot && showSearch ? "justify-between" : showSearch ? "justify-end" : "justify-start"
-        }`}
-      >
-        {hasAddSlot ? (
-          <div className="flex shrink-0 items-center" data-test-id="collection-page-layout-add-wrap">
-            {hasCustomAdd ? addAction : hasDefaultAdd ? (
-              <IconButton
-                icon="Plus"
-                variant="ghost"
-                size="md"
-                ariaLabel={addButtonAriaLabel}
-                onClick={onAddClick!}
-                data-test-id="collection-page-layout-add"
-              />
-            ) : null}
-          </div>
-        ) : null}
-        {showSearch ? (
-          <div className="w-full min-w-0 max-w-md">
-            <TextField
-              label={searchLabel}
-              value={searchInput}
-              onChange={handleSearchChange}
-              placeholder={searchPlaceholder}
-              name={searchParamName}
-              startAdornment={<Search className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />}
-              data-test-id="collection-page-layout-search"
-            />
-          </div>
-        ) : null}
-      </div>
 
       <section className="min-h-0 min-w-0 w-full max-w-full flex-1" data-test-id="collection-page-layout-content">
         {renderContentSection(
@@ -316,39 +344,60 @@ function CollectionPageLayoutFallback({
   contentGridItemsAlign,
   className,
 }: CollectionPageLayoutProps) {
-  const showHeading = Boolean((title && title.trim()) || (subtitle && subtitle.trim()));
+  const titleTrim = title?.trim() ?? "";
+  const subtitleTrim = subtitle?.trim() ?? "";
   const hasContentItems = contentItems != null;
   const hasGrid = hasContentItems && contentItems.length > 0;
   const isContentEmpty = hasContentItems && contentItems.length === 0;
   const hasCustomAdd = addAction !== undefined;
   const hasDefaultAdd = !hasCustomAdd && onAddClick != null;
   const hasAddSlot = hasCustomAdd || hasDefaultAdd;
+  const showTitleRow = hasAddSlot || Boolean(titleTrim) || showSearch;
+  const showSubtitle = Boolean(subtitleTrim);
+  const showHeaderBlock = showTitleRow || showSubtitle;
   const emptyText = (contentEmptyMessage ?? DEFAULT_CONTENT_EMPTY_MESSAGE).trim() || DEFAULT_CONTENT_EMPTY_MESSAGE;
   const fallbackAlignClass = contentGridItemsAlign === "stretch" ? "items-stretch" : "items-start";
   return (
     <div className={`flex w-full min-w-0 max-w-full flex-col gap-4 ${className ?? ""}`.trim()}>
-      {showHeading ? (
-        <header>
-          {title && title.trim() ? <h1 className="text-2xl font-semibold text-foreground">{title}</h1> : null}
-          {subtitle && subtitle.trim() ? <p className="mt-1 text-sm text-muted">{subtitle}</p> : null}
+      {showHeaderBlock ? (
+        <header className="w-full min-w-0" data-test-id="collection-page-layout-header">
+          {showTitleRow ? (
+            <>
+              <div className="flex w-full items-center gap-2 py-0">
+                {hasAddSlot ? (
+                  <div
+                    className="h-10 w-10 shrink-0 animate-pulse rounded-md bg-neutral/60"
+                    aria-hidden
+                    data-test-id="collection-page-layout-add-skeleton"
+                  />
+                ) : null}
+                {titleTrim ? (
+                  <div
+                    className="h-7 w-40 max-w-[60%] shrink-0 animate-pulse rounded-md bg-neutral/60"
+                    aria-hidden
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1" aria-hidden />
+                {showSearch ? (
+                  <div
+                    className="hidden h-10 w-64 max-w-[40%] shrink-0 animate-pulse rounded-md bg-neutral/60 sm:block"
+                    aria-hidden
+                  />
+                ) : null}
+              </div>
+              {showSearch ? (
+                <div
+                  className="mt-1 h-10 w-full max-w-xs animate-pulse rounded-md bg-neutral/60 sm:hidden"
+                  aria-hidden
+                />
+              ) : null}
+            </>
+          ) : null}
+          {showSubtitle ? (
+            <div className="mt-2 h-4 w-72 max-w-full animate-pulse rounded-md bg-neutral/60" aria-hidden />
+          ) : null}
         </header>
       ) : null}
-      <div
-        className={`flex w-full flex-row flex-wrap items-end gap-3 ${
-          hasAddSlot && showSearch ? "justify-between" : showSearch ? "justify-end" : "justify-start"
-        }`}
-      >
-        {hasAddSlot ? (
-          <div
-            className="h-10 w-10 shrink-0 animate-pulse rounded-md bg-neutral/60"
-            aria-hidden
-            data-test-id="collection-page-layout-add-skeleton"
-          />
-        ) : null}
-        {showSearch ? (
-          <div className="h-11 w-full max-w-md animate-pulse rounded-md bg-neutral/60 md:ml-auto" aria-hidden />
-        ) : null}
-      </div>
       <section className="min-w-0 w-full max-w-full">
         {hasGrid && contentItems ? (
           <div
@@ -381,10 +430,10 @@ function CollectionPageLayoutFallback({
 }
 
 /**
- * Plantilla de página de colección/índice: título y subtítulo opcionales, fila con acción “+” y
- * búsqueda que persiste en la query. Opcionalmente `addAction` (nodo React) sustituye el `IconButton`
- * integrado para que cada feature inyecte botón + diálogos propios. Opcionalmente `contentItems` y
- * `contentGridColumns` para grilla en el área de contenido. Incluye `Suspense` por `useSearchParams`.
+ * Plantilla de página de colección/índice: cabecera alineada al DataGrid (fila `+` · título · búsqueda
+ * a la derecha en `sm+`, búsqueda en fila aparte en móvil), subtítulo debajo, y búsqueda en query.
+ * `addAction` sustituye el `IconButton` integrado. `contentItems` + `contentGridColumns` para la grilla.
+ * Incluye `Suspense` por `useSearchParams`.
  */
 export function CollectionPageLayout(props: CollectionPageLayoutProps) {
   return (

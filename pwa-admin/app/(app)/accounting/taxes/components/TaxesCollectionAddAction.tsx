@@ -13,7 +13,7 @@ export function TaxesCollectionAddAction() {
     <>
       <IconButton
         icon="Plus"
-        variant="ghost"
+        variant="basicSecondary"
         size="md"
         ariaLabel="Crear impuesto"
         onClick={() => setOpen(true)}

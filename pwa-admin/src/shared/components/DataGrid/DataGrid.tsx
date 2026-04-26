@@ -208,7 +208,7 @@ const DataGrid: React.FC<DataGridProps> = ({
         >
           {/* Expand column header placeholder */}
           {expandable && (
-            <div className="w-10 min-w-[40px] border-b border-border" />
+            <div className="w-10 min-w-[40px] shrink-0" />
           )}
           {visibleColumns.map((column, i) => {
             const style = computedStyles[i];

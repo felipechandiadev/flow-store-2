@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CalendarClock, Cpu, Store, Tags } from "lucide-react";
+import { Building2, CalendarClock, Cpu, ReceiptText, Tags } from "lucide-react";
 import { Card } from "@/shared/components/Cards";
 import { DeleteDialog } from "@/shared/components/Dialog/DeleteDialog";
 import Badge from "@/shared/components/Badge/Badge";
@@ -73,7 +73,7 @@ export function PointOfSaleCard({
         aria-hidden
       />
       <div className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-2xl border-2 border-secondary bg-white/90 shadow-md backdrop-blur-sm">
-        <Store className="h-9 w-9 text-primary" strokeWidth={1.75} aria-hidden />
+        <ReceiptText className="h-9 w-9 text-primary" strokeWidth={1.75} aria-hidden />
       </div>
     </div>
   );

@@ -3,8 +3,8 @@ import { Logger } from '@nestjs/common';
 import { SearchProductsQuery } from '../../queries/search-products.query';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProductOrmEntity } from '@modules/products/infrastructure/orm-mappers/product.orm-entity';
-import { ProductVariantOrmEntity } from '@modules/product-variants/infrastructure/orm-mappers/product-variant.orm-entity';
+import { Product } from '@modules/products/domain/product.entity';
+import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 
 export interface SearchProductsResult {
   id: string;
@@ -36,10 +36,10 @@ export class SearchProductsQueryHandler implements IQueryHandler<
   private readonly logger = new Logger(SearchProductsQueryHandler.name);
 
   constructor(
-    @InjectRepository(ProductOrmEntity)
-    private readonly productRepository: Repository<ProductOrmEntity>,
-    @InjectRepository(ProductVariantOrmEntity)
-    private readonly variantRepository: Repository<ProductVariantOrmEntity>,
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
+    @InjectRepository(ProductVariant)
+    private readonly variantRepository: Repository<ProductVariant>,
   ) {}
 
   async execute(query: SearchProductsQuery): Promise<SearchProductsResult[]> {

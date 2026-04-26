@@ -4,7 +4,6 @@ import { CreateProductCommand } from '../../commands/create-product.command';
 import { ProductCreatedEvent } from '../../../domain/events/product-created.event';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProductOrmEntity } from '@modules/products/infrastructure/orm-mappers/product.orm-entity';
 import { Product } from '../../../domain/product.entity';
 
 @CommandHandler(CreateProductCommand)
@@ -15,8 +14,8 @@ export class CreateProductCommandHandler implements ICommandHandler<
   private readonly logger = new Logger(CreateProductCommandHandler.name);
 
   constructor(
-    @InjectRepository(ProductOrmEntity)
-    private readonly productRepository: Repository<ProductOrmEntity>,
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
     private readonly eventBus: EventBus,
   ) {}
 

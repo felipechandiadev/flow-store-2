@@ -36,9 +36,6 @@ import { OrganizationalUnitOrmEntity } from '@modules/organizational-units/infra
 import { PersonOrmEntity } from '@modules/persons/infrastructure/orm-mappers/person.orm-entity';
 import { PointOfSaleOrmEntity } from '@modules/points-of-sale/infrastructure/orm-mappers/point-of-sale.orm-entity';
 import { PriceListOrmEntity } from '@modules/price-lists/infrastructure/orm-mappers/price-list.orm-entity';
-import { PriceListItemOrmEntity } from '@modules/price-list-items/infrastructure/orm-mappers/price-list-item.orm-entity';
-import { ProductOrmEntity } from '@modules/products/infrastructure/orm-mappers/product.orm-entity';
-import { ProductVariantOrmEntity } from '@modules/product-variants/infrastructure/orm-mappers/product-variant.orm-entity';
 import { ReceptionOrmEntity } from '@modules/receptions/infrastructure/orm-mappers/reception.orm-entity';
 import { ReceptionLineOrmEntity } from '@modules/receptions/infrastructure/orm-mappers/reception-line.orm-entity';
 import { ResultCenterOrmEntity } from '@modules/result-centers/infrastructure/orm-mappers/result-center.orm-entity';
@@ -125,8 +122,8 @@ export const REPOSITORY_PROVIDERS = [
   // Catalog Domain
   createRepositoryProvider(Attribute, AttributeOrmEntity),
   createRepositoryProvider(Category, CategoryOrmEntity),
-  createRepositoryProvider(Product, ProductOrmEntity),
-  createRepositoryProvider(ProductVariant, ProductVariantOrmEntity),
+  createRepositoryProvider(Product, Product),
+  createRepositoryProvider(ProductVariant, ProductVariant),
 
   // Company Domain
   createRepositoryProvider(Branch, BranchOrmEntity),
@@ -137,7 +134,7 @@ export const REPOSITORY_PROVIDERS = [
   // Pricing Domain
   createRepositoryProvider(MetalPrice, MetalPriceOrmEntity),
   createRepositoryProvider(PriceList, PriceListOrmEntity),
-  createRepositoryProvider(PriceListItem, PriceListItemOrmEntity),
+  createRepositoryProvider(PriceListItem, PriceListItem),
   createRepositoryProvider(Tax, TaxOrmEntity),
 
   // People Domain

@@ -3,10 +3,8 @@ import { Logger, NotFoundException } from '@nestjs/common';
 import { SearchPosProductsQuery } from '../../queries/search-pos-products.query';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProductVariantOrmEntity } from '@modules/product-variants/infrastructure/orm-mappers/product-variant.orm-entity';
-import { ProductOrmEntity } from '@modules/products/infrastructure/orm-mappers/product.orm-entity';
-import { PriceListItemOrmEntity } from '@modules/price-list-items/infrastructure/orm-mappers/price-list-item.orm-entity';
-import { StockLevelOrmEntity } from '@modules/stock-levels/infrastructure/orm-mappers/stock-level.orm-entity';
+import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 
 export type PosProductSearchResult = {
@@ -55,14 +53,10 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
   private readonly logger = new Logger(SearchPosProductsQueryHandler.name);
 
   constructor(
-    @InjectRepository(ProductVariantOrmEntity)
-    private readonly variantRepository: Repository<ProductVariantOrmEntity>,
-    @InjectRepository(ProductOrmEntity)
-    private readonly productRepository: Repository<ProductOrmEntity>,
-    @InjectRepository(PriceListItemOrmEntity)
-    private readonly priceListItemRepository: Repository<PriceListItemOrmEntity>,
-    @InjectRepository(StockLevelOrmEntity)
-    private readonly stockLevelRepository: Repository<StockLevelOrmEntity>,
+    @InjectRepository(ProductVariant)
+    private readonly variantRepository: Repository<ProductVariant>,
+    @InjectRepository(StockLevel)
+    private readonly stockLevelRepository: Repository<StockLevel>,
     private readonly multimediaService: MultimediaServiceAdapter,
   ) {}
 

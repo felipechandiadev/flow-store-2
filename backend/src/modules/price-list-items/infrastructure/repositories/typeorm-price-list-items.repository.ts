@@ -1,15 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
-import { PriceListItemOrmEntity } from '../orm-mappers/price-list-item.orm-entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import { PriceListItemsRepositoryPort } from '@modules/price-list-items/application/ports/price-list-items.repository.port';
 
 @Injectable()
 export class TypeOrmPriceListItemsRepository implements PriceListItemsRepositoryPort {
-  private repo: Repository<PriceListItemOrmEntity>;
+  private repo: Repository<PriceListItem>;
 
   constructor(private readonly dataSource: DataSource) {
-    this.repo = this.dataSource.getRepository(PriceListItemOrmEntity);
+    this.repo = this.dataSource.getRepository(PriceListItem);
   }
 
   async save(item: PriceListItem | any): Promise<PriceListItem> {

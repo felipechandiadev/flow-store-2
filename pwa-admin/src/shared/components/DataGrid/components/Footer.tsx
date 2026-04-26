@@ -44,7 +44,7 @@ const Footer: React.FC<FooterProps> = ({ total = 0, totalGeneral }) => {
 
   if (isMobile) {
     return (
-      <div className="flex flex-col p-4 space-y-4 min-h-[120px] border-t border-t-border" data-test-id="data-grid-footer">
+      <div className="flex min-h-0 flex-col gap-2 border-t border-t-border p-0 py-2" data-test-id="data-grid-footer">
         {/* Fila superior: Paginación */}
         <div className="flex justify-center">
           <Pagination total={total} totalGeneral={totalGeneral} mobileMode={true} />

@@ -9,11 +9,10 @@ import { TypeOrmProductVariantsRepository } from './infrastructure/repositories/
 import { PRODUCT_VARIANTS_REPOSITORY } from './application/ports/product-variants.repository.port';
 import { MultimediaModule } from '@modules/multimedia/multimedia.module';
 import { PriceListItemsModule } from '@modules/price-list-items/price-list-items.module';
-import { ProductVariantOrmEntity } from './infrastructure/orm-mappers/product-variant.orm-entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ProductVariant, ProductVariantOrmEntity, PriceListItem]),
+    TypeOrmModule.forFeature([ProductVariant, PriceListItem]),
     CqrsModule,
     MultimediaModule,
     PriceListItemsModule,

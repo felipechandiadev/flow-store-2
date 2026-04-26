@@ -62,7 +62,7 @@ const Body: React.FC<BodyProps> = ({
                 >
                   <IconButton
                     icon="ChevronDown"
-                    variant="basic"
+                    variant="basicSecondary"
                     size="sm"
                     onClick={() => onToggleExpand?.(rowId)}
                     className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
@@ -144,12 +144,12 @@ const Body: React.FC<BodyProps> = ({
             </div>
             {/* Expanded content panel */}
             {expandable && isExpanded && expandableRowContent && (
-              <div 
-                className="min-w-full bg-neutral/50 border-b border-border overflow-hidden"
-                style={{ minWidth: 'max-content' }}
+              <div
+                className="min-w-full w-full max-w-none bg-neutral/50 border-b border-border"
+                style={{ minWidth: "max-content" }}
                 data-test-id="data-grid-expanded-row"
               >
-                <div className="p-4">
+                <div className="w-full min-w-0 max-w-none p-4">
                   {expandableRowContent(row)}
                 </div>
               </div>

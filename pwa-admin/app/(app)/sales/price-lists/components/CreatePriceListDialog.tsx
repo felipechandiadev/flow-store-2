@@ -139,7 +139,7 @@ export function CreatePriceListDialog({ open, onClose, onSuccess }: CreatePriceL
           <Switch
             checked={isDefault}
             onChange={setIsDefault}
-            label="Lista preferente"
+            label="Lista predeterminada"
             labelPosition="right"
             data-test-id="price-list-create-default"
           />

@@ -152,7 +152,7 @@ export function UpdatePriceListDialog({
           <Switch
             checked={isDefault}
             onChange={setIsDefault}
-            label="Lista preferente"
+            label="Lista predeterminada"
             labelPosition="right"
             data-test-id="price-list-update-default"
           />

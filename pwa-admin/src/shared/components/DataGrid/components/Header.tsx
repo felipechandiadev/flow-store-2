@@ -111,13 +111,13 @@ const Header: React.FC<HeaderProps> = ({
   return (
     <div className="w-full" data-test-id="data-grid-header">
       {/* Primera fila: Add button + Title + (Toolbar + Search en desktop) */}
-      <div className="flex items-center w-full px-4 pt-4 pb-2">
+      <div className="flex w-full items-center gap-2 py-0">
         {/* Add button - usa onAddClick si está definido, sino abre el modal interno */}
         {(createForm || onAddClick) && (
-          <div className="flex items-center mr-4">
-            <IconButton 
-              icon="Plus" 
-              variant="ghost" 
+          <div className="flex items-center shrink-0">
+            <IconButton
+              icon="Plus"
+              variant="basicSecondary"
               size="md"
               onClick={onAddClick || (() => setIsCreateModalOpen(true))}
               disabled={addDisabled}
@@ -127,7 +127,7 @@ const Header: React.FC<HeaderProps> = ({
         )}
         
         {/* Title */}
-        <div className="text-lg font-semibold text-foreground mr-6 whitespace-nowrap">
+        <div className="whitespace-nowrap text-lg font-semibold text-foreground">
           {title}
         </div>
 
@@ -142,7 +142,7 @@ const Header: React.FC<HeaderProps> = ({
         {!headerActions && <div className="flex-1" />}
         
         {/* Toolbar y Search - solo visible en sm y superior */}
-        <div className="hidden sm:flex items-center gap-4 ml-4">
+        <div className="hidden items-center gap-2 sm:flex">
           {/* Toolbar */}
           <div className="flex-shrink-0">
             <Toolbar
@@ -178,13 +178,13 @@ const Header: React.FC<HeaderProps> = ({
       
       {/* Segunda fila: Header Actions (móvil) - solo si hay headerActions */}
       {headerActions && (
-        <div className="flex sm:hidden items-center justify-center gap-3 mt-3" data-test-id="header-actions-slot-mobile">
+        <div className="mt-0 flex items-center justify-center gap-2 sm:hidden" data-test-id="header-actions-slot-mobile">
           {headerActions}
         </div>
       )}
 
       {/* Tercera fila: Toolbar + Search - solo visible en móvil (menor a sm) */}
-      <div className="flex sm:hidden items-start justify-end gap-4 mt-3">
+      <div className="mt-0 flex items-start justify-end gap-2 sm:hidden">
         {/* Toolbar */}
         <div>
           <Toolbar

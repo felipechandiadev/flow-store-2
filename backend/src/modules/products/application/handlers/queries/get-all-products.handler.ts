@@ -3,7 +3,6 @@ import { Logger } from '@nestjs/common';
 import { GetAllProductsQuery } from '../../queries/get-all-products.query';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProductOrmEntity } from '@modules/products/infrastructure/orm-mappers/product.orm-entity';
 import { Product } from '../../../domain/product.entity';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 
@@ -22,8 +21,8 @@ export class GetAllProductsQueryHandler implements IQueryHandler<
   private readonly logger = new Logger(GetAllProductsQueryHandler.name);
 
   constructor(
-    @InjectRepository(ProductOrmEntity)
-    private readonly productRepository: Repository<ProductOrmEntity>,
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
     private readonly multimediaService: MultimediaServiceAdapter,
   ) {}
 

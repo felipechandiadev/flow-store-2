@@ -3,7 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { GetProductQueryHandler } from '@modules/products/application/handlers/queries/get-product.handler';
 import { GetProductQuery } from '@modules/products/application/queries/get-product.query';
-import { ProductOrmEntity, ProductType } from '@modules/products/infrastructure/orm-mappers/product.orm-entity';
+import { Product, ProductType } from '@modules/products/domain/product.entity';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 
 describe('GetProductQueryHandler', () => {
@@ -19,7 +19,7 @@ describe('GetProductQueryHandler', () => {
       providers: [
         GetProductQueryHandler,
         {
-          provide: getRepositoryToken(ProductOrmEntity),
+          provide: getRepositoryToken(Product),
           useValue: repository,
         },
         {

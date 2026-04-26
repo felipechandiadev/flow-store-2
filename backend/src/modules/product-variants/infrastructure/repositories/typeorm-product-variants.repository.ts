@@ -1,15 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
-import { ProductVariantOrmEntity } from '../orm-mappers/product-variant.orm-entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { ProductVariantsRepositoryPort } from '@modules/product-variants/application/ports/product-variants.repository.port';
 
 @Injectable()
 export class TypeOrmProductVariantsRepository implements ProductVariantsRepositoryPort {
-  private repo: Repository<ProductVariantOrmEntity>;
+  private repo: Repository<ProductVariant>;
 
   constructor(private readonly dataSource: DataSource) {
-    this.repo = this.dataSource.getRepository(ProductVariantOrmEntity);
+    this.repo = this.dataSource.getRepository(ProductVariant);
   }
 
   async save(variant: ProductVariant | any): Promise<ProductVariant> {

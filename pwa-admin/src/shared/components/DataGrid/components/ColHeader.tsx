@@ -172,7 +172,7 @@ export const ColHeader: React.FC<ColHeaderProps> = ({
 
   return (
     <div
-      className="px-3 border-b font-semibold text-xs text-foreground flex items-stretch text-left"
+      className="px-3 font-semibold text-xs text-foreground flex items-stretch text-left"
       style={{
         backgroundColor: 'var(--color-background)',
         height: '56px',
@@ -222,7 +222,7 @@ export const ColHeader: React.FC<ColHeaderProps> = ({
           <div className="flex-shrink-0 flex h-full items-center justify-center" style={{ width: '28px' }}>
             <IconButton
               icon={iconName}
-              variant="text"
+              variant="basicSecondary"
               size="sm"
               title={isThisColumnSorted ? 
                 (currentSort === 'asc' ? 'Cambiar a descendente' : 'Cambiar a ascendente') : 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Hash, Percent, Tag } from "lucide-react";
+import { FileText, Percent, Tag } from "lucide-react";
 import { Card } from "@/shared/components/Cards";
 import Badge from "@/shared/components/Badge/Badge";
 import Switch from "@/shared/components/Switch/Switch";
@@ -67,16 +67,6 @@ export function TaxCard({ tax, "data-test-id": dataTestId }: TaxCardProps) {
         </p>
         <p className="text-lg font-semibold tabular-nums text-foreground" data-test-id="tax-card-rate">
           {formatTaxRate(tax.rate)}
-        </p>
-      </div>
-
-      <div className="rounded-lg border border-border/60 px-3 py-2.5">
-        <p className="mb-1 flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
-          <Hash className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
-          Código
-        </p>
-        <p className="font-mono text-sm font-medium text-foreground" data-test-id="tax-card-code">
-          {tax.code?.trim() ? tax.code.trim() : "Sin código"}
         </p>
       </div>
 

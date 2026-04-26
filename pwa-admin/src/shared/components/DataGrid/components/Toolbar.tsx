@@ -72,15 +72,16 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const isSortActive = activeSortField === firstVisible;
 
   return (
-    <div className="flex justify-end items-center gap-4 py-2" data-test-id="data-grid-toolbar">
+    <div className="flex items-center justify-end gap-2 py-0" data-test-id="data-grid-toolbar">
       {/* Quick sort button: sets sort=asc and sortField=first visible column */}
       {showSortButton && firstVisible ? (
         <IconButton
-          variant="text"
+          variant="basicSecondary"
+          size="sm"
           title="Ordenar por primer campo (asc)"
           onClick={handleQuickSort}
           icon="ArrowUpDown"
-          className={isSortActive ? 'text-primary' : 'text-secondary'}
+          className={isSortActive ? 'text-primary' : ''}
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         />
       ) : null}
@@ -88,7 +89,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
       {/* Material Symbols filter icon - cambia según filterMode */}
       {showFilterButton ? (
         <IconButton
-          variant="text"
+          variant="basicSecondary"
+          size="sm"
           title={filterMode ? 'Desactivar filtros' : 'Filtrar'}
           onClick={() => {
             const params = new URLSearchParams(searchParams.toString());
@@ -105,18 +107,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
             onToggleFilterMode?.();
           }}
           icon={filterMode ? 'FilterX' : 'Filter'}
-          className="text-secondary"
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         />
       ) : null}
       {/* Excel export icon - using Material Symbol for perfect alignment */}
       {showExportButton ? (
         <IconButton
-          variant="text"
+          variant="basicSecondary"
+          size="sm"
           title="Exportar a Excel"
           onClick={handleExportExcel}
           icon="Download"
-          className="text-secondary"
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         />
       ) : null}

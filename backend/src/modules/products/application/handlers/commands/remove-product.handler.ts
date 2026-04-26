@@ -4,7 +4,7 @@ import { RemoveProductCommand } from '../../commands/remove-product.command';
 import { ProductRemovedEvent } from '../../../domain/events/product-removed.event';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProductOrmEntity } from '@modules/products/infrastructure/orm-mappers/product.orm-entity';
+import { Product } from '@modules/products/domain/product.entity';
 
 @CommandHandler(RemoveProductCommand)
 export class RemoveProductCommandHandler implements ICommandHandler<
@@ -14,8 +14,8 @@ export class RemoveProductCommandHandler implements ICommandHandler<
   private readonly logger = new Logger(RemoveProductCommandHandler.name);
 
   constructor(
-    @InjectRepository(ProductOrmEntity)
-    private readonly productRepository: Repository<ProductOrmEntity>,
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
     private readonly eventBus: EventBus,
   ) {}
 

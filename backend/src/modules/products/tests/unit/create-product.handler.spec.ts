@@ -3,7 +3,7 @@ import { EventBus } from '@nestjs/cqrs';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CreateProductCommandHandler } from '../../application/handlers/commands/create-product.handler';
 import { CreateProductCommand } from '../../application/commands/create-product.command';
-import { ProductOrmEntity } from '../../infrastructure/orm-mappers/product.orm-entity';
+import { Product } from '../../domain/product.entity';
 
 describe('CreateProductCommandHandler', () => {
   let handler: CreateProductCommandHandler;
@@ -20,7 +20,7 @@ describe('CreateProductCommandHandler', () => {
       providers: [
         CreateProductCommandHandler,
         {
-          provide: getRepositoryToken(ProductOrmEntity),
+          provide: getRepositoryToken(Product),
           useValue: productRepoMock,
         },
         {

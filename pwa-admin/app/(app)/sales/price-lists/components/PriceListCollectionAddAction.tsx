@@ -13,7 +13,7 @@ export function PriceListCollectionAddAction() {
     <>
       <IconButton
         icon="Plus"
-        variant="ghost"
+        variant="basicSecondary"
         size="md"
         ariaLabel="Crear lista de precio"
         onClick={() => setOpen(true)}

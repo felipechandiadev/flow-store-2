@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CqrsModule } from '@nestjs/cqrs';
-import { PriceListItemOrmEntity } from './infrastructure/orm-mappers/price-list-item.orm-entity';
+import { PriceListItem } from './domain/price-list-item.entity';
 import { PriceListItemsServiceAdapter } from './application/price-list-items.service.adapter';
 import { PriceListItemsController } from './presentation/price-list-items.controller';
 import { GetAllPriceListItemsQueryHandler } from './application/handlers/queries/get-all-price-list-items.handler';
@@ -10,7 +10,7 @@ import { TypeOrmPriceListItemsRepository } from './infrastructure/repositories/t
 import { PRICE_LIST_ITEMS_REPOSITORY } from './application/ports/price-list-items.repository.port';
 
 @Module({
-  imports: [CqrsModule, TypeOrmModule.forFeature([PriceListItemOrmEntity])],
+  imports: [CqrsModule, TypeOrmModule.forFeature([PriceListItem])],
   controllers: [PriceListItemsController],
   providers: [
     PriceListItemsServiceAdapter,

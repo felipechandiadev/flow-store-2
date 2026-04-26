@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { GetAllProductsQueryHandler } from '@modules/products/application/handlers/queries/get-all-products.handler';
 import { GetAllProductsQuery } from '@modules/products/application/queries/get-all-products.query';
-import { ProductOrmEntity, ProductType } from '@modules/products/infrastructure/orm-mappers/product.orm-entity';
+import { Product, ProductType } from '@modules/products/domain/product.entity';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 
 describe('GetAllProductsQueryHandler', () => {
@@ -39,7 +39,7 @@ describe('GetAllProductsQueryHandler', () => {
       providers: [
         GetAllProductsQueryHandler,
         {
-          provide: getRepositoryToken(ProductOrmEntity),
+          provide: getRepositoryToken(Product),
           useValue: repository,
         },
         {
