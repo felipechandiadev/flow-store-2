@@ -4,7 +4,23 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# pwa-admin — UI: diálogos y cards
+# pwa-admin — Guía para agentes
+
+## Patrón **«Colección admin»** (CRUD con Server Actions)
+
+**Cómo solicitarlo:** decir *patrón **Colección admin***, *CRUD estilo sucursales*, o *igual que `/settings/branches`*.
+
+**Referencia de código:** `app/(app)/settings/branches/` (página + componentes) y `src/features/settings-branches/` (acciones, capas, types). Detalle de arquitectura: `../WEBADMIN_INSTRUCTIONS.md` y `.instructions/webadmin.instruction`.
+
+- **Flujo de datos obligatorio:** componentes cliente / RSC → **Server Actions** (`"use server"` en `src/features/{feature}/actions/*.action.ts`) → **use cases** (`application/*.usecase.ts`) → **validación** (Zod en `domain/*.entity.ts`) → **infraestructura** (`infrastructure/*.request.ts`: único lugar de `fetch` a `BACKEND_API_URL` + `Authorization: Bearer …`) → API Nest bajo `/api/...`. **Prohibido** llamar al backend con `fetch` desde componentes cliente, hooks o rutas de solo UI.
+- **Carga inicial de la pantalla:** `page.tsx` como **RSC** que obtiene la lista vía una función exportada del `*.action.ts` (p. ej. `listEntitiesForPage()`), que a su vez usa el use case de listado. Usar `export const dynamic = "force-dynamic"` cuando haya **mutaciones** y `revalidatePath` para que la lista se renueve en cada vuelta relevante.
+- **Estructura del feature:** `actions/`, `application/`, `domain/`, `infrastructure/`, `types/` (más `utils/` si aplica), nombrado alineado al ejemplo *settings-branches*.
+- **Mutaciones (crear / actualizar / eliminar):** una Server Action por operación; invoca al use case; en **éxito** ejecuta `revalidatePath("/ruta/colección", "page")`. En componentes **cliente**, tras éxito suele usarse `router.refresh()` para alinear con el RSC revalidado.
+- **Pantalla de colección:** `CollectionPageLayout` + CTA que abre `Create*Dialog` + grid de **tarjetas** con acciones a `Update*Dialog` y `DeleteDialog`. **Búsqueda / filtro** sobre datos ya resueltos en servidor (p. ej. `initial*` + `useSearchParams` y filtro en memoria), salvo requisito explícito de server-side search.
+- **Contexto de negocio en servidor:** si hace falta otra entidad (p. ej. `companyId` al crear), resolverlo en el **use case** vía otras clases de `infrastructure` (`CompanyRequest`, etc.), no en componentes.
+- Tras implementar una pantalla nueva con este patrón, respetar también las reglas de **UI** (diálogos, copy «Crear» / «Actualizar», `alertArea`, etc.) de la siguiente sección.
+
+## UI: diálogos y cards
 
 - **Todos** los modales / diálogos deben construirse con el componente compartido `Dialog` (`@/shared/components/Dialog/Dialog.tsx`).
 - **Fila de acciones del `Dialog`:** por defecto **`space-between`** (`actionsJustify="between"`): cancelar/ secundario a la izquierda, primero en `actions`, confirmar/ primario a la derecha, segundo. No redefinir al `end` sin buen motivo.
