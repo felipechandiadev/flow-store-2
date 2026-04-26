@@ -3,8 +3,11 @@ import 'reflect-metadata';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// Load environment variables from .env.development file
-dotenv.config({ path: path.resolve(__dirname, '../../.env.development') });
+// Cargar igual que en desarrollo: .env y opcional .env.local / .env.development (override)
+const _dsRoot = path.resolve(__dirname, '../..');
+dotenv.config({ path: path.join(_dsRoot, '.env') });
+dotenv.config({ path: path.join(_dsRoot, '.env.local') });
+dotenv.config({ path: path.join(_dsRoot, '.env.development') });
 
 // Import all entities
 import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
@@ -51,14 +54,21 @@ import { MultimediaAsset } from '@modules/multimedia/domain/multimedia-asset.ent
 import { MultimediaLink } from '@modules/multimedia/domain/multimedia-link.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
 
-// This DataSource is used by TypeORM CLI for migrations
+/**
+ * DataSource usado por `typeorm` CLI (p. ej. `schema:log`).
+ * **No** hay carpeta de migraciones: en desarrollo el esquema se alinea con las entidades vía
+ * `DB_SYNCHRONIZE=true` en el arranque de Nest (ver `typeorm.config.ts`).
+ */
 export const AppDataSource = new DataSource({
   type: 'postgres',
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306', 10),
-  username: process.env.DB_USERNAME || 'root',
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  /** Postgres no usa "root"; alinear con .env.example / usuario local típico */
+  username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_DATABASE || 'flow-store',
+  /** Misma lógica que el API: solo genera DDL si el env lo pide */
+  synchronize: process.env.DB_SYNCHRONIZE === 'true',
   entities: [
     PointOfSale,
     Branch,
@@ -104,8 +114,6 @@ export const AppDataSource = new DataSource({
     MultimediaLink,
   ],
   subscribers: [AuditSubscriber],
-  migrations: [__dirname + '/../migrations/*.js'],
-  synchronize: false,
   logging: process.env.DB_LOGGING === 'true',
   extra: {
     connectionLimit: 10,

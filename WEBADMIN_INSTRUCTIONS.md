@@ -28,6 +28,14 @@ src/
 ### Modales (pwa-admin)
 - **Solo** el **Dialog** compartido: `pwa-admin/src/shared/components/Dialog/Dialog.tsx`.
 - **Prohibido** implementar o usar otro patrón de diálogo (overlays a mano, otra librería de modal, duplicar el componente) salvo excepción acordada y documentada.
+- **Acciones del pie del diálogo:** el `Dialog` usa por defecto **`actionsJustify="between"`** (equivalente a `space-between`). Colocar **Cancelar** (o secundaria) **primero** a la **izquierda** y la acción **primaria** (p. ej. guardar) **después** a la **derecha**. No forzar `end` u otro alineado salvo caso excepcional.
+- **Sin botón “Cerrar” en el título:** el `Dialog` no debe usar **`showCloseButton`** por defecto (cierre con backdrop, `Esc` y acciones del pie, p. ej. Cancelar). No activar el botón de cierre de cabecera salvo excepción justificada.
+- **Área de alertas (`alertArea`):** el `Dialog` ofrece la prop **`alertArea`** en un **bloque independiente** (hermano del cuerpo y de la fila de botones, no dentro de `actions`), sin scroll con `paper`. **Errores, avisos y mensajes informativos** de envío a backend deben ir ahí con **`Alert`** (`error`, `warning`, `info`, `success`); no usar párrafos con `text-error` ni `Alert` suelta en el formulario para ese feedback. Detalle: `.instructions/webadmin.instruction`.
+- **Títulos de diálogos de creación:** usar **«Crear [entidad]»** en el título (y en `aria-label` de apertura); no **«Nueva/Nuevo …»**. Detalle: `pwa-admin/AGENTS.md` y `.instructions/webadmin.instruction`.
+- **Diálogos de actualización:** **«Actualizar [entidad]»** en título, apertura y CTA; no **«Editar …»** en títulos; componentes **`Update*Dialog`**. Detalle: mismos archivos.
+
+### Loading (pwa-admin)
+- Indicadores de carga reutilizables —`loading.tsx`, `Suspense` fallback, `dynamic({ loading })`, bloques de espera— deben usar **`DotProgress`** (`pwa-admin/src/shared/components/DotProgress/`). No spinners a mano ni solo texto «Cargando…» sin ese componente (excepción: `Button` con prop `loading`). Detalle: `pwa-admin/AGENTS.md` y `.instructions/webadmin.instruction`.
 
 ## 🔴 REGLAS CRÍTICAS (NO NEGOCIABLES)
 - **NO** fetch en componentes o hooks.
@@ -57,6 +65,10 @@ src/
 ### Cards: IconButton
 - En **tarjetas** (`Card` y acciones con icono), `IconButton` **solo** `variant="basicSecondary"` (y `size="sm"`). El `Card` compartido fija el variant en acciones con `icon`/`ariaLabel`.
 
+### Formularios: `TextField` y `placeholder` (norma fija)
+- En formularios con **`TextField`** (o equivalente con label flotante), el **`placeholder` debe ser el mismo texto que el `label`** (misma cadena).
+- **No** usar placeholders de ejemplo (*“Ej. …”*, *“Opcional, …”*, etc.). Opcionalidad o ayuda: en el `label` o en texto debajo del campo, no en el placeholder.
+
 ## 🚫 Anti-Patrones Prohibidos
 - Fetch en components/hooks.
 - Lógica en actions.
@@ -70,7 +82,8 @@ src/
 - [ ] Token enviado en todas las fetches.
 - [ ] Componentes tontos.
 - [ ] Validaciones en domain.
-- [ ] Modales: solo el **Dialog** compartido.
+- [ ] Modales: solo el **Dialog** compartido; acciones con `space-between` por defecto (cancelar izquierda, primario derecha); sin botón cerrar en el título por defecto. Creación: título **«Crear …»**, no **«Nueva/Nuevo …»**. Actualización: **«Actualizar …»**, componentes **`Update*Dialog`**, no títulos **«Editar …»**.
+- [ ] Formularios: `placeholder` igual al `label` en cada campo.
 
 ## 📋 Ejemplo de Implementación
 Para una feature `products`:
@@ -140,5 +153,4 @@ Para una feature `products`:
 - Proteger rutas con middleware.
 
 ## 🧾 Conclusión
-Sigue estas instrucciones estrictamente. Arquitectura Server Actions only asegura compatibilidad con backend. Si rompes reglas, rompes la app.</content>
-<parameter name="filePath">/Users/felipe/dev/flow-store-2/WEBADMIN_INSTRUCTIONS.md
+Sigue estas instrucciones estrictamente. Arquitectura Server Actions only asegura compatibilidad con backend. Si rompes reglas, rompes la app.

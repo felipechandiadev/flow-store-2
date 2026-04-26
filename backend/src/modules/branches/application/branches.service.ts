@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { isUUID } from 'class-validator';
+import { DeepPartial, Repository } from 'typeorm';
 import { Branch } from '../domain/branch.entity';
 
 @Injectable()
@@ -80,5 +81,51 @@ export class BranchesService {
 
     await this.branchRepository.update(id, data as any);
     return this.getBranchById(id);
+  }
+
+  async createBranch(data: {
+    name: string;
+    address?: string | null;
+    phone?: string | null;
+    companyId?: string | null;
+    location?: { lat: number; lng: number } | null;
+    isActive?: boolean;
+  }) {
+    if (!data.name || !String(data.name).trim()) {
+      return { success: false, error: 'El nombre es requerido' };
+    }
+    const rawCompanyId = data.companyId && String(data.companyId).trim() ? String(data.companyId).trim() : null;
+    const companyId = rawCompanyId && isUUID(rawCompanyId) ? rawCompanyId : null;
+    const hasLocation =
+      data.location != null &&
+      typeof data.location.lat === 'number' &&
+      !Number.isNaN(data.location.lat) &&
+      typeof data.location.lng === 'number' &&
+      !Number.isNaN(data.location.lng);
+    const toSave: DeepPartial<Branch> = {
+      name: String(data.name).trim(),
+      companyId: companyId ?? null,
+      address: data.address && String(data.address).trim() ? String(data.address).trim() : null,
+      phone: data.phone && String(data.phone).trim() ? String(data.phone).trim() : null,
+      location: hasLocation
+        ? { lat: data.location!.lat, lng: data.location!.lng }
+        : null,
+      isActive: data.isActive !== false,
+      isHeadquarters: false,
+    } as DeepPartial<Branch>;
+    const saved = await this.branchRepository.save(toSave);
+    const out = await this.getBranchById(saved.id);
+    if (!out) {
+      return { success: false, error: 'No se pudo crear la sucursal' };
+    }
+    return { success: true, data: out };
+  }
+
+  async deleteBranch(id: string): Promise<{ success: true } | { success: false; error: string }> {
+    const res = await this.branchRepository.softDelete(id);
+    if (!res.affected) {
+      return { success: false, error: 'Sucursal no encontrada' };
+    }
+    return { success: true };
   }
 }

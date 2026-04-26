@@ -65,6 +65,7 @@ export default function ChangePasswordDialog({ isOpen, onClose }: ChangePassword
       maxWidth="28rem"
       actionsJustify="between"
       data-test-id="change-password-dialog"
+      alertArea={error ? <Alert variant="error">{error}</Alert> : null}
       actions={
         <>
           <Button type="button" variant="outlined" onClick={onClose} disabled={isLoading}>
@@ -82,8 +83,6 @@ export default function ChangePasswordDialog({ isOpen, onClose }: ChangePassword
       }
     >
       <form id={CHANGE_PASSWORD_FORM_ID} onSubmit={handleSubmit} className="space-y-4">
-        {error && <Alert variant="error">{error}</Alert>}
-
         <TextField
           label="Contraseña actual"
           type="password"

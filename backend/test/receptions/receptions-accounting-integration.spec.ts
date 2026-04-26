@@ -86,7 +86,11 @@ describe('Receptions - Accounting Integration (Diagnóstico)', () => {
           provide: getRepositoryToken(Company),
           useValue: {
             findOne: jest.fn(() =>
-              Promise.resolve({ id: 'company-1', name: 'Test' }),
+              Promise.resolve({
+                id: 'company-1',
+                razonSocial: 'Test',
+                rut: '11.111.111-1',
+              }),
             ),
           },
         },
@@ -275,7 +279,9 @@ describe('Receptions - Accounting Integration (Diagnóstico)', () => {
       console.log('\n═══════════════════════════════════════════════════════');
       console.log('📚 REGLA CONTABLE: PURCHASE');
       console.log('═══════════════════════════════════════════════════════\n');
-      console.log('Archivo: backend/src/seed/data/accounting-rules.json\n');
+      console.log(
+        'Referencia: regla PURCHASE en base de datos / módulo accounting-rules\n',
+      );
       console.log('```json');
       console.log('{');
       console.log('  "ref": "PURCHASE",');

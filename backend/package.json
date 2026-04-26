@@ -18,8 +18,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "seed": "ts-node -r tsconfig-paths/register src/seed/run-seed.ts",
-    "seed:min": "ts-node -r tsconfig-paths/register src/seed/run-minimal-seed.ts"
+    "migration:run": "node -e \"console.log('No hay migraciones en este repo: usa DB_SYNCHRONIZE=true, vacía la base y levanta el API (o `npx typeorm -d dist/config/data-source.js schema:log`).');\"",
+    "seed": "ts-node -r tsconfig-paths/register src/seed/run-minimal-seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.901.0",

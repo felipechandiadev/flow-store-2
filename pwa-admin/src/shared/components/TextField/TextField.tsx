@@ -495,13 +495,6 @@ export const TextField: React.FC<TextFieldProps> = ({
       {placeholderColor && placeholderClassRef.current && (
         <style>{`input.${placeholderClassRef.current}::placeholder, textarea.${placeholderClassRef.current}::placeholder { color: ${placeholderColor} }`}</style>
       )}
-      <style>{`
-        textarea::placeholder {
-          line-height: 1.5rem;
-          text-align: left;
-          color: ${placeholderColor || 'var(--color-muted)'};
-        }
-      `}</style>
       <label
         className={`absolute left-3 -top-1 pointer-events-none transition-all duration-300 ease-in-out px-1 font-medium text-xs text-foreground rounded-md bg-background` +
           (shrink ? " -translate-y-1 scale-90 opacity-100" : " opacity-0")}

@@ -37,7 +37,8 @@ describe('ReceptionsController - Integration Tests', () => {
 
   const mockCompany = {
     id: 'company-1',
-    name: 'Empresa Test',
+    razonSocial: 'Empresa Test',
+    rut: '11.111.111-1',
     createdAt: new Date(),
     updatedAt: new Date(),
   };

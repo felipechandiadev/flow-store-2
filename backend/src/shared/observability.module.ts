@@ -12,7 +12,7 @@ import { AppConfigModule } from '../config/config.module';
  * Proporciona servicios de logging y métricas para todo el backend:
  * - WinstonLoggerService: Logging estructurado
  * - MetricsService: Métricas Prometheus
- * - LoggingInterceptor: Captura automática de requests HTTP
+ * - LoggingInterceptor: errores HTTP y peticiones lentas (sin log por request/response)
  */
 @Global()
 @Module({

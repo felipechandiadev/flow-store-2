@@ -38,6 +38,12 @@ interface DialogProps {
   className?: string;
   // Inline style forwarded to dialog content (useful for child-specific widths)
   contentStyle?: React.CSSProperties;
+  /**
+   * Zona fija entre el cuerpo (`children`) y el pie (`actions`):
+   * errores, avisos y cualquier `Alert` (success, info, warning, error).
+   * No forma parte del scroll del cuerpo cuando `scroll="paper"`.
+   */
+  alertArea?: React.ReactNode;
   // Actions to display in the footer (rendered in a row with justify-between by default)
   actions?: React.ReactNode;
   // Hide the actions area (useful when actions are handled internally by children)
@@ -124,6 +130,7 @@ const Dialog: React.FC<DialogProps> = ({
   persistent = false,
   className = '',
   contentStyle,
+  alertArea,
   actions,
   hideActions = false,
   actionsJustify = 'between',
@@ -254,6 +261,8 @@ const Dialog: React.FC<DialogProps> = ({
 
   if (!shouldRender || !mounted) return null;
 
+  const hasAlertArea = Boolean(alertArea);
+
   return createPortal(
     <div
       role="dialog"
@@ -271,9 +280,9 @@ const Dialog: React.FC<DialogProps> = ({
         data-test-id={dataTestId || 'dialog-content'}
       >
         {title && title !== '' && (
-          <div className="flex items-center gap-2 border-b border-border/70 px-4 pt-4 pb-3">
+          <div className="fs-dialog__header flex items-center gap-2 border-b border-border/70 px-4 pt-4 pb-3">
             <h2
-              className="title flex-1 text-left text-lg font-semibold text-foreground"
+              className="title m-0 flex-1 text-left text-lg font-semibold text-foreground"
               data-test-id="dialog-title"
             >
               {title}
@@ -296,18 +305,32 @@ const Dialog: React.FC<DialogProps> = ({
         <div
           className={`w-full ${
             title && title !== ''
-              ? 'mt-3 px-4 pb-4 pt-0'
+              ? 'px-4 pb-4 pt-3'
               : 'p-4'
-          } ${scroll === 'paper' ? 'flex-1 overflow-y-auto' : ''}`}
+          } ${scroll === 'paper' ? 'fs-dialog__body--paper min-h-0 flex-1 overflow-y-auto overflow-x-hidden' : ''}`}
           data-test-id="dialog-body"
         >
           {children}
         </div>
 
-        {/* Actions area - conditionally rendered */}
+        {/* Bloque propio (hermano del cuerpo y de la fila de botones), no forma parte de `actions`. */}
+        {hasAlertArea && (
+          <div
+            className="fs-dialog__alert-area px-4 py-3"
+            data-dialog-section="alert-area"
+            data-test-id="dialog-alert-area"
+            role="region"
+            aria-label="Avisos"
+          >
+            {alertArea}
+          </div>
+        )}
+
         {!hideActions && actions && (
           <div
-            className={`flex w-full flex-wrap items-center gap-2 border-t border-border/70 px-4 pb-4 pt-3 ${
+            className={`fs-dialog__actions flex w-full flex-wrap items-center gap-2 border-t border-border/70 px-4 pb-4 pt-3 ${
+              hasAlertArea ? 'mt-2' : ''
+            } ${
               actionsJustify === 'between'
                 ? 'justify-between'
                 : actionsJustify === 'start'
@@ -316,7 +339,10 @@ const Dialog: React.FC<DialogProps> = ({
                     ? 'justify-end'
                     : 'justify-center'
             }`}
+            data-dialog-section="actions"
             data-test-id="dialog-actions"
+            role="group"
+            aria-label="Acciones"
           >
             {actions}
           </div>

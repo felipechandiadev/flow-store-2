@@ -8,13 +8,8 @@ import { Observable, tap } from 'rxjs';
 import { WinstonLoggerService } from './winston-logger.service';
 
 /**
- * Interceptor de Logging para HTTP Requests
- *
- * Captura todas las operaciones HTTP y registra:
- * - Request details (method, url, user)
- * - Response time
- * - Status code
- * - Errores si ocurren
+ * Interceptor de logging HTTP: no registra cada request/response en desarrollo
+ * (evita ruido en consola). Sí registra respuestas lentas y errores.
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -25,47 +20,15 @@ export class LoggingInterceptor implements NestInterceptor {
     const response = context.switchToHttp().getResponse();
     const startTime = Date.now();
 
-    // Extraer información del request
-    const { method, url, user, body, params, query } = request;
+    const { method, url, user } = request;
     const userId = user?.id || 'anonymous';
-    const userAgent = request.get('User-Agent') || '';
-    const ip = request.ip || request.connection?.remoteAddress || '';
-
-    // Log del request entrante
-    this.logger.log(`HTTP ${method} ${url}`, 'HTTP_REQUEST', {
-      method,
-      url,
-      userId,
-      userAgent,
-      ip,
-      params,
-      query,
-      bodySize: JSON.stringify(body || {}).length,
-      timestamp: new Date().toISOString(),
-    });
 
     return next.handle().pipe(
       tap({
-        next: (data) => {
+        next: () => {
           const duration = Date.now() - startTime;
           const statusCode = response.statusCode;
 
-          // Log de respuesta exitosa
-          this.logger.log(
-            `HTTP ${method} ${url} - ${statusCode}`,
-            'HTTP_RESPONSE',
-            {
-              method,
-              url,
-              userId,
-              statusCode,
-              duration,
-              responseSize: JSON.stringify(data || {}).length,
-              timestamp: new Date().toISOString(),
-            },
-          );
-
-          // Log de performance si es lento
           if (duration > 1000) {
             this.logger.logPerformance(
               `Slow HTTP request: ${method} ${url}`,
@@ -82,7 +45,6 @@ export class LoggingInterceptor implements NestInterceptor {
           const duration = Date.now() - startTime;
           const statusCode = error.status || 500;
 
-          // Log de error HTTP
           this.logger.error(
             `HTTP ${method} ${url} - ${statusCode}: ${error.message}`,
             'HTTP_ERROR',

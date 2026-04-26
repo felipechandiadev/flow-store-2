@@ -51,7 +51,7 @@ export class TypeOrmBankAccountsRepository implements BankAccountsRepositoryPort
 
     const companyAccounts = companies.flatMap((company) =>
       (company.bankAccounts || []).map((account) =>
-        this.normalizeAccount(account, 'company', company.id, company.name),
+        this.normalizeAccount(account, 'company', company.id, company.razonSocial),
       ),
     );
 
@@ -167,6 +167,6 @@ export class TypeOrmBankAccountsRepository implements BankAccountsRepositoryPort
       return `${person.firstName} ${person.lastName || ''}`.trim();
     }
 
-    return (owner as Company).name;
+    return (owner as Company).razonSocial;
   }
 }

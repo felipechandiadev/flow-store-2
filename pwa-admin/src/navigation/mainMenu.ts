@@ -10,7 +10,11 @@ const uiComponentItems: SideBarMenuItem[] = [
   { id: 'ui-dialog', label: 'Dialog', url: '/ui-components/dialog' },
   { id: 'ui-dot-progress', label: 'Dot progress', url: '/ui-components/dot-progress' },
   { id: 'ui-icon-button', label: 'Icon Button', url: '/ui-components/icon-button' },
-  { id: 'ui-list-page-layout', label: 'List page layout', url: '/ui-components/list-page-layout' },
+  {
+    id: 'ui-collection-page-layout',
+    label: 'Collection page layout',
+    url: '/ui-components/collection-page-layout',
+  },
   { id: 'ui-number-stepper', label: 'Number stepper', url: '/ui-components/number-stepper' },
   { id: 'ui-range-slider', label: 'Range slider', url: '/ui-components/range-slider' },
   { id: 'ui-select', label: 'Select', url: '/ui-components/select' },
@@ -96,7 +100,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
     children: [
       { id: 'settings-company', label: 'Empresa', url: '/settings/company' },
       { id: 'settings-branches', label: 'Sucursales', url: '/settings/branches' },
-      { id: 'settings-users', label: 'Usuarios y roles', url: '/settings/users' },
+      { id: 'settings-users', label: 'Usuarios', url: '/settings/users' },
       { id: 'settings-parameters', label: 'Parámetros del sistema', url: '/settings/parameters' },
     ],
   },

@@ -182,7 +182,7 @@ export class OrganizationalUnitsService {
       createdAt: unit.createdAt,
       updatedAt: unit.updatedAt,
       company: unit.company
-        ? { id: unit.company.id, name: unit.company.name }
+        ? { id: unit.company.id, razonSocial: unit.company.razonSocial }
         : null,
       branch: unit.branch
         ? { id: unit.branch.id, name: unit.branch.name }

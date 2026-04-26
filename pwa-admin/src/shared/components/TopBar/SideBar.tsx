@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, User, LogOut, ImageOff, Image as ImageIcon } from 'lucide-react';
+import { useImageWithPlaceholder } from '@/shared/hooks/useImageWithPlaceholder';
 import { Button } from '../Button/Button';
 import IconButton from '../IconButton/IconButton';
 
@@ -54,8 +55,13 @@ const SideBar: React.FC<SideBarProps> = ({
 
   // Track which parent items are open using their id or label
   const [localOpenIds, setLocalOpenIds] = useState<Record<string, boolean>>({});
-  const [logoLoaded, setLogoLoaded] = useState(false);
-  const [logoError, setLogoError] = useState(false);
+  const {
+    ref: sideLogoRef,
+    loaded: sideLogoLoaded,
+    error: sideLogoError,
+    onLoad: onSideLogoLoad,
+    onError: onSideLogoError,
+  } = useImageWithPlaceholder(logoUrl ?? '');
 
   const openIds = expandedState ?? localOpenIds;
 
@@ -152,22 +158,28 @@ const SideBar: React.FC<SideBarProps> = ({
     >
       <div className="mb-4 text-center">
         {logoUrl ? (
-          <div className="">
-            {(!logoLoaded || logoError) && (
-              <div className="h-20 w-20 bg-neutral-300 rounded-lg flex items-center justify-center mx-auto mb-2" data-test-id="side-bar-logo-skeleton">
-                {logoError && (
+          <div className="relative mx-auto mb-2 h-20 w-20" data-test-id="side-bar-logo-box">
+            {(!sideLogoLoaded || sideLogoError) && (
+              <div
+                className="absolute inset-0 flex items-center justify-center rounded-lg bg-neutral-300"
+                data-test-id="side-bar-logo-skeleton"
+                aria-hidden
+              >
+                {sideLogoError && (
                   <ImageOff className="text-neutral-400" size={32} />
                 )}
               </div>
             )}
-            {!logoError && (
+            {!sideLogoError && (
               <img
+                ref={sideLogoRef}
                 src={logoUrl}
                 alt={`${APP_NAME} Logo`}
-                className={`h-20 w-auto mx-auto object-contain transition-opacity duration-300 ${!logoLoaded ? 'opacity-0 absolute' : 'opacity-100'}`}
+                className="relative mx-auto h-20 w-auto max-w-[5rem] object-contain transition-opacity duration-300"
+                style={{ opacity: sideLogoLoaded ? 1 : 0 }}
                 data-test-id="side-bar-logo"
-                onLoad={() => setLogoLoaded(true)}
-                onError={() => setLogoError(true)}
+                onLoad={onSideLogoLoad}
+                onError={onSideLogoError}
               />
             )}
           </div>

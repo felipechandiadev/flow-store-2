@@ -13,30 +13,34 @@ export default function IconButtonPage() {
       {/* Variants */}
       <div>
         <h2 className="text-2xl font-semibold mb-4">Variants</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 gap-6 md:grid-cols-3 lg:grid-cols-4">
           <div className="space-y-2">
             <p className="text-sm font-medium">Contained Primary</p>
-            <IconButton icon="Heart" variant="containedPrimary" />
+            <IconButton icon="Heart" variant="containedPrimary" ariaLabel="Favorito" />
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Contained Secondary</p>
-            <IconButton icon="Star" variant="containedSecondary" />
+            <IconButton icon="Star" variant="containedSecondary" ariaLabel="Destacar" />
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Text</p>
-            <IconButton icon="Settings" variant="text" />
+            <IconButton icon="Settings" variant="text" ariaLabel="Ajustes" />
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Basic</p>
-            <IconButton icon="Menu" variant="basic" />
+            <IconButton icon="Menu" variant="basic" ariaLabel="Menú" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Basic Secondary</p>
+            <IconButton icon="Pencil" variant="basicSecondary" ariaLabel="Editar" />
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Outlined</p>
-            <IconButton icon="Plus" variant="outlined" />
+            <IconButton icon="Plus" variant="outlined" ariaLabel="Añadir" />
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Ghost</p>
-            <IconButton icon="X" variant="ghost" />
+            <IconButton icon="X" variant="ghost" ariaLabel="Cerrar" />
           </div>
         </div>
       </div>

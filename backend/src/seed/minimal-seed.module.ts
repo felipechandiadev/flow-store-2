@@ -1,40 +1,25 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { typeOrmConfig } from '../config/typeorm.config';
 import { AppConfigModule } from '../config/config.module';
 import { AppConfigService } from '../config/config.service';
 import { User } from '@modules/users/domain/user.entity';
 import { Person } from '@modules/persons/domain/person.entity';
+import { Company } from '@modules/companies/domain/company.entity';
 
+/**
+ * Misma conexión y entidades que el API: el esquema lo define TypeORM vía
+ * `DB_SYNCHRONIZE` (ver `typeorm.config.ts`). Este módulo solo aporta repositorios para el script de seed.
+ */
 @Module({
   imports: [
     AppConfigModule,
     TypeOrmModule.forRootAsync({
       imports: [AppConfigModule],
-      useFactory: (configService: AppConfigService): TypeOrmModuleOptions => ({
-        type: configService.database.type as any,
-        host: configService.database.host,
-        port: configService.database.port,
-        username: configService.database.username,
-        password: configService.database.password,
-        database: configService.database.database,
-        entities: [User, Person] as any,
-        synchronize: false,
-        logging: configService.database.logging,
-        ...(configService.database.ssl && {
-          ssl: {
-            rejectUnauthorized: false,
-          },
-        }),
-        extra: {
-          connectionLimit: configService.database.maxConnections,
-          acquireTimeout: configService.database.connectionTimeout,
-          timeout: configService.database.connectionTimeout,
-        } as any,
-      }),
+      useFactory: typeOrmConfig,
       inject: [AppConfigService],
     }),
-    TypeOrmModule.forFeature([User, Person]),
+    TypeOrmModule.forFeature([User, Person, Company]),
   ],
 })
 export class MinimalSeedModule {}
-

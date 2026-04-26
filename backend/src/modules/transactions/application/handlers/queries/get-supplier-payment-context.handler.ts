@@ -47,7 +47,11 @@ export class GetSupplierPaymentContextQueryHandler implements IQueryHandler<GetS
     // Load supplier with company and accounts
     const supplier = await this.transactionRepository.manager
       .createQueryBuilder()
-      .select(['p.id', 'p.name', 'p.document', 'c.id', 'c.name'])
+      .select('p.id', 'p_id')
+      .addSelect('p.name', 'p_name')
+      .addSelect('p.document', 'p_document')
+      .addSelect('c.id', 'c_id')
+      .addSelect('c.razon_social', 'company_razon_social')
       .from('people', 'p')
       .leftJoin('companies', 'c', 'c.id = :companyId', { companyId })
       .where('p.id = :supplierId', { supplierId })
@@ -104,10 +108,10 @@ export class GetSupplierPaymentContextQueryHandler implements IQueryHandler<GetS
 
     return {
       supplierId,
-      supplierName: supplier.p_name,
-      supplierDocument: supplier.p_document,
+      supplierName: supplier.p_name as string,
+      supplierDocument: supplier.p_document as string,
       companyId,
-      companyName: supplier.c_name || '',
+      companyName: String(supplier.company_razon_social ?? ''),
       supplierAccounts: supplierAccounts.map((acc: any) => ({
         id: acc.aa_id,
         accountName: acc.aa_name,

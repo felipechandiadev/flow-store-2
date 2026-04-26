@@ -32,6 +32,23 @@
   box-shadow: 0 0 0 1px var(--color-primary, #1c2046);
 }
 
+/* Mismo aspecto de placeholder en input y textarea (incl. Firefox opacity). */
+.fs-text-field__input::placeholder {
+  color: var(--color-muted, #6b7280);
+  opacity: 1;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.fs-text-field__input::-webkit-input-placeholder {
+  color: var(--color-muted, #6b7280);
+  line-height: 1.25rem;
+}
+.fs-text-field__input::-moz-placeholder {
+  color: var(--color-muted, #6b7280);
+  opacity: 1;
+  line-height: 1.25rem;
+}
+
 .fs-text-field__icon {
   pointer-events: none;
   position: absolute;

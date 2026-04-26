@@ -169,7 +169,7 @@ export class EmployeesService {
       company: employee.company
         ? {
             id: employee.company.id,
-            name: employee.company.name,
+            razonSocial: employee.company.razonSocial,
           }
         : null,
       person: employee.person

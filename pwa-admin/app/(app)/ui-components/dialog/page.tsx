@@ -62,6 +62,12 @@ const DIALOG_PROPS_ROWS: { prop: string; type: string; default: string; desc: st
     desc: 'Contenido principal del cuerpo del diálogo (texto, formularios, etc.).',
   },
   {
+    prop: 'alertArea',
+    type: 'ReactNode (opcional)',
+    default: 'undefined',
+    desc: 'Bloque hermano del cuerpo y de la fila de `actions` (no forma parte de las acciones). Usar con `Alert`. No hace scroll con `scroll="paper"`.',
+  },
+  {
     prop: 'size',
     type: "'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'custom'",
     default: "'md'",

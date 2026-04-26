@@ -81,9 +81,9 @@ export class AppConfigService {
       username: this.configService.get<string>('DB_USERNAME')!,
       password: this.configService.get<string>('DB_PASSWORD')!,
       database: this.configService.get<string>('DB_DATABASE')!,
-      synchronize: this.configService.get<string>('DB_SYNCHRONIZE')! === 'true',
-      logging: this.configService.get<string>('DB_LOGGING')! === 'true',
-      ssl: this.configService.get<string>('DB_SSL')! === 'true',
+      synchronize: this.envBool(this.configService.get('DB_SYNCHRONIZE')),
+      logging: this.envBool(this.configService.get('DB_LOGGING')),
+      ssl: this.envBool(this.configService.get('DB_SSL')),
       maxConnections: parseInt(
         this.configService.get<string>('DB_MAX_CONNECTIONS')!,
         10,
@@ -177,5 +177,17 @@ export class AppConfigService {
 
   isTest(): boolean {
     return this.app.nodeEnv === 'test';
+  }
+
+  /** Valores validados por Joi (boolean) o strings de `.env` / shell */
+  private envBool(v: unknown): boolean {
+    if (v === true) return true;
+    if (v === false) return false;
+    if (typeof v === 'string') {
+      const t = v.trim().toLowerCase();
+      return t === 'true' || t === '1' || t === 'yes';
+    }
+    if (typeof v === 'number') return v === 1;
+    return false;
   }
 }

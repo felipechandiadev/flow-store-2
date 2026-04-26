@@ -36,10 +36,21 @@ src/
 - **Dialog** (`@/shared/components/Dialog/Dialog.tsx`): **único** componente permitido para modales/diálogos en toda la app
 - Usar en layouts del `app/` para mantener consistencia visual (TopBar/SideBar). Para cualquier flujo de confirmación, formulario en modal, etc., usar **solo** el Dialog compartido.
 
+### Loading / estados de espera (obligatorio)
+- Cualquier **indicador de carga** que se añada en el web-admin (rutas `loading.tsx`, `fallback` de `Suspense`, `dynamic({ loading: () => ... })`, placeholders de sección, pantallas o bloques mientras se resuelve contenido) debe implementarse con el componente compartido **`DotProgress`** (`pwa-admin/src/shared/components/DotProgress/DotProgress.tsx`, o import vía el barrel de `@/shared/components` si exporta el mismo).
+- **Prohibido** sustituirlo por: `animate-spin` + círculo a mano, SVGs de loading ad hoc, o **solo** texto «Cargando…» sin el componente (salvo excepción documentada en el repo). El **`Button`** con `loading` conserva su spinner interno; esa es la única pista de carga atada a ese control.
+
 ### Modales y diálogos (obligatorio)
 - **TODOS** los diálogos/modales deben implementarse con el **Dialog compartido** (`src/shared/components/Dialog/Dialog.tsx`).
 - Queda **prohibido** crear o usar otros patrones de diálogo: overlays manuales (`fixed inset-0`, capas a medida), `<dialog>` nativo distinto, librerías de modal ad hoc, o duplicar el patrón en otro componente, salvo excepción explícita documentada en el repo.
 - Componer título, cuerpo (`children`), acciones (`actions`) y props (`open`, `onClose`, `size`, etc.) según el API del Dialog compartido.
+- **Fila de acciones (`actions`):** el valor **por defecto** del `Dialog` es alinear con **`space-between`** (`actionsJustify="between"` en la API, fila con `justify-between` en el pie). Ordenar botones: acción **secundaria o cancelar** a la **izquierda**, acción **primaria o confirmar** a la **derecha** (típicos dos `Button` en ese orden en `actions`). **No** sobreescribir `actionsJustify` a `end` u otro salvo requisito de diseño excepcional; si se cambia, documentar o justificar.
+- **Cabecera del diálogo:** por defecto **no** se debe mostrar el botón de **“Cerrar”** al lado del título (`showCloseButton` en el `Dialog` compartido, por defecto `false`). El cierre vuelve al **fondo/overlay** (y **Esc**), y a las acciones del pie (p. ej. **Cancelar**). **Prohibido** poner `showCloseButton` salvo requisito de producto/UX excepcional y documentado.
+- **Área de alertas del diálogo (`alertArea`):** el `Dialog` compartido expone la prop opcional **`alertArea`** (nodo/s React) en un **bloque propio** en el DOM: **hermano** del cuerpo (`children`) y de la fila de **`actions`**, **no** anidado ni dentro de la “zona” o fila de botones. Esa franja no forma parte del scroll del cuerpo cuando `scroll="paper"`. **Obligatorio** usarla para toda respuesta de error, aviso o mensaje informativo que deba mostrarse en un diálogo de formulario o flujo: **no** colocar mensajes de error como texto suelto, `<p className="text-error">` ni `Alert` mezclados dentro de `children` (salvo que el `Alert` sea ayuda fija al campo, distinta del feedback de envío).
+- **Mensajes en diálogos = `Alert` en `alertArea`:** toda alimentación con feedback post-acción (errores de server action, validación remota, advertencias, confirmaciones no bloqueantes) se renderiza con el componente compartido **`Alert`** (`@/shared/components/Alert/Alert.tsx`), con la variante adecuada: `error`, `warning`, `info` o `success`. El contenido de `alertArea` solo se muestra cuando hay algo que mostrar; si no aplica, pasar `undefined` / `null` o no pasar la prop.
+- Un mismo diálogo puede mostrar **varias** `Alert` apiladas en `alertArea` (p. ej. un `warning` y un `error`) con un contenedor `div` y `className` de espaciado si hace falta; priorizar un solo `Alert` por estado dominante si la UX no requiere más.
+- **Títulos de diálogos de creación:** la prop `title` del `Dialog` (y textos de accesibilidad de botones/iconos que abren el flujo) deben usar **«Crear [entidad]»** (infinitive / imperativo fijo alineado con el CTA, p. ej. «Crear sucursal»). **Prohibido** en esos títulos usar **«Nueva [entidad]»** / **«Nuevo [entidad]»**; la convención del producto es el verbo *crear*, no *nueva*.
+- **Diálogos de actualización:** `title`, textos de apertura y botón primario del pie deben alinearse con **«Actualizar [entidad]»**; **prohibido** **«Editar [entidad]»** en el título de esos modales. El botón de confirmación suele ser **«Actualizar»** (o variante clara de persistir). Los componentes deben nombrarse **`Update*Dialog`**, no `Edit*Dialog`.
 
 ## 🔴 REGLAS CRÍTICAS (NO NEGOCIABLES)
 - **NO** fetch en componentes o hooks.
@@ -70,6 +81,10 @@ src/
 ### Cards: IconButton (norma fija)
 - Cualquier **IconButton** usado en el contexto de **tarjetas** (pie de `Card` con `actions` que usan `icon`, tarjetas compuestas a mano, acciones al pie de un `Card`, etc.) debe ser **exclusivamente** `variant="basicSecondary"` (y, si aplica, `size="sm"`). El componente compartido `Card` aplica `basicSecondary` automáticamente a las acciones con icono. En JSX manual dentro de cards, no usar `contained*`, `text` u otras variantes para IconButton salvo excepción aprobada en diseño.
 
+### Formularios: `TextField` y `placeholder` (norma fija)
+- En formularios que usen **`TextField`** (o equivalente con label flotante en este proyecto), el atributo **`placeholder` debe ser exactamente el mismo string que el `label`** (misma redacción, mayúsculas y minúsculas que el label visible).
+- **Prohibido** usar el `placeholder` como “ejemplo” o ayuda: no frases del tipo *“Ej. …”*, *“Opcional, …”*, *“Escribe…”*, etc. La opcionalidad, formato o pistas se expresan en el **label** (p. ej. “Código (opcional)”) o en texto de ayuda **debajo** del campo, no en el placeholder.
+
 ## 🚫 Anti-Patrones Prohibidos
 - Fetch en components/hooks.
 - Lógica en actions.
@@ -77,6 +92,7 @@ src/
 - UI con negocio.
 - **Crear componentes Header/Sidebar personalizados**: Usar TopBar + SideBar compartidos siempre.
 - **Cualquier diálogo/modal que no sea el `Dialog` compartido** (incl. overlays a mano, otros kits de modal).
+- **Mensajes de error o aviso de formulario en `children` del `Dialog`** (p. ej. `<p className="text-error">`, `Alert` mezclada en el formulario en lugar de `alertArea`) para feedback de server action o envío.
 
 ## 🧾 Checklist por Feature
 - [ ] Server Actions only.
@@ -87,7 +103,8 @@ src/
 - [ ] **Layouts en `app/` integran TopBar + SideBar compartidos**.
 - [ ] **Menú items definido en layout, no en componentes**.
 - [ ] **Usuario mostrado desde `session.user` de NextAuth**.
-- [ ] **Modales: solo `Dialog` compartido**; sin alternativas ad hoc.
+- [ ] **Modales: solo `Dialog` compartido**; sin alternativas ad hoc; acciones del pie con **space-between** por defecto (secundario/cancelar izquierda, primario derecha); **sin** `showCloseButton` en cabecera salvo excepción; **errores/avisos** de envío o servidor en **`alertArea` con `Alert`**, no en el cuerpo del formulario.
+- [ ] **Formularios: `placeholder` de cada campo igual a su `label`** (sin textos de ejemplo en placeholder).
 
 ## 📋 Ejemplo de Implementación
 Para una feature `products`:
@@ -204,5 +221,4 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </>
   );
 }
-```</content>
-<parameter name="filePath">/Users/felipe/dev/flow-store-2/WEBADMIN_INSTRUCTIONS.md
+```

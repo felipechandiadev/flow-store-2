@@ -41,7 +41,7 @@ async function bootstrap() {
   // Exception filter global
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  // Logging interceptor global
+  // Errores HTTP y slow requests (sin log línea a línea de cada ruta)
   const loggingInterceptor = app.get(LoggingInterceptor);
   app.useGlobalInterceptors(loggingInterceptor);
 
@@ -54,14 +54,6 @@ async function bootstrap() {
 
   const port = configService.app.port;
   await app.listen(port, '0.0.0.0');
-
-  console.log(
-    `\n🚀 Flow Backend (NestJS) running on: http://localhost:${port}/${configService.app.apiPrefix}`,
-  );
-  console.log(`📝 Environment: ${configService.app.nodeEnv}`);
-  console.log(
-    `💾 Database: ${process.env.DB_DATABASE}@${process.env.DB_HOST}\n`,
-  );
 }
 
 bootstrap();

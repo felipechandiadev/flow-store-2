@@ -3,6 +3,7 @@ import React, { useState, useContext } from 'react';
 import { useSession } from 'next-auth/react';
 import { ImageOff, Image as ImageIcon } from 'lucide-react';
 import IconButton from '@/shared/components/IconButton';
+import { useImageWithPlaceholder } from '@/shared/hooks/useImageWithPlaceholder';
 import SideBar, { SideBarMenuItem } from './SideBar';
 
 export type { SideBarMenuItem };
@@ -61,8 +62,13 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
   const { data: session } = useSession();
   const [showSidebar, setShowSidebar] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState<Record<string, boolean>>({});
-  const [logoLoaded, setLogoLoaded] = useState(false);
-  const [logoError, setLogoError] = useState(false);
+  const {
+    ref: logoImgRef,
+    loaded: logoLoaded,
+    error: logoError,
+    onLoad: onLogoLoad,
+    onError: onLogoError,
+  } = useImageWithPlaceholder(logoSrc);
 
   // Notificaciones WebSocket - TODO: Implement when notifications feature is ready
   // const {
@@ -88,9 +94,16 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
       <header className={`fixed top-0 z-30 w-full flex items-center justify-between px-10 py-2 pb-3 bg-background border-b border-border ${className}`}>
           <div className="flex items-center gap-3">
             {logoSrc ? (
-              <>
+              <div
+                className="relative h-10 w-10 shrink-0"
+                data-test-id="top-bar-logo-box"
+              >
                 {(!logoLoaded || logoError) && (
-                  <div className="h-10 w-10 bg-neutral-300 rounded-lg flex items-center justify-center" data-test-id="top-bar-logo-skeleton">
+                  <div
+                    className="absolute inset-0 flex items-center justify-center rounded-lg bg-neutral-300"
+                    data-test-id="top-bar-logo-skeleton"
+                    aria-hidden
+                  >
                     {logoError && (
                       <ImageOff className="text-neutral-400" size={20} />
                     )}
@@ -98,15 +111,17 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
                 )}
                 {!logoError && (
                   <img
+                    ref={logoImgRef}
                     src={logoSrc}
                     alt="Logo"
-                    className={`h-10 w-10 object-contain transition-opacity duration-300 ${!logoLoaded ? 'opacity-0' : 'opacity-100'}`}
+                    className="relative h-10 w-10 object-contain transition-opacity duration-300"
+                    style={{ opacity: logoLoaded ? 1 : 0 }}
                     data-test-id="top-bar-logo"
-                    onLoad={() => setLogoLoaded(true)}
-                    onError={() => setLogoError(true)}
+                    onLoad={onLogoLoad}
+                    onError={onLogoError}
                   />
                 )}
-              </>
+              </div>
             ) : (
               <div className="h-10 w-10 bg-neutral-300 rounded-lg flex items-center justify-center" data-test-id="top-bar-logo-placeholder">
                 <ImageIcon className="text-neutral-400" size={20} />

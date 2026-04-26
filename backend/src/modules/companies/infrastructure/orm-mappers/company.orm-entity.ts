@@ -16,8 +16,17 @@ export class CompanyOrmEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ type: 'varchar', length: 255 })
-  name!: string;
+  @Column({ name: 'razon_social', type: 'varchar', length: 255 })
+  razonSocial!: string;
+
+  @Column({ name: 'nombre_fantasia', type: 'varchar', length: 255, nullable: true })
+  nombreFantasia?: string | null;
+
+  @Column({ name: 'business_activity', type: 'varchar', length: 255, nullable: true })
+  businessActivity?: string | null;
+
+  @Column({ name: 'rut', type: 'varchar', length: 14, unique: true })
+  rut!: string;
 
   @Column({ type: 'varchar', length: 10, default: 'CLP' })
   defaultCurrency!: string;

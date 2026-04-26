@@ -1,91 +1,35 @@
-# Backend Seeds
+# Backend seed
 
-Este directorio contiene la lógica de seed para inicializar la base de datos de FlowStore.
+Tareas del seed mínimo:
+
+1. **Empresa** — busca por `rut` (único). Si no existe, crea con razón social, nombre de fantasía, giro y RUT en formato chileno (`xx.xxx.xxx-d`). Si ya existe, actualiza razón social, nombre de fantasía y giro desde variables de entorno.
+2. **Usuario admin** — crea o actualiza el administrador (`SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_EMAIL` con valores por defecto si no se definen).
+
+Variables de empresa (opcionales):
+
+- `SEED_COMPANY_RAZON_SOCIAL` — default `Mi Empresa SpA`
+- `SEED_NOMBRE_FANTASIA` — default `Mi Empresa`
+- `SEED_BUSINESS_ACTIVITY` — default `Comercio al por menor`
+- `SEED_COMPANY_RUT` — default `11.111.111-1` (debe ser válido y distintivo en BD)
+
+## Esquema de base de datos
+
+No se usan archivos de migración: el esquema se genera desde las **entidades TypeORM** cuando `DB_SYNCHRONIZE=true` en `.env` (solo desarrollo; en producción conviene `false` y un proceso de despliegue explícito). El módulo del seed usa el mismo `typeOrmConfig` que el API: **el seed no crea el esquema por separado**; al ejecutarlo, TypeORM aplica el mismo sync que al levantar Nest.
+
+1. Base vacía o nueva: `dropdb` / `createdb` o borrar schema.
+2. En `.env`: `DB_SYNCHRONIZE=true` (obligatorio si la base no tiene tablas; sin esto, el seed fallará con “relation does not exist”).
+3. `npm run seed` y/o `npm run start:dev` — cualquiera de los dos, con `DB_SYNCHRONIZE=true`, hace que existan **todas** las tablas de las entidades registradas. El **seed solo escribe** empresa y usuario admin.
+
+## Ejecución del seed
+
+```bash
+# Desde la raíz de `backend/`
+npm run seed
+```
+
+Requiere base de datos accesible con la misma configuración que el API (`.env` / variables `DB_*`).
 
 ## Estructura
 
-```
-src/seed/
-├── seed.module.ts      # Módulo NestJS para seeds
-├── seed.service.ts     # Servicio con la lógica del seed
-├── run-seed.ts         # Script CLI para ejecutar el seed
-├── data/               # Archivos JSON con datos del seed
-│   ├── companies.json
-│   ├── branches.json
-│   ├── users.json
-│   └── ...
-└── README.md           # Esta documentación
-```
-
-## Uso
-
-### Ejecutar el seed
-
-```bash
-# Desde la raíz del proyecto backend
-npm run seed
-
-# O directamente con ts-node
-npx ts-node src/seed/run-seed.ts
-```
-
-### Requisitos
-
-- Base de datos MySQL configurada
-- Variables de entorno configuradas (.env.development o .env.production)
-- Archivos JSON con datos en `src/seed/data/`
-
-## Archivos de datos
-
-Los archivos JSON en `data/` definen los datos iniciales para cada entidad:
-
-- **companies.json**: Empresas
-- **branches.json**: Sucursales
-- **users.json**: Usuarios del sistema
-- **taxes.json**: Impuestos (IVA, etc.)
-- **categories.json**: Categorías de productos
-- **products.json**: Productos y variantes
-- **customers.json**: Clientes
-- **suppliers.json**: Proveedores
-- **accountingAccounts.json**: Plan de cuentas
-- **accountingRules.json**: Reglas contables automáticas
-
-## Comportamiento
-
-El seed:
-
-1. **Limpia** datos corruptos existentes
-2. **Verifica** la conexión a la base de datos
-3. **Reinicia** todas las tablas (TRUNCATE)
-4. **Crea** datos iniciales en orden de dependencias
-
-⚠️ **ADVERTENCIA**: El seed elimina TODOS los datos existentes. Úsalo solo en entornos de desarrollo o testing.
-
-## Integración con NestJS
-
-El `SeedService` está completamente integrado con NestJS:
-
-- Usa `@InjectDataSource` para acceder a TypeORM
-- Importa entidades usando path alias `@modules/*`
-- Maneja logging con `Logger` de NestJS
-- Puede ser inyectado en otros módulos si es necesario
-
-## Añadir nuevos datos
-
-1. Crea o edita el archivo JSON correspondiente en `data/`
-2. Actualiza `SeedService.createSeedData()` para procesar esos datos
-3. Ejecuta el seed para validar los cambios
-
-## Troubleshooting
-
-### Error de conexión
-- Verifica las variables de entorno DB_HOST, DB_PORT, DB_USERNAME, DB_PASSWORD, DB_DATABASE
-- Asegúrate de que MySQL esté corriendo
-
-### Error de archivo no encontrado
-- Los archivos JSON deben estar en `src/seed/data/`
-- Algunos archivos son opcionales (retornan null si no existen)
-
-### Error de foreign keys
-- El seed automáticamente desactiva foreign keys durante el truncate
-- Si persiste, verifica que la base de datos tenga permisos adecuados
+- `run-minimal-seed.ts` — script CLI
+- `minimal-seed.module.ts` — TypeORM igual que el API; `forFeature` solo con entidades usadas en el script

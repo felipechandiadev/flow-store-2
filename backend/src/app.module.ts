@@ -20,7 +20,6 @@ import { MetalPricesModule } from './modules/metal-prices/metal-prices.module';
 import { AuditsModule } from './modules/audits/audits.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { CategoriesModule } from './modules/categories/categories.module';
-import { SeedModule } from './seed/seed.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { ShareholdersModule } from './modules/shareholders/shareholders.module';
 import { UnitsModule } from './modules/units/units.module';
@@ -108,7 +107,6 @@ import { ObservabilityModule } from './shared/observability.module';
     require('./modules/product-variants/product-variants.module')
       .ProductVariantsModule,
     InstallmentsModule,
-    SeedModule,
     // analytics dashboard module
     require('./modules/analytics/analytics.module').AnalyticsModule,
     ObservabilityModule,

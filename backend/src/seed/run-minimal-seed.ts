@@ -10,6 +10,8 @@ import {
   PersonType,
   DocumentType,
 } from '@modules/persons/domain/person.entity';
+import { Company } from '@modules/companies/domain/company.entity';
+import { assertValidChileCompanyRut } from '@shared/utils/chile-company-rut.util';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(MinimalSeedModule, {
@@ -21,10 +23,46 @@ async function bootstrap() {
 
     const userRepo = dataSource.getRepository(User);
     const personRepo = dataSource.getRepository(Person);
+    const companyRepo = dataSource.getRepository(Company);
 
     const userName = process.env.SEED_ADMIN_USERNAME || 'admin';
     const password = process.env.SEED_ADMIN_PASSWORD || '098098';
     const email = process.env.SEED_ADMIN_EMAIL || 'admin@flowstore.local';
+    const razonSocial =
+      process.env.SEED_COMPANY_RAZON_SOCIAL || 'Mi Empresa SpA';
+    const nombreFantasia =
+      process.env.SEED_NOMBRE_FANTASIA || 'Mi Empresa';
+    const businessActivity =
+      process.env.SEED_BUSINESS_ACTIVITY || 'Comercio al por menor';
+    const rut = process.env.SEED_COMPANY_RUT || '11.111.111-1';
+
+    assertValidChileCompanyRut(rut, 'SEED_COMPANY_RUT');
+
+    let company = await companyRepo.findOne({
+      where: { rut, deletedAt: null as never },
+    });
+    if (!company) {
+      company = companyRepo.create({
+        razonSocial,
+        nombreFantasia,
+        businessActivity,
+        rut,
+        defaultCurrency: 'CLP',
+        isActive: true,
+      });
+      await companyRepo.save(company);
+      console.log(
+        `✅ Empresa creada: id=${company.id} razonSocial='${razonSocial}' rut='${rut}'`,
+      );
+    } else {
+      company.razonSocial = razonSocial;
+      company.nombreFantasia = nombreFantasia;
+      company.businessActivity = businessActivity;
+      await companyRepo.save(company);
+      console.log(
+        `✅ Empresa ya existía: id=${company.id} razonSocial='${company.razonSocial}' rut='${company.rut}' (datos básicos actualizados)`,
+      );
+    }
 
     let user = await userRepo.findOne({
       where: { userName, deletedAt: null as never },
@@ -94,4 +132,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-

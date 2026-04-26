@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import dynamic from 'next/dynamic';
 import { AlertCircle } from 'lucide-react';
 
@@ -57,7 +57,6 @@ if (typeof window !== 'undefined') {
 
 type LocationPickerVariant = 'default' | 'flat' | 'borderless';
 type LocationPickerRounded = 'none' | 'sm' | 'md' | 'lg' | 'full';
-type CursorState = 'default' | 'targeting' | 'grabbing' | 'clicked';
 type LocationPickerMode = 'viewer' | 'edit' | 'update';
 
 /**
@@ -107,58 +106,58 @@ const variantClasses: Record<LocationPickerVariant, string> = {
   borderless: '',
 };
 
-// Clases CSS para feedback visual del cursor según interacción con el mapa.
-const cursorClasses: Record<CursorState, string> = {
-  default: 'cursor-default',
-  targeting: 'cursor-crosshair',   // Buscando dónde hacer click
-  grabbing: 'cursor-grabbing',     // Arrastrando el mapa
-  clicked: 'cursor-crosshair',     // Click realizado
-};
-
 /**
  * Marcador arrastrable encapsulado para:
  * - cambiar ícono durante drag
  * - normalizar el callback de posición final
+ *
+ * No debemos provocar re-renders del componente padre mientras el usuario
+ * arrastra: react-leaflet reaplica el prop `position` en cada render y
+ * anula el movimiento del marcador. Por eso el mapa no usa setState en
+ * mousedown/drag mientras se mueve el pin (ver MapEvents abajo).
  */
-const DraggableMarker = ({ 
-  position, 
-  draggable, 
-  onDragEnd,
-}: { 
-  position: { lat: number; lng: number }; 
-  draggable: boolean;
-  onDragEnd: (newPos: { lat: number; lng: number }) => void;
-}) => {
-  const markerRef = useRef<L.Marker | null>(null);
+const DraggableMarker = memo(
+  function DraggableMarker({
+    position,
+    draggable,
+    onDragEnd,
+  }: {
+    position: { lat: number; lng: number };
+    draggable: boolean;
+    onDragEnd: (newPos: { lat: number; lng: number }) => void;
+  }) {
+    const onDragEndRef = useRef(onDragEnd);
+    onDragEndRef.current = onDragEnd;
 
-  const eventHandlers = useMemo(() => ({
-    dragstart: () => {
-      const marker = markerRef.current;
-      if (marker && draggingIcon) {
-        marker.setIcon(draggingIcon);
-      }
-    },
-    dragend: () => {
-      const marker = markerRef.current;
-      if (marker) {
-        if (customIcon) {
-          marker.setIcon(customIcon);
-        }
-        const latlng = marker.getLatLng();
-        onDragEnd({ lat: latlng.lat, lng: latlng.lng });
-      }
-    },
-  }), [onDragEnd]);
+    const eventHandlers = useMemo(
+      () => ({
+        dragstart: (e: { target: L.Marker }) => {
+          const marker = e.target;
+          if (marker && draggingIcon) {
+            marker.setIcon(draggingIcon);
+          }
+        },
+        dragend: (e: { target: L.Marker }) => {
+          const marker = e.target;
+          if (customIcon) {
+            marker.setIcon(customIcon);
+          }
+          const latlng = marker.getLatLng();
+          onDragEndRef.current({ lat: latlng.lat, lng: latlng.lng });
+        },
+      }),
+      [],
+    );
 
-  return (
-    <Marker
-      position={[position.lat, position.lng]}
-      draggable={draggable}
-      eventHandlers={eventHandlers}
-      ref={markerRef}
-    />
-  );
-};
+    return (
+      <Marker
+        position={[position.lat, position.lng]}
+        draggable={draggable}
+        eventHandlers={eventHandlers}
+      />
+    );
+  },
+);
 
 /**
  * Controlador de centrado inicial del mapa.
@@ -199,7 +198,6 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   externalPosition,
 }) => {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
-  const [cursorState, setCursorState] = useState<CursorState>('default');
   const [showClickEffect, setShowClickEffect] = useState(false);
   const [clickPosition, setClickPosition] = useState<{ x: number; y: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -210,21 +208,28 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   // El mapa solo es interactivo en edit/update.
   const isEditable = mode === 'edit' || mode === 'update';
   
+  const extLat = externalPosition?.lat;
+  const extLng = externalPosition?.lng;
+
   /**
    * Flujo de inicialización de posición:
    * 1) update + externalPosition -> usa posición externa.
    * 2) edit sin posición previa -> intenta geolocalización del navegador.
    * 3) initialLat/initialLng válidos -> usa coordenadas iniciales.
    * 4) fallback final -> Santiago, Chile.
+   *
+   * No incluir `position` en dependencias: si no, al arrastrar/click se re-ejecuta
+   * y en modo `update` se vuelve a `setPosition(externalPosition)` y se pierde el movimiento.
+   * `extLat`/`extLng` estabilizan la sync cuando el padre pasa un objeto nuevo con los mismos valores.
    */
   useEffect(() => {
     // Permite recentrar una única vez cuando cambian datos fuente.
     hasCenteredInitially.current = false;
-    
-    if (mode === 'update' && externalPosition) {
-      // update: siempre prioriza coordenadas externas.
-      setPosition(externalPosition);
-      // No requiere setPositionToCenter: MapContainer ya nace centrado ahí.
+
+    if (mode === 'update' && extLat != null && extLng != null && !Number.isNaN(extLat) && !Number.isNaN(extLng)) {
+      const fromParent = { lat: extLat, lng: extLng };
+      setPosition(fromParent);
+      setPositionToCenter(fromParent);
     } else if (mode === 'edit' && !position) {
       // edit: intenta ubicar al usuario para acelerar selección.
       if (typeof window === 'undefined') {
@@ -249,7 +254,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
       setPositionToCenter(defaultPos);
       onChange?.(defaultPos);
     }
-  }, [mode, externalPosition, initialLat, initialLng, position]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- excl. `position` (evita reset al mover pin) y `onChange` (identidad inestable)
+  }, [mode, extLat, extLng, initialLat, initialLng]);
 
   /**
    * Intenta obtener ubicación actual del usuario vía Geolocation API.
@@ -299,41 +305,44 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     );
   };
 
-  const handleMapClick = (e: L.LeafletMouseEvent) => {
-    if (!isEditable) return; // viewer: ignora clicks para mantener modo solo lectura.
-    
-    const newPosition = { lat: e.latlng.lat, lng: e.latlng.lng };
-    setPosition(newPosition);
-    onChange?.(newPosition);
-    
-    // Ripple visual para confirmar interacción al usuario.
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setClickPosition({
-        x: e.originalEvent.clientX - rect.left,
-        y: e.originalEvent.clientY - rect.top,
-      });
-      setShowClickEffect(true);
-      setTimeout(() => setShowClickEffect(false), 800);
-    }
-  };
+  const handleMapClick = useCallback(
+    (e: L.LeafletMouseEvent) => {
+      if (!isEditable) return;
+      const newPosition = { lat: e.latlng.lat, lng: e.latlng.lng };
+      setPosition(newPosition);
+      onChange?.(newPosition);
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setClickPosition({
+          x: e.originalEvent.clientX - rect.left,
+          y: e.originalEvent.clientY - rect.top,
+        });
+        setShowClickEffect(true);
+        setTimeout(() => setShowClickEffect(false), 800);
+      }
+    },
+    [isEditable, onChange],
+  );
+
+  const handleMarkerDragEnd = useCallback(
+    (newPos: { lat: number; lng: number }) => {
+      if (!isEditable) return;
+      setPosition(newPos);
+      onChange?.(newPos);
+    },
+    [isEditable, onChange],
+  );
 
   /**
-   * Bridge de eventos de Leaflet:
-   * - click: define nueva posición
-   * - drag/mouse: actualiza estado del cursor para feedback UX
+   * Solo click para colocar el pin. No usar mousedown/drag en el mapa para
+   * actualizar estado de cursor: provoca re-renders que resetean el marcador
+   * mientras se arrastra (react-leaflet reaplica `position`).
    */
   const MapEvents = () => {
-    const map = (require('react-leaflet') as any).useMapEvents({
+    (require('react-leaflet') as any).useMapEvents({
       click: (e: L.LeafletMouseEvent) => {
         if (isEditable) handleMapClick(e);
       },
-      mousedown: () => isEditable && setCursorState('grabbing'),
-      mouseup: () => isEditable && setCursorState('targeting'),
-      dragstart: () => isEditable && setCursorState('grabbing'),
-      dragend: () => isEditable && setCursorState('targeting'),
-      mouseover: () => isEditable && setCursorState('targeting'),
-      mouseout: () => setCursorState('default'),
     });
     return null;
   };
@@ -396,7 +405,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
         zoom={zoom}
         style={{ height: '100%', width: '100%' }}
         attributionControl={false}
-        className={!isEditable ? 'cursor-default' : cursorClasses[cursorState]}
+        className={!isEditable ? 'cursor-default' : 'cursor-crosshair'}
         dragging={isEditable}
         zoomControl={isEditable}
         scrollWheelZoom={isEditable}
@@ -413,15 +422,10 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
         />
         {isEditable && <MapEvents />}
         {position && (
-          <DraggableMarker 
+          <DraggableMarker
             position={position}
             draggable={isEditable && draggable}
-            onDragEnd={(newPos: { lat: number; lng: number }) => {
-              if (isEditable) {
-                setPosition(newPos);
-                onChange?.(newPos);
-              }
-            }}
+            onDragEnd={handleMarkerDragEnd}
           />
         )}
       </MapContainer>

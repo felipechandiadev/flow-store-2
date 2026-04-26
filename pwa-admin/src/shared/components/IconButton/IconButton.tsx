@@ -1,5 +1,6 @@
 import React from 'react';
 import * as Icons from 'lucide-react';
+import './icon-button.css';
 
 type IconButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number;
 type LucideIconName = keyof typeof Icons;
@@ -18,15 +19,14 @@ interface IconButtonProps {
 	[key: string]: any;
 }
 
-const variantClasses: Record<string, string> = {
-	containedPrimary: 'bg-primary text-white hover:bg-primary/90 active:bg-primary/80',
-	containedSecondary: 'bg-secondary text-white hover:bg-secondary/90 active:bg-secondary/80',
-	text: 'text-primary hover:bg-primary/10 active:bg-primary/20',
-	basic: 'text-foreground hover:bg-foreground/10 active:bg-foreground/20',
-	basicSecondary:
-		'text-secondary hover:text-primary hover:bg-primary/10 active:bg-primary/20 transition-colors',
-	outlined: 'border border-primary text-primary hover:bg-primary/10 active:bg-primary/20',
-	ghost: 'hover:bg-foreground/5 active:bg-foreground/10',
+const variantClassNames: Record<NonNullable<IconButtonProps['variant']>, string> = {
+	containedPrimary: 'fs-icon-button fs-icon-button--contained-primary',
+	containedSecondary: 'fs-icon-button fs-icon-button--contained-secondary',
+	text: 'fs-icon-button fs-icon-button--text',
+	basic: 'fs-icon-button fs-icon-button--basic',
+	basicSecondary: 'fs-icon-button fs-icon-button--basic-secondary',
+	outlined: 'fs-icon-button fs-icon-button--outlined',
+	ghost: 'fs-icon-button fs-icon-button--ghost',
 };
 
 const sizeMap: Record<Exclude<IconButtonSize, number>, string> = {
@@ -69,7 +69,9 @@ const IconButton: React.FC<IconButtonProps> = ({
 		return (
 			<button
 				type="button"
-				className={`${variantClasses[variant] || variantClasses['containedPrimary']} rounded transition-colors inline-flex items-center justify-center ${sizeClass} ${className}`}
+				className={`${variantClassNames[variant] ?? variantClassNames.containedPrimary} inline-flex items-center justify-center ${sizeClass} ${
+					effectiveDisabled ? 'opacity-50' : ''
+				} ${className}`}
 				data-test-id="icon-button-root"
 				onClick={onClick}
 				aria-label={ariaLabel}
@@ -84,8 +86,8 @@ const IconButton: React.FC<IconButtonProps> = ({
 	return (
 		<button
 			type="button"
-			className={`${variantClasses[variant] || variantClasses['containedPrimary']} rounded transition-colors inline-flex items-center justify-center ${sizeClass} ${
-				effectiveDisabled ? 'opacity-50 cursor-not-allowed' : ''
+			className={`${variantClassNames[variant] ?? variantClassNames.containedPrimary} inline-flex items-center justify-center ${sizeClass} ${
+				effectiveDisabled ? 'opacity-50' : ''
 			} ${className}`}
 			data-test-id="icon-button-root"
 			onClick={onClick}

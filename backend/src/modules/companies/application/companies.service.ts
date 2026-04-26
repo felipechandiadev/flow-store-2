@@ -21,10 +21,13 @@ export class CompaniesService {
       });
 
       if (!company) {
-        // Return default if no company exists
+        // Sin fila en BD: no enviar id ficticio (debe ser uuid en columnas uuid).
         return {
-          id: '1',
-          name: 'Default Company',
+          id: null,
+          razonSocial: 'Empresa por defecto',
+          nombreFantasia: null,
+          businessActivity: null,
+          rut: null,
           defaultCurrency: 'CLP',
           isActive: true,
           bankAccounts: [],
@@ -33,7 +36,10 @@ export class CompaniesService {
 
       return {
         id: company.id,
-        name: company.name,
+        razonSocial: company.razonSocial,
+        nombreFantasia: company.nombreFantasia ?? null,
+        businessActivity: company.businessActivity ?? null,
+        rut: company.rut,
         defaultCurrency: company.defaultCurrency,
         fiscalYearStart: company.fiscalYearStart,
         isActive: company.isActive,
@@ -43,8 +49,11 @@ export class CompaniesService {
     } catch (error) {
       console.error('Error fetching company:', error);
       return {
-        id: '1',
-        name: 'Default Company',
+        id: null,
+        razonSocial: 'Empresa por defecto',
+        nombreFantasia: null,
+        businessActivity: null,
+        rut: null,
         defaultCurrency: 'CLP',
         isActive: true,
         bankAccounts: [],

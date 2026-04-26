@@ -362,8 +362,8 @@ async function seedTestData(app: INestApplication) {
   // Create company
   const company = companyRepo.create({
     id: 'company-test-1',
-    name: 'Test Company',
-    taxId: '12345678-9',
+    razonSocial: 'Test Company',
+    rut: '11.111.111-1',
   });
   await companyRepo.save(company);
 

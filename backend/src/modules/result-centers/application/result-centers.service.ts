@@ -122,7 +122,7 @@ export class ResultCentersService {
       createdAt: resultCenter.createdAt,
       updatedAt: resultCenter.updatedAt,
       company: resultCenter.company
-        ? { id: resultCenter.company.id, name: resultCenter.company.name }
+        ? { id: resultCenter.company.id, razonSocial: resultCenter.company.razonSocial }
         : null,
       branch: resultCenter.branch
         ? { id: resultCenter.branch.id, name: resultCenter.branch.name }
