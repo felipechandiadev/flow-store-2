@@ -16,6 +16,8 @@ export type { SideBarMenuItem };
 interface TopBarProps {
   /** Nombre de producto / marca (ej. FlowStore). */
   title: string;
+  /** Nombre de fantasía: a la derecha del nombre de usuario, separado por un punto (color secondary). */
+  companyTradeName?: string | null;
   /** Línea secundaria bajo el título: tipografía más pequeña y color suave (ej. «Panel de administración»). */
   subtitle?: string;
   logoSrc: string;
@@ -49,6 +51,7 @@ export function useSideBar() {
 
 const TopBar: React.FC<TopBarProps & { className?: string }> = ({
   title,
+  companyTradeName,
   subtitle,
   logoSrc,
   menuItems = [],
@@ -153,24 +156,43 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
             )}
           </div>
 
-          {/* Right side: nombre de la persona a la izquierda del menú; sesión o props */}
+          {/* Derecha: usuario, separador (círculo secondary), nombre de fantasía, menú */}
           <div className="flex min-w-0 max-w-full items-center justify-end gap-2">
-            {(personName || userName) && (
-              <span
-                className="min-w-0 max-w-[min(11rem,42vw)] truncate text-right text-sm font-medium text-foreground sm:max-w-xs md:max-w-sm"
-                data-test-id="top-bar-user-name"
-                title={
-                  [personName, userName ? `@${userName}` : ''].filter(Boolean).join(' ').trim() || undefined
-                }
-              >
-                {personName}
-                {personName && userName ? (
-                  <span className="font-normal text-muted">{' '}@{userName}</span>
-                ) : !personName && userName ? (
-                  <span>@{userName}</span>
-                ) : null}
-              </span>
-            )}
+            <div className="flex min-w-0 max-w-full items-center justify-end gap-2 sm:gap-2.5">
+              {(personName || userName) && (
+                <span
+                  className="min-w-0 max-w-[min(10rem,36vw)] truncate text-right text-sm font-medium text-foreground sm:max-w-[12rem] md:max-w-xs"
+                  data-test-id="top-bar-user-name"
+                  title={
+                    [personName, userName ? `@${userName}` : ''].filter(Boolean).join(' ').trim() || undefined
+                  }
+                >
+                  {personName}
+                  {personName && userName ? (
+                    <span className="font-normal text-muted">{' '}@{userName}</span>
+                  ) : !personName && userName ? (
+                    <span>@{userName}</span>
+                  ) : null}
+                </span>
+              )}
+              {companyTradeName != null && companyTradeName.trim() !== '' ? (
+                <>
+                  {(personName || userName) ? (
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-secondary)]"
+                      aria-hidden
+                    />
+                  ) : null}
+                  <span
+                    className="min-w-0 max-w-[min(11rem,40vw)] truncate text-right text-sm font-medium text-muted sm:max-w-sm md:max-w-md"
+                    data-test-id="top-bar-company-trade-name"
+                    title={companyTradeName.trim()}
+                  >
+                    {companyTradeName.trim()}
+                  </span>
+                </>
+              ) : null}
+            </div>
 
             {/* Notification Bell - TODO: Implement when notifications feature is ready */}
             {/* <div className="mr-4">
