@@ -9,14 +9,17 @@ describe('SuppliersServiceAdapter', () => {
   let service: SuppliersServiceAdapter;
   let commandBus: { execute: jest.Mock };
   let queryBus: { execute: jest.Mock };
+  let personsService: { create: jest.Mock };
 
   beforeEach(() => {
     commandBus = { execute: jest.fn() };
     queryBus = { execute: jest.fn() };
+    personsService = { create: jest.fn() };
 
     service = new SuppliersServiceAdapter(
       commandBus as unknown as CommandBus,
       queryBus as unknown as QueryBus,
+      personsService as any,
     );
   });
 
@@ -25,7 +28,7 @@ describe('SuppliersServiceAdapter', () => {
 
     await service.create({
       personId: 'person-1',
-      supplierType: SupplierType.LOCAL,
+      supplierType: SupplierType.DISTRIBUTOR,
       defaultPaymentTermDays: 30,
       alias: 'Main supplier',
       notes: 'notes',
@@ -35,7 +38,7 @@ describe('SuppliersServiceAdapter', () => {
     expect(commandBus.execute.mock.calls[0][0]).toBeInstanceOf(CreateSupplierCommand);
     expect(commandBus.execute.mock.calls[0][0]).toMatchObject({
       personId: 'person-1',
-      supplierType: SupplierType.LOCAL,
+      supplierType: SupplierType.DISTRIBUTOR,
       defaultPaymentTermDays: 30,
       userId: 'system-user',
       alias: 'Main supplier',

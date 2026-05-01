@@ -10,6 +10,8 @@ import Switch from "@/shared/components/Switch/Switch";
 import type { StorageCategory, StorageType } from "@/features/inventory-storages/types/storage.types";
 import { createStorageAction } from "@/features/inventory-storages/actions/storage.action";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
+import { parseBranchLocation } from "@/features/settings-branches/utils/parse-branch-location";
+import LocationPicker from "@/shared/components/LocationPicker/LocationPickerWrapper";
 import { STORAGE_CATEGORY_SELECT_OPTIONS, STORAGE_TYPE_SELECT_OPTIONS } from "./storageFormOptions";
 
 export type CreateStorageDialogProps = {
@@ -24,7 +26,8 @@ export function CreateStorageDialog({ open, onClose, branches, onSuccess }: Crea
   const [branchId, setBranchId] = useState("");
   const [type, setType] = useState<StorageType>("WAREHOUSE");
   const [category, setCategory] = useState<StorageCategory>("IN_BRANCH");
-  const [location, setLocation] = useState("");
+  const [address, setAddress] = useState("");
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isDefault, setIsDefault] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,15 +46,35 @@ export function CreateStorageDialog({ open, onClose, branches, onSuccess }: Crea
     setBranchId("");
     setType("WAREHOUSE");
     setCategory("IN_BRANCH");
-    setLocation("");
+    setAddress("");
+    setCoords(null);
     setIsDefault(false);
     setIsActive(true);
     setError(null);
   }, [open]);
 
+  const selectedBranchCoords = useMemo(() => {
+    const b = branches.find((x) => x.id === branchId);
+    return b ? parseBranchLocation(b.location) : null;
+  }, [branches, branchId]);
+
+  const selectedBranchAddress = useMemo(() => {
+    const b = branches.find((x) => x.id === branchId);
+    return b?.address ?? null;
+  }, [branches, branchId]);
+
+  useEffect(() => {
+    // Si hay sucursal seleccionada, el almacén hereda SIEMPRE su ubicación (si existe).
+    // Si la sucursal no tiene coordenadas, almacenamos null.
+    if (branchId) {
+      setCoords(selectedBranchCoords);
+      setAddress((selectedBranchAddress ?? "").trim());
+    }
+  }, [branchId, selectedBranchAddress, selectedBranchCoords]);
+
   useEffect(() => {
     if (category === "IN_BRANCH") {
-      setLocation("");
+      // No forzamos coordenadas; el mapa puede venir de la sucursal o ser opcional.
     }
   }, [category]);
 
@@ -60,7 +83,8 @@ export function CreateStorageDialog({ open, onClose, branches, onSuccess }: Crea
     setBranchId("");
     setType("WAREHOUSE");
     setCategory("IN_BRANCH");
-    setLocation("");
+    setAddress("");
+    setCoords(null);
     setIsDefault(false);
     setIsActive(true);
     setError(null);
@@ -77,8 +101,8 @@ export function CreateStorageDialog({ open, onClose, branches, onSuccess }: Crea
           type,
           category,
           capacity: "",
-          location:
-            category === "IN_BRANCH" ? undefined : location.trim() || undefined,
+          address: address.trim() || undefined,
+          location: coords,
           isDefault,
           isActive,
         });
@@ -158,17 +182,36 @@ export function CreateStorageDialog({ open, onClose, branches, onSuccess }: Crea
           required
           data-test-id="storage-create-category"
         />
-        {category !== "IN_BRANCH" ? (
-          <TextField
-            label="Ubicación"
-            name="storage-create-location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Ubicación"
-            rows={2}
-            data-test-id="storage-create-location"
+        <TextField
+          label="Dirección (opcional)"
+          name="storage-create-address"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="Dirección"
+          rows={2}
+          disabled={Boolean(branchId)}
+          data-test-id="storage-create-address"
+        />
+        <div className="flex flex-col gap-2" data-test-id="storage-create-location-picker">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ubicación en mapa</div>
+          <LocationPicker
+            key={`storage-create-map-${branchId || "no-branch"}-${selectedBranchCoords?.lat ?? "x"}-${selectedBranchCoords?.lng ?? "y"}`}
+            mode={branchId ? "viewer" : "edit"}
+            variant="default"
+            rounded="md"
+            className="w-full"
+            zoom={16}
+            initialLat={(coords ?? selectedBranchCoords)?.lat}
+            initialLng={(coords ?? selectedBranchCoords)?.lng}
+            draggable={!branchId}
+            onChange={(p) => setCoords(p)}
           />
-        ) : null}
+          {branchId ? (
+            <p className="text-xs text-muted-foreground" data-test-id="storage-create-location-inherited">
+              La ubicación se hereda de la sucursal seleccionada.
+            </p>
+          ) : null}
+        </div>
         <div className="pt-1">
           <Switch
             checked={isDefault}

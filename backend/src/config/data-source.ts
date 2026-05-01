@@ -52,6 +52,11 @@ import { ReceptionLine } from '@modules/receptions/domain/reception-line.entity'
 import { Installment } from '@modules/installments/domain/installment.entity';
 import { MultimediaAsset } from '@modules/multimedia/domain/multimedia-asset.entity';
 import { MultimediaLink } from '@modules/multimedia/domain/multimedia-link.entity';
+import { AccountingRuleLine } from '@modules/accounting-rules/domain/accounting-rule-line.entity';
+import { AutomationRule } from '@modules/automation/domain/automation-rule.entity';
+import { AutomationAction } from '@modules/automation/domain/automation-action.entity';
+import { Recipe } from '@modules/recipes/domain/recipe.entity';
+import { RecipeLine } from '@modules/recipes/domain/recipe-line.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
 
 /**
@@ -93,6 +98,11 @@ export const AppDataSource = new DataSource({
     OperationalExpense,
     AccountingAccount,
     AccountingRule,
+    AccountingRuleLine,
+    AutomationRule,
+    AutomationAction,
+    Recipe,
+    RecipeLine,
     AccountingPeriod,
     AccountingPeriodSnapshot,
     AccountBalance,

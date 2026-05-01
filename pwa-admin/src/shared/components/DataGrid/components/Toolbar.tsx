@@ -3,6 +3,7 @@ import React from 'react';
 import IconButton from '@/shared/components/IconButton';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { DataGridColumn } from '../DataGrid';
+import './toolbar.css';
 // TODO: Create shared/hooks/useAlert hook
 // import { useAlert } from '@/shared/hooks/useAlert';
 
@@ -32,8 +33,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   // TODO: Implement useAlert hook
   // const { showAlert } = useAlert();
 
-  // Determine active sortField from URL
+  // Determine active sort from URL
   const activeSortField = searchParams.get('sortField');
+  const activeSortDir = searchParams.get('sort');
 
   // First visible column field
   const firstVisible = columns.find((c) => !c.hide)?.field;
@@ -69,7 +71,12 @@ const Toolbar: React.FC<ToolbarProps> = ({
     }
   };
 
-  const isSortActive = activeSortField === firstVisible;
+  // UI highlight: show active when ANY sort is present
+  const isSortActive = Boolean(activeSortField && activeSortDir);
+
+  // UI highlight: show active when filter mode on OR query has filters
+  const isFilterActive =
+    filterMode || searchParams.get('filtration') === 'true' || searchParams.has('filters');
 
   return (
     <div className="flex items-center justify-end gap-2 py-0" data-test-id="data-grid-toolbar">
@@ -81,7 +88,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           title="Ordenar por primer campo (asc)"
           onClick={handleQuickSort}
           icon="ArrowUpDown"
-          className={isSortActive ? 'text-primary' : ''}
+          className={isSortActive ? 'fs-data-grid-toolbar__icon--active' : 'fs-data-grid-toolbar__icon--inactive'}
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         />
       ) : null}
@@ -107,6 +114,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             onToggleFilterMode?.();
           }}
           icon={filterMode ? 'FilterX' : 'Filter'}
+          className={isFilterActive ? 'fs-data-grid-toolbar__icon--active' : 'fs-data-grid-toolbar__icon--inactive'}
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         />
       ) : null}

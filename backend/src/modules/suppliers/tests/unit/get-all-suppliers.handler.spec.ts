@@ -39,18 +39,18 @@ describe('GetAllSuppliersQueryHandler', () => {
     repository.count.mockResolvedValueOnce(1);
 
     const result = await handler.execute(
-      new GetAllSuppliersQuery(20, 10, true, SupplierType.LOCAL),
+      new GetAllSuppliersQuery(20, 10, true, SupplierType.DISTRIBUTOR),
     );
 
     expect(repository.findAll).toHaveBeenCalledWith({
-      where: { isActive: true, supplierType: SupplierType.LOCAL },
+      where: { isActive: true, supplierType: SupplierType.DISTRIBUTOR },
       take: 20,
       skip: 10,
       relations: ['person'],
       order: { createdAt: 'DESC' },
     });
     expect(repository.count).toHaveBeenCalledWith({
-      where: { isActive: true, supplierType: SupplierType.LOCAL },
+      where: { isActive: true, supplierType: SupplierType.DISTRIBUTOR },
     });
     expect(result).toEqual({ data: [{ id: 'supplier-1' }], total: 1 });
   });

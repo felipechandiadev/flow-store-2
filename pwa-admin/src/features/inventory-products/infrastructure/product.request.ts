@@ -166,11 +166,21 @@ function normalizeProduct(row: unknown): ProductGridRow | null {
       ? o.variantCount
       : variants.length;
 
+  const categoryIdRaw = o.categoryId;
+  const categoryId =
+    categoryIdRaw != null && String(categoryIdRaw).trim() ? String(categoryIdRaw).trim() : null;
+  const categoryNameRaw = o.categoryName;
+  const categoryName =
+    categoryNameRaw != null && String(categoryNameRaw).trim() ? String(categoryNameRaw).trim() : null;
+
   return {
     id,
     name,
+    productType: o.productType != null && String(o.productType).trim() ? String(o.productType).trim() : null,
     brand: o.brand != null && String(o.brand).trim() ? String(o.brand).trim() : null,
     description: o.description != null && String(o.description).trim() ? String(o.description).trim() : null,
+    categoryId,
+    categoryName,
     isActive: o.isActive !== false,
     variantCount,
     variants,
@@ -212,8 +222,11 @@ export class ProductRequest {
 
   static async create(body: {
     name: string;
+    categoryId?: string;
     brand?: string;
     description?: string;
+    productType?: string;
+    metadata?: Record<string, unknown>;
     isActive?: boolean;
   }): Promise<{ success: true; id: string } | { success: false; error: string }> {
     const headers = await authHeaders();
@@ -221,11 +234,20 @@ export class ProductRequest {
       name: body.name.trim(),
       isActive: body.isActive !== false,
     };
+    if (body.categoryId?.trim()) {
+      payload.categoryId = body.categoryId.trim();
+    }
     if (body.brand?.trim()) {
       payload.brand = body.brand.trim();
     }
     if (body.description?.trim()) {
       payload.description = body.description.trim();
+    }
+    if (body.productType?.trim()) {
+      payload.productType = body.productType.trim();
+    }
+    if (body.metadata && typeof body.metadata === "object") {
+      payload.metadata = body.metadata;
     }
     try {
       const res = await fetch(apiUrl("products"), {
@@ -255,6 +277,87 @@ export class ProductRequest {
     }
   }
 
+  static async update(
+    id: string,
+    body: {
+      name: string;
+      categoryId?: string;
+      brand?: string;
+      description?: string;
+      productType?: string;
+      metadata?: Record<string, unknown>;
+      isActive?: boolean;
+    },
+  ): Promise<{ success: true } | { success: false; error: string }> {
+    const headers = await authHeaders();
+    const payload: Record<string, unknown> = {
+      name: body.name.trim(),
+      isActive: body.isActive !== false,
+    };
+    if (body.categoryId?.trim()) {
+      payload.categoryId = body.categoryId.trim();
+    }
+    if (body.brand?.trim()) {
+      payload.brand = body.brand.trim();
+    }
+    if (body.description?.trim()) {
+      payload.description = body.description.trim();
+    }
+    if (body.productType?.trim()) {
+      payload.productType = body.productType.trim();
+    }
+    if (body.metadata && typeof body.metadata === "object") {
+      payload.metadata = body.metadata;
+    }
+    try {
+      const res = await fetch(apiUrl(`products/${encodeURIComponent(id)}`), {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        const m = data.message;
+        const msg = Array.isArray(m)
+          ? m.map(String).join("; ")
+          : typeof m === "string" && m.trim()
+            ? m.trim()
+            : res.statusText;
+        return { success: false, error: msg };
+      }
+      return { success: true };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al actualizar producto";
+      return { success: false, error: err };
+    }
+  }
+
+  static async remove(id: string): Promise<{ success: true } | { success: false; error: string }> {
+    const headers = await authHeaders();
+    try {
+      const res = await fetch(apiUrl(`products/${encodeURIComponent(id)}`), {
+        method: "DELETE",
+        headers,
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+        const m = data.message;
+        const msg = Array.isArray(m)
+          ? m.map(String).join("; ")
+          : typeof m === "string" && m.trim()
+            ? m.trim()
+            : res.statusText;
+        return { success: false, error: msg };
+      }
+      return { success: true };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al eliminar producto";
+      return { success: false, error: err };
+    }
+  }
+
   static async createVariant(body: {
     productId: string;
     sku: string;
@@ -270,6 +373,11 @@ export class ProductRequest {
     }>;
     pmp: number;
     attributeValues?: Record<string, string>;
+    trackInventory?: boolean;
+    allowNegativeStock?: boolean;
+    minimumStock?: number;
+    maximumStock?: number;
+    reorderPoint?: number;
   }): Promise<{ success: true; id: string } | { success: false; error: string }> {
     const headers = await authHeaders();
     const payload: Record<string, unknown> = {
@@ -292,6 +400,21 @@ export class ProductRequest {
     }
     if (body.attributeValues != null && Object.keys(body.attributeValues).length > 0) {
       payload.attributeValues = body.attributeValues;
+    }
+    if (typeof body.trackInventory === "boolean") {
+      payload.trackInventory = body.trackInventory;
+    }
+    if (typeof body.allowNegativeStock === "boolean") {
+      payload.allowNegativeStock = body.allowNegativeStock;
+    }
+    if (body.minimumStock != null) {
+      payload.minimumStock = Math.max(0, Math.round(Number(body.minimumStock) || 0));
+    }
+    if (body.maximumStock != null) {
+      payload.maximumStock = Math.max(0, Math.round(Number(body.maximumStock) || 0));
+    }
+    if (body.reorderPoint != null) {
+      payload.reorderPoint = Math.max(0, Math.round(Number(body.reorderPoint) || 0));
     }
     try {
       const res = await fetch(apiUrl("product-variants"), {

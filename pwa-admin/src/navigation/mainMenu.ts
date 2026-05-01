@@ -47,6 +47,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
       { id: 'purchasing-receptions', label: 'Recepciones', url: '/purchasing/receptions' },
       { id: 'purchasing-suppliers', label: 'Proveedores', url: '/purchasing/suppliers' },
       { id: 'purchasing-orders', label: 'Órdenes de compra', url: '/purchasing/orders' },
+      { id: 'purchasing-invoices', label: 'Facturas de proveedor', url: '/purchasing/invoices' },
     ],
   },
   {
@@ -77,6 +78,10 @@ export const mainMenuItems: SideBarMenuItem[] = [
     label: 'Contabilidad',
     children: [
       { id: 'acc-coa', label: 'Plan de cuentas', url: '/accounting/chart-of-accounts' },
+      { id: 'acc-rules', label: 'Reglas contables', url: '/accounting/rules' },
+      { id: 'acc-automation', label: 'Automatizaciones', url: '/accounting/automation' },
+      { id: 'acc-flows', label: 'Flujos', url: '/accounting/flows/sales' },
+      { id: 'acc-transaction-types', label: 'Transacciones soportadas', url: '/accounting/transactions' },
       { id: 'acc-ar', label: 'Cuentas por cobrar', url: '/accounting/accounts-receivable' },
       { id: 'acc-ap', label: 'Cuentas por pagar', url: '/accounting/accounts-payable' },
       { id: 'acc-ledgers', label: 'Libros contables', url: '/accounting/ledgers' },

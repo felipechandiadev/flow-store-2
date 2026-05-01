@@ -52,7 +52,10 @@ export class Storage {
   capacity?: number;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
-  location?: string;
+  address?: string;
+
+  @Column({ type: 'json', nullable: true })
+  location?: { lat: number; lng: number };
 
   @Column({ type: 'boolean', default: false })
   isDefault!: boolean;

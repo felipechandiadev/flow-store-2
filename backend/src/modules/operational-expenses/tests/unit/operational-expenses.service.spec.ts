@@ -53,6 +53,7 @@ describe('OperationalExpensesService', () => {
     const result = await service.create({
       companyId: 'company-1',
       categoryId: 'category-1',
+      name: 'Gasto de prueba',
       referenceNumber: 'REF-1',
       operationDate: '2026-04-19',
       createdBy: 'user-1',

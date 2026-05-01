@@ -31,6 +31,11 @@ const nullableCapacityFromInput = z.preprocess((val: unknown) => {
   return n;
 }, z.number().min(0).nullable());
 
+const geoPointSchema = z.object({
+  lat: z.number(),
+  lng: z.number(),
+});
+
 export const CreateStorageFormSchema = z.object({
   name: z.string().min(1, "El nombre es obligatorio").max(255),
   code: z
@@ -42,11 +47,12 @@ export const CreateStorageFormSchema = z.object({
   type: typeSchema,
   category: categorySchema,
   capacity: optionalCapacityFromInput,
-  location: z
+  address: z
     .string()
     .max(500)
     .optional()
     .transform((s) => (s && s.trim() ? s.trim() : undefined)),
+  location: geoPointSchema.nullable().optional(),
   isDefault: z.boolean(),
   isActive: z.boolean(),
 });
@@ -64,9 +70,10 @@ export const UpdateStorageFormSchema = z.object({
   type: typeSchema,
   category: categorySchema,
   capacity: nullableCapacityFromInput,
-  location: z
+  address: z
     .union([z.string().max(500), z.literal(""), z.null()])
     .transform((v) => (v == null || String(v).trim() === "" ? null : String(v).trim())),
+  location: geoPointSchema.nullable(),
   isDefault: z.boolean(),
   isActive: z.boolean(),
 });

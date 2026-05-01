@@ -12,6 +12,7 @@ import { ProductVariantsService } from '../application/product-variants.service'
 import { CreateProductVariantDto } from '../application/dto/create-product-variant.dto';
 import { UpdateProductVariantDto } from '../application/dto/update-product-variant.dto';
 import { ListProductVariantsDto } from '../application/dto/list-product-variants.dto';
+import { SearchPurchasingVariantsDto } from '../application/dto/search-purchasing-variants.dto';
 
 @Controller('product-variants')
 export class ProductVariantsController {
@@ -20,6 +21,11 @@ export class ProductVariantsController {
   @Get()
   async findAll(@Query() query: ListProductVariantsDto) {
     return this.variantsService.findAll(query);
+  }
+
+  @Get('purchasing-search')
+  async searchPurchasing(@Query() query: SearchPurchasingVariantsDto) {
+    return this.variantsService.searchForPurchasing(query);
   }
 
   @Get(':id')

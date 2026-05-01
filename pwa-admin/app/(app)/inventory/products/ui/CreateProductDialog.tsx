@@ -6,7 +6,9 @@ import Alert from "@/shared/components/Alert/Alert";
 import { Button } from "@/shared/components/Button";
 import { TextField } from "@/shared/components/TextField/TextField";
 import Switch from "@/shared/components/Switch/Switch";
+import { Select, type Option } from "@/shared/components/Select";
 import { createProductAction } from "@/features/inventory-products/actions/product.action";
+import { listCategoriesForPage } from "@/features/inventory-categories/actions/category.action";
 
 export type CreateProductDialogProps = {
   open: boolean;
@@ -18,6 +20,9 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
   const [description, setDescription] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [categoryOptions, setCategoryOptions] = useState<Option[]>([]);
+  const [productType, setProductType] = useState<"PHYSICAL" | "SERVICE" | "DIGITAL">("PHYSICAL");
   const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -29,14 +34,35 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
     setName("");
     setBrand("");
     setDescription("");
+    setCategoryId(null);
+    setProductType("PHYSICAL");
     setIsActive(true);
     setError(null);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const list = await listCategoriesForPage();
+      if (cancelled) {
+        return;
+      }
+      setCategoryOptions(list.map((c) => ({ id: c.id, label: c.name })));
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   const handleClose = () => {
     setName("");
     setBrand("");
     setDescription("");
+    setCategoryId(null);
+    setProductType("PHYSICAL");
     setIsActive(true);
     setError(null);
     onClose();
@@ -48,8 +74,10 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
       void (async () => {
         const r = await createProductAction({
           name: name.trim(),
+          categoryId: categoryId?.trim() || undefined,
           brand: brand.trim() || undefined,
           description: description.trim() || undefined,
+          productType,
           isActive,
         });
         if (r.success) {
@@ -100,6 +128,36 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
           placeholder="Nombre"
           required
           data-test-id="product-create-name"
+        />
+        <Select
+          label="Tipo"
+          name="product-create-type"
+          placeholder="Seleccione tipo"
+          options={[
+            { id: "PHYSICAL", label: "Producto físico" },
+            { id: "SERVICE", label: "Servicio" },
+            { id: "DIGITAL", label: "Digital" },
+          ]}
+          value={productType}
+          onChange={(id) => setProductType((id == null ? "PHYSICAL" : String(id)) as any)}
+          data-test-id="product-create-type"
+        />
+        {productType === "SERVICE" ? (
+          <div className="rounded-lg border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
+            Este producto es un <span className="font-medium text-foreground">servicio</span>. Si consume insumos, se
+            define mediante una <span className="font-medium text-foreground">receta (BOM)</span> (no se ingresa aquí
+            como JSON).
+          </div>
+        ) : null}
+        <Select
+          label="Categoría"
+          name="product-create-category"
+          placeholder="Sin categoría"
+          options={categoryOptions}
+          value={categoryId}
+          onChange={(id) => setCategoryId(id == null ? null : String(id))}
+          allowClear
+          data-test-id="product-create-category"
         />
         <TextField
           label="Marca"

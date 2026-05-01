@@ -10,6 +10,9 @@ import { SuppliersService } from './application/suppliers.service';
 import { SuppliersServiceAdapter } from './application/suppliers.service.adapter';
 import { SuppliersController } from './presentation/suppliers.controller';
 import { SuppliersRepository } from './infrastructure/suppliers.repository';
+import { PersonsModule } from '@modules/persons/persons.module';
+import { GetAllSuppliersQueryHandler } from './application/handlers/queries/get-all-suppliers.handler';
+import { GetSupplierQueryHandler } from './application/handlers/queries/get-supplier.handler';
 
 // CQRS Handlers
 import { CreateSupplierCommandHandler } from './application/handlers/commands/create-supplier.handler';
@@ -38,6 +41,7 @@ import {
       Reception,
     ]),
     CqrsModule,
+    PersonsModule,
   ],
   controllers: [SuppliersController],
   providers: [
@@ -58,6 +62,8 @@ import {
     CreateSupplierCommandHandler,
     UpdateSupplierCommandHandler,
     RemoveSupplierCommandHandler,
+    GetAllSuppliersQueryHandler,
+    GetSupplierQueryHandler,
 
     // Read Model Query Handlers
     SupplierReadModelQueryHandler,

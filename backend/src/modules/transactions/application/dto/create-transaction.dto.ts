@@ -19,7 +19,7 @@ import {
   IsObject,
   IsDateString,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, plainToInstance } from 'class-transformer';
 import {
   TransactionType,
   PaymentMethod,
@@ -273,6 +273,16 @@ export class CreateTransactionDto {
     if (this.transactionType === TransactionType.PAYMENT_OUT) {
       errors.push(
         'PAYMENT_OUT está deprecado. Use SUPPLIER_PAYMENT o EXPENSE_PAYMENT según corresponda.',
+      );
+    }
+
+    // Nested líneas deben ser instancias DTO; si no, validateSync falla con
+    // "an unknown value was passed to the validate function" (objetos planos).
+    if (this.lines?.length) {
+      this.lines = this.lines.map((line) =>
+        plainToInstance(CreateTransactionLineDto, line as object, {
+          enableImplicitConversion: true,
+        }),
       );
     }
 

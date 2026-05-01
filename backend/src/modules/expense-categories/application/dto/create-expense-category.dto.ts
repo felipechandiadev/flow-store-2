@@ -6,27 +6,28 @@ import {
   IsBoolean,
   MaxLength,
   IsNumber,
+  IsEnum,
 } from 'class-validator';
+import { ExpenseCategoryOperationalGroup } from '../../domain/expense-category-operational-group.enum';
 
 export class CreateExpenseCategoryDto {
   @IsNotEmpty()
   @IsUUID()
   companyId!: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   @MaxLength(50)
-  code!: string;
+  code?: string;
 
   @IsNotEmpty()
   @IsString()
   @MaxLength(255)
   name!: string;
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  groupName?: string;
+  @IsNotEmpty()
+  @IsEnum(ExpenseCategoryOperationalGroup)
+  operationalExpenseGroup!: ExpenseCategoryOperationalGroup;
 
   @IsOptional()
   @IsString()

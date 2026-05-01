@@ -5,10 +5,10 @@ describe('Supplier (domain)', () => {
     const s = new Supplier();
     s.id = 'id';
     s.personId = 'p';
-    s.supplierType = SupplierType.LOCAL;
+    s.supplierType = SupplierType.DISTRIBUTOR;
     s.isActive = true;
     expect(s.id).toBe('id');
     expect(s.personId).toBe('p');
-    expect(s.supplierType).toBe(SupplierType.LOCAL);
+    expect(s.supplierType).toBe(SupplierType.DISTRIBUTOR);
   });
 });

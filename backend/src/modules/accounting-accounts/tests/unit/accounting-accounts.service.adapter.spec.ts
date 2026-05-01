@@ -1,4 +1,4 @@
-import { QueryBus } from '@nestjs/cqrs';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { AccountingAccountsServiceAdapter } from '@modules/accounting-accounts/application/accounting-accounts.service.adapter';
 import { GetAllAccountingAccountsQuery } from '@modules/accounting-accounts/application/queries/get-all-accounting-accounts.query';
 import { GetAccountingAccountByIdQuery } from '@modules/accounting-accounts/application/queries/get-accounting-account-by-id.query';
@@ -6,10 +6,15 @@ import { GetAccountingAccountByIdQuery } from '@modules/accounting-accounts/appl
 describe('AccountingAccountsServiceAdapter', () => {
   let adapter: AccountingAccountsServiceAdapter;
   let queryBus: { execute: jest.Mock };
+  let commandBus: { execute: jest.Mock };
 
   beforeEach(() => {
     queryBus = { execute: jest.fn() };
-    adapter = new AccountingAccountsServiceAdapter(queryBus as unknown as QueryBus);
+    commandBus = { execute: jest.fn() };
+    adapter = new AccountingAccountsServiceAdapter(
+      queryBus as unknown as QueryBus,
+      commandBus as unknown as CommandBus,
+    );
   });
 
   it('should dispatch getAllAccounts query', async () => {

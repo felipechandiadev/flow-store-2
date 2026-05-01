@@ -25,14 +25,14 @@ export function StoragesCollection({ initialStorages, branches }: StoragesCollec
     return initialStorages.filter((s) => {
       const branch = s.branch?.name?.toLowerCase() ?? "";
       const code = (s.code ?? "").toLowerCase();
-      const loc = (s.location ?? "").toLowerCase();
+      const addr = (s.address ?? "").toLowerCase();
       const type = storageTypeLabel(s.type).toLowerCase();
       const cat = storageCategoryLabel(s.category).toLowerCase();
       return (
         s.name.toLowerCase().includes(q) ||
         branch.includes(q) ||
         code.includes(q) ||
-        loc.includes(q) ||
+        addr.includes(q) ||
         type.includes(q) ||
         cat.includes(q)
       );
@@ -46,7 +46,7 @@ export function StoragesCollection({ initialStorages, branches }: StoragesCollec
       showSearch
       searchParamName="search"
       searchLabel="Buscar"
-      searchPlaceholder="Buscar por nombre, sucursal, código, ubicación o tipo"
+      searchPlaceholder="Buscar"
       contentEmptyMessage="No hay almacenes que mostrar"
       contentItems={
         filtered.length > 0

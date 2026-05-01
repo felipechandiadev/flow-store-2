@@ -3,13 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SearchTransactionsQuery } from '@modules/transactions/application/queries/search-transactions.query';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
-import { TransactionOrmEntity } from '@modules/transactions/infrastructure/orm-mappers/transaction.orm-entity';
 
 @QueryHandler(SearchTransactionsQuery)
 export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTransactionsQuery> {
   constructor(
-    @InjectRepository(TransactionOrmEntity)
-    private readonly transactionRepository: Repository<TransactionOrmEntity>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
   ) {}
 
   async execute(query: SearchTransactionsQuery): Promise<{
@@ -97,49 +96,10 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
     const results = await qb.getMany();
 
     return {
-      data: results.map((orm) => this.toDomain(orm)),
+      data: results,
       total,
       page: query.page,
       limit: query.limit,
     };
-  }
-
-  private toDomain(orm: TransactionOrmEntity): Transaction {
-    return {
-      id: orm.id,
-      documentNumber: orm.documentNumber,
-      transactionType: orm.transactionType,
-      status: orm.status,
-      branchId: orm.branchId,
-      userId: orm.userId,
-      pointOfSaleId: orm.pointOfSaleId,
-      cashSessionId: orm.cashSessionId,
-      storageId: orm.storageId,
-      targetStorageId: orm.targetStorageId,
-      customerId: orm.customerId,
-      supplierId: orm.supplierId,
-      shareholderId: orm.shareholderId,
-      employeeId: orm.employeeId,
-      expenseCategoryId: orm.expenseCategoryId,
-      resultCenterId: orm.resultCenterId,
-      accountingPeriodId: orm.accountingPeriodId,
-      subtotal: orm.subtotal,
-      taxAmount: orm.taxAmount,
-      discountAmount: orm.discountAmount,
-      total: orm.total,
-      paymentMethod: orm.paymentMethod,
-      paymentStatus: orm.paymentStatus,
-      bankAccountKey: orm.bankAccountKey,
-      documentType: orm.documentType,
-      documentFolio: orm.documentFolio,
-      paymentDueDate: orm.paymentDueDate,
-      amountPaid: orm.amountPaid,
-      changeAmount: orm.changeAmount,
-      relatedTransactionId: orm.relatedTransactionId,
-      externalReference: orm.externalReference,
-      notes: orm.notes,
-      metadata: orm.metadata,
-      createdAt: orm.createdAt,
-    } as Transaction;
   }
 }

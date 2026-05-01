@@ -12,7 +12,8 @@ export type StorageListItem = {
   category: StorageCategory;
   branchId: string | null;
   branch: { id: string; name: string } | null;
-  location: string | null;
+  address: string | null;
+  location: unknown;
   capacity: number | null;
   isDefault: boolean;
   isActive: boolean;

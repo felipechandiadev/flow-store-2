@@ -44,6 +44,7 @@ export type CreateProductVariantDialogProps = {
   onClose: () => void;
   productId: string;
   productName: string;
+  productType?: string;
   /** PMP de referencia (p. ej. promedio de variantes existentes); la variante nueva aún no tiene PMP en BD. */
   referencePmp?: number;
   onSuccess?: () => void | Promise<void>;
@@ -54,6 +55,7 @@ export function CreateProductVariantDialog({
   onClose,
   productId,
   productName,
+  productType = "PHYSICAL",
   referencePmp = 0,
   onSuccess,
 }: CreateProductVariantDialogProps) {
@@ -61,6 +63,11 @@ export function CreateProductVariantDialog({
   const [barcode, setBarcode] = useState("");
   const [unitId, setUnitId] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
+  const [trackInventory, setTrackInventory] = useState(true);
+  const [allowNegativeStock, setAllowNegativeStock] = useState(false);
+  const [minimumStock, setMinimumStock] = useState("0");
+  const [maximumStock, setMaximumStock] = useState("0");
+  const [reorderPoint, setReorderPoint] = useState("0");
   const [units, setUnits] = useState<UnitListItem[]>([]);
   const [priceLists, setPriceLists] = useState<PriceListListItem[]>([]);
   const [taxes, setTaxes] = useState<TaxListItem[]>([]);
@@ -134,6 +141,12 @@ export function CreateProductVariantDialog({
     setBarcode("");
     setUnitId(null);
     setIsActive(true);
+    const isService = String(productType || "").toUpperCase() === "SERVICE";
+    setTrackInventory(!isService);
+    setAllowNegativeStock(false);
+    setMinimumStock("0");
+    setMaximumStock("0");
+    setReorderPoint("0");
     setPriceRows([]);
     setAttributeSelections({});
     setError(null);
@@ -252,6 +265,11 @@ export function CreateProductVariantDialog({
           priceListItems,
           pmp: draftPmp,
           attributeValues: attributeValuesPayload,
+          trackInventory,
+          allowNegativeStock,
+          minimumStock: Math.max(0, Math.round(Number(minimumStock) || 0)),
+          maximumStock: Math.max(0, Math.round(Number(maximumStock) || 0)),
+          reorderPoint: Math.max(0, Math.round(Number(reorderPoint) || 0)),
         });
         if (r.success) {
           await onSuccess?.();
@@ -419,6 +437,46 @@ export function CreateProductVariantDialog({
             defaultIvaTaxIds={defaultIvaTaxIds}
             onOpenPmpCalculator={(rowKey) => setPmpCalculatorRowKey(rowKey)}
           />
+          <div className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-muted/15 p-3 md:grid-cols-2">
+            <Switch
+              checked={trackInventory}
+              onChange={setTrackInventory}
+              label="Controlar inventario (trackInventory)"
+              labelPosition="right"
+              data-test-id="product-variant-create-track-inventory"
+            />
+            <Switch
+              checked={allowNegativeStock}
+              onChange={setAllowNegativeStock}
+              label="Permitir stock negativo"
+              labelPosition="right"
+              data-test-id="product-variant-create-allow-negative"
+            />
+            <TextField
+              label="Stock mínimo"
+              name="pv-create-minimum-stock"
+              value={minimumStock}
+              onChange={(e) => setMinimumStock(e.target.value)}
+              placeholder="0"
+              data-test-id="product-variant-create-minimum-stock"
+            />
+            <TextField
+              label="Stock máximo"
+              name="pv-create-maximum-stock"
+              value={maximumStock}
+              onChange={(e) => setMaximumStock(e.target.value)}
+              placeholder="0"
+              data-test-id="product-variant-create-maximum-stock"
+            />
+            <TextField
+              label="Punto de reposición"
+              name="pv-create-reorder-point"
+              value={reorderPoint}
+              onChange={(e) => setReorderPoint(e.target.value)}
+              placeholder="0"
+              data-test-id="product-variant-create-reorder-point"
+            />
+          </div>
           <div className="pt-1">
             <Switch
               checked={isActive}

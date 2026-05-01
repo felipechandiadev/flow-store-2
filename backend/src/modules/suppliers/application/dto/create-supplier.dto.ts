@@ -1,19 +1,33 @@
+import { Type } from 'class-transformer';
 import {
-  IsNotEmpty,
-  IsOptional,
-  IsUUID,
-  IsString,
   IsBoolean,
+  IsDefined,
   IsEnum,
+  IsNotEmpty,
   IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
   MaxLength,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+import { CreatePersonDto } from '@modules/persons/application/dto/create-person.dto';
 import { SupplierType } from '../../domain/supplier.entity';
 
 export class CreateSupplierDto {
-  @IsNotEmpty()
-  @IsUUID()
-  personId!: string;
+  /** Si no envía `person`, debe enviar un `personId` existente. */
+  @ValidateIf((o: CreateSupplierDto) => !o.person)
+  @IsNotEmpty({ message: 'Indique personId o los datos de person' })
+  @IsUUID('4')
+  personId?: string;
+
+  /** Datos de persona a crear antes del proveedor (no combinar con personId). */
+  @ValidateIf((o: CreateSupplierDto) => !o.personId)
+  @IsDefined({ message: 'Indique personId o los datos de person' })
+  @ValidateNested()
+  @Type(() => CreatePersonDto)
+  person?: CreatePersonDto;
 
   @IsOptional()
   @IsEnum(SupplierType)

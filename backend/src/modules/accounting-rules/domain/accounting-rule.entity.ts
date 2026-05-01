@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { Company } from '@modules/companies/domain/company.entity';
 import { AccountingAccount } from '@modules/accounting-accounts/domain/accounting-account.entity';
@@ -16,6 +17,7 @@ import {
   TransactionType,
   PaymentMethod,
 } from '@modules/transactions/domain/transaction.entity';
+import { AccountingRuleLine } from './accounting-rule-line.entity';
 
 export enum RuleScope {
   TRANSACTION = 'TRANSACTION',
@@ -82,4 +84,7 @@ export class AccountingRule {
   @ManyToOne(() => AccountingAccount, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'creditAccountId' })
   creditAccount!: AccountingAccount;
+
+  @OneToMany(() => AccountingRuleLine, (l) => l.rule)
+  lines?: AccountingRuleLine[];
 }

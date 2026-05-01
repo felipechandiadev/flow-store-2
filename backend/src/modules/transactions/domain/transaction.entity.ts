@@ -87,6 +87,12 @@ export enum TransactionType {
   PURCHASE = 'PURCHASE',
   PURCHASE_ORDER = 'PURCHASE_ORDER',
   PURCHASE_RETURN = 'PURCHASE_RETURN',
+  SUPPLIER_INVOICE = 'SUPPLIER_INVOICE',
+
+  // Pedidos / Ejecución (no mueven stock por sí solos)
+  CUSTOMER_ORDER = 'CUSTOMER_ORDER',
+  SERVICE_ORDER = 'SERVICE_ORDER',
+  PRODUCTION_BATCH = 'PRODUCTION_BATCH',
 
   // Movimientos de Inventario
   TRANSFER_OUT = 'TRANSFER_OUT',

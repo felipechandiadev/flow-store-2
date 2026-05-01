@@ -24,6 +24,9 @@ describe('ProductVariantsService', () => {
   let attributesService: {
     validateAndNormalizeAttributeValues: jest.Mock;
   };
+  let variantOrm: {
+    createQueryBuilder: jest.Mock;
+  };
 
   beforeEach(() => {
     variantRepository = {
@@ -44,12 +47,25 @@ describe('ProductVariantsService', () => {
     attributesService = {
       validateAndNormalizeAttributeValues: jest.fn().mockResolvedValue(null),
     };
+    variantOrm = {
+      createQueryBuilder: jest.fn().mockReturnValue({
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      }),
+    };
 
     service = new ProductVariantsService(
       variantRepository as unknown as ProductVariantsRepositoryPort,
       priceListItemRepository as unknown as PriceListItemsRepositoryPort,
       multimediaService as unknown as MultimediaServiceAdapter,
       attributesService as any,
+      variantOrm as any,
     );
   });
 

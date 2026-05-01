@@ -3,6 +3,7 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CreateInventoryCountCommand } from '../../application/commands/create-inventory-count.usecase';
 import { CreateInventoryReservationCommand } from '../../application/commands/create-inventory-reservation.usecase';
+import { CreateInventoryReservationsCommand } from '../../application/commands/create-inventory-reservations.usecase';
 import { CreateInventoryBlockCommand } from '../../application/commands/create-inventory-block.usecase';
 import { CreateInventoryUnblockCommand } from '../../application/commands/create-inventory-unblock.usecase';
 import {
@@ -13,6 +14,7 @@ import {
 import {
   CreateInventoryCountDto,
   CreateInventoryReservationDto,
+  CreateInventoryReservationsDto,
   CreateInventoryBlockDto,
   CreateInventoryUnblockDto,
 } from '../../application/dto/inventory.dto';
@@ -52,6 +54,20 @@ export class InventoryController {
     @Body() dto: CreateInventoryReservationDto,
   ): Promise<{ transactionId: string }> {
     const command = new CreateInventoryReservationCommand(dto, 'system-user'); // TODO: Get from auth
+    const transactionId = await this.commandBus.execute(command);
+    return { transactionId };
+  }
+
+  @Post('reservations')
+  @ApiOperation({ summary: 'Create inventory reservation transaction (multi-line)' })
+  @ApiResponse({
+    status: 201,
+    description: 'Inventory reservations created successfully',
+  })
+  async createInventoryReservations(
+    @Body() dto: CreateInventoryReservationsDto,
+  ): Promise<{ transactionId: string }> {
+    const command = new CreateInventoryReservationsCommand(dto, 'system-user'); // TODO: Get from auth
     const transactionId = await this.commandBus.execute(command);
     return { transactionId };
   }

@@ -17,6 +17,7 @@ export class UpdateStorageUseCase {
       type: d.type,
       category: d.category,
       capacity: d.capacity,
+      address: d.address,
       location: d.location,
       isDefault: d.isDefault,
       isActive: d.isActive,

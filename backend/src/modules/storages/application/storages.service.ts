@@ -48,7 +48,8 @@ export class StoragesService {
     type?: StorageType | string;
     branchId?: string | null;
     capacity?: number | null;
-    location?: string | null;
+    address?: string | null;
+    location?: { lat: number; lng: number } | null;
     isDefault?: boolean;
     isActive?: boolean;
   }) {
@@ -59,6 +60,7 @@ export class StoragesService {
       type: (data.type ?? StorageType.WAREHOUSE) as StorageType,
       branchId: data.branchId ?? null,
       capacity: data.capacity ?? null,
+      address: data.address ?? null,
       location: data.location ?? null,
       isDefault: !!data.isDefault,
       isActive: data.isActive !== false,
@@ -79,7 +81,8 @@ export class StoragesService {
       type: StorageType | string;
       branchId: string | null;
       capacity: number | null;
-      location: string | null;
+      address: string | null;
+      location: { lat: number; lng: number } | null;
       isDefault: boolean;
       isActive: boolean;
     }>,
@@ -127,6 +130,7 @@ export class StoragesService {
             name: storage.branch.name,
           }
         : null,
+      address: storage.address ?? null,
       location: storage.location ?? null,
       capacity: storage.capacity ?? null,
       isDefault: storage.isDefault,

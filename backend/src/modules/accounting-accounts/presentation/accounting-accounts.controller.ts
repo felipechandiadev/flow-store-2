@@ -1,6 +1,8 @@
 import {
+  Body,
   Controller,
   Get,
+  Post,
   Param,
   HttpException,
   HttpStatus,
@@ -64,6 +66,35 @@ export class AccountingAccountsController {
             error instanceof Error ? error.message : 'Internal server error',
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post()
+  async createAccount(
+    @Body()
+    data: {
+      companyId: string;
+      code: string;
+      name: string;
+      type: string;
+      parentId?: string | null;
+      isActive?: boolean;
+    },
+  ) {
+    try {
+      const created = await this.accountingAccountsService.createAccount(data);
+      return { success: true, data: created };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Internal server error';
+      const anyErr = error as any;
+      const isDuplicate =
+        anyErr?.code === 'ER_DUP_ENTRY' ||
+        anyErr?.code === '23505' ||
+        (typeof msg === 'string' && msg.toLowerCase().includes('duplicate'));
+      throw new HttpException(
+        { success: false, message: msg },
+        isDuplicate ? HttpStatus.CONFLICT : HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }

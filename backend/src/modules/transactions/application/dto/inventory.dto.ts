@@ -184,6 +184,61 @@ export class CreateInventoryReservationDto {
   notes?: string;
 }
 
+export class CreateInventoryReservationLineDto {
+  @ApiProperty({ description: 'Product ID to reserve', example: 'uuid-product-456' })
+  @IsUUID()
+  @IsNotEmpty()
+  productId: string;
+
+  @ApiPropertyOptional({ description: 'Variant ID', example: 'uuid-variant-789' })
+  @IsOptional()
+  @IsUUID()
+  variantId?: string;
+
+  @ApiProperty({ description: 'Quantity to reserve', example: 5, minimum: 1 })
+  @IsNumber()
+  @Min(1)
+  quantity: number;
+}
+
+export class CreateInventoryReservationsDto {
+  @ApiProperty({ description: 'Branch ID', example: 'uuid-branch-789' })
+  @IsUUID()
+  @IsNotEmpty()
+  branchId: string;
+
+  @ApiProperty({ description: 'Storage ID', example: 'uuid-storage-456' })
+  @IsUUID()
+  @IsNotEmpty()
+  storageId: string;
+
+  @ApiProperty({ description: 'Customer ID for reservation', example: 'uuid-customer-123' })
+  @IsUUID()
+  @IsNotEmpty()
+  customerId: string;
+
+  @ApiProperty({ description: 'Reservation lines', type: [CreateInventoryReservationLineDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateInventoryReservationLineDto)
+  lines: CreateInventoryReservationLineDto[];
+
+  @ApiPropertyOptional({ description: 'Reservation expiration date (ISO string)', example: '2024-12-31T23:59:59Z' })
+  @IsOptional()
+  @IsString()
+  expiresAt?: string;
+
+  @ApiPropertyOptional({ description: 'Order reference', example: 'ORDER-2024-001' })
+  @IsOptional()
+  @IsString()
+  orderReference?: string;
+
+  @ApiPropertyOptional({ description: 'Reservation notes', example: 'Reserved for urgent customer order' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
 export class CreateInventoryBlockDto {
   @ApiProperty({
     description: 'Branch ID',

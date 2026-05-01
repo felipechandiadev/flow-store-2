@@ -19,6 +19,9 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
 import { MetalPricesModule } from './modules/metal-prices/metal-prices.module';
 import { AuditsModule } from './modules/audits/audits.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
+import { AccountingAccountsModule } from './modules/accounting-accounts/accounting-accounts.module';
+import { AccountingRulesModule } from './modules/accounting-rules/accounting-rules.module';
+import { AutomationModule } from './modules/automation/automation.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { ShareholdersModule } from './modules/shareholders/shareholders.module';
@@ -50,6 +53,9 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { InstallmentsModule } from './modules/installments/installments.module';
 import { MultimediaModule } from './modules/multimedia/multimedia.module';
 import { ObservabilityModule } from './shared/observability.module';
+import { SupplierInvoicesModule } from './modules/supplier-invoices/supplier-invoices.module';
+import { RecipesModule } from './modules/recipes/recipes.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -89,6 +95,9 @@ import { ObservabilityModule } from './shared/observability.module';
     MetalPricesModule,
     AuditsModule,
     AccountingModule,
+    AccountingAccountsModule,
+    AccountingRulesModule,
+    AutomationModule,
     AccountingPeriodsModule,
     AccountBalancesModule,
     CategoriesModule,
@@ -98,6 +107,9 @@ import { ObservabilityModule } from './shared/observability.module';
     ExpenseCategoriesModule,
     SuppliersModule,
     ReceptionsModule,
+    SupplierInvoicesModule,
+    RecipesModule,
+    OrdersModule,
     InventoryModule,
     RemunerationsModule,
     PersonsModule,

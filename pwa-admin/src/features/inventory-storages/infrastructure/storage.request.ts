@@ -67,7 +67,8 @@ function normalizeStorage(row: unknown): StorageListItem | null {
     category: catRaw,
     branchId: o.branchId != null && String(o.branchId) ? String(o.branchId) : null,
     branch,
-    location: o.location != null && String(o.location).trim() ? String(o.location).trim() : null,
+    address: o.address != null && String(o.address).trim() ? String(o.address).trim() : null,
+    location: o.location ?? null,
     capacity: capacity != null && Number.isFinite(capacity) ? capacity : null,
     isDefault: o.isDefault === true,
     isActive: o.isActive !== false,
@@ -149,7 +150,8 @@ export class StorageRequest {
     type: StorageType;
     category: StorageCategory;
     capacity?: number | null;
-    location?: string | null;
+    address?: string | null;
+    location?: { lat: number; lng: number } | null;
     isDefault?: boolean;
     isActive?: boolean;
   }): Promise<{ success: true; storage: StorageListItem } | { success: false; error: string }> {
@@ -172,7 +174,10 @@ export class StorageRequest {
     if (body.capacity != null && body.capacity !== undefined) {
       payload.capacity = body.capacity;
     }
-    if (body.location != null && body.location !== "") {
+    if (body.address != null && String(body.address).trim() !== "") {
+      payload.address = String(body.address).trim();
+    }
+    if (body.location != null) {
       payload.location = body.location;
     }
     try {
@@ -211,7 +216,8 @@ export class StorageRequest {
       type: StorageType;
       category: StorageCategory;
       capacity: number | null;
-      location: string | null;
+      address: string | null;
+      location: { lat: number; lng: number } | null;
       isDefault: boolean;
       isActive: boolean;
     },
@@ -224,6 +230,7 @@ export class StorageRequest {
       branchId: body.branchId,
       code: body.code,
       capacity: body.capacity,
+      address: body.address,
       location: body.location,
       isDefault: body.isDefault,
       isActive: body.isActive,

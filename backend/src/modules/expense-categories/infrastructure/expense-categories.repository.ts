@@ -23,6 +23,17 @@ export class ExpenseCategoriesRepository {
     });
   }
 
+  async findByCode(code: string): Promise<ExpenseCategory | null> {
+    const trimmed = code.trim();
+    if (!trimmed) {
+      return null;
+    }
+    return this.repository.findOne({
+      where: { code: trimmed },
+      relations: ['company', 'defaultResultCenter'],
+    });
+  }
+
   async create(data: Partial<ExpenseCategory>): Promise<ExpenseCategory> {
     const category = this.repository.create(data);
     return this.repository.save(category);

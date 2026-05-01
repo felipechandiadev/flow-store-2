@@ -67,6 +67,7 @@ describe('ExpenseCategoriesController (Integration)', () => {
       .put('/expense-categories/ec-1')
       .send({
         name: 'Updated name',
+        operationalExpenseGroup: 'PERSONAL_NOMINA',
         requiresApproval: true,
         examples: ['invoice', 'fuel'],
       })
@@ -74,6 +75,7 @@ describe('ExpenseCategoriesController (Integration)', () => {
 
     expect(service.update).toHaveBeenCalledWith('ec-1', {
       name: 'Updated name',
+      operationalExpenseGroup: 'PERSONAL_NOMINA',
       requiresApproval: true,
       examples: ['invoice', 'fuel'],
     });

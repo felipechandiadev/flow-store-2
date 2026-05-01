@@ -10,6 +10,9 @@ import Switch from "@/shared/components/Switch/Switch";
 import type { StorageCategory, StorageListItem, StorageType } from "@/features/inventory-storages/types/storage.types";
 import { updateStorageAction } from "@/features/inventory-storages/actions/storage.action";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
+import { parseBranchLocation } from "@/features/settings-branches/utils/parse-branch-location";
+import LocationPicker from "@/shared/components/LocationPicker/LocationPickerWrapper";
+import { parseStorageLocation } from "@/features/inventory-storages/utils/parse-storage-location";
 import { STORAGE_CATEGORY_SELECT_OPTIONS, STORAGE_TYPE_SELECT_OPTIONS } from "./storageFormOptions";
 
 export type UpdateStorageDialogProps = {
@@ -33,7 +36,8 @@ export function UpdateStorageDialog({
   const [type, setType] = useState<StorageType>("WAREHOUSE");
   const [category, setCategory] = useState<StorageCategory>("IN_BRANCH");
   const [capacityStr, setCapacityStr] = useState("");
-  const [location, setLocation] = useState("");
+  const [address, setAddress] = useState("");
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isDefault, setIsDefault] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,11 +58,31 @@ export function UpdateStorageDialog({
     setType(storage.type);
     setCategory(storage.category);
     setCapacityStr(storage.capacity != null ? String(storage.capacity) : "");
-    setLocation(storage.location ?? "");
+    setAddress(storage.address ?? "");
+    setCoords(parseStorageLocation(storage.location));
     setIsDefault(storage.isDefault);
     setIsActive(storage.isActive);
     setError(null);
   }, [open, storage]);
+
+  const selectedBranchCoords = useMemo(() => {
+    const b = branches.find((x) => x.id === branchId);
+    return b ? parseBranchLocation(b.location) : null;
+  }, [branches, branchId]);
+
+  const selectedBranchAddress = useMemo(() => {
+    const b = branches.find((x) => x.id === branchId);
+    return b?.address ?? null;
+  }, [branches, branchId]);
+
+  useEffect(() => {
+    // Si hay sucursal seleccionada, el almacén hereda SIEMPRE su ubicación (si existe).
+    // Si la sucursal no tiene coordenadas, almacenamos null.
+    if (branchId) {
+      setCoords(selectedBranchCoords);
+      setAddress((selectedBranchAddress ?? "").trim());
+    }
+  }, [branchId, selectedBranchAddress, selectedBranchCoords]);
 
   const handleClose = () => {
     setError(null);
@@ -77,7 +101,8 @@ export function UpdateStorageDialog({
           type,
           category,
           capacity: capacityStr,
-          location: category === "IN_BRANCH" ? null : location.trim(),
+          address: address.trim() ? address.trim() : null,
+          location: coords,
           isDefault,
           isActive,
         });
@@ -131,12 +156,14 @@ export function UpdateStorageDialog({
           data-test-id="storage-update-name"
         />
         <TextField
-          label="Código"
-          name="storage-update-code"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="Código"
-          data-test-id="storage-update-code"
+          label="Dirección (opcional)"
+          name="storage-update-address"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="Dirección"
+          rows={2}
+          disabled={Boolean(branchId)}
+          data-test-id="storage-update-address"
         />
         <Select
           label="Sucursal"
@@ -162,34 +189,33 @@ export function UpdateStorageDialog({
           value={category}
           onChange={(id) => {
             const next = String(id) as StorageCategory;
-            if (next === "IN_BRANCH") {
-              setLocation("");
-            }
             setCategory(next);
           }}
           options={STORAGE_CATEGORY_SELECT_OPTIONS}
           required
           data-test-id="storage-update-category"
         />
-        <TextField
-          label="Capacidad"
-          name="storage-update-capacity"
-          value={capacityStr}
-          onChange={(e) => setCapacityStr(e.target.value)}
-          placeholder="Capacidad"
-          data-test-id="storage-update-capacity"
-        />
-        {category !== "IN_BRANCH" ? (
-          <TextField
-            label="Ubicación"
-            name="storage-update-location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Ubicación"
-            rows={2}
-            data-test-id="storage-update-location"
+        <div className="flex flex-col gap-2" data-test-id="storage-update-location-picker">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ubicación en mapa</div>
+          <LocationPicker
+            key={`storage-update-map-${storage.id}-${branchId || "no-branch"}-${selectedBranchCoords?.lat ?? "x"}-${selectedBranchCoords?.lng ?? "y"}`}
+            mode={branchId ? "viewer" : "update"}
+            variant="default"
+            rounded="md"
+            className="w-full"
+            zoom={16}
+            initialLat={(coords ?? selectedBranchCoords)?.lat}
+            initialLng={(coords ?? selectedBranchCoords)?.lng}
+            externalPosition={coords ?? undefined}
+            draggable={!branchId}
+            onChange={(p) => setCoords(p)}
           />
-        ) : null}
+          {branchId ? (
+            <p className="text-xs text-muted-foreground" data-test-id="storage-update-location-inherited">
+              La ubicación se hereda de la sucursal seleccionada.
+            </p>
+          ) : null}
+        </div>
         <div className="pt-1">
           <Switch
             checked={isDefault}

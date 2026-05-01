@@ -8,10 +8,28 @@ const PRODUCTS_PATH = "/inventory/products";
 
 export type CreateProductFormInput = {
   name: string;
+  categoryId?: string;
   brand?: string;
   description?: string;
+  productType?: "PHYSICAL" | "SERVICE" | "DIGITAL";
+  metadata?: Record<string, unknown>;
   isActive?: boolean;
 };
+
+export type UpdateProductFormInput = {
+  id: string;
+  name: string;
+  categoryId?: string;
+  brand?: string;
+  description?: string;
+  productType?: "PHYSICAL" | "SERVICE" | "DIGITAL";
+  metadata?: Record<string, unknown>;
+  isActive?: boolean;
+};
+
+export type UpdateProductResult = { success: true } | { success: false; error: string };
+
+export type DeleteProductResult = { success: true } | { success: false; error: string };
 
 export type CreateProductResult = { success: true; id: string } | { success: false; error: string };
 
@@ -34,6 +52,11 @@ export type CreateProductVariantFormInput = {
   pmp?: number;
   /** Mapa attributeId → texto de opción (catálogo de atributos). Opcional. */
   attributeValues?: Record<string, string>;
+  trackInventory?: boolean;
+  allowNegativeStock?: boolean;
+  minimumStock?: number;
+  maximumStock?: number;
+  reorderPoint?: number;
 };
 
 export type CreateProductVariantResult = { success: true; id: string } | { success: false; error: string };
@@ -84,6 +107,10 @@ export async function listProductsForGrid(input: ListProductsForGridInput): Prom
         va = r1.brand;
         vb = r2.brand;
         break;
+      case "categoryName":
+        va = r1.categoryName;
+        vb = r2.categoryName;
+        break;
       case "variantCount":
         va = r1.variantCount;
         vb = r2.variantCount;
@@ -114,10 +141,49 @@ export async function createProductAction(input: CreateProductFormInput): Promis
   }
   const r = await ProductRequest.create({
     name,
+    categoryId: input.categoryId?.trim() || undefined,
     brand: input.brand?.trim() || undefined,
     description: input.description?.trim() || undefined,
+    productType: input.productType,
+    metadata: input.metadata,
     isActive: input.isActive !== false,
   });
+  if (r.success) {
+    revalidatePath(PRODUCTS_PATH, "page");
+  }
+  return r;
+}
+
+export async function updateProductAction(input: UpdateProductFormInput): Promise<UpdateProductResult> {
+  const id = input.id?.trim() ?? "";
+  const name = input.name?.trim() ?? "";
+  if (!id) {
+    return { success: false, error: "Producto no válido" };
+  }
+  if (!name) {
+    return { success: false, error: "El nombre es obligatorio" };
+  }
+  const r = await ProductRequest.update(id, {
+    name,
+    categoryId: input.categoryId?.trim() || undefined,
+    brand: input.brand?.trim() || undefined,
+    description: input.description?.trim() || undefined,
+    productType: input.productType,
+    metadata: input.metadata,
+    isActive: input.isActive !== false,
+  });
+  if (r.success) {
+    revalidatePath(PRODUCTS_PATH, "page");
+  }
+  return r;
+}
+
+export async function deleteProductAction(id: string): Promise<DeleteProductResult> {
+  const trimmed = id?.trim() ?? "";
+  if (!trimmed) {
+    return { success: false, error: "Producto no válido" };
+  }
+  const r = await ProductRequest.remove(trimmed);
   if (r.success) {
     revalidatePath(PRODUCTS_PATH, "page");
   }
@@ -203,6 +269,11 @@ export async function createProductVariantAction(
     priceListItems: items,
     pmp: pmpToSend,
     attributeValues: attributeValuesToSend,
+    trackInventory: input.trackInventory,
+    allowNegativeStock: input.allowNegativeStock,
+    minimumStock: input.minimumStock,
+    maximumStock: input.maximumStock,
+    reorderPoint: input.reorderPoint,
   });
   if (r.success) {
     revalidatePath(PRODUCTS_PATH, "page");

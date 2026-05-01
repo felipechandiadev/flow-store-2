@@ -39,7 +39,7 @@ describe('GetSupplierQueryHandler', () => {
     repository.findOne.mockResolvedValueOnce({
       id: 'supplier-1',
       personId: 'person-1',
-      supplierType: SupplierType.LOCAL,
+      supplierType: SupplierType.DISTRIBUTOR,
       alias: 'Alias',
     } as any);
 
@@ -49,7 +49,7 @@ describe('GetSupplierQueryHandler', () => {
     expect(result).toMatchObject({
       id: 'supplier-1',
       personId: 'person-1',
-      supplierType: SupplierType.LOCAL,
+      supplierType: SupplierType.DISTRIBUTOR,
     });
   });
 

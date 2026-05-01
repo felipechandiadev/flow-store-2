@@ -15,7 +15,10 @@ export enum SupplierType {
   MANUFACTURER = 'MANUFACTURER',
   DISTRIBUTOR = 'DISTRIBUTOR',
   WHOLESALER = 'WHOLESALER',
-  LOCAL = 'LOCAL',
+  SERVICE_PROVIDER = 'SERVICE_PROVIDER',
+  CONTRACTOR = 'CONTRACTOR',
+  LOGISTICS = 'LOGISTICS',
+  IMPORTER = 'IMPORTER',
 }
 
 @Entity('suppliers')
@@ -26,7 +29,7 @@ export class Supplier {
   @Column({ type: 'uuid' })
   personId!: string;
 
-  @Column({ type: 'enum', enum: SupplierType, default: SupplierType.LOCAL })
+  @Column({ type: 'enum', enum: SupplierType, default: SupplierType.DISTRIBUTOR })
   supplierType!: SupplierType;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

@@ -42,8 +42,11 @@ export type ProductVariantGridRow = {
 export type ProductGridRow = {
   id: string;
   name: string;
+  productType?: "PHYSICAL" | "SERVICE" | "DIGITAL" | string | null;
   brand: string | null;
   description: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
   isActive: boolean;
   variantCount: number;
   variants: ProductVariantGridRow[];

@@ -55,6 +55,7 @@ describe('OperationalExpensesController (Integration)', () => {
       .send({
         companyId: '11111111-1111-4111-8111-111111111111',
         categoryId: '22222222-2222-4222-8222-222222222222',
+        name: 'Gasto de prueba',
         referenceNumber: 'REF-1',
         operationDate: '2026-04-19',
         createdBy: '33333333-3333-4333-8333-333333333333',
@@ -76,6 +77,7 @@ describe('OperationalExpensesController (Integration)', () => {
       .send({
         companyId: '11111111-1111-4111-8111-111111111111',
         categoryId: '22222222-2222-4222-8222-222222222222',
+        name: 'Gasto de prueba',
         referenceNumber: 'REF-1',
         operationDate: '2026-04-19',
         createdBy: '33333333-3333-4333-8333-333333333333',
@@ -90,6 +92,7 @@ describe('OperationalExpensesController (Integration)', () => {
       companyId: '11111111-1111-4111-8111-111111111111',
       categoryId: '22222222-2222-4222-8222-222222222222',
       referenceNumber: 'REF-1',
+      name: 'Gasto de prueba',
       operationDate: '2026-04-19',
       createdBy: '33333333-3333-4333-8333-333333333333',
       metadata: {

@@ -1,15 +1,18 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Barcode } from "lucide-react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import Badge from "@/shared/components/Badge/Badge";
+import { DeleteDialog } from "@/shared/components/Dialog/DeleteDialog";
 import type { ProductGridRow, ProductVariantGridRow } from "@/features/inventory-products/types/product-grid.types";
 import { CreateProductDialog } from "./CreateProductDialog";
+import { EditProductDialog } from "./EditProductDialog";
 import { CreateProductVariantDialog } from "./CreateProductVariantDialog";
+import { deleteProductAction } from "@/features/inventory-products/actions/product.action";
 
 type ProductsDataGridProps = {
   rows: ProductGridRow[];
@@ -230,9 +233,14 @@ function ProductExpandPanel({
 export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
+  const [editRow, setEditRow] = useState<ProductGridRow | null>(null);
+  const [deleteRow, setDeleteRow] = useState<ProductGridRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeletePending, startDeleteTransition] = useTransition();
   const [variantDialog, setVariantDialog] = useState<{
     productId: string;
     productName: string;
+    productType?: string | null;
     referencePmp: number;
   } | null>(null);
 
@@ -240,13 +248,62 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
     setVariantDialog({
       productId: r.id,
       productName: r.name,
+      productType: r.productType ?? "PHYSICAL",
       referencePmp: averageReferencePmp(r),
     });
   }, []);
 
-  const columns: DataGridColumn[] = useMemo(
-    () => [
+  const onEditProduct = useCallback((r: ProductGridRow) => {
+    setEditRow(r);
+  }, []);
+
+  const onDeleteProduct = useCallback((r: ProductGridRow) => {
+    setDeleteError(null);
+    setDeleteRow(r);
+  }, []);
+
+  const columns: DataGridColumn[] = useMemo(() => {
+    function ProductActionsCell({ row, column: _column }: { row: any; column: DataGridColumn }) {
+      const r = row as ProductGridRow;
+      return (
+        <div
+          className="flex items-center justify-center gap-1"
+          data-test-id={`products-row-actions-${r.id}`}
+        >
+          <IconButton
+            icon="Pencil"
+            variant="basicSecondary"
+            size="sm"
+            title="Editar"
+            ariaLabel="Editar producto"
+            onClick={() => onEditProduct(r)}
+            data-test-id={`products-row-edit-${r.id}`}
+          />
+          <IconButton
+            icon="Trash2"
+            variant="basicSecondary"
+            size="sm"
+            title="Eliminar"
+            ariaLabel="Eliminar producto"
+            onClick={() => onDeleteProduct(r)}
+            data-test-id={`products-row-delete-${r.id}`}
+          />
+        </div>
+      );
+    }
+
+    return [
       { field: "name", headerName: "Nombre", sortable: true, minWidth: 200, flex: 1 },
+      {
+        field: "categoryName",
+        headerName: "Categoría",
+        sortable: true,
+        width: 160,
+        renderCell: ({ row }) => {
+          const name = (row as ProductGridRow).categoryName?.trim();
+          return <span className="text-foreground">{name ? name : "—"}</span>;
+        },
+      },
       { field: "brand", headerName: "Marca", sortable: true, width: 160 },
       {
         field: "variantCount",
@@ -266,9 +323,18 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
           </span>
         ),
       },
-    ],
-    [],
-  );
+      {
+        field: "actions",
+        headerName: "",
+        width: 96,
+        minWidth: 96,
+        align: "center",
+        sortable: false,
+        filterable: false,
+        actionComponent: ProductActionsCell,
+      },
+    ];
+  }, [onEditProduct, onDeleteProduct]);
 
   const expandableRowContent = useCallback(
     (row: ProductGridRow) => <ProductExpandPanel row={row} onAddVariant={openVariantDialog} />,
@@ -285,6 +351,8 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
         totalGeneral={total}
         height="85vh"
         showExportButton={false}
+        pinActionsColumn
+        actionsColumnField="actions"
         expandable
         expandableRowContent={(row) => expandableRowContent(row as ProductGridRow)}
         onAddClick={() => setCreateOpen(true)}
@@ -297,11 +365,58 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
           await router.refresh();
         }}
       />
+      <EditProductDialog
+        open={editRow != null}
+        product={editRow}
+        onClose={() => setEditRow(null)}
+        onSuccess={async () => {
+          await router.refresh();
+        }}
+      />
+      <DeleteDialog
+        open={deleteRow != null}
+        onClose={() => {
+          if (!isDeletePending) {
+            setDeleteRow(null);
+            setDeleteError(null);
+          }
+        }}
+        title="Eliminar producto"
+        message={
+          deleteRow ? (
+            <>
+              ¿Eliminar el producto <strong className="font-semibold">«{deleteRow.name}»</strong>? Esta acción no se puede
+              deshacer.
+            </>
+          ) : null
+        }
+        errors={deleteError ? [deleteError] : []}
+        isSubmitting={isDeletePending}
+        onConfirm={() => {
+          if (!deleteRow) {
+            return;
+          }
+          setDeleteError(null);
+          startDeleteTransition(() => {
+            void (async () => {
+              const r = await deleteProductAction(deleteRow.id);
+              if (r.success) {
+                setDeleteRow(null);
+                await router.refresh();
+              } else {
+                setDeleteError(r.error);
+              }
+            })();
+          });
+        }}
+        data-test-id="product-delete-dialog"
+      />
       <CreateProductVariantDialog
         open={variantDialog != null}
         onClose={() => setVariantDialog(null)}
         productId={variantDialog?.productId ?? ""}
         productName={variantDialog?.productName ?? ""}
+        productType={(variantDialog as any)?.productType ?? "PHYSICAL"}
         referencePmp={variantDialog?.referencePmp ?? 0}
         onSuccess={async () => {
           await router.refresh();

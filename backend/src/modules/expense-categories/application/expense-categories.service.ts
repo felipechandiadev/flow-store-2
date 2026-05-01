@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Logger,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { ExpenseCategoriesRepository } from '../infrastructure/expense-categories.repository';
 import { CreateExpenseCategoryDto } from './dto/create-expense-category.dto';
 import { UpdateExpenseCategoryDto } from './dto/update-expense-category.dto';
@@ -9,6 +16,28 @@ export class ExpenseCategoriesService {
   private readonly logger = new Logger(ExpenseCategoriesService.name);
 
   constructor(private readonly repository: ExpenseCategoriesRepository) {}
+
+  /**
+   * Si viene código explícito, valida unicidad; si no, genera EC + UUID (máx. 50).
+   */
+  private async resolveUniqueCode(provided?: string | null): Promise<string> {
+    const trimmed = provided?.trim();
+    if (trimmed) {
+      const taken = await this.repository.findByCode(trimmed);
+      if (taken) {
+        throw new BadRequestException(`El código «${trimmed}» ya está en uso`);
+      }
+      return trimmed;
+    }
+    for (let i = 0; i < 8; i++) {
+      const candidate = `EC${randomUUID().replace(/-/g, '').toUpperCase()}`.slice(0, 50);
+      const exists = await this.repository.findByCode(candidate);
+      if (!exists) {
+        return candidate;
+      }
+    }
+    throw new InternalServerErrorException('No se pudo generar un código único');
+  }
 
   async findAll(params?: {
     limit?: number;
@@ -46,7 +75,8 @@ export class ExpenseCategoriesService {
 
   async create(dto: CreateExpenseCategoryDto): Promise<ExpenseCategory> {
     this.logger.log(`Creating expense category: ${dto.name}`);
-    const data: any = { ...dto };
+    const code = await this.resolveUniqueCode(dto.code);
+    const data: any = { ...dto, code };
     if (dto.approvalThreshold !== undefined) {
       data.approvalThreshold = dto.approvalThreshold.toString();
     }
@@ -59,10 +89,33 @@ export class ExpenseCategoriesService {
   ): Promise<ExpenseCategory> {
     const category = await this.findOne(id);
     this.logger.log(`Updating expense category ${id}`);
-    const data: any = { ...dto };
+    const { code: dtoCode, ...dtoRest } = dto;
+    const data: any = { ...dtoRest };
+
+    if (dtoCode !== undefined) {
+      const t = String(dtoCode).trim();
+      if (t !== '') {
+        const current = (category.code ?? '').trim();
+        if (t !== current) {
+          const taken = await this.repository.findByCode(t);
+          if (taken && taken.id !== id) {
+            throw new BadRequestException(`El código «${t}» ya está en uso`);
+          }
+          data.code = t;
+        }
+      }
+    }
+
     if (dto.approvalThreshold !== undefined) {
       data.approvalThreshold = dto.approvalThreshold.toString();
     }
+
+    for (const k of Object.keys(data)) {
+      if (data[k] === undefined) {
+        delete data[k];
+      }
+    }
+
     return this.repository.update(id, data);
   }
 

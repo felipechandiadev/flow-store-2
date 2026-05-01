@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CqrsModule } from '@nestjs/cqrs';
-import { AccountingAccountOrmEntity } from './infrastructure/orm-mappers/accounting-account.orm-entity';
+import { AccountingAccount } from './domain/accounting-account.entity';
 import { CompaniesModule } from '@modules/companies/companies.module';
 import { AccountingService } from '@modules/accounting/application/accounting.service';
 import { AccountingController } from '@modules/accounting/presentation/accounting.controller';
@@ -11,11 +11,12 @@ import { AccountingAccountsServiceAdapter } from './application/accounting-accou
 import { AccountingAccountsController } from './presentation/accounting-accounts.controller';
 import { GetAllAccountingAccountsQueryHandler } from './application/handlers/queries/get-all-accounting-accounts.handler';
 import { GetAccountingAccountByIdQueryHandler } from './application/handlers/queries/get-accounting-account-by-id.handler';
+import { CreateAccountingAccountCommandHandler } from './application/handlers/commands/create-accounting-account.handler';
 
 @Module({
   imports: [
     CqrsModule,
-    TypeOrmModule.forFeature([AccountingAccountOrmEntity]),
+    TypeOrmModule.forFeature([AccountingAccount]),
     CompaniesModule,
   ],
   controllers: [AccountingController, AccountingAccountsController],
@@ -32,6 +33,7 @@ import { GetAccountingAccountByIdQueryHandler } from './application/handlers/que
     },
     GetAllAccountingAccountsQueryHandler,
     GetAccountingAccountByIdQueryHandler,
+    CreateAccountingAccountCommandHandler,
   ],
   exports: [AccountingService, AccountingAccountsServiceAdapter],
 })

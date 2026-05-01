@@ -7,11 +7,14 @@ import {
   IsBoolean,
   IsEnum,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
   Min,
 } from 'class-validator';
+
+export type GeoPoint = { lat: number; lng: number };
 
 export class StorageDto {
   id: string;
@@ -21,7 +24,8 @@ export class StorageDto {
   type: StorageType;
   category: StorageCategory;
   capacity?: number;
-  location?: string;
+  address?: string | null;
+  location?: GeoPoint | null;
   isDefault: boolean;
   isActive: boolean;
   createdAt?: Date;
@@ -63,7 +67,11 @@ export class CreateStorageDto {
 
   @IsOptional()
   @IsString()
-  location?: string;
+  address?: string;
+
+  @IsOptional()
+  @IsObject()
+  location?: GeoPoint;
 
   @IsOptional()
   @IsBoolean()
@@ -103,7 +111,11 @@ export class UpdateStorageDto {
 
   @IsOptional()
   @IsString()
-  location?: string;
+  address?: string;
+
+  @IsOptional()
+  @IsObject()
+  location?: GeoPoint;
 
   @IsOptional()
   @IsBoolean()

@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In, IsNull } from 'typeorm';
 import { StoragesService } from '../../storages/application/storages.service';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
@@ -15,6 +15,9 @@ import {
 } from '@modules/transactions/domain/transaction.entity';
 import { User } from '@modules/users/domain/user.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
+import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { Storage } from '@modules/storages/domain/storage.entity';
+import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
 
 @Injectable()
 export class InventoryService {
@@ -50,89 +53,239 @@ export class InventoryService {
     search?: string;
     branchId?: string;
     storageId?: string;
+    page?: number;
+    limit?: number;
+    sortField?: string;
+    sort?: 'asc' | 'desc';
   }) {
-    const qb = this.dataSource
-      .getRepository(StockLevel)
-      .createQueryBuilder('sl')
-      .leftJoinAndSelect('sl.variant', 'variant')
+    // List from product variants (LEFT stock_levels in a second query) so variants
+    // without any stock_level row still appear with zeros.
+    const variantQb = this.dataSource
+      .getRepository(ProductVariant)
+      .createQueryBuilder('variant')
       .leftJoinAndSelect('variant.product', 'product')
       .leftJoinAndSelect('variant.unit', 'unit')
-      .leftJoinAndSelect('sl.storage', 'storage');
+      .where('variant.deletedAt IS NULL')
+      .andWhere('(product.deletedAt IS NULL OR product.id IS NULL)');
 
-    if (params?.storageId) {
-      qb.andWhere('sl.storageId = :storageId', { storageId: params.storageId });
-    }
-    if (params?.branchId) {
-      qb.andWhere('storage.branchId = :branchId', {
-        branchId: params.branchId,
-      });
-    }
     if (params?.search) {
       const s = `%${params.search}%`;
-      qb.andWhere('(product.name LIKE :s OR variant.sku LIKE :s)', { s });
+      variantQb.andWhere(
+        '(product.name LIKE :s OR variant.sku LIKE :s OR (variant.barcode IS NOT NULL AND variant.barcode LIKE :s))',
+        { s },
+      );
     }
 
-    const entries = await qb.getMany();
+    const variants = await variantQb.getMany();
+    const variantIds = variants.map((v) => v.id);
 
-    // group by variant id
-    const grouped: Record<string, any> = {};
-    for (const sl of entries) {
-      const variant: any = sl.variant;
-      const product: any = variant?.product;
-      const vid = variant?.id || 'unknown';
-      if (!grouped[vid]) {
-        grouped[vid] = {
-          productId: product?.id || null,
-          variantId: variant?.id || null,
-          productName: product?.name || '',
-          sku: variant?.sku || '',
-          unitOfMeasure: variant?.unit?.name || '',
-          attributeValues: variant?.attributeValues || {},
-          totalStock: 0,
-          availableStock: 0,
-          inventoryValueCost: 0,
-          // new property: current PMP (Precio Medio Ponderado)
-          pmp: Number(variant?.pmp || 0),
-          storageBreakdown: [] as any[],
-          movements: [] as any[],
-          primaryStorageName: '',
-          primaryStorageQuantity: 0,
-          isBelowMinimum: false,
-        };
-      }
-      const row = grouped[vid];
-      const qty = Number(sl.physicalStock || 0);
-      row.storageBreakdown.push({
-        storageId: sl.storageId,
-        storageName: sl.storage?.name || '',
-        branchName: sl.storage?.branch?.name || null,
-        quantity: qty,
+    // Active reservations (reserved qty) per variant, filtered by branch/storage if provided
+    const reservationLineQb = this.dataSource
+      .getRepository(TransactionLine)
+      .createQueryBuilder('tl')
+      .innerJoin('tl.transaction', 't')
+      .select('tl.productVariantId', 'variantId')
+      .addSelect('t.storageId', 'storageId')
+      .addSelect('SUM(tl.quantity)', 'reservedQty')
+      .where('t.transactionType = :type', { type: TransactionType.INVENTORY_RESERVATION })
+      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .andWhere('tl.productVariantId IS NOT NULL')
+      .groupBy('tl.productVariantId')
+      .addGroupBy('t.storageId');
+
+    if (params?.branchId) {
+      reservationLineQb.andWhere('t.branchId = :branchId', { branchId: params.branchId });
+    }
+    if (params?.storageId) {
+      reservationLineQb.andWhere('t.storageId = :storageId', { storageId: params.storageId });
+    }
+
+    const reservationRows: Array<{ variantId: string; storageId: string; reservedQty: string }> =
+      await reservationLineQb.getRawMany();
+    const reservedByVariantStorage = new Map<string, number>();
+    const reservedByVariant = new Map<string, number>();
+    for (const r of reservationRows) {
+      const key = `${r.variantId}::${r.storageId}`;
+      const qty = Number(r.reservedQty || 0);
+      reservedByVariantStorage.set(key, qty);
+      reservedByVariant.set(r.variantId, (reservedByVariant.get(r.variantId) ?? 0) + qty);
+    }
+
+    const stockLevels: StockLevel[] = [];
+    const CHUNK = 500;
+    for (let i = 0; i < variantIds.length; i += CHUNK) {
+      const chunk = variantIds.slice(i, i + CHUNK);
+      const batch = await this.dataSource.getRepository(StockLevel).find({
+        where: { productVariantId: In(chunk) },
+        relations: ['storage', 'storage.branch'],
       });
-      row.totalStock += qty;
-      row.availableStock += Number(sl.availableStock || 0);
-      row.inventoryValueCost += qty * Number(variant?.baseCost || 0);
-      // no change to PMP here; pmp already stored on row
-      if (!row.primaryStorageName) {
-        row.primaryStorageName = sl.storage?.name || '';
-        row.primaryStorageQuantity = qty;
-      }
-      if (variant && qty < (variant.minimumStock || 0)) {
-        row.isBelowMinimum = true;
-      }
+      stockLevels.push(...batch);
     }
 
-    const rows = Object.values(grouped);
+    const levelsByVariant = new Map<string, StockLevel[]>();
+    for (const sl of stockLevels) {
+      const list = levelsByVariant.get(sl.productVariantId) ?? [];
+      list.push(sl);
+      levelsByVariant.set(sl.productVariantId, list);
+    }
+
+    const filterLevel = (sl: StockLevel): boolean => {
+      if (params?.storageId && sl.storageId !== params.storageId) {
+        return false;
+      }
+      if (params?.branchId && sl.storage?.branchId !== params.branchId) {
+        return false;
+      }
+      return true;
+    };
+
+    let placeholderStorage: Storage | null = null;
+    if (params?.storageId) {
+      placeholderStorage = await this.dataSource
+        .getRepository(Storage)
+        .findOne({
+          where: { id: params.storageId },
+          relations: ['branch'],
+        });
+    }
+
+    const grouped: Record<string, any> = {};
+    for (const variant of variants) {
+      const vid = variant.id;
+      const product: any = variant.product;
+      const allLevels = levelsByVariant.get(vid) ?? [];
+      const entries = allLevels.filter(filterLevel);
+
+      const row = {
+        id: variant.id,
+        productId: product?.id || null,
+        variantId: variant.id,
+        productName: product?.name || '',
+        sku: variant.sku || '',
+        unitOfMeasure: variant.unit?.name || '',
+        attributeValues: variant.attributeValues || {},
+        totalStock: 0,
+        availableStock: 0,
+        reservedStock: 0,
+        availableAfterReservation: 0,
+        inventoryValueCost: 0,
+        pmp: Number(variant.pmp || 0),
+        storageBreakdown: [] as any[],
+        movements: [] as any[],
+        primaryStorageName: '',
+        primaryStorageQuantity: 0,
+        isBelowMinimum: false,
+      };
+      grouped[vid] = row;
+
+      if (
+        params?.storageId &&
+        entries.length === 0 &&
+        placeholderStorage
+      ) {
+        row.storageBreakdown.push({
+          storageId: placeholderStorage.id,
+          storageName: placeholderStorage.name || '',
+          branchName: placeholderStorage.branch?.name || null,
+          quantity: 0,
+          availableStock: 0,
+          committedStock: 0,
+        });
+      }
+
+      for (const sl of entries) {
+        const qty = Number(sl.physicalStock || 0);
+        const reservedQty = reservedByVariantStorage.get(`${vid}::${sl.storageId}`) ?? 0;
+        row.reservedStock += reservedQty;
+        row.storageBreakdown.push({
+          storageId: sl.storageId,
+          storageName: sl.storage?.name || '',
+          branchName: sl.storage?.branch?.name || null,
+          quantity: qty,
+          availableStock: Number(sl.availableStock || 0),
+          reservedStock: reservedQty,
+          availableAfterReservation: Math.max(0, Number(sl.availableStock || 0) - reservedQty),
+          committedStock: Number(sl.committedStock || 0),
+        });
+        row.totalStock += qty;
+        row.availableStock += Number(sl.availableStock || 0);
+        row.inventoryValueCost += qty * Number(variant.baseCost || 0);
+        if (!row.primaryStorageName) {
+          row.primaryStorageName = sl.storage?.name || '';
+          row.primaryStorageQuantity = qty;
+        }
+      }
+
+      row.availableAfterReservation = Math.max(0, Number(row.availableStock || 0) - Number(row.reservedStock || 0));
+      row.isBelowMinimum =
+        Number(row.totalStock) < Number(variant.minimumStock || 0);
+    }
+
+    const rows = variants.map((v) => grouped[v.id]).filter(Boolean);
     // compute PMP value column (stock * pmp) for each row
     for (const r of rows) {
       r.pmpValue = Number(((r.totalStock || 0) * (r.pmp || 0)).toFixed(2));
     }
-    const total = rows.length;
 
-    // fetch recent movements per variant (limit 5 each)
+    const sortField = (params?.sortField || 'productName').trim();
+    const sortDesc = params?.sort === 'desc';
+    const compare = (a: Record<string, any>, b: Record<string, any>): number => {
+      let va: string | number | boolean | null | undefined;
+      let vb: string | number | boolean | null | undefined;
+      switch (sortField) {
+        case 'sku':
+          va = a.sku;
+          vb = b.sku;
+          break;
+        case 'totalStock':
+          va = Number(a.totalStock);
+          vb = Number(b.totalStock);
+          break;
+        case 'availableStock':
+          va = Number(a.availableStock);
+          vb = Number(b.availableStock);
+          break;
+        case 'pmp':
+          va = Number(a.pmp);
+          vb = Number(b.pmp);
+          break;
+        case 'isBelowMinimum':
+          va = a.isBelowMinimum ? 1 : 0;
+          vb = b.isBelowMinimum ? 1 : 0;
+          break;
+        default:
+          va = a.productName;
+          vb = b.productName;
+      }
+      if (va == null && vb == null) {
+        return 0;
+      }
+      if (va == null) {
+        return 1;
+      }
+      if (vb == null) {
+        return -1;
+      }
+      if (typeof va === 'number' && typeof vb === 'number') {
+        return va - vb;
+      }
+      return String(va).localeCompare(String(vb), 'es', { sensitivity: 'base' });
+    };
+    rows.sort((a, b) => {
+      const c = compare(a, b);
+      return sortDesc ? -c : c;
+    });
+
+    const total = rows.length;
+    const page = Math.max(1, Number(params?.page) || 1);
+    const limit = Math.min(500, Math.max(1, Number(params?.limit) || 25));
+    const start = (page - 1) * limit;
+    const pageRows = rows.slice(start, start + limit);
+
+    // fetch recent movements per variant (limit 5 each) — solo página actual
     const transactionLineRepo =
       this.dataSource.getRepository('TransactionLine');
-    const transactionRepo = this.dataSource.getRepository('Transaction');
-    for (const row of rows) {
+    for (const row of pageRows) {
       if (!row.variantId) continue;
       const movs: any[] = await transactionLineRepo
         .createQueryBuilder('tl')
@@ -153,7 +306,6 @@ export class InventoryService {
           'ts.name as targetStorageName',
         ])
         .getRawMany();
-      // compute direction based on type
       row.movements = movs.map((m) => ({
         ...m,
         direction: [
@@ -167,7 +319,7 @@ export class InventoryService {
       }));
     }
 
-    return { rows, total };
+    return { rows: pageRows, total };
   }
 
   async adjust(data: {
@@ -186,31 +338,62 @@ export class InventoryService {
     // state.  Instead we simply create the appropriate adjustment
     // transaction and let the listener perform the actual update.
     const diff = targetQuantity - currentQuantity;
+    const qtyAbs = Math.abs(diff);
+    if (qtyAbs < 0.000001) {
+      return {
+        success: true,
+        message: 'Sin cambios de stock',
+        documentNumbers: [],
+      };
+    }
 
-    // determine branchId from the provided storage; similar logic to
-    // transfer() but simplified since only one storage is involved.
-    let branchId: string | undefined;
-    const raw = await this.dataSource
-      .getRepository(StockLevel)
-      .createQueryBuilder('sl')
-      .leftJoin('sl.storage', 's')
-      .where('sl.storageId = :sid', { sid: storageId })
-      .select('s.branchId', 'branchId')
-      .getRawOne();
-    branchId = raw?.branchId || undefined;
-    if (branchId === '') branchId = undefined;
+    const variant = await this.dataSource.getRepository(ProductVariant).findOne({
+      where: { id: variantId },
+      relations: ['product', 'unit'],
+    });
+    if (!variant) {
+      throw new NotFoundException(`Variante ${variantId} no encontrada`);
+    }
+    const product: any = variant.product;
 
-    // fallback to any existing branch if lookup failed
+    // Branch from almacén (sirve aunque no exista fila stock_levels para esta variante).
+    const storageEntity = await this.dataSource.getRepository(Storage).findOne({
+      where: { id: storageId },
+      select: ['id', 'branchId'],
+    });
+    if (!storageEntity) {
+      throw new NotFoundException(`Almacén ${storageId} no encontrado`);
+    }
+    let branchId: string | undefined =
+      storageEntity.branchId && String(storageEntity.branchId).length > 0
+        ? storageEntity.branchId
+        : undefined;
+
     if (!branchId) {
-      const anyBranch = await this.dataSource.getRepository(Branch).findOne({});
-      branchId = anyBranch?.id;
+      const fallbackBranches = await this.dataSource.getRepository(Branch).find({
+        where: { deletedAt: IsNull() },
+        order: { createdAt: 'ASC' },
+        take: 1,
+      });
+      branchId = fallbackBranches[0]?.id;
+    }
+
+    if (!branchId) {
+      throw new BadRequestException(
+        'No se pudo determinar la sucursal del ajuste: el almacén no tiene sucursal y no hay sucursales en el sistema.',
+      );
     }
 
     // pick a default user for internal adjustments (first active user)
     const fallbackUser = await this.userRepository.findOne({
       where: { deletedAt: null as any },
     });
-    const userId = fallbackUser?.id || '';
+    const userId = fallbackUser?.id;
+    if (!userId) {
+      throw new BadRequestException(
+        'No hay usuario activo para registrar el ajuste. Cree o active al menos un usuario en el sistema.',
+      );
+    }
 
     const txDto = new CreateTransactionDto();
     txDto.transactionType =
@@ -220,12 +403,34 @@ export class InventoryService {
     txDto.branchId = branchId || '';
     txDto.userId = userId;
     txDto.storageId = storageId;
-    txDto.subtotal = Math.abs(diff);
-    txDto.total = Math.abs(diff);
+    txDto.subtotal = qtyAbs;
+    txDto.taxAmount = 0;
+    txDto.discountAmount = 0;
+    txDto.total = qtyAbs;
     // internal inventory movements are not actual payments
     txDto.paymentMethod = PaymentMethod.INTERNAL_CREDIT;
-    txDto.amountPaid = Math.abs(diff);
+    txDto.amountPaid = qtyAbs;
     txDto.notes = note || undefined;
+    txDto.lines = [
+      {
+        productId: variant.productId || product?.id,
+        productVariantId: variantId,
+        unitId: variant.unitId,
+        productName: product?.name || 'Producto',
+        productSku: variant.sku,
+        variantName: undefined,
+        quantity: qtyAbs,
+        unitPrice: 0,
+        unitCost: 0,
+        discountPercentage: 0,
+        discountAmount: 0,
+        taxRate: 0,
+        taxAmount: 0,
+        subtotal: qtyAbs,
+        total: qtyAbs,
+        notes: note,
+      } as any,
+    ];
     const tx = await this.transactionsService.createTransaction(txDto);
 
     return {

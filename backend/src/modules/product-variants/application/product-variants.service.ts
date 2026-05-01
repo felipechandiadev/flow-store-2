@@ -18,6 +18,7 @@ import {
 } from '@modules/price-list-items/application/ports/price-list-items.repository.port';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 import { AttributesService } from '@modules/attributes/application/attributes.service';
+import { SearchPurchasingVariantsDto } from './dto/search-purchasing-variants.dto';
 
 @Injectable()
 export class ProductVariantsService {
@@ -28,6 +29,8 @@ export class ProductVariantsService {
     private readonly priceListItemRepository: PriceListItemsRepositoryPort,
     private readonly multimediaService: MultimediaServiceAdapter,
     private readonly attributesService: AttributesService,
+    @InjectRepository(ProductVariant)
+    private readonly variantOrm: Repository<ProductVariant>,
   ) {}
 
   async findAll(params?: Record<string, any>) {
@@ -398,6 +401,54 @@ export class ProductVariantsService {
     const enriched = await this.findOne(saved.id);
 
     return { success: true, variant: enriched };
+  }
+
+  /**
+   * Búsqueda paginada de variantes para recepciones / órdenes de compra (nombre, SKU, código, categoría).
+   */
+  async searchForPurchasing(dto: SearchPurchasingVariantsDto) {
+    const page = Math.max(1, dto.page ?? 1);
+    const rawSize = dto.pageSize ?? 10;
+    const pageSize = Math.min(50, Math.max(1, rawSize));
+    const q = dto.q?.trim();
+
+    const qb = this.variantOrm
+      .createQueryBuilder('v')
+      .leftJoinAndSelect('v.product', 'product')
+      .leftJoinAndSelect('product.category', 'category')
+      .leftJoinAndSelect('v.unit', 'unit')
+      .where('v.deletedAt IS NULL')
+      .andWhere('product.deletedAt IS NULL');
+
+    if (q) {
+      const like = `%${q}%`;
+      qb.andWhere(
+        '(product.name LIKE :like OR (product.brand IS NOT NULL AND product.brand LIKE :like) OR v.sku LIKE :like OR (v.barcode IS NOT NULL AND v.barcode LIKE :like) OR (category.name IS NOT NULL AND category.name LIKE :like))',
+        { like },
+      );
+    }
+
+    qb.orderBy('product.name', 'ASC').addOrderBy('v.sku', 'ASC');
+    qb.skip((page - 1) * pageSize).take(pageSize);
+    const [variants, total] = await qb.getManyAndCount();
+
+    const items = variants.map((v) => ({
+      id: v.id,
+      productId: v.productId ?? '',
+      productName: v.product?.name ?? '',
+      categoryName: v.product?.category?.name ?? null,
+      sku: v.sku,
+      barcode: v.barcode ?? null,
+      pmp: Number(v.pmp) || 0,
+      attributeValues:
+        v.attributeValues && typeof v.attributeValues === 'object' && !Array.isArray(v.attributeValues)
+          ? (v.attributeValues as Record<string, string>)
+          : {},
+      unitLabel: v.unit?.symbol || v.unit?.name || null,
+      defaultTaxIds: Array.isArray(v.taxIds) ? v.taxIds.map((x) => String(x)) : [],
+    }));
+
+    return { items, page, pageSize, total };
   }
 
   async remove(id: string) {

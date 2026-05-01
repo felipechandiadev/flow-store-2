@@ -40,8 +40,13 @@ export class CreateOperationalExpenseDto {
 
   @IsNotEmpty()
   @IsString()
+  @MaxLength(120)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(60)
-  referenceNumber!: string;
+  referenceNumber?: string;
 
   @IsOptional()
   @IsString()

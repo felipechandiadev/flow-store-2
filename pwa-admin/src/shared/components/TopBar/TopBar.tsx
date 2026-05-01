@@ -184,7 +184,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
                     />
                   ) : null}
                   <span
-                    className="min-w-0 max-w-[min(11rem,40vw)] truncate text-right text-sm font-medium text-muted sm:max-w-sm md:max-w-md"
+                    className="min-w-0 max-w-[min(11rem,40vw)] truncate text-right text-sm font-semibold text-foreground sm:max-w-sm md:max-w-md"
                     data-test-id="top-bar-company-trade-name"
                     title={companyTradeName.trim()}
                   >

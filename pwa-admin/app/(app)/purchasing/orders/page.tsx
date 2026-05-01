@@ -1,6 +1,5 @@
-import { ErpPlaceholderPage } from '@/shared/components/ErpPlaceholderPage';
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <ErpPlaceholderPage title="Órdenes de compra" />;
+  redirect("/purchasing/orders/list");
 }
-

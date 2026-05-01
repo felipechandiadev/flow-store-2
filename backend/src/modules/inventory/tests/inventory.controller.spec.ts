@@ -66,7 +66,17 @@ describe('InventoryController', () => {
       const result = await controller.getInventory(mockParams);
 
       expect(result).toEqual(mockResults);
-      expect(mockInventoryService.search).toHaveBeenCalledWith(mockParams);
+      expect(mockInventoryService.search).toHaveBeenCalledWith(
+        expect.objectContaining({
+          search: 'widget',
+          branchId: 'branch-1',
+          storageId: 'storage-1',
+          page: 1,
+          limit: 25,
+          sortField: 'productName',
+          sort: 'asc',
+        }),
+      );
     });
 
     it('should handle search without query params', async () => {
@@ -77,7 +87,15 @@ describe('InventoryController', () => {
       const result = await controller.getInventory({});
 
       expect(result).toEqual(mockResults);
-      expect(mockInventoryService.search).toHaveBeenCalledWith({});
+      expect(mockInventoryService.search).toHaveBeenCalledWith({
+        search: undefined,
+        branchId: undefined,
+        storageId: undefined,
+        page: 1,
+        limit: 25,
+        sortField: 'productName',
+        sort: 'asc',
+      });
     });
   });
 

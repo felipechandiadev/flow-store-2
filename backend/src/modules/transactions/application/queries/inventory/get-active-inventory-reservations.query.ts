@@ -50,7 +50,7 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
       .createQueryBuilder('t')
       .select([
         't.id',
-        't.reference',
+        't.externalReference',
         't.notes',
         't.createdAt',
         'p.id',
@@ -58,8 +58,8 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
         'pv.id',
         'pv.name',
         'c.id',
-        'c.firstName',
-        'c.lastName',
+        'cp.firstName',
+        'cp.lastName',
         's.id',
         's.name',
         'b.id',
@@ -70,9 +70,10 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
       .innerJoin('tl.product', 'p')
       .leftJoin('tl.variant', 'pv')
       .innerJoin('t.customer', 'c')
+      .leftJoin('c.person', 'cp')
       .innerJoin('t.storage', 's')
       .innerJoin('t.branch', 'b')
-      .where('t.type = :type', { type: 'INVENTORY_RESERVATION' })
+      .where('t.transactionType = :type', { type: 'INVENTORY_RESERVATION' })
       .andWhere('t.status = :status', { status: 'COMPLETED' });
 
     if (branchId) {
@@ -95,11 +96,10 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
 
     const now = new Date();
     return results.map((result) => {
-      // Extract expiration date from notes if present
       let expiresAt: Date | undefined;
-      const notesMatch = result.t_notes?.match(/Expires: ([^-\n]+)/);
-      if (notesMatch) {
-        expiresAt = new Date(notesMatch[1]);
+      const rawExpires = result.t_metadata?.expiresAt;
+      if (rawExpires) {
+        expiresAt = new Date(rawExpires);
       }
 
       return {
@@ -110,14 +110,14 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
         variantName: result.pv_name,
         quantity: result.tl_quantity,
         customerId: result.c_id,
-        customerName: `${result.c_firstName} ${result.c_lastName}`,
+        customerName: `${result.cp_firstName || ''} ${result.cp_lastName || ''}`.trim(),
         storageId: result.s_id,
         storageName: result.s_name,
         branchId: result.b_id,
         branchName: result.b_name,
         createdAt: result.t_createdAt,
         expiresAt,
-        orderReference: result.t_reference,
+        orderReference: result.t_externalReference,
         notes: result.t_notes,
         isExpired: expiresAt ? expiresAt < now : false,
       };

@@ -16,13 +16,17 @@ export class TypeOrmAccountingRuleRepository implements AccountingRuleRepository
   }
 
   async findById(id: string): Promise<AccountingRule | null> {
-    return this.repository.findOne({ where: { id } });
+    return this.repository.findOne({
+      where: { id },
+      relations: ['debitAccount', 'creditAccount', 'tax', 'expenseCategory', 'lines', 'lines.account'],
+    });
   }
 
   async findAll(companyId: string): Promise<AccountingRule[]> {
     return this.repository.find({
       where: { companyId, isActive: true },
       order: { priority: 'ASC' },
+      relations: ['debitAccount', 'creditAccount', 'tax', 'expenseCategory', 'lines', 'lines.account'],
     });
   }
 
@@ -33,6 +37,7 @@ export class TypeOrmAccountingRuleRepository implements AccountingRuleRepository
     return this.repository.find({
       where: { companyId, transactionType, isActive: true } as any,
       order: { priority: 'ASC' },
+      relations: ['debitAccount', 'creditAccount', 'tax', 'expenseCategory', 'lines', 'lines.account'],
     });
   }
 

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { SuppliersRepository } from '../infrastructure/suppliers.repository';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
@@ -45,8 +50,15 @@ export class SuppliersService {
   }
 
   async create(dto: CreateSupplierDto): Promise<Supplier> {
-    this.logger.log(`Creating supplier for person ${dto.personId}`);
-    return this.repository.create(dto);
+    const { person: _nestedPerson, ...rest } = dto;
+    const personId = rest.personId;
+    if (!personId) {
+      throw new BadRequestException(
+        'personId es obligatorio para el repositorio de proveedores.',
+      );
+    }
+    this.logger.log(`Creating supplier for person ${personId}`);
+    return this.repository.create(rest as Partial<Supplier>);
   }
 
   async update(id: string, dto: UpdateSupplierDto): Promise<Supplier> {

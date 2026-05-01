@@ -12,10 +12,17 @@ import { ExpenseCategoriesService } from '../application/expense-categories.serv
 import { CreateExpenseCategoryDto } from '../application/dto/create-expense-category.dto';
 import { UpdateExpenseCategoryDto } from '../application/dto/update-expense-category.dto';
 import { ListExpenseCategoriesDto } from '../application/dto/list-expense-categories.dto';
+import { OPERATIONAL_EXPENSE_GROUP_META } from '../domain/expense-category-operational-group.enum';
 
 @Controller('expense-categories')
 export class ExpenseCategoriesController {
   constructor(private readonly service: ExpenseCategoriesService) {}
+
+  /** Catálogo cerrado de grupos operativos (valor + etiqueta + descripción) para formularios admin. */
+  @Get('meta/operational-groups')
+  getOperationalGroupsMeta() {
+    return OPERATIONAL_EXPENSE_GROUP_META;
+  }
 
   @Get()
   async findAll(@Query() query: ListExpenseCategoriesDto) {

@@ -7,7 +7,9 @@ import { TransactionsService } from '@modules/transactions/application/transacti
 import { User } from '@modules/users/domain/user.entity';
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { TransactionType } from '@modules/transactions/domain/transaction.entity';
-import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
+import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { Branch } from '@modules/branches/domain/branch.entity';
+import { Storage } from '@modules/storages/domain/storage.entity';
 
 describe('InventoryService', () => {
   let service: InventoryService;
@@ -19,22 +21,28 @@ describe('InventoryService', () => {
   const mockUserRepo: Partial<Repository<User>> = {};
 
   beforeEach(async () => {
-    // prepare stock level repo stub for branch lookup
-    const fakeStockRepo = {
-      createQueryBuilder: jest.fn().mockReturnValue({
-        leftJoin: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        select: jest.fn().mockReturnThis(),
-        getRawOne: jest.fn().mockResolvedValue({ branchId: 'branch-123' }),
-      }),
-    };
-
     mockDataSource.getRepository.mockImplementation((entity: any) => {
-      if (entity === 'Branch') {
-        return {}; // not used here
+      if (entity === Branch) {
+        return {
+          find: jest.fn().mockResolvedValue([{ id: 'branch-fallback' }]),
+        };
       }
-      if (entity === StockLevel) {
-        return fakeStockRepo;
+      if (entity === Storage) {
+        return {
+          findOne: jest.fn().mockResolvedValue({ id: 's1', branchId: 'branch-123' }),
+        };
+      }
+      if (entity === ProductVariant) {
+        return {
+          findOne: jest.fn().mockResolvedValue({
+            id: 'v1',
+            productId: 'p1',
+            unitId: 'u1',
+            sku: 'SKU-1',
+            product: { id: 'p1', name: 'Test Product' },
+            unit: { id: 'u1', name: 'pcs' },
+          }),
+        };
       }
       return {};
     });

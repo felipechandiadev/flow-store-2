@@ -15,7 +15,7 @@ export class AccountingRulesServiceAdapter extends AccountingRulesService {
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
   ) {
-    super(null as any); // We don't need the original repository
+    super(null as any, null as any); // We don't need the original repositories
   }
 
   async create(dto: any): Promise<AccountingRule> {

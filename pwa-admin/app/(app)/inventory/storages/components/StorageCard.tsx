@@ -14,6 +14,8 @@ import {
   updateStorageActiveAction,
 } from "@/features/inventory-storages/actions/storage.action";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
+import LocationPicker from "@/shared/components/LocationPicker/LocationPickerWrapper";
+import { parseStorageLocation } from "@/features/inventory-storages/utils/parse-storage-location";
 import { UpdateStorageDialog } from "./UpdateStorageDialog";
 
 type StorageCardProps = {
@@ -89,8 +91,34 @@ export function StorageCard({
           <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
           Ubicación
         </p>
-        <p className="text-sm text-foreground" data-test-id="storage-card-location">
-          {storage.location?.trim() ? storage.location.trim() : "—"}
+        {(() => {
+          const coords = parseStorageLocation(storage.location);
+          if (!coords) {
+            return (
+              <p className="text-sm text-foreground" data-test-id="storage-card-location-empty">
+                Ubicación no indicada
+              </p>
+            );
+          }
+          return (
+            <div className="mt-2 overflow-hidden rounded-md border border-border" data-test-id="storage-card-location-map">
+              <LocationPicker
+                key={`storage-map-${storage.id}`}
+                mode="viewer"
+                variant="borderless"
+                rounded="none"
+                className="w-full"
+                zoom={16}
+                initialLat={coords.lat}
+                initialLng={coords.lng}
+                draggable={false}
+                height={18}
+              />
+            </div>
+          );
+        })()}
+        <p className="mt-2 text-sm text-foreground" data-test-id="storage-card-address">
+          {(storage.address ?? "").trim() ? (storage.address as string).trim() : "—"}
         </p>
         {storage.capacity != null ? (
           <p className="mt-1 text-xs text-muted-foreground">Capacidad: {storage.capacity}</p>

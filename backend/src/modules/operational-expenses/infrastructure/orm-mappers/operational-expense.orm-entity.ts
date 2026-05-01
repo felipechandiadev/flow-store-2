@@ -52,8 +52,11 @@ export class OperationalExpenseOrmEntity {
   @Column({ type: 'uuid', nullable: true })
   employeeId?: string | null;
 
-  @Column({ type: 'varchar', length: 60 })
-  referenceNumber!: string;
+  @Column({ type: 'varchar', length: 120 })
+  name!: string;
+
+  @Column({ type: 'varchar', length: 60, nullable: true })
+  referenceNumber?: string | null;
 
   @Column({ type: 'text', nullable: true })
   description?: string;

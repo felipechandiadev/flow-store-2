@@ -7,7 +7,9 @@ import {
   IsString,
   IsUUID,
   MaxLength,
+  IsEnum,
 } from 'class-validator';
+import { ExpenseCategoryOperationalGroup } from '../../domain/expense-category-operational-group.enum';
 
 export class UpdateExpenseCategoryDto {
   @IsOptional()
@@ -25,9 +27,8 @@ export class UpdateExpenseCategoryDto {
   name?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  groupName?: string;
+  @IsEnum(ExpenseCategoryOperationalGroup)
+  operationalExpenseGroup?: ExpenseCategoryOperationalGroup;
 
   @IsOptional()
   @IsString()

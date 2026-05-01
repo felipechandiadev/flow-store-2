@@ -16,9 +16,26 @@ export class InventoryController {
 
   @Get()
   async getInventory(
-    @Query() params: { search?: string; branchId?: string; storageId?: string },
+    @Query()
+    params: {
+      search?: string;
+      branchId?: string;
+      storageId?: string;
+      page?: string;
+      limit?: string;
+      sortField?: string;
+      sort?: string;
+    },
   ) {
-    return this.inventoryService.search(params);
+    return this.inventoryService.search({
+      search: params.search,
+      branchId: params.branchId,
+      storageId: params.storageId,
+      page: params.page ? parseInt(params.page, 10) : 1,
+      limit: params.limit ? parseInt(params.limit, 10) : 25,
+      sortField: params.sortField || 'productName',
+      sort: params.sort === 'desc' ? 'desc' : 'asc',
+    });
   }
 
   @Post('adjust')

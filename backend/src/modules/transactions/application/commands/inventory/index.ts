@@ -7,6 +7,10 @@ import {
   CreateInventoryReservationCommand,
 } from '../create-inventory-reservation.usecase';
 import {
+  CreateInventoryReservationsUseCase,
+  CreateInventoryReservationsCommand,
+} from '../create-inventory-reservations.usecase';
+import {
   CreateInventoryBlockUseCase,
   CreateInventoryBlockCommand,
 } from '../create-inventory-block.usecase';
@@ -18,6 +22,7 @@ import {
 export const inventoryCommandHandlers = [
   CreateInventoryCountUseCase,
   CreateInventoryReservationUseCase,
+  CreateInventoryReservationsUseCase,
   CreateInventoryBlockUseCase,
   CreateInventoryUnblockUseCase,
 ];
@@ -25,6 +30,7 @@ export const inventoryCommandHandlers = [
 export const inventoryCommands = [
   CreateInventoryCountCommand,
   CreateInventoryReservationCommand,
+  CreateInventoryReservationsCommand,
   CreateInventoryBlockCommand,
   CreateInventoryUnblockCommand,
 ];
@@ -34,6 +40,8 @@ export {
   CreateInventoryCountCommand,
   CreateInventoryReservationUseCase,
   CreateInventoryReservationCommand,
+  CreateInventoryReservationsUseCase,
+  CreateInventoryReservationsCommand,
   CreateInventoryBlockUseCase,
   CreateInventoryBlockCommand,
   CreateInventoryUnblockUseCase,

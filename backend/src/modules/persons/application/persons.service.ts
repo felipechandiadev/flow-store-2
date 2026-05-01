@@ -1,7 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, In } from 'typeorm';
-import { Person, PersonType, PersonBankAccount } from '../domain/person.entity';
+import {
+  Person,
+  PersonType,
+  PersonBankAccount,
+  DocumentType,
+} from '../domain/person.entity';
+import { normalizePersonDocumentNumber } from './person-document.util';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { PersonBankAccountDto } from './dto/person-bank-account.dto';
@@ -85,6 +96,11 @@ export class PersonsService {
    * Create a new person
    */
   async create(data: CreatePersonDto) {
+    this.applyPersonDocumentRules(data);
+    await this.assertDocumentNumberAvailable(
+      data.documentNumber,
+      data.documentType,
+    );
     const person = this.personsRepository.create(data);
     return await this.personsRepository.save(person);
   }
@@ -96,8 +112,74 @@ export class PersonsService {
     const person = await this.findOne(id);
 
     Object.assign(person, data);
+    this.applyPersonDocumentRules(person as unknown as CreatePersonDto);
+    await this.assertDocumentNumberAvailable(
+      person.documentNumber,
+      person.documentType,
+      id,
+    );
 
     return await this.personsRepository.save(person);
+  }
+
+  /**
+   * Reglas: empresa → RUT; persona natural no puede usar RUT.
+   * Empresa: exige razón social; si no hay nombre se usa la razón social como firstName (requerido en BD).
+   */
+  private applyPersonDocumentRules(data: CreatePersonDto): void {
+    const row = data as CreatePersonDto & { type?: PersonType; documentType?: DocumentType | null };
+    const type = row.type ?? PersonType.NATURAL;
+
+    if (type === PersonType.COMPANY) {
+      row.type = PersonType.COMPANY;
+      row.documentType = DocumentType.RUT;
+      const bn = row.businessName?.trim();
+      if (!bn) {
+        throw new BadRequestException(
+          'La razón social es obligatoria para una persona jurídica (empresa).',
+        );
+      }
+      if (!row.firstName?.trim()) {
+        row.firstName = bn;
+      }
+      return;
+    }
+
+    if (row.documentType === DocumentType.RUT) {
+      throw new BadRequestException(
+        'El RUT corresponde a empresa. Cambie el tipo a empresa o use RUN, pasaporte u otro documento.',
+      );
+    }
+  }
+
+  private async assertDocumentNumberAvailable(
+    documentNumber: string | null | undefined,
+    _documentType: DocumentType | null | undefined,
+    excludePersonId?: string,
+  ): Promise<void> {
+    const norm = normalizePersonDocumentNumber(documentNumber);
+    if (!norm) {
+      return;
+    }
+
+    const qb = this.personsRepository
+      .createQueryBuilder('p')
+      .where('p.deletedAt IS NULL')
+      .andWhere(
+        `regexp_replace(lower(trim(coalesce(p.documentNumber, ''))), '[.[:space:]-]', '', 'g') = :norm`,
+        { norm },
+      );
+
+    if (excludePersonId) {
+      qb.andWhere('p.id != :excludePersonId', { excludePersonId });
+    }
+
+    const found = await qb.getOne();
+    if (found) {
+      throw new ConflictException(
+        'Ya existe un registro con este número de documento. El documento debe ser único.',
+      );
+    }
   }
 
   /**

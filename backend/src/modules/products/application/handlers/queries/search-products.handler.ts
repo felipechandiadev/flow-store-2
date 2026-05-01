@@ -11,6 +11,9 @@ export interface SearchProductsResult {
   name: string;
   brand?: string;
   description?: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  isActive?: boolean;
   variants: Array<{
     id: string;
     productId?: string;
@@ -50,6 +53,7 @@ export class SearchProductsQueryHandler implements IQueryHandler<
     // Basic search implementation: return matching products with their variants
     const qb = this.productRepository
       .createQueryBuilder('p')
+      .leftJoinAndSelect('p.category', 'category')
       .where('p.deletedAt IS NULL');
 
     if (query.query) {
@@ -101,7 +105,13 @@ export class SearchProductsQueryHandler implements IQueryHandler<
     }
 
     const enriched = products.map((p) => ({
-      ...p,
+      id: p.id,
+      name: p.name,
+      brand: p.brand,
+      description: p.description,
+      categoryId: p.categoryId ?? null,
+      categoryName: p.category?.name ?? null,
+      isActive: p.isActive,
       variants: variantsByProduct[p.id] ?? [],
       variantCount: (variantsByProduct[p.id] ?? []).length,
     }));

@@ -133,7 +133,7 @@ export class ReceptionsService {
 
     return {
       ...reception,
-      transactionType: TransactionType.PURCHASE,
+      transactionType: TransactionType.ADJUSTMENT_IN,
       status: TransactionStatus.RECEIVED,
       supplierName: this.getSupplierDisplayName(reception),
       storageName: this.getStorageDisplayName(reception),
@@ -197,7 +197,7 @@ export class ReceptionsService {
     return this.mapReceptionListItem(found);
   }
 
-  private async maybeCreatePurchaseTransaction(reception: any) {
+  private async maybeCreateStockInTransaction(reception: any) {
     try {
       // Attempt to resolve branchId from storage if not provided
       let branchId = reception.branchId;
@@ -271,9 +271,9 @@ export class ReceptionsService {
         return null;
       }
 
-      // Build transaction DTO
+      // Build transaction DTO (stock movement)
       const dto = new CreateTransactionDto();
-      dto.transactionType = TransactionType.PURCHASE;
+      dto.transactionType = TransactionType.ADJUSTMENT_IN;
       dto.branchId = branchId;
       let resolvedUserId = reception.userId;
       if (!resolvedUserId) {
@@ -294,7 +294,8 @@ export class ReceptionsService {
       }
 
       dto.userId = resolvedUserId;
-      dto.supplierId = reception.supplierId || null;
+      // ADJUSTMENT_IN is an inventory movement; keep supplier linkage in metadata for traceability
+      dto.supplierId = undefined as any;
       dto.storageId = reception.storageId || null;
       dto.subtotal = 0;
       dto.taxAmount = 0;
@@ -302,42 +303,22 @@ export class ReceptionsService {
       dto.total = 0;
       dto.lines = [];
       dto.notes = reception.notes || null;
-      dto.externalReference =
-        reception.reference || reception.documentNumber || null;
+      dto.externalReference = reception.reference || reception.documentNumber || null;
 
-      // Attach reception-specific metadata so accounting/listeners can identify origin
+      // Attach reception-specific metadata so consumers can identify origin
       dto.metadata = {
         origin: 'RECEPTION',
         receptionId: reception.id,
         receptionType: reception.type || 'direct',
         storageId: reception.storageId || null,
         supplierId: reception.supplierId || null,
+        links: {
+          // Reception currently doesn't store PO id as FK; keep link placeholders in metadata.
+          purchaseOrderId: null,
+        },
       } as any;
 
-      // If reception has a scheduled payment plan, include in metadata for installments creation
-      if (Array.isArray(reception.payments) && reception.payments.length > 0) {
-        // Sort payments by due date to ensure correct order
-        const sortedPayments = [...reception.payments].sort((a, b) => {
-          const dateA = new Date(a.dueDate);
-          const dateB = new Date(b.dueDate);
-          return dateA.getTime() - dateB.getTime();
-        });
-
-        (dto.metadata as any).numberOfInstallments = sortedPayments.length;
-        (dto.metadata as any).firstDueDate = sortedPayments[0].dueDate;
-        (dto.metadata as any).paymentSchedule = sortedPayments.map(
-          (p, index) => ({
-            installmentNumber: index + 1,
-            amount: Number(p.amount),
-            dueDate: p.dueDate,
-          }),
-        );
-
-        this.logger.log(
-          `[RECEPTION -> PURCHASE] Payment plan detected: ${sortedPayments.length} payments, ` +
-            `first due ${sortedPayments[0].dueDate}`,
-        );
-      }
+      // Payment plan is financial and should be handled by Supplier Invoice / AP, not by stock movement.
 
       // Ensure lines are loaded before mapping
       if (!Array.isArray(reception.lines) || reception.lines.length === 0) {
@@ -362,7 +343,8 @@ export class ReceptionsService {
             productSku: l.sku || l.productSku || undefined,
             variantName: l.variantName || undefined,
             quantity: qty,
-            unitPrice: unitPrice,
+            // In stock-in movement we value with unitCost when available; fallback to unitPrice
+            unitPrice: Number(l.unitCost ?? 0) > 0 ? Number(l.unitCost ?? 0) : unitPrice,
             unitCost: Number(l.unitCost ?? 0) || 0,
             discountPercentage: 0,
             discountAmount: 0,
@@ -387,10 +369,10 @@ export class ReceptionsService {
         return null;
       }
 
-      // Call transactions service to create transaction and trigger accounting engine
+      // Create inventory transaction
       const created = await this.transactionsService.createTransaction(dto);
       this.logger.log(
-        `Created PURCHASE transaction ${created.id} for reception ${reception.id}`,
+        `Created ADJUSTMENT_IN transaction ${created.id} for reception ${reception.id}`,
       );
       // Persist link back to reception object (in-memory) for UI and diagnostics
       try {
@@ -481,7 +463,7 @@ export class ReceptionsService {
     });
 
     // Try to create corresponding PURCHASE transaction (best-effort)
-    const tx = await this.maybeCreatePurchaseTransaction(receptionWithLines!);
+    const tx = await this.maybeCreateStockInTransaction(receptionWithLines!);
     if (tx && tx.id) {
       receptionWithLines!.transactionId = tx.id;
       await this.receptionRepo.save(receptionWithLines!);
@@ -564,7 +546,7 @@ export class ReceptionsService {
     });
 
     // Create PURCHASE transaction
-    const tx = await this.maybeCreatePurchaseTransaction(receptionWithLines!);
+    const tx = await this.maybeCreateStockInTransaction(receptionWithLines!);
     if (tx && tx.id) {
       receptionWithLines!.transactionId = tx.id;
       await this.receptionRepo.save(receptionWithLines!);
@@ -647,7 +629,7 @@ export class ReceptionsService {
     });
 
     // Create PURCHASE transaction
-    const tx = await this.maybeCreatePurchaseTransaction(receptionWithLines!);
+    const tx = await this.maybeCreateStockInTransaction(receptionWithLines!);
     if (tx && tx.id) {
       receptionWithLines!.transactionId = tx.id;
       await this.receptionRepo.save(receptionWithLines!);

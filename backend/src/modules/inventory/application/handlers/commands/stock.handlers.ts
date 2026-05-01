@@ -1,6 +1,6 @@
 import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs';
 import { Inject, NotFoundException, BadRequestException } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, IsNull } from 'typeorm';
 import {
   CreateAdjustmentCommand,
   CreateTransferCommand,
@@ -26,6 +26,7 @@ import { User } from '@modules/users/domain/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BranchOrmEntity } from '@modules/branches/infrastructure/orm-mappers/branch.orm-entity';
 import { StockLevelOrmEntity } from '@modules/stock-levels/infrastructure/orm-mappers/stock-level.orm-entity';
+import { StorageOrmEntity } from '@modules/storages/infrastructure/orm-mappers/storage.orm-entity';
 
 @CommandHandler(CreateAdjustmentCommand)
 export class CreateAdjustmentCommandHandler implements ICommandHandler<CreateAdjustmentCommand> {
@@ -57,31 +58,47 @@ export class CreateAdjustmentCommandHandler implements ICommandHandler<CreateAdj
       );
     }
 
-    // Determine branch ID from storage
-    let branchId: string | undefined;
-    const raw = await this.dataSource
-      .getRepository(StockLevelOrmEntity)
-      .createQueryBuilder('sl')
-      .leftJoin('sl.storage', 's')
-      .where('sl.storageId = :sid', { sid: storageId })
-      .select('s.branchId', 'branchId')
-      .getRawOne();
-    branchId = raw?.branchId || undefined;
-    if (branchId === '') branchId = undefined;
+    const storageEntity = await this.dataSource
+      .getRepository(StorageOrmEntity)
+      .findOne({
+        where: { id: storageId },
+        select: ['id', 'branchId'],
+      });
+    if (!storageEntity) {
+      throw new NotFoundException(`Almacén ${storageId} no encontrado`);
+    }
+    let branchId: string | undefined =
+      storageEntity.branchId && String(storageEntity.branchId).length > 0
+        ? storageEntity.branchId
+        : undefined;
 
-    // Fallback to any existing branch
     if (!branchId) {
-      const anyBranch = await this.dataSource
+      const fallbackBranches = await this.dataSource
         .getRepository(BranchOrmEntity)
-        .findOne({});
-      branchId = anyBranch?.id;
+        .find({
+          where: { deletedAt: IsNull() },
+          order: { createdAt: 'ASC' },
+          take: 1,
+        });
+      branchId = fallbackBranches[0]?.id;
+    }
+
+    if (!branchId) {
+      throw new BadRequestException(
+        'No se pudo determinar la sucursal del ajuste: el almacén no tiene sucursal y no hay sucursales en el sistema.',
+      );
     }
 
     // Get fallback user
     const fallbackUser = await this.userRepository.findOne({
       where: { deletedAt: null as any },
     });
-    const userId = fallbackUser?.id || '';
+    const userId = fallbackUser?.id;
+    if (!userId) {
+      throw new BadRequestException(
+        'No hay usuario activo para registrar el ajuste. Cree o active al menos un usuario en el sistema.',
+      );
+    }
 
     // Create transaction
     const txDto = new CreateTransactionDto();
@@ -247,7 +264,7 @@ export class RecalculateValuationCommandHandler implements ICommandHandler<Recal
   async execute(
     command: RecalculateValuationCommand,
   ): Promise<{ success: boolean; message: string }> {
-    // This is a simplified implementation. Full PMP calculation would happen in InventoryUpdaterListener.
+    // This is a simplified implementation. Full PMP calculation happens in the inventory stock action handler.
     // For now, we emit an event to signal that valuation should be recalculated.
     const event = new PMPRecalculatedEvent(
       command.data.variantId || 'all',
