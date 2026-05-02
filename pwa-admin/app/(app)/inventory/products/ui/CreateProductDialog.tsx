@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Dialog from "@/shared/components/Dialog/Dialog";
 import Alert from "@/shared/components/Alert/Alert";
 import { Button } from "@/shared/components/Button";
@@ -9,6 +10,7 @@ import Switch from "@/shared/components/Switch/Switch";
 import { Select, type Option } from "@/shared/components/Select";
 import { createProductAction } from "@/features/inventory-products/actions/product.action";
 import { listCategoriesForPage } from "@/features/inventory-categories/actions/category.action";
+import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
 
 export type CreateProductDialogProps = {
   open: boolean;
@@ -17,6 +19,9 @@ export type CreateProductDialogProps = {
 };
 
 export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductDialogProps) {
+  const router = useRouter();
+  const [phase, setPhase] = useState<"form" | "media">("form");
+  const [newProductId, setNewProductId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
   const [description, setDescription] = useState("");
@@ -31,6 +36,8 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
     if (!open) {
       return;
     }
+    setPhase("form");
+    setNewProductId(null);
     setName("");
     setBrand("");
     setDescription("");
@@ -58,6 +65,8 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
   }, [open]);
 
   const handleClose = () => {
+    setPhase("form");
+    setNewProductId(null);
     setName("");
     setBrand("");
     setDescription("");
@@ -69,6 +78,9 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
   };
 
   const handleSubmit = () => {
+    if (phase !== "form") {
+      return;
+    }
     setError(null);
     startTransition(() => {
       void (async () => {
@@ -81,8 +93,8 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
           isActive,
         });
         if (r.success) {
-          await onSuccess?.();
-          handleClose();
+          setNewProductId(r.id);
+          setPhase("media");
         } else {
           setError(r.error);
         }
@@ -90,13 +102,23 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
     });
   };
 
-  const canSubmit = name.trim().length > 0 && !isPending;
+  const handleFinalizeMedia = () => {
+    startTransition(() => {
+      void (async () => {
+        await onSuccess?.();
+        handleClose();
+      })();
+    });
+  };
+
+  const canSubmit = phase === "form" && name.trim().length > 0 && !isPending;
+  const canFinalize = phase === "media" && !isPending;
 
   return (
     <Dialog
       open={open}
       onClose={handleClose}
-      title="Crear producto"
+      title={phase === "media" ? "Imágenes del producto" : "Crear producto"}
       size="md"
       scroll="paper"
       maxHeight="min(90vh, 720px)"
@@ -109,16 +131,41 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
         ) : null
       }
       actions={
-        <>
-          <Button variant="outlined" size="md" onClick={handleClose} disabled={isPending} data-test-id="product-create-cancel">
-            Cancelar
-          </Button>
-          <Button variant="primary" size="md" onClick={handleSubmit} disabled={!canSubmit} data-test-id="product-create-submit">
-            Crear
-          </Button>
-        </>
+        phase === "media" ? (
+          <>
+            <Button variant="outlined" size="md" onClick={handleClose} disabled={isPending} data-test-id="product-create-cancel">
+              Cerrar
+            </Button>
+            <Button variant="primary" size="md" onClick={handleFinalizeMedia} disabled={!canFinalize} data-test-id="product-create-finish-media">
+              Listo
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="outlined" size="md" onClick={handleClose} disabled={isPending} data-test-id="product-create-cancel">
+              Cancelar
+            </Button>
+            <Button variant="primary" size="md" onClick={handleSubmit} disabled={!canSubmit} data-test-id="product-create-submit">
+              Crear
+            </Button>
+          </>
+        )
       }
     >
+      {phase === "media" && newProductId ? (
+        <div className="flex w-full min-w-0 flex-col gap-3">
+          <p className="text-sm text-muted-foreground">
+            Producto creado. Puede añadir imágenes de catálogo a nivel <span className="font-medium text-foreground">producto</span>{" "}
+            (compartidas por todas las variantes si no tienen imagen propia).
+          </p>
+          <EntityMultimediaPanel
+            entityType="product"
+            entityId={newProductId}
+            title="Imágenes del producto"
+            onChanged={() => router.refresh()}
+          />
+        </div>
+      ) : (
       <div className="flex w-full min-w-0 flex-col gap-4">
         <TextField
           label="Nombre"
@@ -144,9 +191,10 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
         />
         {productType === "SERVICE" ? (
           <div className="rounded-lg border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
-            Este producto es un <span className="font-medium text-foreground">servicio</span>. Si consume insumos, se
-            define mediante una <span className="font-medium text-foreground">receta (BOM)</span> (no se ingresa aquí
-            como JSON).
+            Este producto es un <span className="font-medium text-foreground">servicio</span>. Si consume insumos, defina
+            la <span className="font-medium text-foreground">receta (BOM)</span> en{" "}
+            <span className="font-medium text-foreground">Inventario → Productos</span>: expanda el producto, elija la
+            variante y use <span className="font-medium text-foreground">Receta (BOM)</span>.
           </div>
         ) : null}
         <Select
@@ -186,6 +234,7 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
           />
         </div>
       </div>
+      )}
     </Dialog>
   );
 }

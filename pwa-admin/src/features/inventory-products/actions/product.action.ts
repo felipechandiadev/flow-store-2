@@ -111,6 +111,10 @@ export async function listProductsForGrid(input: ListProductsForGridInput): Prom
         va = r1.categoryName;
         vb = r2.categoryName;
         break;
+      case "productType":
+        va = (r1.productType ?? "PHYSICAL").toString();
+        vb = (r2.productType ?? "PHYSICAL").toString();
+        break;
       case "variantCount":
         va = r1.variantCount;
         vb = r2.variantCount;

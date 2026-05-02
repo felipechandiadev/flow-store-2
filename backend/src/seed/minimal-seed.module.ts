@@ -18,6 +18,9 @@ import { Supplier } from '@modules/suppliers/domain/supplier.entity';
 import { AccountingAccount } from '@modules/accounting-accounts/domain/accounting-account.entity';
 import { AccountingRule } from '@modules/accounting-rules/domain/accounting-rule.entity';
 import { AccountingRuleLine } from '@modules/accounting-rules/domain/accounting-rule-line.entity';
+import { Product } from '@modules/products/domain/product.entity';
+import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 
 /**
  * Misma conexión y entidades que el API: el esquema lo define TypeORM vía
@@ -47,6 +50,9 @@ import { AccountingRuleLine } from '@modules/accounting-rules/domain/accounting-
       AccountingAccount,
       AccountingRule,
       AccountingRuleLine,
+      Product,
+      ProductVariant,
+      PriceListItem,
     ]),
   ],
 })

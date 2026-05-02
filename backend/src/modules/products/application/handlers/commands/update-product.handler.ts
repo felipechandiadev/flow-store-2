@@ -39,6 +39,7 @@ export class UpdateProductCommandHandler implements ICommandHandler<
     if (command.categoryId !== undefined)
       product.categoryId = command.categoryId;
     if (command.isActive !== undefined) product.isActive = command.isActive;
+    if (command.productType !== undefined) product.productType = command.productType;
 
     const updated = await this.productRepository.save(product);
 

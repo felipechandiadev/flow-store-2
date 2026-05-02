@@ -36,6 +36,9 @@ import {
   ExpenseCategoryOperationalGroup,
 } from '@modules/expense-categories/domain/expense-category-operational-group.enum';
 import { assertValidChileCompanyRut } from '@shared/utils/chile-company-rut.util';
+import { Product, ProductType } from '@modules/products/domain/product.entity';
+import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 
 const SEED_IVA_DESCRIPTION =
   'Impuesto al Valor Agregado sobre ventas, servicios e importaciones.';
@@ -389,6 +392,39 @@ const SEED_SUPPLIERS: readonly {
   },
 ] as const;
 
+/** Tablas en `public` que no deben truncarse (extensiones PostGIS u otras). */
+const TRUNCATE_EXCLUDE_TABLES = new Set([
+  'spatial_ref_sys',
+  'geometry_columns',
+  'geography_columns',
+  'raster_columns',
+  'raster_overviews',
+]);
+
+/**
+ * Vacía todas las tablas del esquema `public` (reinicia secuencias).
+ * Usar solo en entornos de desarrollo con `npm run seed`.
+ */
+async function truncateAllPublicTables(dataSource: DataSource): Promise<void> {
+  const schema = 'public';
+  const rows = await dataSource.query<{ tablename: string }[]>(
+    `SELECT tablename FROM pg_tables WHERE schemaname = $1 ORDER BY tablename`,
+    [schema],
+  );
+  const names = rows
+    .map((r) => r.tablename)
+    .filter((t) => !TRUNCATE_EXCLUDE_TABLES.has(t));
+  if (names.length === 0) {
+    console.log(`⚠️  No hay tablas para truncar en ${schema}.`);
+    return;
+  }
+  const quoted = names.map((n) => `"${n.replace(/"/g, '""')}"`).join(', ');
+  await dataSource.query(`TRUNCATE TABLE ${quoted} RESTART IDENTITY CASCADE`);
+  console.log(
+    `✅ Base de datos limpiada: ${names.length} tabla(s) en «${schema}» (TRUNCATE … CASCADE).`,
+  );
+}
+
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(MinimalSeedModule, {
     logger: ['error', 'warn', 'log'],
@@ -456,6 +492,15 @@ async function bootstrap() {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_actions_rule_sort
       ON automation_actions ("ruleId", "sortOrder");
     `);
+
+    if (process.env.SEED_SKIP_TRUNCATE === 'true') {
+      console.log(
+        '⚠️  SEED_SKIP_TRUNCATE=true — no se truncan tablas (datos previos se mezclan con el seed).',
+      );
+    } else {
+      console.log('🧹 Limpiando todas las tablas (schema public) antes del seed…');
+      await truncateAllPublicTables(dataSource);
+    }
 
     const userRepo = dataSource.getRepository(User);
     const personRepo = dataSource.getRepository(Person);
@@ -1089,6 +1134,323 @@ async function bootstrap() {
     console.log(
       `✅ Lista de precios ${mayorista.name} ${existingWholesale ? 'ya existía' : 'creada'}: id=${mayorista.id}`,
     );
+
+    // ---------------------------------------------------------------------
+    // Productos demo (catálogo): físico varias presentaciones, multivariante tallas, servicio, digital, insumo BOM
+    // ---------------------------------------------------------------------
+    const productRepo = dataSource.getRepository(Product);
+    const variantRepo = dataSource.getRepository(ProductVariant);
+    const priceListItemRepo = dataSource.getRepository(PriceListItem);
+
+    type SeedVariantSeed = {
+      sku: string;
+      barcode?: string;
+      basePrice: number;
+      baseCost: number;
+      pmp: number;
+      trackInventory: boolean;
+      allowNegativeStock?: boolean;
+      attributeValues?: Record<string, string>;
+      retailNet: number;
+      wholesaleNet: number;
+    };
+
+    type SeedProductSeed = {
+      name: string;
+      brand?: string;
+      description?: string;
+      productType: ProductType;
+      categoryId: string;
+      variants: SeedVariantSeed[];
+    };
+
+    const seedDemoProducts: SeedProductSeed[] = [
+      {
+        name: 'Café grano molido 500 g',
+        brand: 'Origen Sur',
+        description:
+          'Físico con tres presentaciones (250 g, 500 g, 1 kg); inventario rastreado; típico venta minorista / compra a proveedor.',
+        productType: ProductType.PHYSICAL,
+        categoryId: cat2.id,
+        variants: [
+          {
+            sku: 'SEED-DEMO-CAFE-250',
+            barcode: '7800001002501',
+            basePrice: 2790,
+            baseCost: 1200,
+            pmp: 1400,
+            trackInventory: true,
+            retailNet: 2790,
+            wholesaleNet: 2350,
+          },
+          {
+            sku: 'SEED-DEMO-CAFE-500',
+            barcode: '7800001005001',
+            basePrice: 4990,
+            baseCost: 2200,
+            pmp: 2500,
+            trackInventory: true,
+            retailNet: 4990,
+            wholesaleNet: 4200,
+          },
+          {
+            sku: 'SEED-DEMO-CAFE-1KG',
+            barcode: '7800001010001',
+            basePrice: 8990,
+            baseCost: 4000,
+            pmp: 4500,
+            trackInventory: true,
+            retailNet: 8990,
+            wholesaleNet: 7600,
+          },
+        ],
+      },
+      {
+        name: 'Polera algodón estampada',
+        brand: 'Demo Wear',
+        description:
+          'Físico multivariante (varias tallas) usando el atributo TALLA del seed; mismo producto, SKUs distintos.',
+        productType: ProductType.PHYSICAL,
+        categoryId: cat1.id,
+        variants: [
+          {
+            sku: 'SEED-DEMO-POL-XS',
+            barcode: '7800002001000',
+            basePrice: 11990,
+            baseCost: 5600,
+            pmp: 6000,
+            trackInventory: true,
+            attributeValues: { [talla.id]: 'XS' },
+            retailNet: 11990,
+            wholesaleNet: 10200,
+          },
+          {
+            sku: 'SEED-DEMO-POL-SM',
+            barcode: '7800002000999',
+            basePrice: 12490,
+            baseCost: 5800,
+            pmp: 6200,
+            trackInventory: true,
+            attributeValues: { [talla.id]: 'SM' },
+            retailNet: 12490,
+            wholesaleNet: 10600,
+          },
+          {
+            sku: 'SEED-DEMO-POL-ML',
+            barcode: '7800002001001',
+            basePrice: 12990,
+            baseCost: 6000,
+            pmp: 6500,
+            trackInventory: true,
+            attributeValues: { [talla.id]: 'M' },
+            retailNet: 12990,
+            wholesaleNet: 11000,
+          },
+          {
+            sku: 'SEED-DEMO-POL-LG',
+            barcode: '7800002001002',
+            basePrice: 12990,
+            baseCost: 6000,
+            pmp: 6500,
+            trackInventory: true,
+            attributeValues: { [talla.id]: 'L' },
+            retailNet: 12990,
+            wholesaleNet: 11000,
+          },
+          {
+            sku: 'SEED-DEMO-POL-XL',
+            barcode: '7800002001003',
+            basePrice: 13490,
+            baseCost: 6200,
+            pmp: 6700,
+            trackInventory: true,
+            attributeValues: { [talla.id]: 'XL' },
+            retailNet: 13490,
+            wholesaleNet: 11400,
+          },
+          {
+            sku: 'SEED-DEMO-POL-XXL',
+            barcode: '7800002001004',
+            basePrice: 13990,
+            baseCost: 6400,
+            pmp: 6900,
+            trackInventory: true,
+            attributeValues: { [talla.id]: 'XXL' },
+            retailNet: 13990,
+            wholesaleNet: 11800,
+          },
+        ],
+      },
+      {
+        name: 'Servicio armado de pedido en tienda',
+        brand: 'Demo Servicios',
+        description:
+          'Servicio (tipo SERVICE): variante única; consumos por receta/BOM al completar órdenes de servicio.',
+        productType: ProductType.SERVICE,
+        categoryId: cat1.id,
+        variants: [
+          {
+            sku: 'SEED-DEMO-SRV-ARM',
+            basePrice: 3500,
+            baseCost: 0,
+            pmp: 0,
+            trackInventory: false,
+            allowNegativeStock: false,
+            retailNet: 3500,
+            wholesaleNet: 3000,
+          },
+        ],
+      },
+      {
+        name: 'Pack plantillas hoja de cálculo (digital)',
+        brand: 'Demo Digital',
+        description:
+          'Digital: sin stock físico; útil para ventas documentadas y flujos sin inventario.',
+        productType: ProductType.DIGITAL,
+        categoryId: cat2.id,
+        variants: [
+          {
+            sku: 'SEED-DEMO-DIG-XLS',
+            basePrice: 15000,
+            baseCost: 0,
+            pmp: 0,
+            trackInventory: false,
+            retailNet: 15000,
+            wholesaleNet: 12000,
+          },
+        ],
+      },
+      {
+        name: 'Harina integral saco 25 kg',
+        brand: 'Molino Demo',
+        description:
+          'Materia prima / insumo físico (25 kg y 5 kg) para recepciones y líneas de receta (BOM) hacia servicios o producción.',
+        productType: ProductType.PHYSICAL,
+        categoryId: cat2.id,
+        variants: [
+          {
+            sku: 'SEED-DEMO-MP-HAR25',
+            barcode: '7800003002501',
+            basePrice: 18990,
+            baseCost: 12000,
+            pmp: 12500,
+            trackInventory: true,
+            retailNet: 18990,
+            wholesaleNet: 16500,
+          },
+          {
+            sku: 'SEED-DEMO-MP-HAR5',
+            barcode: '7800003005001',
+            basePrice: 45990,
+            baseCost: 28000,
+            pmp: 30000,
+            trackInventory: true,
+            retailNet: 45990,
+            wholesaleNet: 39900,
+          },
+        ],
+      },
+    ];
+
+    const upsertPriceListItem = async (args: {
+      priceListId: string;
+      productId: string;
+      productVariantId: string;
+      net: number;
+      taxId: string;
+    }) => {
+      const gross = Math.round(args.net * 1.19);
+      let row = await priceListItemRepo.findOne({
+        where: {
+          priceListId: args.priceListId,
+          productId: args.productId,
+          productVariantId: args.productVariantId,
+        },
+      });
+      if (!row) {
+        row = priceListItemRepo.create({
+          priceListId: args.priceListId,
+          productId: args.productId,
+          productVariantId: args.productVariantId,
+          netPrice: args.net,
+          grossPrice: gross,
+          taxIds: [args.taxId],
+        });
+      } else {
+        row.netPrice = args.net;
+        row.grossPrice = gross;
+        row.taxIds = [args.taxId];
+      }
+      await priceListItemRepo.save(row);
+    };
+
+    for (const def of seedDemoProducts) {
+      let product = await productRepo.findOne({
+        where: { name: def.name },
+      });
+      const productPayload = {
+        name: def.name,
+        brand: def.brand,
+        description: def.description,
+        productType: def.productType,
+        categoryId: def.categoryId,
+        taxIds: [ivaTax.id],
+        isActive: true,
+        baseUnitId: baseUnit.id,
+      };
+      if (!product) {
+        product = productRepo.create(productPayload);
+      } else {
+        Object.assign(product, productPayload);
+      }
+      product = await productRepo.save(product);
+
+      for (const vd of def.variants) {
+        let variant = await variantRepo.findOne({ where: { sku: vd.sku } });
+        const variantPayload = {
+          productId: product.id,
+          sku: vd.sku,
+          barcode: vd.barcode,
+          basePrice: vd.basePrice,
+          baseCost: vd.baseCost,
+          pmp: vd.pmp,
+          unitId: baseUnit.id,
+          attributeValues: vd.attributeValues ?? undefined,
+          taxIds: [ivaTax.id],
+          trackInventory: vd.trackInventory,
+          allowNegativeStock: vd.allowNegativeStock ?? false,
+          isActive: true,
+          minimumStock: 0,
+          maximumStock: 0,
+          reorderPoint: 0,
+        };
+        if (!variant) {
+          variant = variantRepo.create(variantPayload);
+        } else {
+          Object.assign(variant, variantPayload);
+        }
+        variant = await variantRepo.save(variant);
+
+        await upsertPriceListItem({
+          priceListId: minorista.id,
+          productId: product.id,
+          productVariantId: variant.id,
+          net: vd.retailNet,
+          taxId: ivaTax.id,
+        });
+        await upsertPriceListItem({
+          priceListId: mayorista.id,
+          productId: product.id,
+          productVariantId: variant.id,
+          net: vd.wholesaleNet,
+          taxId: ivaTax.id,
+        });
+      }
+
+      console.log(
+        `✅ Producto demo sincronizado: «${def.name}» (${def.productType}) variantes=${def.variants.length} productId=${product.id}`,
+      );
+    }
 
     // Point of sale (ejemplo): CAJA LOCAL en sucursal seed con listas de precios
     const priceListsJson = [

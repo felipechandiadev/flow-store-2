@@ -1,4 +1,5 @@
 import { BaseCommand } from '@shared/cqrs';
+import { ProductType } from '../../domain/product.entity';
 
 export class CreateProductCommand extends BaseCommand {
   constructor(
@@ -8,6 +9,7 @@ export class CreateProductCommand extends BaseCommand {
     public readonly brand?: string,
     public readonly description?: string,
     public readonly isActive: boolean = true,
+    public readonly productType?: ProductType,
   ) {
     super();
   }

@@ -1,6 +1,6 @@
 import type { SideBarMenuItem } from '@/shared/components/TopBar/SideBar';
 
-const uiComponentItems: SideBarMenuItem[] = [
+export const uiComponentItems: SideBarMenuItem[] = [
   { id: 'ui-alert', label: 'Alert', url: '/ui-components/alert' },
   { id: 'ui-autocomplete', label: 'Autocomplete', url: '/ui-components/autocomplete' },
   { id: 'ui-badge', label: 'Badge', url: '/ui-components/badge' },
@@ -16,6 +16,7 @@ const uiComponentItems: SideBarMenuItem[] = [
     url: '/ui-components/collection-page-layout',
   },
   { id: 'ui-number-stepper', label: 'Number stepper', url: '/ui-components/number-stepper' },
+  { id: 'ui-multimedia', label: 'Multimedia', url: '/ui-components/multimedia' },
   { id: 'ui-range-slider', label: 'Range slider', url: '/ui-components/range-slider' },
   { id: 'ui-select', label: 'Select', url: '/ui-components/select' },
   { id: 'ui-switch', label: 'Switch', url: '/ui-components/switch' },

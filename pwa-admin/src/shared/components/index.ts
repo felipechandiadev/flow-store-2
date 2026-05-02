@@ -38,8 +38,9 @@ export { default as NumberStepper } from './NumberStepper';
 export { default as LocationPickerWrapper } from './LocationPicker';
 
 // File Upload
-export { default as FileUploader } from './FileUploader';
-export { default as MultimediaUploader } from './FileUploader';
+export { MultimediaUploader, MultimediaUpdater } from './FileUploader';
+export type { MultimediaBannerSize } from './FileUploader';
+export { default as FileUploader } from './FileUploader/MultimediaUpdater';
 
 // Feedback & Progress
 export { default as DotProgress } from './DotProgress';

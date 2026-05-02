@@ -45,6 +45,14 @@ npm run seed
 
 Requiere base de datos accesible con la misma configuración que el API (`.env` / variables `DB_*`).
 
+### Limpieza de la base
+
+Por defecto, **antes** de insertar datos el seed ejecuta `TRUNCATE … CASCADE` sobre **todas** las tablas del esquema `public` (reinicia secuencias). Es destructivo: úsalo solo en desarrollo.
+
+Para omitir el truncado (mezcla datos viejos con el seed), define:
+
+`SEED_SKIP_TRUNCATE=true`
+
 ## Estructura
 
 - `run-minimal-seed.ts` — script CLI

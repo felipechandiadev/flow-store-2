@@ -3,11 +3,14 @@ import React, { useRef, useState } from 'react';
 import { User, ImageOff, Image as ImageIcon, RotateCcw, Plus } from 'lucide-react';
 import { Button } from '../Button/Button';
 import IconButton from '../IconButton/IconButton';
+import type { MultimediaBannerSize } from './multimedia-banner-size';
+import { bannerAreaClassName, bannerPlaceholderIconDimension } from './multimedia-banner-size';
 // TODO: Create shared/hooks/useAlert hook
 // import { useAlert } from '@/shared/hooks/useAlert';
 
 interface MultimediaUploaderProps {
-  uploadPath: string; // Ruta donde se guardará el archivo (en el backend)
+  /** Identificador contextual (p. ej. entidad destino); no envía el archivo por sí solo. */
+  uploadPath: string;
   onChange?: (files: File[]) => void;
   label?: string;
   accept?: string;
@@ -15,8 +18,12 @@ interface MultimediaUploaderProps {
   maxSize?: number; // Tamaño máximo en MB
   aspectRatio?: 'square' | 'video' | '16:9' | 'auto';
   buttonType?: 'icon' | 'normal';
-  variant?: 'default' | 'avatar' | 'banner'; // Added banner variant
+  /** `collection` = varios archivos + rejilla; `avatar` / `banner` = un solo archivo con layout fijo. */
+  variant?: 'collection' | 'avatar' | 'banner';
+  /** Solo `variant="banner"`: ancho del área 16:9 (vacío + preview): xs … full. Por defecto `md`. */
+  bannerSize?: MultimediaBannerSize;
   previewSize?: 'xs' | 'sm' | 'normal' | 'lg' | 'xl'; // Opciones de tamaño de miniatura
+  disabled?: boolean;
 }
 
 export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
@@ -28,8 +35,10 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
   maxSize = 9, // 9MB por defecto (margen con el límite de 10MB de Next.js)
   aspectRatio = '16:9',
   buttonType = 'icon',
-  variant = 'default', // Valor por defecto ('avatar' o 'banner' para usos especiales)
+  variant = 'collection',
+  bannerSize = 'md',
   previewSize = 'normal', // xs | sm | normal | lg | xl
+  disabled = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -59,6 +68,9 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
   }, [previewUrls]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) {
+      return;
+    }
     const selectedFiles = Array.from(e.target.files || []);
 
     if (selectedFiles.length === 0) return;
@@ -93,7 +105,7 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
       return;
     }
 
-    // Lógica normal para variante default
+    // Variante collection: varios archivos + rejilla
     const validFiles: File[] = [];
     const errorMessages: string[] = [];
 
@@ -180,14 +192,25 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
 
   const previewContainerClass = getPreviewSizeClasses();
 
+  const openPicker = () => {
+    if (!disabled) {
+      inputRef.current?.click();
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-4 w-full" data-test-id="multimedia-uploader-root">
+    <div
+      className={`flex flex-col gap-4 w-full ${disabled ? "pointer-events-none opacity-60" : ""}`}
+      data-test-id="multimedia-uploader-root"
+      data-upload-context={uploadPath}
+    >
             <input
         ref={inputRef}
         type="file"
         accept={variant === 'avatar' || variant === 'banner' ? 'image/*' : accept}
         multiple={variant !== 'avatar' && variant !== 'banner'} // solamente single para avatar/banner
         style={{ display: 'none' }}
+        disabled={disabled}
         onChange={handleFileChange}
       />
       {variant === 'avatar' ? (
@@ -195,7 +218,7 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
         <div className="flex flex-col items-center gap-4">
           <div
             className="relative w-24 h-24 mx-auto rounded-full border-4 border-secondary bg-neutral-100 flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors"
-            onClick={() => inputRef.current?.click()}
+            onClick={openPicker}
           >
             {previewUrls.length > 0 ? (
               <img
@@ -211,37 +234,41 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
           <IconButton
             icon="Plus"
             variant="containedSecondary"
-            onClick={() => inputRef.current?.click()}
+            onClick={openPicker}
+            disabled={disabled}
             ariaLabel="Seleccionar avatar"
           />
         </div>
       ) : variant === 'banner' ? (
         // Renderizado para variante banner (16:9 rectangle)
-        <div className="flex flex-col items-center gap-4">
+        <div
+          className={`flex flex-col gap-4 ${bannerSize === 'full' ? 'w-full' : 'items-center'}`}
+        >
           <div
-            className="relative w-full max-w-[480px] aspect-video  flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors rounded-lg"
-            onClick={() => inputRef.current?.click()}
+            className={`${bannerAreaClassName(bannerSize)} hover:border-blue-500 border border-transparent bg-muted/25`}
+            onClick={openPicker}
           >
             {previewUrls.length > 0 ? (
               <img
                 src={previewUrls[0]}
                 alt="Preview"
-                className="w-full h-full object-cover rounded-lg"
+                className="h-full w-full object-cover rounded-lg"
               />
             ) : (
-              <ImageIcon className="text-secondary" size={64} />
+              <ImageIcon className="text-secondary" size={bannerPlaceholderIconDimension(bannerSize)} />
             )}
           </div>
 
           <IconButton
             icon="Plus"
             variant="containedSecondary"
-            onClick={() => inputRef.current?.click()}
+            onClick={openPicker}
+            disabled={disabled}
             ariaLabel="Seleccionar imagen"
           />
         </div>
       ) : (
-        // Renderizado normal para variante default
+        // Variante collection: botón + rejilla de previews
         <>
           <div className="flex flex-col items-start gap-0.5">
             {buttonType === 'icon' ? (
@@ -252,12 +279,13 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
                 <IconButton
                   icon="Plus"
                   variant="containedSecondary"
-                  onClick={() => inputRef.current?.click()}
+                  onClick={openPicker}
+                  disabled={disabled}
                   ariaLabel="Subir multimedia"
                 />
               </>
             ) : (
-              <Button variant="secondary" type="button" onClick={() => inputRef.current?.click()}>
+              <Button variant="secondary" type="button" onClick={openPicker} disabled={disabled}>
                 Subir multimedia
               </Button>
             )}
@@ -299,6 +327,7 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
                     icon="X"
                     variant="containedSecondary"
                     onClick={() => handleRemove(idx)}
+                    disabled={disabled}
                     style={{ position: 'absolute', top: 2, right: 2, borderRadius: '50%', minWidth: 24, minHeight: 24, padding: 0, width: 24, height: 24, lineHeight: 1 }}
                   />
 

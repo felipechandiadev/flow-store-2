@@ -181,7 +181,7 @@ const CreateBaseForm: React.FC<CreateBaseFormProps> = ({
 						{field.label}
 					</label>
 					<MultimediaUploader
-						variant={field.type === 'avatar' ? 'avatar' : 'default'}
+						variant={field.type === 'avatar' ? 'avatar' : 'collection'}
 						onChange={(files) => {
 							if (files.length > 0) {
 								onChange(field.name, files[0]);

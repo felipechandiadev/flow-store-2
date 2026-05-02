@@ -3,7 +3,7 @@ import { EventBus } from '@nestjs/cqrs';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { CreateProductCommandHandler } from '../../application/handlers/commands/create-product.handler';
 import { CreateProductCommand } from '../../application/commands/create-product.command';
-import { Product } from '../../domain/product.entity';
+import { Product, ProductType } from '../../domain/product.entity';
 
 describe('CreateProductCommandHandler', () => {
   let handler: CreateProductCommandHandler;
@@ -53,7 +53,7 @@ describe('CreateProductCommandHandler', () => {
       brand: 'Brand',
       description: 'desc',
       isActive: true,
-      productType: 'STANDARD',
+      productType: ProductType.PHYSICAL,
       taxIds: [],
       resultCenterId: null,
       baseUnitId: null,

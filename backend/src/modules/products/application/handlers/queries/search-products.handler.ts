@@ -9,6 +9,7 @@ import { ProductVariant } from '@modules/product-variants/domain/product-variant
 export interface SearchProductsResult {
   id: string;
   name: string;
+  productType?: string;
   brand?: string;
   description?: string;
   categoryId?: string | null;
@@ -107,6 +108,7 @@ export class SearchProductsQueryHandler implements IQueryHandler<
     const enriched = products.map((p) => ({
       id: p.id,
       name: p.name,
+      productType: p.productType,
       brand: p.brand,
       description: p.description,
       categoryId: p.categoryId ?? null,

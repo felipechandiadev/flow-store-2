@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useId } from 'react';
 import { User, ImageOff, Image as ImageIcon, RotateCcw, Plus } from 'lucide-react';
 import IconButton from '../IconButton/IconButton';
 import Alert from '../Alert/Alert';
+import { bannerAreaClassName, bannerPlaceholderIconDimension } from './multimedia-banner-size';
 import { MultimediaUpdaterProps } from './types';
 
 const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
@@ -19,7 +20,10 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
   allowDragDrop = false,
   className = '',
   previewSize = 'md',
+  bannerSize = 'md',
+  disabled = false,
 }) => {
+  const inputId = useId();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl || null);
   const [error, setError] = useState<string | null>(null);
@@ -80,17 +84,26 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
     return true;
   };
 
-  const handleFileSelect = useCallback((file: File) => {
-    if (validateFile(file)) {
-      setSelectedFile(file);
-      const newPreviewUrl = URL.createObjectURL(file);
-      setPreviewUrl(newPreviewUrl);
-      setImageError(false);
-      onFileChange?.(file);
-    }
-  }, [onFileChange, acceptedTypes, maxSize]);
+  const handleFileSelect = useCallback(
+    (file: File) => {
+      if (disabled) {
+        return;
+      }
+      if (validateFile(file)) {
+        setSelectedFile(file);
+        const newPreviewUrl = URL.createObjectURL(file);
+        setPreviewUrl(newPreviewUrl);
+        setImageError(false);
+        onFileChange?.(file);
+      }
+    },
+    [onFileChange, acceptedTypes, maxSize, disabled],
+  );
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) {
+      return;
+    }
     const file = e.target.files?.[0];
     if (file) handleFileSelect(file);
   };
@@ -103,10 +116,11 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    if (allowDragDrop) {
-      e.preventDefault();
-      setIsDragOver(true);
+    if (disabled || !allowDragDrop) {
+      return;
     }
+    e.preventDefault();
+    setIsDragOver(true);
   };
 
   const handleDragLeave = () => {
@@ -114,12 +128,13 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    if (allowDragDrop) {
-      e.preventDefault();
-      setIsDragOver(false);
-      const file = e.dataTransfer.files?.[0];
-      if (file) handleFileSelect(file);
+    if (disabled || !allowDragDrop) {
+      return;
     }
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileSelect(file);
   };
 
   const renderPreview = () => {
@@ -159,13 +174,21 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
     );
   };
 
+  const openFile = () => {
+    if (!disabled) {
+      fileInputRef.current?.click();
+    }
+  };
+
   return (
-    <div className={`space-y-4 mt-2 ${className}`}>
+    <div
+      className={`space-y-4 mt-2 ${disabled ? 'pointer-events-none opacity-60' : ''} ${className}`}
+    >
       {variant === 'avatar' ? (
         <div className="flex flex-col items-center gap-4">
           <div
             className="relative w-24 h-24 mx-auto rounded-full border-4 border-secondary bg-neutral-100 flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={openFile}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -184,15 +207,18 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
           <IconButton
             icon={previewUrl ? 'RotateCcw' : 'Plus'}
             variant="containedSecondary"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={openFile}
+            disabled={disabled}
             ariaLabel="Seleccionar avatar"
           />
         </div>
       ) : variant === 'banner' ? (
-        <div className="flex flex-col items-center gap-4">
+        <div
+          className={`flex flex-col gap-4 ${bannerSize === 'full' ? 'w-full' : 'items-center'}`}
+        >
           <div
-            className="relative w-full max-w-[480px] aspect-video flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors rounded-lg"
-            onClick={() => fileInputRef.current?.click()}
+            className={`${bannerAreaClassName(bannerSize)} border border-transparent bg-muted/25 hover:border-blue-500`}
+            onClick={openFile}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -200,7 +226,7 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
             {previewUrl ? (
               renderPreview()
             ) : (
-              <ImageIcon className="text-secondary" size={64} />
+              <ImageIcon className="text-secondary" size={bannerPlaceholderIconDimension(bannerSize)} />
             )}
             {allowDragDrop && isDragOver && (
               <div className="absolute inset-0 bg-blue-500 bg-opacity-50 flex items-center justify-center text-white font-semibold rounded-lg">
@@ -211,7 +237,8 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
           <IconButton
             icon={previewUrl ? 'RotateCcw' : 'Plus'}
             variant="containedSecondary"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={openFile}
+            disabled={disabled}
             ariaLabel="Seleccionar imagen"
           />
         </div>
@@ -226,7 +253,8 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
             <IconButton
               icon="Plus"
               variant="containedSecondary"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={openFile}
+              disabled={disabled}
               ariaLabel="Subir multimedia"
             />
           </div>
@@ -241,11 +269,12 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
 
       {/* Hidden File Input */}
       <input
-        id="multimedia-input"
+        id={inputId}
         ref={fileInputRef}
         type="file"
         accept={acceptedTypes.join(',')}
         onChange={handleInputChange}
+        disabled={disabled}
         className="hidden"
       />
     </div>

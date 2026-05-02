@@ -9,10 +9,13 @@ import IconButton from "@/shared/components/IconButton/IconButton";
 import Badge from "@/shared/components/Badge/Badge";
 import { DeleteDialog } from "@/shared/components/Dialog/DeleteDialog";
 import type { ProductGridRow, ProductVariantGridRow } from "@/features/inventory-products/types/product-grid.types";
+import { Button } from "@/shared/components/Button";
 import { CreateProductDialog } from "./CreateProductDialog";
 import { EditProductDialog } from "./EditProductDialog";
 import { CreateProductVariantDialog } from "./CreateProductVariantDialog";
+import { CreateRecipeDialog } from "./CreateRecipeDialog";
 import { deleteProductAction } from "@/features/inventory-products/actions/product.action";
+import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
 
 type ProductsDataGridProps = {
   rows: ProductGridRow[];
@@ -41,6 +44,17 @@ function formatNumber(n: number): string {
   return new Intl.NumberFormat("es-CL", { maximumFractionDigits: 3 }).format(n);
 }
 
+function productTypePresentation(pt: string | null | undefined): { label: string; variant: "primary" | "warning" | "info" } {
+  const t = (pt ?? "PHYSICAL").toString().toUpperCase();
+  if (t === "SERVICE") {
+    return { label: "Servicio", variant: "warning" };
+  }
+  if (t === "DIGITAL") {
+    return { label: "Digital", variant: "info" };
+  }
+  return { label: "Físico", variant: "primary" };
+}
+
 function variantTitle(v: ProductVariantGridRow): string {
   const dn = v.displayName?.trim();
   if (dn) {
@@ -56,7 +70,17 @@ function variantTitle(v: ProductVariantGridRow): string {
   return v.sku;
 }
 
-function ProductVariantExpandCard({ v }: { v: ProductVariantGridRow }) {
+function ProductVariantExpandCard({
+  v,
+  productType,
+  onDefineRecipe,
+  onMediaChanged,
+}: {
+  v: ProductVariantGridRow;
+  productType: string | null;
+  onDefineRecipe?: () => void;
+  onMediaChanged?: () => void;
+}) {
   const img = v.primaryImageUrl?.trim() || null;
   const extraMedia = (v.mediaAssets?.length ?? 0) > 1 ? (v.mediaAssets!.length - 1) : 0;
   const weightLine =
@@ -65,6 +89,8 @@ function ProductVariantExpandCard({ v }: { v: ProductVariantGridRow }) {
       : null;
   const track = v.trackInventory !== false;
   const neg = v.allowNegativeStock === true;
+  const pt = (productType ?? "PHYSICAL").toString().toUpperCase();
+  const showRecipeCta = pt !== "DIGITAL" && onDefineRecipe;
 
   return (
     <article
@@ -163,6 +189,33 @@ function ProductVariantExpandCard({ v }: { v: ProductVariantGridRow }) {
             </ul>
           )}
         </div>
+
+        <div className="border-t border-border pt-3">
+          <EntityMultimediaPanel
+            entityType="product-variant"
+            entityId={v.id}
+            title="Imágenes de la variante"
+            onChanged={onMediaChanged}
+          />
+        </div>
+
+        {showRecipeCta ? (
+          <div className="border-t border-border pt-3" data-test-id={`products-expand-bom-${v.id}`}>
+            <Button
+              variant="outlined"
+              size="sm"
+              type="button"
+              className="w-full sm:w-auto"
+              onClick={onDefineRecipe}
+              data-test-id={`products-expand-bom-button-${v.id}`}
+            >
+              Receta (BOM)
+            </Button>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Define insumos por unidad de este SKU (servicio o producción). No aplica a productos digitales.
+            </p>
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -171,14 +224,26 @@ function ProductVariantExpandCard({ v }: { v: ProductVariantGridRow }) {
 function ProductExpandPanel({
   row,
   onAddVariant,
+  onDefineRecipe,
+  onMediaChanged,
 }: {
   row: ProductGridRow;
   onAddVariant: (r: ProductGridRow) => void;
+  onDefineRecipe?: (product: ProductGridRow, variant: ProductVariantGridRow) => void;
+  onMediaChanged?: () => void;
 }) {
   const hasVariants = Boolean(row.variants?.length);
 
   return (
     <div className="relative w-full min-w-0 max-w-none" data-test-id="products-expand-panel">
+      <div className="mb-4">
+        <EntityMultimediaPanel
+          entityType="product"
+          entityId={row.id}
+          title="Imágenes del producto (catálogo)"
+          onChanged={onMediaChanged}
+        />
+      </div>
       <div className="mb-3 flex w-full min-w-0 items-center gap-2">
         <IconButton
           icon="Plus"
@@ -198,7 +263,15 @@ function ProductExpandPanel({
           data-test-id="products-expand-variant-cards"
         >
           {row.variants!.map((v) => (
-            <ProductVariantExpandCard key={v.id} v={v} />
+            <ProductVariantExpandCard
+              key={v.id}
+              v={v}
+              productType={row.productType ?? null}
+              onDefineRecipe={
+                onDefineRecipe ? () => onDefineRecipe(row, v) : undefined
+              }
+              onMediaChanged={onMediaChanged}
+            />
           ))}
         </div>
       ) : (
@@ -222,6 +295,8 @@ function ProductExpandPanel({
             <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
               Este producto aún no tiene variantes (SKU, precios e inventario viven en cada variante). Use el botón{" "}
               <span className="font-medium text-foreground">+</span> junto al título «Variantes» para crear la primera.
+              Después podrá definir la <span className="font-medium text-foreground">receta (BOM)</span> en esa variante
+              (producto físico o servicio).
             </p>
           </div>
         </div>
@@ -243,6 +318,12 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
     productType?: string | null;
     referencePmp: number;
   } | null>(null);
+  const [bomDialog, setBomDialog] = useState<{
+    outputVariantId: string;
+    outputSku: string;
+    productName: string;
+    productType: "PHYSICAL" | "SERVICE" | "DIGITAL";
+  } | null>(null);
 
   const openVariantDialog = useCallback((r: ProductGridRow) => {
     setVariantDialog({
@@ -250,6 +331,21 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
       productName: r.name,
       productType: r.productType ?? "PHYSICAL",
       referencePmp: averageReferencePmp(r),
+    });
+  }, []);
+
+  const openRecipeDialog = useCallback((product: ProductGridRow, variant: ProductVariantGridRow) => {
+    const raw = (product.productType ?? "PHYSICAL").toString().toUpperCase();
+    if (raw === "DIGITAL") {
+      return;
+    }
+    const productType: "PHYSICAL" | "SERVICE" | "DIGITAL" =
+      raw === "SERVICE" ? "SERVICE" : raw === "DIGITAL" ? "DIGITAL" : "PHYSICAL";
+    setBomDialog({
+      outputVariantId: variant.id,
+      outputSku: variant.sku,
+      productName: product.name,
+      productType,
     });
   }, []);
 
@@ -295,6 +391,21 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
     return [
       { field: "name", headerName: "Nombre", sortable: true, minWidth: 200, flex: 1 },
       {
+        field: "productType",
+        headerName: "Tipo",
+        sortable: true,
+        width: 116,
+        renderCell: ({ row }) => {
+          const r = row as ProductGridRow;
+          const p = productTypePresentation(r.productType);
+          return (
+            <Badge variant={p.variant} className="shrink-0">
+              {p.label}
+            </Badge>
+          );
+        },
+      },
+      {
         field: "categoryName",
         headerName: "Categoría",
         sortable: true,
@@ -337,8 +448,15 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
   }, [onEditProduct, onDeleteProduct]);
 
   const expandableRowContent = useCallback(
-    (row: ProductGridRow) => <ProductExpandPanel row={row} onAddVariant={openVariantDialog} />,
-    [openVariantDialog],
+    (row: ProductGridRow) => (
+      <ProductExpandPanel
+        row={row}
+        onAddVariant={openVariantDialog}
+        onDefineRecipe={openRecipeDialog}
+        onMediaChanged={() => router.refresh()}
+      />
+    ),
+    [openRecipeDialog, openVariantDialog, router],
   );
 
   return (
@@ -418,6 +536,17 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
         productName={variantDialog?.productName ?? ""}
         productType={(variantDialog as any)?.productType ?? "PHYSICAL"}
         referencePmp={variantDialog?.referencePmp ?? 0}
+        onSuccess={async () => {
+          await router.refresh();
+        }}
+      />
+      <CreateRecipeDialog
+        open={bomDialog != null}
+        onClose={() => setBomDialog(null)}
+        outputVariantId={bomDialog?.outputVariantId ?? ""}
+        outputSku={bomDialog?.outputSku ?? ""}
+        productName={bomDialog?.productName ?? ""}
+        productType={bomDialog?.productType ?? "PHYSICAL"}
         onSuccess={async () => {
           await router.refresh();
         }}

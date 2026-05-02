@@ -4,7 +4,7 @@ import { CreateProductCommand } from '../../commands/create-product.command';
 import { ProductCreatedEvent } from '../../../domain/events/product-created.event';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Product } from '../../../domain/product.entity';
+import { Product, ProductType } from '../../../domain/product.entity';
 
 @CommandHandler(CreateProductCommand)
 export class CreateProductCommandHandler implements ICommandHandler<
@@ -29,6 +29,7 @@ export class CreateProductCommandHandler implements ICommandHandler<
       brand: command.brand,
       description: command.description,
       isActive: command.isActive,
+      productType: command.productType ?? ProductType.PHYSICAL,
     });
 
     const saved = await this.productRepository.save(product);

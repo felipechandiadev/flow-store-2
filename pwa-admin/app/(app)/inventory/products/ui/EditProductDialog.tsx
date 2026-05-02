@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Dialog from "@/shared/components/Dialog/Dialog";
 import Alert from "@/shared/components/Alert/Alert";
 import { Button } from "@/shared/components/Button";
@@ -10,6 +11,7 @@ import { Select, type Option } from "@/shared/components/Select";
 import { updateProductAction } from "@/features/inventory-products/actions/product.action";
 import type { ProductGridRow } from "@/features/inventory-products/types/product-grid.types";
 import { listCategoriesForPage } from "@/features/inventory-categories/actions/category.action";
+import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
 
 export type EditProductDialogProps = {
   open: boolean;
@@ -19,6 +21,7 @@ export type EditProductDialogProps = {
 };
 
 export function EditProductDialog({ open, product, onClose, onSuccess }: EditProductDialogProps) {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
   const [description, setDescription] = useState("");
@@ -144,9 +147,10 @@ export function EditProductDialog({ open, product, onClose, onSuccess }: EditPro
         />
         {productType === "SERVICE" ? (
           <div className="rounded-lg border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
-            Este producto es un <span className="font-medium text-foreground">servicio</span>. Si consume insumos, se
-            define mediante una <span className="font-medium text-foreground">receta (BOM)</span> (no se edita aquí
-            como JSON).
+            Este producto es un <span className="font-medium text-foreground">servicio</span>. Si consume insumos, defina
+            la <span className="font-medium text-foreground">receta (BOM)</span> en{" "}
+            <span className="font-medium text-foreground">Inventario → Productos</span>: expanda el producto, elija la
+            variante y use <span className="font-medium text-foreground">Receta (BOM)</span>.
           </div>
         ) : null}
         <Select
@@ -185,6 +189,14 @@ export function EditProductDialog({ open, product, onClose, onSuccess }: EditPro
             data-test-id="product-edit-active"
           />
         </div>
+        {product ? (
+          <EntityMultimediaPanel
+            entityType="product"
+            entityId={product.id}
+            title="Imágenes del producto (catálogo)"
+            onChanged={() => router.refresh()}
+          />
+        ) : null}
       </div>
     </Dialog>
   );
