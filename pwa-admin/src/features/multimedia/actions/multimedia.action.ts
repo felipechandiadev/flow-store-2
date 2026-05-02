@@ -40,6 +40,22 @@ export async function uploadMultimediaForEntityAction(formData: FormData): Promi
   return r;
 }
 
+export async function setPrimaryMultimediaAssetAction(input: {
+  entityType: MultimediaEntityType;
+  entityId: string;
+  assetId: string;
+}): Promise<{ success: true } | { success: false; error: string }> {
+  const r = await MultimediaRequest.setPrimaryForEntity({
+    entityType: input.entityType,
+    entityId: input.entityId.trim(),
+    assetId: input.assetId.trim(),
+  });
+  if (r.success) {
+    revalidatePath(PRODUCTS_PATH, "page");
+  }
+  return r;
+}
+
 export async function unlinkMultimediaFromEntityAction(input: {
   assetId: string;
   entityType: MultimediaEntityType;

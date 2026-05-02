@@ -1,12 +1,12 @@
 import { BaseQuery } from '@shared/cqrs';
 import { MultimediaAsset } from '../../domain/multimedia-asset.entity';
 
-export type ListedMultimediaAsset = MultimediaAsset & { isPrimary: boolean };
+export type MultimediaAssetsByEntityIdMap = Record<string, MultimediaAsset[]>;
 
-export class ListMultimediaAssetsQuery extends BaseQuery<ListedMultimediaAsset[]> {
+export class ListMultimediaAssetsByEntityIdsQuery extends BaseQuery<MultimediaAssetsByEntityIdMap> {
   constructor(
     public readonly entityType: string,
-    public readonly entityId: string,
+    public readonly entityIds: string[],
     public readonly usageType?: string,
   ) {
     super();

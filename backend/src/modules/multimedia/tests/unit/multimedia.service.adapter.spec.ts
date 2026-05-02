@@ -6,6 +6,7 @@ import { LinkMultimediaCommand } from '@modules/multimedia/application/commands/
 import { UnlinkMultimediaCommand } from '@modules/multimedia/application/commands/unlink-multimedia.command';
 import { GetMultimediaAssetQuery } from '@modules/multimedia/application/queries/get-multimedia-asset.query';
 import { ListMultimediaAssetsQuery } from '@modules/multimedia/application/queries/list-multimedia-assets.query';
+import { ListMultimediaAssetsByEntityIdsQuery } from '@modules/multimedia/application/queries/list-multimedia-assets-by-entity-ids.query';
 
 describe('MultimediaServiceAdapter', () => {
   let adapter: MultimediaServiceAdapter;
@@ -101,5 +102,19 @@ describe('MultimediaServiceAdapter', () => {
     expect(found).toEqual({ id: 'asset-1' });
     expect(listed).toEqual([{ id: 'asset-1' }]);
     expect(deleted).toEqual({ success: true });
+  });
+
+  it('should dispatch list-by-entity-ids query', async () => {
+    queryBus.execute.mockResolvedValueOnce({ 'var-1': [{ id: 'a1', publicUrl: '/x', mimeType: 'image/png', kind: 'image' }] });
+
+    const map = await adapter.listByEntityIds('product-variant', ['var-1', 'var-2']);
+
+    expect(queryBus.execute.mock.calls[0][0]).toBeInstanceOf(ListMultimediaAssetsByEntityIdsQuery);
+    expect(queryBus.execute.mock.calls[0][0]).toMatchObject({
+      entityType: 'product-variant',
+      entityIds: ['var-1', 'var-2'],
+      usageType: undefined,
+    });
+    expect(map).toEqual({ 'var-1': [{ id: 'a1', publicUrl: '/x', mimeType: 'image/png', kind: 'image' }] });
   });
 });

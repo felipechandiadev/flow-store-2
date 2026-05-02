@@ -8,7 +8,7 @@ import { Button } from "@/shared/components/Button";
 import { TextField } from "@/shared/components/TextField/TextField";
 import { Select, type Option } from "@/shared/components/Select";
 import Switch from "@/shared/components/Switch/Switch";
-import { createProductVariantAction } from "@/features/inventory-products/actions/product.action";
+import { updateProductVariantAction } from "@/features/inventory-products/actions/product.action";
 import { listUnitsForPage } from "@/features/inventory-units/actions/unit.action";
 import type { UnitListItem } from "@/features/inventory-units/types/unit.types";
 import { listPriceListsForPage } from "@/features/sales-price-lists/actions/price-list.action";
@@ -17,6 +17,7 @@ import { listTaxesForPage } from "@/features/accounting-taxes/actions/tax.action
 import type { TaxListItem } from "@/features/accounting-taxes/types/tax.types";
 import { listAttributesForPage } from "@/features/inventory-attributes/actions/attribute.action";
 import type { AttributeListItem } from "@/features/inventory-attributes/types/attribute.types";
+import type { ProductGridRow, ProductVariantGridRow } from "@/features/inventory-products/types/product-grid.types";
 import {
   deriveBasePriceFromPriceRows,
   effectiveIvaFactor,
@@ -24,41 +25,13 @@ import {
   roundMoneyInt,
 } from "@/features/inventory-products/domain/price-tax-math";
 import {
-  createVariantPriceRow,
+  priceListItemsToVariantRows,
   VariantPriceRowsEditor,
   type VariantPriceRowModel,
 } from "./VariantPriceRowsEditor";
 import { VariantPmpPriceCalculatorDialog } from "./VariantPmpPriceCalculatorDialog";
 import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
-import { MultimediaUploader } from "@/shared/components/FileUploader/MultimediaUploader";
-import { uploadMultimediaForEntityAction } from "@/features/multimedia/actions/multimedia.action";
-import type { MultimediaEntityType } from "@/features/multimedia/types/multimedia.types";
 
-async function uploadFilesToEntity(
-  files: File[],
-  entityType: MultimediaEntityType,
-  entityId: string,
-): Promise<string | null> {
-  if (files.length === 0 || !entityId.trim()) {
-    return null;
-  }
-  let markPrimary = true;
-  for (const file of files) {
-    const form = new FormData();
-    form.append("file", file);
-    form.append("entityType", entityType);
-    form.append("entityId", entityId.trim());
-    form.append("isPrimary", markPrimary ? "true" : "false");
-    markPrimary = false;
-    const r = await uploadMultimediaForEntityAction(form);
-    if (!r.success) {
-      return r.error;
-    }
-  }
-  return null;
-}
-
-/** IVA marcado como predeterminado en catálogo; si no hay ninguno, se usa el primer IVA activo. */
 function catalogDefaultIvaTaxIds(taxes: TaxListItem[]): string[] {
   const iva = taxes.filter((t) => t.isActive && t.taxType === "IVA");
   const defaults = iva.filter((t) => t.isDefault).map((t) => t.id);
@@ -68,29 +41,24 @@ function catalogDefaultIvaTaxIds(taxes: TaxListItem[]): string[] {
   return iva[0]?.id != null ? [iva[0].id] : [];
 }
 
-export type CreateProductVariantDialogProps = {
+export type EditProductVariantDialogProps = {
   open: boolean;
   onClose: () => void;
-  productId: string;
-  productName: string;
-  productType?: string;
-  /** PMP de referencia (p. ej. promedio de variantes existentes); la variante nueva aún no tiene PMP en BD. */
-  referencePmp?: number;
+  product: ProductGridRow;
+  variant: ProductVariantGridRow;
+  productType?: string | null;
   onSuccess?: () => void | Promise<void>;
 };
 
-export function CreateProductVariantDialog({
+export function EditProductVariantDialog({
   open,
   onClose,
-  productId,
-  productName,
+  product,
+  variant,
   productType = "PHYSICAL",
-  referencePmp = 0,
   onSuccess,
-}: CreateProductVariantDialogProps) {
+}: EditProductVariantDialogProps) {
   const router = useRouter();
-  const [phase, setPhase] = useState<"form" | "media">("form");
-  const [newVariantId, setNewVariantId] = useState<string | null>(null);
   const [sku, setSku] = useState("");
   const [barcode, setBarcode] = useState("");
   const [unitId, setUnitId] = useState<string | null>(null);
@@ -104,19 +72,13 @@ export function CreateProductVariantDialog({
   const [priceLists, setPriceLists] = useState<PriceListListItem[]>([]);
   const [taxes, setTaxes] = useState<TaxListItem[]>([]);
   const [priceRows, setPriceRows] = useState<VariantPriceRowModel[]>([]);
-  /** Fila para la que está abierta la calculadora PMP (null = cerrado). */
   const [pmpCalculatorRowKey, setPmpCalculatorRowKey] = useState<string | null>(null);
   const [draftPmp, setDraftPmp] = useState(0);
   const [attributes, setAttributes] = useState<AttributeListItem[]>([]);
-  /** attributeId → valor de opción elegido (null = sin definir). */
   const [attributeSelections, setAttributeSelections] = useState<Record<string, string | null>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  /** Archivos elegidos antes de crear la variante (se suben al crear el SKU). */
-  const [stagedVariantFiles, setStagedVariantFiles] = useState<File[]>([]);
-  const [mediaStagingKey, setMediaStagingKey] = useState(0);
-  const [postCreateUploadError, setPostCreateUploadError] = useState<string | null>(null);
 
   const ivaTaxes = useMemo(
     () => taxes.filter((t) => t.isActive && t.taxType === "IVA"),
@@ -154,7 +116,6 @@ export function CreateProductVariantDialog({
     [priceRows],
   );
 
-  /** `variant.basePrice` en API: neto de la primera fila con lista (orden del array). */
   const derivedBasePrice = useMemo(() => {
     if (completedPriceRows.length === 0) {
       return null;
@@ -163,35 +124,11 @@ export function CreateProductVariantDialog({
   }, [completedPriceRows]);
 
   useEffect(() => {
-    if (!open) {
+    if (!open || !variant?.id) {
       return;
     }
-    setDraftPmp(Math.max(0, Math.round(Number(referencePmp) || 0)));
-  }, [open, referencePmp]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    setPhase("form");
-    setNewVariantId(null);
-    setSku("");
-    setBarcode("");
-    setUnitId(null);
-    setIsActive(true);
-    const isService = String(productType || "").toUpperCase() === "SERVICE";
-    setTrackInventory(!isService);
-    setAllowNegativeStock(false);
-    setMinimumStock("0");
-    setMaximumStock("0");
-    setReorderPoint("0");
-    setPriceRows([]);
-    setAttributeSelections({});
-    setError(null);
     setLoadError(null);
-    setStagedVariantFiles([]);
-    setMediaStagingKey((k) => k + 1);
-    setPostCreateUploadError(null);
+    setError(null);
     void (async () => {
       try {
         const [list, pls, txs, attrs] = await Promise.all([
@@ -204,13 +141,37 @@ export function CreateProductVariantDialog({
         setPriceLists(pls);
         setTaxes(txs);
         setAttributes(attrs);
+
         const defaultIva = catalogDefaultIvaTaxIds(txs);
-        const activePriceLists = pls.filter((p) => p.isActive);
-        const defaultPriceListId =
-          activePriceLists.find((p) => p.isDefault)?.id ?? activePriceLists[0]?.id ?? null;
-        setPriceRows([createVariantPriceRow(defaultIva, defaultPriceListId)]);
-        const defaultUnit = list.find((u) => u.active) ?? null;
-        setUnitId(defaultUnit?.id ?? null);
+        setPriceRows(priceListItemsToVariantRows(variant.priceListItems ?? [], defaultIva));
+        setSku(variant.sku ?? "");
+        setBarcode(variant.barcode?.trim() ?? "");
+        setUnitId(variant.unitId?.trim() ? variant.unitId.trim() : null);
+        setIsActive(variant.isActive !== false);
+        const isService = String(productType || "").toUpperCase() === "SERVICE";
+        setTrackInventory(
+          typeof variant.trackInventory === "boolean" ? variant.trackInventory : !isService,
+        );
+        setAllowNegativeStock(variant.allowNegativeStock === true);
+        setMinimumStock("0");
+        setMaximumStock("0");
+        setReorderPoint("0");
+        setDraftPmp(Math.max(0, Math.round(Number(variant.pmp ?? 0))));
+
+        const attrSel: Record<string, string | null> = {};
+        const activeAttrs = [...attrs]
+          .filter((a) => a.isActive && Array.isArray(a.options) && a.options.length > 0)
+          .sort((a, b) => {
+            const o = a.displayOrder - b.displayOrder;
+            return o !== 0 ? o : a.name.localeCompare(b.name, "es", { sensitivity: "base" });
+          });
+        const av = variant.attributeValues ?? {};
+        for (const a of activeAttrs) {
+          const raw = av[a.id];
+          attrSel[a.id] = raw != null && String(raw).trim() !== "" ? String(raw).trim() : null;
+        }
+        setAttributeSelections(attrSel);
+
         if (list.length === 0) {
           setLoadError("No hay unidades de medida. Cree una en Inventario → Unidades.");
         } else if (!list.some((u) => u.active)) {
@@ -222,26 +183,19 @@ export function CreateProductVariantDialog({
         setLoadError("No se pudieron cargar unidades, listas de precios o impuestos.");
       }
     })();
-  }, [open]);
+  }, [open, variant.id, variant.sku, productType]);
 
   const handleClose = () => {
-    setPhase("form");
-    setNewVariantId(null);
     setError(null);
-    setStagedVariantFiles([]);
-    setMediaStagingKey((k) => k + 1);
-    setPostCreateUploadError(null);
     onClose();
   };
 
   const handleSubmit = () => {
-    if (phase !== "form") {
-      return;
-    }
     setError(null);
-    setPostCreateUploadError(null);
-    if (!productId.trim()) {
-      setError("Producto no válido");
+    const pid = product.id?.trim() ?? "";
+    const vid = variant.id?.trim() ?? "";
+    if (!pid || !vid) {
+      setError("Datos de producto o variante no válidos");
       return;
     }
     if (!sku.trim()) {
@@ -267,12 +221,12 @@ export function CreateProductVariantDialog({
 
     const dup = new Set<string>();
     for (const r of filteredRows) {
-      const id = r.priceListId!.trim();
-      if (dup.has(id)) {
+      const lid = r.priceListId!.trim();
+      if (dup.has(lid)) {
         setError("No puede repetir la misma lista de precios en más de una fila.");
         return;
       }
-      dup.add(id);
+      dup.add(lid);
     }
     const derived = deriveBasePriceFromPriceRows(filteredRows);
     if (derived === null) {
@@ -305,8 +259,8 @@ export function CreateProductVariantDialog({
 
     startTransition(() => {
       void (async () => {
-        const r = await createProductVariantAction({
-          productId: productId.trim(),
+        const r = await updateProductVariantAction(vid, {
+          productId: pid,
           sku: sku.trim(),
           barcode: barcode.trim() || null,
           basePrice,
@@ -322,27 +276,11 @@ export function CreateProductVariantDialog({
           reorderPoint: Math.max(0, Math.round(Number(reorderPoint) || 0)),
         });
         if (r.success) {
-          setNewVariantId(r.id);
-          if (stagedVariantFiles.length > 0) {
-            const upErr = await uploadFilesToEntity(stagedVariantFiles, "product-variant", r.id);
-            if (upErr) {
-              setPostCreateUploadError(upErr);
-            }
-          }
-          await router.refresh();
-          setPhase("media");
+          await onSuccess?.();
+          handleClose();
         } else {
           setError(r.error);
         }
-      })();
-    });
-  };
-
-  const handleFinalizeMedia = () => {
-    startTransition(() => {
-      void (async () => {
-        await onSuccess?.();
-        handleClose();
       })();
     });
   };
@@ -362,8 +300,8 @@ export function CreateProductVariantDialog({
   };
 
   const canSubmit =
-    phase === "form" &&
-    Boolean(productId.trim()) &&
+    Boolean(product.id?.trim()) &&
+    Boolean(variant.id?.trim()) &&
     Boolean(sku.trim()) &&
     Boolean(unitId) &&
     !isPending &&
@@ -372,123 +310,67 @@ export function CreateProductVariantDialog({
     priceRows.length > 0 &&
     derivedBasePrice !== null;
 
-  const canFinalizeMedia = phase === "media" && !isPending;
-
   return (
     <>
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      title={phase === "media" ? "Imágenes de la variante" : "Crear variante"}
-      size="lg"
-      scroll="paper"
-      maxHeight="min(90vh, 720px)"
-      data-test-id="product-variant-create-dialog"
-      alertArea={
+      <Dialog
+        open={open}
+        onClose={handleClose}
+        title="Editar variante"
+        size="lg"
+        scroll="paper"
+        maxHeight="min(90vh, 720px)"
+        data-test-id="product-variant-edit-dialog"
+        alertArea={
           <>
             {loadError ? (
-              <Alert variant="error" data-test-id="product-variant-create-load-error">
+              <Alert variant="error" data-test-id="product-variant-edit-load-error">
                 {loadError}
               </Alert>
             ) : null}
             {error ? (
-              <Alert variant="error" data-test-id="product-variant-create-error">
+              <Alert variant="error" data-test-id="product-variant-edit-error">
                 {error}
-              </Alert>
-            ) : null}
-            {phase === "media" && postCreateUploadError ? (
-              <Alert variant="warning" data-test-id="product-variant-create-upload-warning">
-                No se pudieron subir todos los archivos elegidos en el formulario: {postCreateUploadError}
               </Alert>
             ) : null}
           </>
         }
-      actions={
-        phase === "media" ? (
+        actions={
           <>
-            <Button
-              variant="outlined"
-              size="md"
-              onClick={handleClose}
-              disabled={isPending}
-              data-test-id="product-variant-create-cancel"
-            >
-              Cerrar
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleFinalizeMedia}
-              disabled={!canFinalizeMedia}
-              data-test-id="product-variant-create-finish-media"
-            >
-              Listo
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              variant="outlined"
-              size="md"
-              onClick={handleClose}
-              disabled={isPending}
-              data-test-id="product-variant-create-cancel"
-            >
+            <Button variant="outlined" size="md" onClick={handleClose} disabled={isPending} data-test-id="product-variant-edit-cancel">
               Cancelar
             </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-              data-test-id="product-variant-create-submit"
-            >
-              Crear variante
+            <Button variant="primary" size="md" onClick={handleSubmit} disabled={!canSubmit} data-test-id="product-variant-edit-submit">
+              Guardar
             </Button>
           </>
-        )
-      }
-    >
-        {phase === "media" && newVariantId ? (
-          <div className="flex w-full min-w-0 flex-col gap-3">
-            <p className="text-sm text-muted-foreground">
-              Variante creada. Las imágenes aquí son específicas de este SKU (operativas / vitrina por variante).
-            </p>
-            <EntityMultimediaPanel
-              entityType="product-variant"
-              entityId={newVariantId}
-              title="Imágenes de la variante"
-              collectionOnly
-              onChanged={() => router.refresh()}
-            />
-          </div>
-        ) : (
+        }
+      >
         <div className="flex w-full min-w-0 flex-col gap-4">
-          <p className="text-sm text-muted-foreground" data-test-id="product-variant-create-product">
-            Producto: <span className="font-medium text-foreground">{productName || "—"}</span>
+          <p className="text-sm text-muted-foreground" data-test-id="product-variant-edit-product">
+            Producto: <span className="font-medium text-foreground">{product.name || "—"}</span>
           </p>
           <div className="flex w-full min-w-0 flex-row gap-3">
             <div className="min-w-0 flex-1 basis-0">
               <TextField
                 label="SKU"
-                name="pv-create-sku"
+                name="pv-edit-sku"
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
                 placeholder="Código SKU"
                 required
                 className="w-full"
-                data-test-id="product-variant-create-sku"
+                data-test-id="product-variant-edit-sku"
               />
             </div>
             <div className="min-w-0 flex-1 basis-0">
               <TextField
                 label="Código de barras (opcional)"
-                name="pv-create-barcode"
+                name="pv-edit-barcode"
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
                 placeholder="Código de barras"
                 className="w-full"
-                data-test-id="product-variant-create-barcode"
+                data-test-id="product-variant-edit-barcode"
               />
             </div>
           </div>
@@ -496,14 +378,14 @@ export function CreateProductVariantDialog({
           <div className="min-w-0">
             <Select
               label="Unidad de medida"
-              name="pv-create-unit"
+              name="pv-edit-unit"
               options={unitOptions}
               value={unitId}
               onChange={(v) => setUnitId(v != null ? String(v) : null)}
               placeholder="Unidad"
               required
               disabled={unitOptions.length === 0}
-              data-test-id="product-variant-create-unit"
+              data-test-id="product-variant-edit-unit"
             />
           </div>
 
@@ -511,7 +393,7 @@ export function CreateProductVariantDialog({
             <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3">
               <p className="text-sm font-medium text-foreground">Atributos (opcional)</p>
               <p className="text-xs text-muted-foreground">
-                Defina la combinación de esta variante. Solo se envían los atributos con valor elegido.
+                Combinación de esta variante. Solo se envían los atributos con valor elegido.
               </p>
               <div className="flex flex-col gap-3">
                 {selectableAttributes.map((a) => {
@@ -520,7 +402,7 @@ export function CreateProductVariantDialog({
                     <Select
                       key={a.id}
                       label={a.name}
-                      name={`pv-create-attr-${a.id}`}
+                      name={`pv-edit-attr-${a.id}`}
                       options={opts}
                       value={attributeSelections[a.id] ?? null}
                       onChange={(v) =>
@@ -532,7 +414,7 @@ export function CreateProductVariantDialog({
                       placeholder="Sin definir"
                       allowClear
                       alwaysShowLabel
-                      data-test-id={`product-variant-create-attr-${a.id}`}
+                      data-test-id={`product-variant-edit-attr-${a.id}`}
                     />
                   );
                 })}
@@ -554,73 +436,60 @@ export function CreateProductVariantDialog({
               onChange={setTrackInventory}
               label="Controlar inventario"
               labelPosition="right"
-              data-test-id="product-variant-create-track-inventory"
+              data-test-id="product-variant-edit-track-inventory"
             />
             <Switch
               checked={allowNegativeStock}
               onChange={setAllowNegativeStock}
               label="Permitir stock negativo"
               labelPosition="right"
-              data-test-id="product-variant-create-allow-negative"
+              data-test-id="product-variant-edit-allow-negative"
             />
             <TextField
               label="Stock mínimo"
-              name="pv-create-minimum-stock"
+              name="pv-edit-minimum-stock"
               value={minimumStock}
               onChange={(e) => setMinimumStock(e.target.value)}
               placeholder="0"
-              data-test-id="product-variant-create-minimum-stock"
+              data-test-id="product-variant-edit-minimum-stock"
             />
             <TextField
               label="Stock máximo"
-              name="pv-create-maximum-stock"
+              name="pv-edit-maximum-stock"
               value={maximumStock}
               onChange={(e) => setMaximumStock(e.target.value)}
               placeholder="0"
-              data-test-id="product-variant-create-maximum-stock"
+              data-test-id="product-variant-edit-maximum-stock"
             />
             <TextField
               label="Punto de reposición"
-              name="pv-create-reorder-point"
+              name="pv-edit-reorder-point"
               value={reorderPoint}
               onChange={(e) => setReorderPoint(e.target.value)}
               placeholder="0"
-              data-test-id="product-variant-create-reorder-point"
+              data-test-id="product-variant-edit-reorder-point"
             />
           </div>
-
-          <div
-            className="rounded-lg border border-border bg-muted/10 p-3"
-            data-test-id="product-variant-create-form-multimedia"
-          >
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Multimedia</p>
-            <MultimediaUploader
-              key={`pv-create-staged-${mediaStagingKey}`}
-              uploadPath="create-variant:staging"
-              variant="collection"
-              label=""
-              buttonType="icon"
-              accept="image/*,video/*"
-              maxFiles={12}
-              maxSize={9}
-              aspectRatio="16:9"
-              previewSize="sm"
-              disabled={isPending}
-              onChange={setStagedVariantFiles}
-            />
-          </div>
-
           <div className="pt-1">
             <Switch
               checked={isActive}
               onChange={setIsActive}
               label="Activa"
               labelPosition="right"
-              data-test-id="product-variant-create-active"
+              data-test-id="product-variant-edit-active"
+            />
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <EntityMultimediaPanel
+              entityType="product-variant"
+              entityId={variant.id}
+              title="Imágenes de la variante"
+              collectionOnly
+              onChanged={() => router.refresh()}
             />
           </div>
         </div>
-        )}
       </Dialog>
       <VariantPmpPriceCalculatorDialog
         open={pmpCalculatorRowKey != null}

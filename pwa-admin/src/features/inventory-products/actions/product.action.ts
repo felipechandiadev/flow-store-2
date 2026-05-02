@@ -61,6 +61,10 @@ export type CreateProductVariantFormInput = {
 
 export type CreateProductVariantResult = { success: true; id: string } | { success: false; error: string };
 
+export type UpdateProductVariantResult = { success: true } | { success: false; error: string };
+
+export type DeleteProductVariantResult = { success: true } | { success: false; error: string };
+
 export type ListProductsForGridInput = {
   query: string;
   page: number;
@@ -264,6 +268,114 @@ export async function createProductVariantAction(
   }
 
   const r = await ProductRequest.createVariant({
+    productId,
+    sku,
+    barcode: input.barcode?.trim() || null,
+    basePrice,
+    unitId,
+    isActive: input.isActive !== false,
+    priceListItems: items,
+    pmp: pmpToSend,
+    attributeValues: attributeValuesToSend,
+    trackInventory: input.trackInventory,
+    allowNegativeStock: input.allowNegativeStock,
+    minimumStock: input.minimumStock,
+    maximumStock: input.maximumStock,
+    reorderPoint: input.reorderPoint,
+  });
+  if (r.success) {
+    revalidatePath(PRODUCTS_PATH, "page");
+  }
+  return r;
+}
+
+export async function deleteProductVariantAction(variantId: string): Promise<DeleteProductVariantResult> {
+  const trimmed = variantId?.trim() ?? "";
+  if (!trimmed) {
+    return { success: false, error: "Variante no válida" };
+  }
+  const r = await ProductRequest.removeVariant(trimmed);
+  if (r.success) {
+    revalidatePath(PRODUCTS_PATH, "page");
+  }
+  return r;
+}
+
+export async function updateProductVariantAction(
+  variantId: string,
+  input: CreateProductVariantFormInput,
+): Promise<UpdateProductVariantResult> {
+  const trimmedId = variantId?.trim() ?? "";
+  const productId = input.productId?.trim() ?? "";
+  const sku = input.sku?.trim() ?? "";
+  const unitId = input.unitId?.trim() ?? "";
+  if (!trimmedId) {
+    return { success: false, error: "Variante no válida" };
+  }
+  if (!productId) {
+    return { success: false, error: "Producto no válido" };
+  }
+  if (!sku) {
+    return { success: false, error: "El SKU es obligatorio" };
+  }
+  if (!unitId) {
+    return { success: false, error: "La unidad de medida es obligatoria" };
+  }
+  const items = input.priceListItems;
+  if (!Array.isArray(items) || items.length === 0) {
+    return {
+      success: false,
+      error: "Debe indicar al menos un precio asociado a una lista de precios.",
+    };
+  }
+
+  const basePrice = typeof input.basePrice === "number" && Number.isFinite(input.basePrice) ? input.basePrice : 0;
+  if (basePrice < 0) {
+    return { success: false, error: "El precio de referencia no puede ser negativo" };
+  }
+
+  const pmpToSend = Math.max(0, Math.round(Number(input.pmp ?? 0)));
+  if (!Number.isFinite(pmpToSend)) {
+    return { success: false, error: "El PMP no es válido." };
+  }
+
+  let attributeValuesToSend: Record<string, string> | undefined;
+  if (input.attributeValues != null && typeof input.attributeValues === "object") {
+    const cleaned: Record<string, string> = {};
+    for (const [k, v] of Object.entries(input.attributeValues)) {
+      const key = k.trim();
+      if (!key) {
+        continue;
+      }
+      const val = v == null ? "" : String(v).trim();
+      if (val === "") {
+        continue;
+      }
+      cleaned[key] = val;
+    }
+    if (Object.keys(cleaned).length > 0) {
+      attributeValuesToSend = cleaned;
+    }
+  }
+
+  const seen = new Set<string>();
+  for (const it of items) {
+    const lid = it.priceListId?.trim() ?? "";
+    if (!lid) {
+      return { success: false, error: "Cada precio por lista debe tener una lista de precios." };
+    }
+    if (seen.has(lid)) {
+      return { success: false, error: "No puede repetir la misma lista de precios en más de una fila." };
+    }
+    seen.add(lid);
+    const net = Math.round(Number(it.netPrice));
+    const gross = Math.round(Number(it.grossPrice));
+    if (!Number.isFinite(net) || net < 0 || !Number.isFinite(gross) || gross < 0) {
+      return { success: false, error: "Los precios deben ser enteros mayores o iguales a 0." };
+    }
+  }
+
+  const r = await ProductRequest.updateVariant(trimmedId, {
     productId,
     sku,
     barcode: input.barcode?.trim() || null,

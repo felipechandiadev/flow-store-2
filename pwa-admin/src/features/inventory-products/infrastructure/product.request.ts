@@ -6,6 +6,7 @@ import type {
   ProductVariantGridRow,
   ProductVariantMediaAsset,
 } from "../types/product-grid.types";
+import { resolveMultimediaPublicUrl } from "@/features/multimedia/utils/resolve-multimedia-public-url";
 
 function parseAttributeValuesRecord(raw: unknown): Record<string, string> | undefined {
   if (raw == null) {
@@ -105,7 +106,7 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
           }
           return {
             id: mid,
-            publicUrl: url,
+            publicUrl: resolveMultimediaPublicUrl(url),
             mimeType: x.mimeType != null ? String(x.mimeType) : "",
             kind: x.kind != null ? String(x.kind) : "",
           };
@@ -140,7 +141,7 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
     weightUnit: o.weightUnit != null ? String(o.weightUnit) : undefined,
     primaryImageUrl:
       o.primaryImageUrl != null && String(o.primaryImageUrl).trim()
-        ? String(o.primaryImageUrl).trim()
+        ? resolveMultimediaPublicUrl(String(o.primaryImageUrl).trim())
         : null,
     mediaAssets: mediaAssets && mediaAssets.length > 0 ? mediaAssets : undefined,
     priceListItems,
@@ -450,6 +451,133 @@ export class ProductRequest {
       return { success: true, id };
     } catch (e) {
       const err = e instanceof Error ? e.message : "Error al crear variante";
+      return { success: false, error: err };
+    }
+  }
+
+  static async updateVariant(
+    variantId: string,
+    body: {
+      productId: string;
+      sku: string;
+      barcode?: string | null;
+      basePrice: number;
+      unitId: string;
+      isActive?: boolean;
+      priceListItems: Array<{
+        priceListId: string;
+        netPrice: number;
+        grossPrice: number;
+        taxIds?: string[];
+      }>;
+      pmp: number;
+      attributeValues?: Record<string, string>;
+      trackInventory?: boolean;
+      allowNegativeStock?: boolean;
+      minimumStock?: number;
+      maximumStock?: number;
+      reorderPoint?: number;
+    },
+  ): Promise<{ success: true } | { success: false; error: string }> {
+    const headers = await authHeaders();
+    const id = variantId.trim();
+    if (!id) {
+      return { success: false, error: "Variante no válida" };
+    }
+    const payload: Record<string, unknown> = {
+      productId: body.productId,
+      sku: body.sku.trim(),
+      basePrice: Number.isFinite(body.basePrice) ? Math.round(body.basePrice) : 0,
+      unitId: body.unitId,
+      isActive: body.isActive !== false,
+      pmp: Math.max(0, Math.round(Number(body.pmp) || 0)),
+      priceListItems: body.priceListItems.map((item) => ({
+        priceListId: item.priceListId,
+        netPrice: Math.round(Number(item.netPrice)) || 0,
+        grossPrice: Math.round(Number(item.grossPrice)) || 0,
+        taxIds:
+          Array.isArray(item.taxIds) && item.taxIds.length > 0 ? item.taxIds : undefined,
+      })),
+    };
+    if (body.barcode?.trim()) {
+      payload.barcode = body.barcode.trim();
+    }
+    if (body.attributeValues != null && Object.keys(body.attributeValues).length > 0) {
+      payload.attributeValues = body.attributeValues;
+    }
+    if (typeof body.trackInventory === "boolean") {
+      payload.trackInventory = body.trackInventory;
+    }
+    if (typeof body.allowNegativeStock === "boolean") {
+      payload.allowNegativeStock = body.allowNegativeStock;
+    }
+    if (body.minimumStock != null) {
+      payload.minimumStock = Math.max(0, Math.round(Number(body.minimumStock) || 0));
+    }
+    if (body.maximumStock != null) {
+      payload.maximumStock = Math.max(0, Math.round(Number(body.maximumStock) || 0));
+    }
+    if (body.reorderPoint != null) {
+      payload.reorderPoint = Math.max(0, Math.round(Number(body.reorderPoint) || 0));
+    }
+    try {
+      const res = await fetch(apiUrl(`product-variants/${encodeURIComponent(id)}`), {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        const m = data.message;
+        const msg = Array.isArray(m)
+          ? m.map(String).join("; ")
+          : typeof m === "string" && m.trim()
+            ? m.trim()
+            : res.statusText;
+        return { success: false, error: msg };
+      }
+      if (data.success === false) {
+        const err =
+          typeof data.error === "string" && data.error.trim()
+            ? data.error.trim()
+            : "Error al actualizar variante";
+        return { success: false, error: err };
+      }
+      return { success: true };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al actualizar variante";
+      return { success: false, error: err };
+    }
+  }
+
+  static async removeVariant(
+    variantId: string,
+  ): Promise<{ success: true } | { success: false; error: string }> {
+    const headers = await authHeaders();
+    const id = variantId.trim();
+    if (!id) {
+      return { success: false, error: "Variante no válida" };
+    }
+    try {
+      const res = await fetch(apiUrl(`product-variants/${encodeURIComponent(id)}`), {
+        method: "DELETE",
+        headers,
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+        const m = data.message;
+        const msg = Array.isArray(m)
+          ? m.map(String).join("; ")
+          : typeof m === "string" && m.trim()
+            ? m.trim()
+            : res.statusText;
+        return { success: false, error: msg };
+      }
+      return { success: true };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al eliminar variante";
       return { success: false, error: err };
     }
   }

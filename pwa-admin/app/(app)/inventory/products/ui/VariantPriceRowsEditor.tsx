@@ -7,6 +7,7 @@ import Switch from "@/shared/components/Switch/Switch";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
 import type { TaxListItem } from "@/features/accounting-taxes/types/tax.types";
+import type { ProductPriceListItemRow } from "@/features/inventory-products/types/product-grid.types";
 import {
   effectiveIvaFactor,
   grossToNet,
@@ -46,6 +47,27 @@ export function createVariantPriceRow(
     taxIds: [...defaultTaxIds],
     lastEdited: "net",
   };
+}
+
+/** Construye filas del editor a partir de los precios ya guardados en una variante (p. ej. grilla). */
+export function priceListItemsToVariantRows(
+  items: ProductPriceListItemRow[],
+  defaultIvaTaxIds: string[],
+): VariantPriceRowModel[] {
+  if (items.length === 0) {
+    return [createVariantPriceRow(defaultIvaTaxIds, null)];
+  }
+  return items.map((p) => ({
+    key:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    priceListId: p.priceListId,
+    net: roundMoneyInt(p.netPrice),
+    gross: roundMoneyInt(p.grossPrice),
+    taxIds: Array.isArray(p.taxIds) && p.taxIds.length > 0 ? [...p.taxIds] : [...defaultIvaTaxIds],
+    lastEdited: "net" as const,
+  }));
 }
 
 type VariantPriceRowsEditorProps = {

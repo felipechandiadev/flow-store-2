@@ -10,6 +10,7 @@ import {
   unlinkMultimediaFromEntityAction,
 } from "@/features/multimedia/actions/multimedia.action";
 import type { MultimediaAssetListItem, MultimediaEntityType } from "@/features/multimedia/types/multimedia.types";
+import IconButton from "@/shared/components/IconButton/IconButton";
 
 export type EntityMultimediaPanelProps = {
   entityType: MultimediaEntityType;
@@ -149,13 +150,10 @@ export function EntityMultimediaPanel({
 
       {loading ? (
         <p className="text-xs text-muted-foreground">Cargando…</p>
-      ) : assets.length === 0 ? (
-        <p className="mb-3 text-xs text-muted-foreground">Sin archivos en catálogo. Use el uploader inferior.</p>
-      ) : (
+      ) : assets.length > 0 ? (
         <div className="mb-4">
-          <p className="mb-2 text-[11px] font-medium text-muted-foreground">Archivos actuales</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {assets.map((a, index) => {
+            {assets.map((a) => {
               const isVideo = a.mimeType.startsWith("video/") || a.kind === "video";
               return (
                 <div
@@ -180,26 +178,26 @@ export function EntityMultimediaPanel({
                       loading="lazy"
                     />
                   )}
-                  {index === 0 ? (
-                    <span className="absolute left-2 top-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-foreground shadow">
-                      Principal
-                    </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="absolute bottom-2 right-2 rounded bg-background/90 px-2 py-1 text-[11px] font-medium text-destructive shadow hover:bg-background"
-                    onClick={() => void handleUnlink(a.id)}
-                    disabled={busy}
+                  <IconButton
+                    icon="Trash2"
+                    variant="basicSecondary"
+                    size="sm"
+                    className="absolute bottom-2 right-2 !rounded-md !border !border-neutral-200/90 !bg-white text-destructive !shadow-md backdrop-blur-sm hover:!bg-neutral-100"
+                    ariaLabel="Quitar del catálogo"
                     title="Quitar del catálogo"
-                  >
-                    Quitar
-                  </button>
+                    disabled={busy}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleUnlink(a.id);
+                    }}
+                    data-test-id={`entity-multimedia-unlink-${a.id}`}
+                  />
                 </div>
               );
             })}
           </div>
         </div>
-      )}
+      ) : null}
 
       <div
         className={`space-y-6 border-t border-border pt-3 ${collectionOnly ? "space-y-0" : ""}`}

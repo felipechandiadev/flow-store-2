@@ -20,6 +20,8 @@ import { LinkMultimediaCommandHandler } from './application/handlers/commands/li
 import { UnlinkMultimediaCommandHandler } from './application/handlers/commands/unlink-multimedia.handler';
 import { GetMultimediaAssetQueryHandler } from './application/handlers/queries/get-multimedia-asset.handler';
 import { ListMultimediaAssetsQueryHandler } from './application/handlers/queries/list-multimedia-assets.handler';
+import { ListMultimediaAssetsByEntityIdsQueryHandler } from './application/handlers/queries/list-multimedia-assets-by-entity-ids.handler';
+import { SetPrimaryMultimediaLinkCommandHandler } from './application/handlers/commands/set-primary-multimedia-link.handler';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { ListMultimediaAssetsQueryHandler } from './application/handlers/queries
     UnlinkMultimediaCommandHandler,
     GetMultimediaAssetQueryHandler,
     ListMultimediaAssetsQueryHandler,
+    ListMultimediaAssetsByEntityIdsQueryHandler,
+    SetPrimaryMultimediaLinkCommandHandler,
     {
       provide: MULTIMEDIA_REPOSITORY,
       useClass: TypeOrmMultimediaRepository,

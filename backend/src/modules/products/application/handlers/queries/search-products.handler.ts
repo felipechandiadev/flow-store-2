@@ -5,6 +5,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { attachProductVariantMultimedia } from '../../helpers/attach-product-variant-multimedia';
+import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 
 export interface SearchProductsResult {
   id: string;
@@ -28,6 +30,13 @@ export interface SearchProductsResult {
       grossPrice: number;
       taxIds?: string[];
     }>;
+    primaryImageUrl?: string | null;
+    mediaAssets?: Array<{
+      id: string;
+      publicUrl: string;
+      mimeType: string;
+      kind: string;
+    }>;
   }>;
   variantCount: number;
 }
@@ -44,6 +53,7 @@ export class SearchProductsQueryHandler implements IQueryHandler<
     private readonly productRepository: Repository<Product>,
     @InjectRepository(ProductVariant)
     private readonly variantRepository: Repository<ProductVariant>,
+    private readonly multimediaService: MultimediaServiceAdapter,
   ) {}
 
   async execute(query: SearchProductsQuery): Promise<SearchProductsResult[]> {
@@ -104,6 +114,13 @@ export class SearchProductsQueryHandler implements IQueryHandler<
         priceListItems,
       });
     }
+
+    const variantIds = variants.map((v) => v.id);
+    await attachProductVariantMultimedia(
+      this.multimediaService,
+      variantsByProduct,
+      variantIds,
+    );
 
     const enriched = products.map((p) => ({
       id: p.id,

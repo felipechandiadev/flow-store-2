@@ -6,6 +6,7 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Query,
   Res,
   UploadedFile,
@@ -18,6 +19,7 @@ import { UploadMultimediaDto } from '../application/dto/upload-multimedia.dto';
 import { LinkMultimediaDto } from '../application/dto/link-multimedia.dto';
 import { UnlinkMultimediaDto } from '../application/dto/unlink-multimedia.dto';
 import { ListMultimediaAssetsDto } from '../application/dto/list-multimedia-assets.dto';
+import { SetPrimaryMultimediaDto } from '../application/dto/set-primary-multimedia.dto';
 import { Response } from 'express';
 import * as path from 'path';
 
@@ -117,6 +119,23 @@ export class MultimediaController {
     return {
       success: true,
       data: assets,
+    };
+  }
+
+  @Put('entities/:entityType/:entityId/primary')
+  async setPrimaryAsset(
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+    @Body() body: SetPrimaryMultimediaDto,
+  ) {
+    await this.multimediaService.setPrimaryForEntity({
+      assetId: body.assetId,
+      entityType,
+      entityId,
+    });
+
+    return {
+      success: true,
     };
   }
 

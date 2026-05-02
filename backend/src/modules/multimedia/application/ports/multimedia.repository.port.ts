@@ -40,7 +40,22 @@ export interface MultimediaRepositoryPort {
     entityType: string;
     entityId: string;
     usageType?: string;
-  }): Promise<MultimediaAsset[]>;
+  }): Promise<Array<MultimediaAsset & { isPrimary: boolean }>>;
+  /** Dentro del mismo `usageType`, solo un link puede ser principal. */
+  setPrimaryAssetForEntity(params: {
+    assetId: string;
+    entityType: string;
+    entityId: string;
+  }): Promise<void>;
+  /**
+   * Misma orden que `listAssetsByEntity` por entidad: isPrimary DESC, sortOrder, createdAt.
+   * Claves = entityId; solo incluye ids con al menos un asset.
+   */
+  listAssetsByEntityIds(params: {
+    entityType: string;
+    entityIds: string[];
+    usageType?: string;
+  }): Promise<Record<string, MultimediaAsset[]>>;
   countLinksForAsset(assetId: string): Promise<number>;
 }
 

@@ -13,8 +13,9 @@ import { Button } from "@/shared/components/Button";
 import { CreateProductDialog } from "./CreateProductDialog";
 import { EditProductDialog } from "./EditProductDialog";
 import { CreateProductVariantDialog } from "./CreateProductVariantDialog";
+import { EditProductVariantDialog } from "./EditProductVariantDialog";
 import { CreateRecipeDialog } from "./CreateRecipeDialog";
-import { deleteProductAction } from "@/features/inventory-products/actions/product.action";
+import { deleteProductAction, deleteProductVariantAction } from "@/features/inventory-products/actions/product.action";
 
 type ProductsDataGridProps = {
   rows: ProductGridRow[];
@@ -73,13 +74,15 @@ function ProductVariantExpandCard({
   v,
   productType,
   onDefineRecipe,
+  onEdit,
+  onDelete,
 }: {
   v: ProductVariantGridRow;
   productType: string | null;
   onDefineRecipe?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
-  const img = v.primaryImageUrl?.trim() || null;
-  const extraMedia = (v.mediaAssets?.length ?? 0) > 1 ? (v.mediaAssets!.length - 1) : 0;
   const weightLine =
     v.weight != null && Number.isFinite(v.weight)
       ? `${formatNumber(v.weight)} ${(v.weightUnit ?? "kg").trim()}`
@@ -94,38 +97,59 @@ function ProductVariantExpandCard({
       className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm"
       data-test-id={`products-expand-variant-card-${v.id}`}
     >
-      {img ? (
-        <div className="relative aspect-[16/9] w-full shrink-0 bg-muted">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
-          {extraMedia > 0 ? (
-            <span className="absolute bottom-2 right-2 rounded-md bg-background/90 px-2 py-0.5 text-xs font-medium text-foreground shadow">
-              +{extraMedia} {extraMedia === 1 ? "imagen" : "imágenes"}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-
       <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
-        <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <h4 className="truncate text-base font-semibold leading-snug text-foreground" title={variantTitle(v)}>
-              {variantTitle(v)}
-            </h4>
-            <p className="mt-0.5 font-mono text-xs text-muted-foreground" title={v.sku}>
-              SKU: {v.sku}
-            </p>
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <h4 className="min-w-0 flex-1 truncate text-base font-semibold leading-snug text-foreground" title={variantTitle(v)}>
+            {variantTitle(v)}
+          </h4>
+          <div className="flex shrink-0 items-center gap-1">
+            {onEdit ? (
+              <IconButton
+                icon="Pencil"
+                variant="basicSecondary"
+                size="sm"
+                ariaLabel="Editar variante"
+                title="Editar variante"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                data-test-id={`products-expand-variant-edit-${v.id}`}
+              />
+            ) : null}
+            {onDelete ? (
+              <IconButton
+                icon="Trash2"
+                variant="basicSecondary"
+                size="sm"
+                ariaLabel="Eliminar variante"
+                title="Eliminar variante"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                data-test-id={`products-expand-variant-delete-${v.id}`}
+              />
+            ) : null}
           </div>
-          <Badge variant={v.isActive !== false ? "success" : "secondary-outlined"} className="shrink-0">
+        </div>
+
+        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
+          <span className="min-w-0 shrink" title={v.sku}>
+            SKU: {v.sku}
+          </span>
+          <span className="min-w-0 shrink text-right" title={v.barcode?.trim() ?? undefined}>
+            Código: {v.barcode?.trim() ? v.barcode : "—"}
+          </span>
+        </div>
+
+        <div className="flex min-w-0">
+          <Badge variant={v.isActive !== false ? "success" : "secondary-outlined"}>
             {v.isActive !== false ? "Activa" : "Inactiva"}
           </Badge>
         </div>
 
         <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
-          <div className="min-w-0 sm:col-span-2">
-            <dt className="font-medium text-muted-foreground">Código de barras</dt>
-            <dd className="mt-0.5 font-mono text-foreground">{v.barcode?.trim() ? v.barcode : "—"}</dd>
-          </div>
           <div className="min-w-0">
             <dt className="font-medium text-muted-foreground">Unidad</dt>
             <dd className="mt-0.5 text-foreground">{v.unitOfMeasure?.trim() ? v.unitOfMeasure : "—"}</dd>
@@ -213,10 +237,14 @@ function ProductExpandPanel({
   row,
   onAddVariant,
   onDefineRecipe,
+  onEditVariant,
+  onDeleteVariant,
 }: {
   row: ProductGridRow;
   onAddVariant: (r: ProductGridRow) => void;
   onDefineRecipe?: (product: ProductGridRow, variant: ProductVariantGridRow) => void;
+  onEditVariant?: (product: ProductGridRow, variant: ProductVariantGridRow) => void;
+  onDeleteVariant?: (product: ProductGridRow, variant: ProductVariantGridRow) => void;
 }) {
   const hasVariants = Boolean(row.variants?.length);
 
@@ -248,6 +276,8 @@ function ProductExpandPanel({
               onDefineRecipe={
                 onDefineRecipe ? () => onDefineRecipe(row, v) : undefined
               }
+              onEdit={onEditVariant ? () => onEditVariant(row, v) : undefined}
+              onDelete={onDeleteVariant ? () => onDeleteVariant(row, v) : undefined}
             />
           ))}
         </div>
@@ -301,6 +331,16 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
     productName: string;
     productType: "PHYSICAL" | "SERVICE" | "DIGITAL";
   } | null>(null);
+  const [editVariantDialog, setEditVariantDialog] = useState<{
+    product: ProductGridRow;
+    variant: ProductVariantGridRow;
+  } | null>(null);
+  const [deleteVariantTarget, setDeleteVariantTarget] = useState<{
+    product: ProductGridRow;
+    variant: ProductVariantGridRow;
+  } | null>(null);
+  const [deleteVariantError, setDeleteVariantError] = useState<string | null>(null);
+  const [isDeleteVariantPending, startDeleteVariantTransition] = useTransition();
 
   const openVariantDialog = useCallback((r: ProductGridRow) => {
     setVariantDialog({
@@ -424,15 +464,26 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
     ];
   }, [onEditProduct, onDeleteProduct]);
 
+  const openEditVariantDialog = useCallback((product: ProductGridRow, variant: ProductVariantGridRow) => {
+    setEditVariantDialog({ product, variant });
+  }, []);
+
+  const onDeleteVariantClick = useCallback((product: ProductGridRow, variant: ProductVariantGridRow) => {
+    setDeleteVariantError(null);
+    setDeleteVariantTarget({ product, variant });
+  }, []);
+
   const expandableRowContent = useCallback(
     (row: ProductGridRow) => (
       <ProductExpandPanel
         row={row}
         onAddVariant={openVariantDialog}
         onDefineRecipe={openRecipeDialog}
+        onEditVariant={openEditVariantDialog}
+        onDeleteVariant={onDeleteVariantClick}
       />
     ),
-    [openRecipeDialog, openVariantDialog],
+    [onDeleteVariantClick, openEditVariantDialog, openRecipeDialog, openVariantDialog],
   );
 
   return (
@@ -505,6 +556,49 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
         }}
         data-test-id="product-delete-dialog"
       />
+      <DeleteDialog
+        open={deleteVariantTarget != null}
+        onClose={() => {
+          if (!isDeleteVariantPending) {
+            setDeleteVariantTarget(null);
+            setDeleteVariantError(null);
+          }
+        }}
+        title="Eliminar variante"
+        message={
+          deleteVariantTarget ? (
+            <>
+              ¿Eliminar la variante <strong className="font-semibold">«{deleteVariantTarget.variant.sku}»</strong> del
+              producto <strong className="font-semibold">«{deleteVariantTarget.product.name}»</strong>? Esta acción no se
+              puede deshacer.
+            </>
+          ) : null
+        }
+        errors={deleteVariantError ? [deleteVariantError] : []}
+        isSubmitting={isDeleteVariantPending}
+        onConfirm={() => {
+          if (!deleteVariantTarget) {
+            return;
+          }
+          setDeleteVariantError(null);
+          startDeleteVariantTransition(() => {
+            void (async () => {
+              const id = deleteVariantTarget.variant.id;
+              const r = await deleteProductVariantAction(id);
+              if (r.success) {
+                setDeleteVariantTarget(null);
+                setEditVariantDialog((prev) =>
+                  prev?.variant.id === id ? null : prev,
+                );
+                await router.refresh();
+              } else {
+                setDeleteVariantError(r.error);
+              }
+            })();
+          });
+        }}
+        data-test-id="product-variant-delete-dialog"
+      />
       <CreateProductVariantDialog
         open={variantDialog != null}
         onClose={() => setVariantDialog(null)}
@@ -527,6 +621,18 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
           await router.refresh();
         }}
       />
+      {editVariantDialog != null ? (
+        <EditProductVariantDialog
+          open
+          onClose={() => setEditVariantDialog(null)}
+          product={editVariantDialog.product}
+          variant={editVariantDialog.variant}
+          productType={editVariantDialog.product.productType ?? "PHYSICAL"}
+          onSuccess={async () => {
+            await router.refresh();
+          }}
+        />
+      ) : null}
     </>
   );
 }

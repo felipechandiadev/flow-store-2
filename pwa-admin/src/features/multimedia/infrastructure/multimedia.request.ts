@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import type { MultimediaAssetListItem } from "../types/multimedia.types";
+import { resolveMultimediaPublicUrl } from "../utils/resolve-multimedia-public-url";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -36,15 +37,16 @@ function normalizeAsset(raw: unknown): MultimediaAssetListItem | null {
   }
   const o = raw as Record<string, unknown>;
   const id = o.id != null ? String(o.id) : "";
-  const publicUrl = o.publicUrl != null ? String(o.publicUrl) : "";
-  if (!id || !publicUrl) {
+  const publicUrlRaw = o.publicUrl != null ? String(o.publicUrl) : "";
+  if (!id || !publicUrlRaw) {
     return null;
   }
   return {
     id,
-    publicUrl,
+    publicUrl: resolveMultimediaPublicUrl(publicUrlRaw),
     mimeType: o.mimeType != null ? String(o.mimeType) : "",
     kind: o.kind != null ? String(o.kind) : "",
+    isPrimary: o.isPrimary === true,
   };
 }
 
@@ -178,6 +180,47 @@ export class MultimediaRequest {
       return { success: true };
     } catch (e) {
       const err = e instanceof Error ? e.message : "Error al quitar imagen";
+      return { success: false, error: err };
+    }
+  }
+
+  static async setPrimaryForEntity(input: {
+    entityType: string;
+    entityId: string;
+    assetId: string;
+  }): Promise<{ success: true } | { success: false; error: string }> {
+    const et = input.entityType.trim();
+    const eid = input.entityId.trim();
+    const aid = input.assetId.trim();
+    if (!et || !eid || !aid) {
+      return { success: false, error: "Datos no válidos" };
+    }
+    try {
+      const headers = await authHeadersJson();
+      const res = await fetch(
+        apiUrl(
+          `multimedia/entities/${encodeURIComponent(et)}/${encodeURIComponent(eid)}/primary`,
+        ),
+        {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({ assetId: aid }),
+          cache: "no-store",
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        const m = data.message;
+        const msg = Array.isArray(m)
+          ? m.map(String).join("; ")
+          : typeof m === "string" && m.trim()
+            ? m.trim()
+            : res.statusText;
+        return { success: false, error: msg };
+      }
+      return { success: true };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al actualizar imagen principal";
       return { success: false, error: err };
     }
   }

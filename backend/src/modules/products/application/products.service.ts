@@ -20,6 +20,8 @@ import {
   PriceListItemsRepositoryPort,
 } from '@modules/price-list-items/application/ports/price-list-items.repository.port';
 import { SearchProductsDto } from './dto/search-products.dto';
+import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
+import { attachProductVariantMultimedia } from './helpers/attach-product-variant-multimedia';
 
 type MovementDirection = 'IN' | 'OUT';
 
@@ -71,6 +73,7 @@ export class ProductsService {
     @Inject(PRICE_LIST_ITEMS_REPOSITORY)
     private readonly priceListItemRepository: PriceListItemsRepositoryPort,
     private readonly dataSource: DataSource,
+    private readonly multimediaService: MultimediaServiceAdapter,
   ) {}
 
   private resolveDirection(type: TransactionType): MovementDirection | null {
@@ -130,6 +133,13 @@ export class ProductsService {
         priceListItems,
       });
     }
+
+    const variantIds = variants.map((v) => v.id);
+    await attachProductVariantMultimedia(
+      this.multimediaService,
+      variantsByProduct as Record<string, Array<Record<string, unknown>>>,
+      variantIds,
+    );
 
     const enriched = products.map((p) => ({
       ...p,
