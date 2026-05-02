@@ -21,6 +21,7 @@ import { AccountingRuleLine } from '@modules/accounting-rules/domain/accounting-
 import { Product } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
+import { Storage } from '@modules/storages/domain/storage.entity';
 
 /**
  * Misma conexión y entidades que el API: el esquema lo define TypeORM vía
@@ -53,6 +54,7 @@ import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.
       Product,
       ProductVariant,
       PriceListItem,
+      Storage,
     ]),
   ],
 })

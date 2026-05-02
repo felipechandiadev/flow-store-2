@@ -39,6 +39,11 @@ import { assertValidChileCompanyRut } from '@shared/utils/chile-company-rut.util
 import { Product, ProductType } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
+import {
+  Storage,
+  StorageCategory,
+  StorageType,
+} from '@modules/storages/domain/storage.entity';
 
 const SEED_IVA_DESCRIPTION =
   'Impuesto al Valor Agregado sobre ventas, servicios e importaciones.';
@@ -51,6 +56,12 @@ const SEED_BRANCH_LOCATION = {
   lng: -71.78741455078126,
 };
 
+/** Almacenes demo: sala ligada a la sucursal seed; depósito central (sin sucursal). */
+const SEED_STORAGE_SALA_NAME = 'Sala de venta';
+const SEED_STORAGE_SALA_CODE = 'SEED-SALA-VENTA';
+const SEED_STORAGE_DEPOSITO_NAME = 'Depósito principal';
+const SEED_STORAGE_DEPOSITO_CODE = 'SEED-DEP-PRINCIPAL';
+
 const SEED_UNIT_BASE_NAME = 'UNIDAD';
 const SEED_UNIT_BASE_SYMBOL = 'UN';
 const SEED_UNIT_DERIVED_NAME = 'DOCENA';
@@ -59,8 +70,43 @@ const SEED_UNIT_DERIVED_SYMBOL = 'DOC';
 const SEED_CATEGORY_PARENT_NAME = 'CAT 01';
 const SEED_CATEGORY_CHILD_NAME = 'CAT 02';
 
-const SEED_ATTRIBUTE_NAME = 'TALLA';
-const SEED_ATTRIBUTE_OPTIONS = ['XS', 'SM', 'M', 'L', 'XL', 'XXL'];
+/** Catálogo de atributos demo (nombre único + opciones). TALLA se usa en variantes de polera. */
+const SEED_ATTRIBUTES: readonly {
+  name: string;
+  options: readonly string[];
+  displayOrder: number;
+}[] = [
+  {
+    name: 'TALLA',
+    options: ['XS', 'SM', 'M', 'L', 'XL', 'XXL'],
+    displayOrder: 0,
+  },
+  {
+    name: 'COLOR',
+    options: ['Negro', 'Blanco', 'Gris', 'Azul marino', 'Rojo'],
+    displayOrder: 1,
+  },
+  {
+    name: 'MATERIAL',
+    options: ['Algodón', 'Poliéster', 'Lino', 'Mixto'],
+    displayOrder: 2,
+  },
+  {
+    name: 'ORIGEN',
+    options: ['Chile', 'Perú', 'Colombia', 'Brasil'],
+    displayOrder: 3,
+  },
+  {
+    name: 'MOLIENDA',
+    options: ['Grano entero', 'Espresso', 'Fina', 'Media'],
+    displayOrder: 4,
+  },
+  {
+    name: 'PESO',
+    options: ['250 g', '500 g', '1 kg'],
+    displayOrder: 5,
+  },
+];
 
 const SEED_PRICE_LIST_RETAIL_NAME = 'MINORISTA';
 const SEED_PRICE_LIST_WHOLESALE_NAME = 'MAYORISTA';
@@ -928,6 +974,75 @@ async function bootstrap() {
       );
     }
 
+    // Almacenes (ejemplos): sala de venta en sucursal seed; depósito principal central
+    const storageRepo = dataSource.getRepository(Storage);
+
+    let seedSalaVenta = await storageRepo.findOne({
+      where: { code: SEED_STORAGE_SALA_CODE },
+      withDeleted: true,
+    });
+    if (!seedSalaVenta) {
+      seedSalaVenta = storageRepo.create({
+        name: SEED_STORAGE_SALA_NAME,
+        code: SEED_STORAGE_SALA_CODE,
+        branchId: seedBranch.id,
+        type: StorageType.STORE,
+        category: StorageCategory.IN_BRANCH,
+        isDefault: false,
+        isActive: true,
+      });
+      await storageRepo.save(seedSalaVenta);
+      console.log(
+        `✅ Almacén ejemplo creado: «${SEED_STORAGE_SALA_NAME}» id=${seedSalaVenta.id} branchId=${seedBranch.id}`,
+      );
+    } else {
+      if (seedSalaVenta.deletedAt) {
+        seedSalaVenta = await storageRepo.recover(seedSalaVenta);
+      }
+      seedSalaVenta.name = SEED_STORAGE_SALA_NAME;
+      seedSalaVenta.branchId = seedBranch.id;
+      seedSalaVenta.type = StorageType.STORE;
+      seedSalaVenta.category = StorageCategory.IN_BRANCH;
+      seedSalaVenta.isDefault = false;
+      seedSalaVenta.isActive = true;
+      await storageRepo.save(seedSalaVenta);
+      console.log(
+        `✅ Almacén «${SEED_STORAGE_SALA_NAME}» ya existía: id=${seedSalaVenta.id} (sincronizado con seed)`,
+      );
+    }
+
+    let seedDepositoPrincipal = await storageRepo.findOne({
+      where: { code: SEED_STORAGE_DEPOSITO_CODE },
+      withDeleted: true,
+    });
+    if (!seedDepositoPrincipal) {
+      seedDepositoPrincipal = storageRepo.create({
+        name: SEED_STORAGE_DEPOSITO_NAME,
+        code: SEED_STORAGE_DEPOSITO_CODE,
+        branchId: null,
+        type: StorageType.WAREHOUSE,
+        category: StorageCategory.CENTRAL,
+        isDefault: true,
+        isActive: true,
+      });
+      await storageRepo.save(seedDepositoPrincipal);
+      console.log(`✅ Almacén ejemplo creado: «${SEED_STORAGE_DEPOSITO_NAME}» id=${seedDepositoPrincipal.id} (central)`);
+    } else {
+      if (seedDepositoPrincipal.deletedAt) {
+        seedDepositoPrincipal = await storageRepo.recover(seedDepositoPrincipal);
+      }
+      seedDepositoPrincipal.name = SEED_STORAGE_DEPOSITO_NAME;
+      seedDepositoPrincipal.branchId = null;
+      seedDepositoPrincipal.type = StorageType.WAREHOUSE;
+      seedDepositoPrincipal.category = StorageCategory.CENTRAL;
+      seedDepositoPrincipal.isDefault = true;
+      seedDepositoPrincipal.isActive = true;
+      await storageRepo.save(seedDepositoPrincipal);
+      console.log(
+        `✅ Almacén «${SEED_STORAGE_DEPOSITO_NAME}» ya existía: id=${seedDepositoPrincipal.id} (sincronizado con seed)`,
+      );
+    }
+
     // Units (ejemplos): UNIDAD (base) y DOCENA (derivada)
     // Se alinean con la data existente en BD: dimension=count, allowDecimals=false.
     let baseUnit = await unitRepo.findOne({
@@ -1045,30 +1160,46 @@ async function bootstrap() {
       `✅ Categoría ejemplo ${cat2.name} ${existingCat2 ? 'ya existía' : 'creada'}: id=${cat2.id} parent=${cat1.name}`,
     );
 
-    // Attribute (ejemplo): TALLA con opciones
-    const existingAttr = await attributeRepo.findOne({
-      where: { name: SEED_ATTRIBUTE_NAME },
-    });
-    const talla = existingAttr
-      ? await attributeRepo.save({
-          ...existingAttr,
-          description: undefined,
-          options: SEED_ATTRIBUTE_OPTIONS,
-          displayOrder: 0,
-          isActive: true,
-        })
-      : await attributeRepo.save(
-          attributeRepo.create({
-            name: SEED_ATTRIBUTE_NAME,
+    // Atributos de catálogo (TALLA + 4 extras para demo en admin)
+    let talla: Attribute | undefined;
+    let peso: Attribute | undefined;
+    for (const def of SEED_ATTRIBUTES) {
+      const existingAttr = await attributeRepo.findOne({
+        where: { name: def.name },
+      });
+      const saved = existingAttr
+        ? await attributeRepo.save({
+            ...existingAttr,
             description: undefined,
-            options: SEED_ATTRIBUTE_OPTIONS,
-            displayOrder: 0,
+            options: [...def.options],
+            displayOrder: def.displayOrder,
             isActive: true,
-          }),
-        );
-    console.log(
-      `✅ Atributo ejemplo ${talla.name} ${existingAttr ? 'ya existía' : 'creado'}: id=${talla.id}`,
-    );
+          })
+        : await attributeRepo.save(
+            attributeRepo.create({
+              name: def.name,
+              description: undefined,
+              options: [...def.options],
+              displayOrder: def.displayOrder,
+              isActive: true,
+            }),
+          );
+      if (def.name === 'TALLA') {
+        talla = saved;
+      }
+      if (def.name === 'PESO') {
+        peso = saved;
+      }
+      console.log(
+        `✅ Atributo ${saved.name} ${existingAttr ? 'ya existía' : 'creado'}: id=${saved.id}`,
+      );
+    }
+    if (!talla) {
+      throw new Error('Seed minimal: atributo TALLA no sincronizado');
+    }
+    if (!peso) {
+      throw new Error('Seed minimal: atributo PESO no sincronizado');
+    }
 
     // Price lists (ejemplos): MINORISTA (RETAIL, default) y MAYORISTA (WHOLESALE)
     const existingRetail = await priceListRepo.findOne({
@@ -1166,10 +1297,10 @@ async function bootstrap() {
 
     const seedDemoProducts: SeedProductSeed[] = [
       {
-        name: 'Café grano molido 500 g',
+        name: 'Café de grano',
         brand: 'Origen Sur',
         description:
-          'Físico con tres presentaciones (250 g, 500 g, 1 kg); inventario rastreado; típico venta minorista / compra a proveedor.',
+          'Físico con tres presentaciones por peso (250 g, 500 g, 1 kg); inventario rastreado; típico venta minorista / compra a proveedor.',
         productType: ProductType.PHYSICAL,
         categoryId: cat2.id,
         variants: [
@@ -1180,6 +1311,7 @@ async function bootstrap() {
             baseCost: 1200,
             pmp: 1400,
             trackInventory: true,
+            attributeValues: { [peso.id]: '250 g' },
             retailNet: 2790,
             wholesaleNet: 2350,
           },
@@ -1190,6 +1322,7 @@ async function bootstrap() {
             baseCost: 2200,
             pmp: 2500,
             trackInventory: true,
+            attributeValues: { [peso.id]: '500 g' },
             retailNet: 4990,
             wholesaleNet: 4200,
           },
@@ -1200,6 +1333,7 @@ async function bootstrap() {
             baseCost: 4000,
             pmp: 4500,
             trackInventory: true,
+            attributeValues: { [peso.id]: '1 kg' },
             retailNet: 8990,
             wholesaleNet: 7600,
           },

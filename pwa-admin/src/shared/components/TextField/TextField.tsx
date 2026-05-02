@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect, useId } from "react";
 import { Eye, EyeOff } from 'lucide-react';
 
 import "./textfield.css";
@@ -41,6 +41,11 @@ interface TextFieldProps {
   autoComplete?: string;
   /** Si es true, la etiqueta flotante permanece visible (p. ej. Select con placeholder vacío). */
   alwaysShowLabel?: boolean;
+  /**
+   * `compact`: altura alineada al NumberStepper (~36px), label opcional arriba en columna (sin label flotante).
+   * Si `label` está vacío, solo reduce la altura del control (útil en tablas con encabezado de columna).
+   */
+  density?: "default" | "compact";
   ["data-test-id"]?: string;
 }
 
@@ -72,9 +77,13 @@ export const TextField: React.FC<TextFieldProps> = ({
   passwordVisibilityToggle = true, // Default: true para mostrar toggle en password
   autoComplete,
   alwaysShowLabel = false,
+  density = "default",
   style,
   ...props
 }) => {
+  const isCompact = density === "compact";
+  const stableFieldId = useId();
+  const inputDomId = name?.trim() ? name : `fs-tf-${stableFieldId.replace(/:/g, "")}`;
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const startLeadingRef = useRef<HTMLSpanElement>(null);
@@ -316,9 +325,9 @@ export const TextField: React.FC<TextFieldProps> = ({
   const [startLeadingMeasuredPx, setStartLeadingMeasuredPx] = useState(0);
   const startLeadingFallbackPx =
     hasStartSymbol && startSymbol
-      ? Math.max(8, startSymbol.length * 12)
+      ? Math.max(8, startSymbol.length * (isCompact ? 10 : 12))
       : hasStartLeading
-        ? 20
+        ? (isCompact ? 16 : 20)
         : 0;
   const startLeadingSlotPx = startLeadingMeasuredPx || startLeadingFallbackPx;
   const inputPaddingStart =
@@ -417,22 +426,36 @@ export const TextField: React.FC<TextFieldProps> = ({
     readOnly && variante === "autocomplete" && !disabled ? "cursor-pointer" : "";
 
   const isTextArea = type === "textarea" || typeof rows === "number";
+  const showStaticLabel = isCompact && Boolean(label?.trim());
+  const compactInputClass = isCompact ? "fs-text-field__input--compact" : "";
 
   return (
-    <div className={variante === "autocomplete" ? "relative w-full" : "fs-text-field"}>
+    <div
+      className={`${variante === "autocomplete" ? "relative w-full" : "fs-text-field"} ${showStaticLabel ? "flex min-w-0 flex-col gap-1" : ""}`.trim()}
+    >
+      {showStaticLabel ? (
+        <label
+          className="text-[11px] font-medium leading-tight text-foreground"
+          htmlFor={inputDomId}
+          data-test-id="text-field-static-label"
+        >
+          {label}
+          {required ? <span className="ml-1 text-red-500">*</span> : null}
+        </label>
+      ) : null}
       <div className={`relative ${className}`} data-test-id="text-field-root">
       {hasStartSymbol && (
         <span
           ref={startLeadingRef}
           className={`fs-text-field__icon ${showDisabledChrome ? "text-muted opacity-50" : "text-secondary"}`}
           style={{
-            fontSize: 20,
+            fontSize: isCompact ? 15 : 20,
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
             whiteSpace: "nowrap",
             lineHeight: 1,
-            minHeight: 20,
+            minHeight: isCompact ? 15 : 20,
           }}
         >
           {startSymbol}
@@ -446,8 +469,8 @@ export const TextField: React.FC<TextFieldProps> = ({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            minHeight: 20,
-            minWidth: 20,
+            minHeight: isCompact ? 16 : 20,
+            minWidth: isCompact ? 16 : 20,
           }}
         >
           {startAdornment}
@@ -455,6 +478,7 @@ export const TextField: React.FC<TextFieldProps> = ({
       )}
       {isTextArea ? (
         <textarea
+          id={inputDomId}
           name={name}
           value={value}
           rows={rows}
@@ -462,7 +486,7 @@ export const TextField: React.FC<TextFieldProps> = ({
           onBlur={() => setFocused(false)}
           onChange={handleChange}
           onKeyDown={onKeyDown}
-          className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${borderlessInputClass} block min-w-[180px] pr-4 ${startPaddingClass} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
+          className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${compactInputClass} ${borderlessInputClass} block ${isCompact ? "min-w-0" : "min-w-[180px]"} pr-4 ${startPaddingClass} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
           placeholder={
             type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
             (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))
@@ -483,6 +507,7 @@ export const TextField: React.FC<TextFieldProps> = ({
       ) : (
         <div className="relative">
           <input
+            id={inputDomId}
             ref={inputRef}
             type={
               type === "password" ? (showPassword ? "text" : "password") :
@@ -495,7 +520,7 @@ export const TextField: React.FC<TextFieldProps> = ({
             onBlur={() => setFocused(false)}
             onChange={type === "dni" ? handleDNIChange : type === "currency" ? handleCurrencyChange : handleChange}
             onKeyDown={onKeyDown}
-            className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${borderlessInputClass} block min-w-[180px] ${startPaddingClass} ${(endSymbol || (type === "password" && passwordVisibilityToggle)) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
+            className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${compactInputClass} ${borderlessInputClass} block ${isCompact ? "min-w-0" : "min-w-[180px]"} ${startPaddingClass} ${(endSymbol || (type === "password" && passwordVisibilityToggle)) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
             placeholder={
               type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
               (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))
@@ -543,7 +568,7 @@ export const TextField: React.FC<TextFieldProps> = ({
         </div>
       )}
       {/* Placeholder personalizado para campos requeridos */}
-      {required && !shrink && showPlaceholder && (
+      {required && !shrink && showPlaceholder && !isCompact && (
         <div
           className={`absolute pointer-events-none text-sm font-medium text-muted transition-opacity duration-300 ${shrink ? 'opacity-0' : 'opacity-100'}`}
           style={{
@@ -563,6 +588,7 @@ export const TextField: React.FC<TextFieldProps> = ({
       {placeholderColor && placeholderClassRef.current && (
         <style>{`input.${placeholderClassRef.current}::placeholder, textarea.${placeholderClassRef.current}::placeholder { color: ${placeholderColor} }`}</style>
       )}
+      {!isCompact ? (
       <label
         className={`absolute left-3 -top-1 pointer-events-none transition-all duration-300 ease-in-out px-1 font-medium text-xs text-foreground rounded-md bg-background` +
           (shrink ? " -translate-y-1 scale-90 opacity-100" : " opacity-0")}
@@ -572,10 +598,18 @@ export const TextField: React.FC<TextFieldProps> = ({
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
+      ) : null}
       {typeof endSymbol === "string" && endSymbol.length > 0 && (
         <span
               className={`fs-text-field__icon--end ${showDisabledChrome ? "text-muted opacity-50" : "text-secondary"}`}
-          style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{
+            fontSize: isCompact ? 15 : 20,
+            width: isCompact ? 15 : 20,
+            height: isCompact ? 15 : 20,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
           {endSymbol}
         </span>

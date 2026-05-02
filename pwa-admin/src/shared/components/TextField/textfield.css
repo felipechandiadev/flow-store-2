@@ -26,6 +26,29 @@
     box-shadow 0.2s ease;
 }
 
+/**
+ * Compact: misma altura visual que NumberStepper (input `py-1` + `text-sm` → ~h-8 / 2rem).
+ * border-box: altura total del control incluye borde 1px.
+ */
+.fs-text-field__input.fs-text-field__input--compact {
+  box-sizing: border-box;
+  height: 2rem;
+  min-height: 2rem;
+  max-height: 2rem;
+  min-width: 0;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.fs-text-field__input.fs-text-field__input--compact::placeholder,
+.fs-text-field__input.fs-text-field__input--compact::-webkit-input-placeholder,
+.fs-text-field__input.fs-text-field__input--compact::-moz-placeholder {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
 .fs-text-field__input:focus {
   outline: none;
   border-color: transparent;

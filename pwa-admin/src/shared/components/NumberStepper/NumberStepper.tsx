@@ -177,8 +177,12 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
     ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
   `;
 
+  /** Sin label ni icono (p. ej. columna en tabla): misma altura que TextField compact (h-8 / 2rem). */
+  const singleRowChrome = !label && !icon;
+
   const containerClasses = `
-    flex items-center border-[1px] border-border rounded-md bg-transparent
+    flex border-[1px] border-border rounded-md bg-transparent
+    ${singleRowChrome ? 'items-stretch h-8 min-h-[2rem] max-h-[2rem] box-border' : 'items-center'}
     ${disabled ? 'bg-neutral' : ''}
   `;
 
@@ -237,7 +241,11 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
 
   return (
     <>
-      <div className={containerClasses} data-test-id="number-stepper-root">
+      <div
+        className={containerClasses}
+        data-test-id="number-stepper-root"
+        data-stepper-single-row={singleRowChrome ? 'true' : undefined}
+      >
         {/* Botón decrementar */}
         <button
           type="button"
@@ -250,7 +258,9 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
         </button>
 
         {/* Input y Label/Icono - Contenedor centrado */}
-        <div className="flex flex-col items-center justify-center flex-1 gap-0">
+        <div
+          className={`flex flex-col items-center justify-center flex-1 gap-0 min-w-0 ${singleRowChrome ? 'min-h-0 self-stretch' : ''}`}
+        >
           {/* Input numérico */}
           <input
             ref={inputRef}

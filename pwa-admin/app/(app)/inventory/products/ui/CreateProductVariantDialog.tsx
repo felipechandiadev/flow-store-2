@@ -29,6 +29,7 @@ import {
   type VariantPriceRowModel,
 } from "./VariantPriceRowsEditor";
 import { VariantPmpPriceCalculatorDialog } from "./VariantPmpPriceCalculatorDialog";
+import { VariantAttributesPickerDialog } from "./VariantAttributesPickerDialog";
 import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
 import { MultimediaUploader } from "@/shared/components/FileUploader/MultimediaUploader";
 import { uploadMultimediaForEntityAction } from "@/features/multimedia/actions/multimedia.action";
@@ -117,6 +118,7 @@ export function CreateProductVariantDialog({
   const [stagedVariantFiles, setStagedVariantFiles] = useState<File[]>([]);
   const [mediaStagingKey, setMediaStagingKey] = useState(0);
   const [postCreateUploadError, setPostCreateUploadError] = useState<string | null>(null);
+  const [attributesPickerOpen, setAttributesPickerOpen] = useState(false);
 
   const ivaTaxes = useMemo(
     () => taxes.filter((t) => t.isActive && t.taxType === "IVA"),
@@ -513,29 +515,28 @@ export function CreateProductVariantDialog({
               <p className="text-xs text-muted-foreground">
                 Defina la combinación de esta variante. Solo se envían los atributos con valor elegido.
               </p>
-              <div className="flex flex-col gap-3">
-                {selectableAttributes.map((a) => {
-                  const opts: Option[] = a.options.map((opt) => ({ id: opt, label: opt }));
-                  return (
-                    <Select
-                      key={a.id}
-                      label={a.name}
-                      name={`pv-create-attr-${a.id}`}
-                      options={opts}
-                      value={attributeSelections[a.id] ?? null}
-                      onChange={(v) =>
-                        setAttributeSelections((prev) => ({
-                          ...prev,
-                          [a.id]: v != null && String(v).trim() !== "" ? String(v) : null,
-                        }))
-                      }
-                      placeholder="Sin definir"
-                      allowClear
-                      alwaysShowLabel
-                      data-test-id={`product-variant-create-attr-${a.id}`}
-                    />
-                  );
-                })}
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1.5 text-sm">
+                  {selectableAttributes.map((a) => (
+                    <div key={a.id} className="flex flex-wrap gap-x-2 gap-y-0.5">
+                      <span className="text-muted-foreground">{a.name}</span>
+                      <span className="font-medium text-foreground">
+                        {attributeSelections[a.id] ?? "Sin definir"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    size="sm"
+                    onClick={() => setAttributesPickerOpen(true)}
+                    data-test-id="product-variant-create-attrs-open"
+                  >
+                    Elegir valores
+                  </Button>
+                </div>
               </div>
             </div>
           ) : null}
@@ -634,6 +635,19 @@ export function CreateProductVariantDialog({
         }
         ivaTaxes={ivaTaxes}
         onApply={handlePmpCalculatorApply}
+      />
+      <VariantAttributesPickerDialog
+        open={attributesPickerOpen}
+        onClose={() => setAttributesPickerOpen(false)}
+        attributes={selectableAttributes}
+        selections={attributeSelections}
+        onSave={(next) =>
+          setAttributeSelections((prev) => ({
+            ...prev,
+            ...next,
+          }))
+        }
+        data-test-id="product-variant-create-attrs-picker"
       />
     </>
   );

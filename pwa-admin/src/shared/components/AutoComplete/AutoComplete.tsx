@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import DropdownList, { dropdownOptionClass } from "../DropdownList/DropdownList";
 import IconButton from "../IconButton/IconButton";
 import { TextField } from "../TextField/TextField";
@@ -24,6 +24,8 @@ interface AutoCompleteProps<T = Option> {
   filterOption?: (option: T, inputValue: string) => boolean;
   ["data-test-id"]?: string;
   disabled?: boolean;
+  /** Etiqueta flotante siempre visible (útil con placeholder vacío o como selector). */
+  alwaysShowLabel?: boolean;
 }
 
 // Ref map para tracking de items renderizados
@@ -41,6 +43,7 @@ const AutoComplete = <T = Option,>({
   getOptionLabel,
   getOptionValue,
   filterOption,
+  alwaysShowLabel = false,
   ...props
 }: AutoCompleteProps<T>) => {
   // Helper functions with defaults for backward compatibility
@@ -66,7 +69,7 @@ const AutoComplete = <T = Option,>({
   const [inputValue, setInputValue] = useState(value ? getLabel(value) : "");
   const [focused, setFocused] = useState(false);
   const [open, setOpen] = useState(false);
-  const [isNavigating, setIsNavigating] = useState(false);
+  const [isSelectingOption, setIsSelectingOption] = useState(false);
   const [validationTriggered, setValidationTriggered] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -78,62 +81,102 @@ const AutoComplete = <T = Option,>({
   }, [value]);
 
   const shrink = focused || inputValue.length > 0;
-  const filteredOptions = options.filter(opt => {
-    if (typeof filterOption === 'function') {
-      return filterOption(opt, inputValue);
-    }
-    return getLabel(opt).toLowerCase().includes(inputValue.toLowerCase());
-  });
+  const filteredOptions = useMemo(
+    () =>
+      options.filter((opt) => {
+        if (typeof filterOption === "function") {
+          return filterOption(opt, inputValue);
+        }
+        return getLabel(opt).toLowerCase().includes(inputValue.toLowerCase());
+      }),
+    [options, inputValue, filterOption, getLabel],
+  );
 
-  // Scroll automático al item destacado
+  const handleSelect = useCallback(
+    (option: T) => {
+      setInputValue(getLabel(option));
+      setOpen(false);
+      setHighlightedIndex(-1);
+      onChange?.(option);
+    },
+    [getLabel, onChange],
+  );
+
+  /**
+   * Misma lógica que Select: listener en document (burbuja), `highlightedIndex` en dependencias del
+   * efecto para que Enter use el índice actual. El foco en el input no marca `focused` en el padre;
+   * comprobamos `containerRef.contains(document.activeElement)`.
+   */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const root = containerRef.current;
+      if (!root || disabled) {
+        return;
+      }
+      const active = document.activeElement;
+      if (!active || !root.contains(active)) {
+        return;
+      }
+
+      const list = filteredOptions;
+
+      if (!open) {
+        if (["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) {
+          if (list.length === 0) {
+            return;
+          }
+          e.preventDefault();
+          setOpen(true);
+          setHighlightedIndex(e.key === "ArrowUp" ? list.length - 1 : 0);
+        }
+        return;
+      }
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+        setHighlightedIndex(-1);
+        return;
+      }
+
+      if (list.length === 0) {
+        return;
+      }
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIndex((i) => (i < list.length - 1 ? i + 1 : 0));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIndex((i) => (i > 0 ? i - 1 : list.length - 1));
+        return;
+      }
+      if (e.key === "Enter" && highlightedIndex >= 0) {
+        e.preventDefault();
+        if (highlightedIndex < list.length) {
+          handleSelect(list[highlightedIndex]!);
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [disabled, open, filteredOptions, handleSelect, highlightedIndex]);
+
+  // Scroll al item destacado (auto evita saltos bruscos con listas largas)
   useEffect(() => {
     if (highlightedIndex >= 0 && open) {
       const highlightedKey = getValue(filteredOptions[highlightedIndex]);
       const element = itemRefs.get(highlightedKey);
       if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        element.scrollIntoView({ block: "nearest" });
       }
     }
-  }, [highlightedIndex, open, filteredOptions]);
-
-  // Handle keyboard navigation on TextField input
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    if (!focused || disabled) return;
-
-    if (!open && ["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) {
-      e.preventDefault();
-      setOpen(true);
-      setHighlightedIndex(e.key === "ArrowUp" ? filteredOptions.length - 1 : 0);
-      return;
-    }
-
-    if (!open || filteredOptions.length === 0) return;
-
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setIsNavigating(true);
-      setHighlightedIndex(i => (i < filteredOptions.length - 1 ? i + 1 : 0));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setIsNavigating(true);
-      setHighlightedIndex(i => (i > 0 ? i - 1 : filteredOptions.length - 1));
-    } else if (e.key === "Enter" && highlightedIndex >= 0) {
-      e.preventDefault();
-      handleSelect(filteredOptions[highlightedIndex]);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      setOpen(false);
-      setIsNavigating(false);
-      setHighlightedIndex(-1);
-    }
-  };
-
-  const handleSelect = (option: T) => {
-    setInputValue(getLabel(option));
-    setOpen(false);
-    setIsNavigating(false);
-    onChange?.(option);
-  };
+  }, [highlightedIndex, open, filteredOptions, getValue]);
 
   const handleClear = () => {
     setInputValue(""); // Clear the input text
@@ -156,11 +199,17 @@ const AutoComplete = <T = Option,>({
     <div className="fs-dropdown-container" ref={containerRef} data-test-id={props["data-test-id"] || "auto-complete-root"} data-has-options={options.length > 0 ? "true" : "false"}>
       <div
         className="relative w-full border border-border rounded-md focus-within:border-primary"
-        onFocus={() => { setFocused(true); setOpen(true); setIsNavigating(false); }}
+        onFocusCapture={() => {
+          if (disabled) {
+            return;
+          }
+          setFocused(true);
+          setOpen(true);
+        }}
         onBlur={() => {
           setFocused(false);
           handleValidation();
-          if (!isNavigating) {
+          if (!isSelectingOption) {
             setTimeout(() => setOpen(false), 150);
           }
           setHighlightedIndex(-1);
@@ -177,7 +226,6 @@ const AutoComplete = <T = Option,>({
             setOpen(true);
             setHighlightedIndex(-1);
           }}
-          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           name={name}
           required={required}
@@ -185,32 +233,35 @@ const AutoComplete = <T = Option,>({
           className="pr-20"
           variante="autocomplete"
           disabled={disabled}
+          alwaysShowLabel={alwaysShowLabel}
         />
 
         {value && !disabled && (
           <IconButton
             icon="X"
-            variant="text"
-            className={`absolute right-10 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20 ${focused ? 'text-primary' : 'text-secondary'}`}
+            variant="basicSecondary"
+            className="absolute right-10 top-1/2 z-20 flex h-6 w-6 min-h-6 min-w-6 -translate-y-1/2 items-center justify-center p-0"
             onClick={handleClear}
             aria-label="Limpiar selección"
             data-test-id="auto-complete-clear-icon"
             tabIndex={-1}
+            disabled={disabled}
           />
         )}
 
         {!disabled && (
           <IconButton
             icon="ChevronDown"
-            variant="text"
-            className={`absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20 ${focused ? 'text-primary' : 'text-secondary'}`}
+            variant="basicSecondary"
+            className="absolute right-2 top-1/2 z-20 flex h-6 w-6 min-h-6 min-w-6 -translate-y-1/2 items-center justify-center p-0"
             tabIndex={-1}
             aria-label="Desplegar opciones"
-            onClick={() => {
-              if (!open) setOpen(true);
-              // Focus will be handled by the wrapper div
+            onClick={(ev) => {
+              ev.stopPropagation();
+              setOpen((o) => !o);
             }}
             data-test-id="auto-complete-dropdown-icon"
+            disabled={disabled}
           />
         )}
       </div>
@@ -235,11 +286,14 @@ const AutoComplete = <T = Option,>({
                 else itemRefs.delete(optValue);
               }}
               className={dropdownOptionClass}
-              onMouseDown={() => handleSelect(opt)}
+              onMouseDown={() => {
+                setIsSelectingOption(true);
+                handleSelect(opt);
+                setTimeout(() => setIsSelectingOption(false), 200);
+              }}
               onMouseEnter={() => {
                 setHighlightedIndex(idx);
               }}
-              onClick={() => handleSelect(opt)}
               role="option"
               aria-selected={isHighlighted}
               data-test-id={`auto-complete-option-${optValue}`}

@@ -8,6 +8,8 @@ import {
   PURCHASE_DOC_URL_QUERY,
 } from "@/shared/components/PurchaseDocumentBuilder";
 
+export const dynamic = "force-dynamic";
+
 function parseSp(sp: Record<string, string | string[] | undefined>, key: string): string {
   const v = sp[key];
   if (Array.isArray(v)) {
