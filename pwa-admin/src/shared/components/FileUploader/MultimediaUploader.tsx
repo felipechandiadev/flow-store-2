@@ -273,15 +273,17 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
           <div className="flex flex-col items-start gap-0.5">
             {buttonType === 'icon' ? (
               <>
-                <span className="text-xs font-normal text-foreground leading-none">
-                  {label}
-                </span>
+                {label ? (
+                  <span className="text-xs font-normal text-foreground leading-none">
+                    {label}
+                  </span>
+                ) : null}
                 <IconButton
                   icon="Plus"
                   variant="containedSecondary"
                   onClick={openPicker}
                   disabled={disabled}
-                  ariaLabel="Subir multimedia"
+                  ariaLabel={label?.trim() ? `Subir multimedia: ${label}` : "Subir multimedia"}
                 />
               </>
             ) : (

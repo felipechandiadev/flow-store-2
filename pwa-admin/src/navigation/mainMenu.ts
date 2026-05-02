@@ -11,9 +11,19 @@ export const uiComponentItems: SideBarMenuItem[] = [
   { id: 'ui-dot-progress', label: 'Dot progress', url: '/ui-components/dot-progress' },
   { id: 'ui-icon-button', label: 'Icon Button', url: '/ui-components/icon-button' },
   {
+    id: 'ui-basic-page-layout',
+    label: 'Basic page layout',
+    url: '/ui-components/basic-page-layout',
+  },
+  {
     id: 'ui-collection-page-layout',
     label: 'Collection page layout',
     url: '/ui-components/collection-page-layout',
+  },
+  {
+    id: 'ui-tab-page-layout',
+    label: 'Tab page layout',
+    url: '/ui-components/tab-page-layout',
   },
   { id: 'ui-number-stepper', label: 'Number stepper', url: '/ui-components/number-stepper' },
   { id: 'ui-multimedia', label: 'Multimedia', url: '/ui-components/multimedia' },

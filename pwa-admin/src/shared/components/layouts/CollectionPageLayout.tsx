@@ -3,8 +3,15 @@
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
-import TextField from "../TextField/TextField";
-import IconButton from "../IconButton/IconButton";
+import TextField from "@/shared/components/TextField";
+import IconButton from "@/shared/components/IconButton";
+import {
+  layoutPageContentClassName,
+  layoutPageHeaderClassName,
+  layoutPageRootClassName,
+  layoutPageSubtitleClassName,
+  layoutPageTitleClassName,
+} from "./layoutPageTokens";
 
 /**
  * Columnas de la grilla (mobile-first). Valores 1–12. Omite claves no definidas.
@@ -182,7 +189,7 @@ function CollectionPageLayoutView({
   showSearch = true,
   searchParamName = "search",
   searchLabel = "Buscar",
-  searchPlaceholder = "Buscar…",
+  searchPlaceholder = "Buscar...",
   children,
   contentItems,
   contentGridColumns,
@@ -243,11 +250,11 @@ function CollectionPageLayoutView({
 
   return (
     <div
-      className={`flex w-full min-w-0 max-w-full flex-col gap-4 ${className}`.trim()}
+      className={`${layoutPageRootClassName} ${className}`.trim()}
       data-test-id={dataTestId ?? "collection-page-layout-root"}
     >
       {showHeaderBlock ? (
-        <header className="w-full min-w-0" data-test-id="collection-page-layout-header">
+        <header className={layoutPageHeaderClassName} data-test-id="collection-page-layout-header">
           {showTitleRow ? (
             <>
               <div className="flex w-full items-center gap-2 py-0">
@@ -268,7 +275,7 @@ function CollectionPageLayoutView({
                   </div>
                 ) : null}
                 {titleTrim ? (
-                  <h1 className="whitespace-nowrap text-lg font-semibold tracking-tight text-foreground">
+                  <h1 className={`whitespace-nowrap ${layoutPageTitleClassName}`}>
                     {titleTrim}
                   </h1>
                 ) : null}
@@ -277,12 +284,13 @@ function CollectionPageLayoutView({
                   <div className="hidden items-center gap-2 sm:flex">
                     <TextField
                       label=""
+                      name={searchParamName}
                       value={searchInput}
                       onChange={handleSearchChange}
                       placeholder={searchPlaceholder}
-                      name={searchParamName}
+          
                       startAdornment={
-                        <Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />
+                        <Search className=" text-secondary" strokeWidth={1} aria-hidden />
                       }
                       className="w-full sm:w-64"
                       data-test-id="collection-page-layout-search"
@@ -292,29 +300,36 @@ function CollectionPageLayoutView({
               </div>
               {showSearch ? (
                 <div className="mt-0 flex items-start justify-end gap-2 sm:hidden">
-                  <div className="flex min-w-0 flex-1 flex-col items-stretch">
-                    <TextField
-                      label={searchLabel}
-                      value={searchInput}
-                      onChange={handleSearchChange}
-                      placeholder={searchPlaceholder}
-                      name={`${searchParamName}-mobile`}
-                      startAdornment={
-                        <Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />
-                      }
-                      className="text-sm w-full"
-                      data-test-id="collection-page-layout-search-mobile"
-                    />
+                  <div className="flex min-w-0 flex-1 items-start max-w-xs">
+                    <div className="flex w-full items-start gap-2">
+                      <TextField
+                        label={searchLabel}
+                        placeholder={searchPlaceholder}
+                        name={`${searchParamName}-mobile`}
+                        value={searchInput}
+                        onChange={handleSearchChange}
+                        startAdornment={
+                          <Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />
+                        }
+                        className="w-full text-sm"
+                        data-test-id="collection-page-layout-search-mobile"
+                      />
+                    </div>
                   </div>
                 </div>
               ) : null}
             </>
           ) : null}
-          {showSubtitle ? <p className="mt-1 text-sm text-muted">{subtitleTrim}</p> : null}
+          {showSubtitle ? (
+            <p className={layoutPageSubtitleClassName}>{subtitleTrim}</p>
+          ) : null}
         </header>
       ) : null}
 
-      <section className="min-h-0 min-w-0 w-full max-w-full flex-1" data-test-id="collection-page-layout-content">
+      <section
+        className={layoutPageContentClassName}
+        data-test-id="collection-page-layout-content"
+      >
         {renderContentSection(
           contentItems,
           contentGridColumns,
@@ -358,9 +373,9 @@ function CollectionPageLayoutFallback({
   const emptyText = (contentEmptyMessage ?? DEFAULT_CONTENT_EMPTY_MESSAGE).trim() || DEFAULT_CONTENT_EMPTY_MESSAGE;
   const fallbackAlignClass = contentGridItemsAlign === "stretch" ? "items-stretch" : "items-start";
   return (
-    <div className={`flex w-full min-w-0 max-w-full flex-col gap-4 ${className ?? ""}`.trim()}>
+    <div className={`${layoutPageRootClassName} ${className ?? ""}`.trim()}>
       {showHeaderBlock ? (
-        <header className="w-full min-w-0" data-test-id="collection-page-layout-header">
+        <header className={layoutPageHeaderClassName} data-test-id="collection-page-layout-header">
           {showTitleRow ? (
             <>
               <div className="flex w-full items-center gap-2 py-0">
@@ -398,7 +413,7 @@ function CollectionPageLayoutFallback({
           ) : null}
         </header>
       ) : null}
-      <section className="min-w-0 w-full max-w-full">
+      <section className={layoutPageContentClassName}>
         {hasGrid && contentItems ? (
           <div
             className={`grid w-full min-w-0 ${fallbackAlignClass} ${buildContentGridClassNames(

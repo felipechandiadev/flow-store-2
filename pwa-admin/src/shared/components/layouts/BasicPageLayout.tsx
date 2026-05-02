@@ -1,5 +1,13 @@
 import React from "react";
 
+import {
+  layoutPageContentClassName,
+  layoutPageHeaderClassName,
+  layoutPageRootClassName,
+  layoutPageSubtitleClassName,
+  layoutPageTitleClassName,
+} from "./layoutPageTokens";
+
 export type BasicPageLayoutProps = {
   /** Título principal (h1). */
   title?: React.ReactNode;
@@ -38,17 +46,17 @@ export function BasicPageLayout({
 
   return (
     <div
-      className={`flex w-full min-w-0 max-w-full flex-col gap-4 ${className}`.trim()}
+      className={`${layoutPageRootClassName} ${className}`.trim()}
       data-test-id={dataTestId ?? "basic-page-layout"}
     >
       {showHeading ? (
-        <header className="min-w-0 shrink-0">
+        <header className={layoutPageHeaderClassName}>
           {showTitle ? (
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
+            <h1 className={layoutPageTitleClassName}>{title}</h1>
           ) : null}
           {showSubtitle ? (
             <p
-              className={showTitle ? "mt-1 text-sm text-muted" : "text-sm text-muted"}
+              className={layoutPageSubtitleClassName}
               data-test-id="basic-page-layout-subtitle"
             >
               {subtitle}
@@ -57,12 +65,12 @@ export function BasicPageLayout({
         </header>
       ) : null}
 
-      <div
-        className={`min-h-0 min-w-0 w-full flex-1 ${contentClassName}`.trim()}
+      <section
+        className={`${layoutPageContentClassName} ${contentClassName}`.trim()}
         data-test-id="basic-page-layout-content"
       >
         {children}
-      </div>
+      </section>
     </div>
   );
 }

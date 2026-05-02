@@ -25,7 +25,6 @@ export { default as DropdownList } from './DropdownList';
 // Data Display
 export { default as DataGrid } from './DataGrid';
 export { RowActions } from './DataGrid';
-export { default as ListCardsLayout } from './ListCardsLayout';
 
 // Dialog & Modal
 export { default as Dialog } from './Dialog';

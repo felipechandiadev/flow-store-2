@@ -82,8 +82,8 @@ export interface BaseUpdateFormField {
 	rows?: number;
 	disabled?: boolean;
 	formatFn?: (input: string) => string;
-	startIcon?: string;
-	endIcon?: string;
+	startSymbol?: string;
+	endSymbol?: string;
 	min?: number;
 	max?: number;
 	step?: number; // step used by numberStepper
@@ -276,8 +276,8 @@ const UpdateBaseForm: React.FC<UpdateBaseFormProps> = ({
 				type={field.type}
 				name={field.name}
 				rows={field.multiline ? field.rows : undefined}
-				startIcon={field.startIcon}
-				endIcon={field.endIcon}
+				startSymbol={field.startSymbol}
+				endSymbol={field.endSymbol}
 				required={field.required}
 				disabled={field.disabled}
 				currencySymbol={field.currencySymbol}

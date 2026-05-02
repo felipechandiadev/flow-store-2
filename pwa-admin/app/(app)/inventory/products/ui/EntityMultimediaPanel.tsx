@@ -19,6 +19,11 @@ export type EntityMultimediaPanelProps = {
   onChanged?: () => void;
   /** Deshabilita acciones (p. ej. id aún no persistido). */
   disabled?: boolean;
+  /**
+   * Solo `MultimediaUploader` en modo colección (rejilla de varios archivos).
+   * Oculta el bloque de un único archivo (`MultimediaUpdater` / banner).
+   */
+  collectionOnly?: boolean;
 };
 
 export function EntityMultimediaPanel({
@@ -27,6 +32,7 @@ export function EntityMultimediaPanel({
   title = "Imágenes",
   onChanged,
   disabled = false,
+  collectionOnly = false,
 }: EntityMultimediaPanelProps) {
   const [assets, setAssets] = useState<MultimediaAssetListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,6 +123,14 @@ export function EntityMultimediaPanel({
   }
 
   const uploadPath = `${entityType}:${entityId}`;
+  const isVariantEntity = entityType === "product-variant";
+  /** Colección en variantes: solo botón con icono (sin etiqueta de texto). */
+  const collectionButtonType = isVariantEntity ? "icon" : "normal";
+  const collectionLabel = isVariantEntity
+    ? ""
+    : "Elegir uno o más archivos; la subida es inmediata.";
+  /** Variantes: la colección se añade solo con IconButton (sin párrafo introductorio). */
+  const showCollectionHint = !isVariantEntity;
 
   return (
     <div
@@ -187,43 +201,51 @@ export function EntityMultimediaPanel({
         </div>
       )}
 
-      <div className="space-y-6 border-t border-border pt-3">
-        <div data-test-id={`entity-multimedia-updater-${entityType}-${entityId}`}>
-          <p className="mb-1 text-[11px] font-medium text-muted-foreground">
-            Un archivo: arrastre aquí o pulse +
-          </p>
-          <MultimediaUpdater
-            key={updaterKey}
-            currentUrl={null}
-            currentType="image"
-            variant="banner"
-            bannerSize="lg"
-            aspectRatio="16:9"
-            previewSize="sm"
-            allowDragDrop
-            acceptedTypes={["image/*", "video/*"]}
-            maxSize={9}
-            labelText=""
-            disabled={busy || loading}
-            className="mt-0 space-y-3"
-            onFileChange={(file) => {
-              if (file) {
-                void uploadStagingFiles([file]);
-              }
-            }}
-          />
-        </div>
+      <div
+        className={`space-y-6 border-t border-border pt-3 ${collectionOnly ? "space-y-0" : ""}`}
+      >
+        {!collectionOnly ? (
+          <div data-test-id={`entity-multimedia-updater-${entityType}-${entityId}`}>
+            <p className="mb-1 text-[11px] font-medium text-muted-foreground">
+              Un archivo: arrastre aquí o pulse +
+            </p>
+            <MultimediaUpdater
+              key={updaterKey}
+              currentUrl={null}
+              currentType="image"
+              variant="banner"
+              bannerSize="lg"
+              aspectRatio="16:9"
+              previewSize="sm"
+              allowDragDrop
+              acceptedTypes={["image/*", "video/*"]}
+              maxSize={9}
+              labelText=""
+              disabled={busy || loading}
+              className="mt-0 space-y-3"
+              onFileChange={(file) => {
+                if (file) {
+                  void uploadStagingFiles([file]);
+                }
+              }}
+            />
+          </div>
+        ) : null}
 
         <div data-test-id={`entity-multimedia-uploader-${entityType}-${entityId}`}>
-          <p className="mb-2 text-[11px] font-medium text-muted-foreground">
-            Varios archivos: vista previa en rejilla y envío inmediato
-          </p>
+          {showCollectionHint ? (
+            <p className="mb-2 text-[11px] font-medium text-muted-foreground">
+              {collectionOnly
+                ? "Subida por colección: elija uno o más archivos (rejilla y envío inmediato)"
+                : "Varios archivos: vista previa en rejilla y envío inmediato"}
+            </p>
+          ) : null}
           <MultimediaUploader
             key={uploaderKey}
             uploadPath={uploadPath}
             variant="collection"
-            label="Elegir uno o más archivos; la subida es inmediata."
-            buttonType="normal"
+            label={collectionLabel}
+            buttonType={collectionButtonType}
             accept="image/*,video/*"
             maxFiles={12}
             maxSize={9}

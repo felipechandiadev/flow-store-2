@@ -15,7 +15,6 @@ import { EditProductDialog } from "./EditProductDialog";
 import { CreateProductVariantDialog } from "./CreateProductVariantDialog";
 import { CreateRecipeDialog } from "./CreateRecipeDialog";
 import { deleteProductAction } from "@/features/inventory-products/actions/product.action";
-import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
 
 type ProductsDataGridProps = {
   rows: ProductGridRow[];
@@ -74,12 +73,10 @@ function ProductVariantExpandCard({
   v,
   productType,
   onDefineRecipe,
-  onMediaChanged,
 }: {
   v: ProductVariantGridRow;
   productType: string | null;
   onDefineRecipe?: () => void;
-  onMediaChanged?: () => void;
 }) {
   const img = v.primaryImageUrl?.trim() || null;
   const extraMedia = (v.mediaAssets?.length ?? 0) > 1 ? (v.mediaAssets!.length - 1) : 0;
@@ -190,15 +187,6 @@ function ProductVariantExpandCard({
           )}
         </div>
 
-        <div className="border-t border-border pt-3">
-          <EntityMultimediaPanel
-            entityType="product-variant"
-            entityId={v.id}
-            title="Imágenes de la variante"
-            onChanged={onMediaChanged}
-          />
-        </div>
-
         {showRecipeCta ? (
           <div className="border-t border-border pt-3" data-test-id={`products-expand-bom-${v.id}`}>
             <Button
@@ -225,25 +213,15 @@ function ProductExpandPanel({
   row,
   onAddVariant,
   onDefineRecipe,
-  onMediaChanged,
 }: {
   row: ProductGridRow;
   onAddVariant: (r: ProductGridRow) => void;
   onDefineRecipe?: (product: ProductGridRow, variant: ProductVariantGridRow) => void;
-  onMediaChanged?: () => void;
 }) {
   const hasVariants = Boolean(row.variants?.length);
 
   return (
     <div className="relative w-full min-w-0 max-w-none" data-test-id="products-expand-panel">
-      <div className="mb-4">
-        <EntityMultimediaPanel
-          entityType="product"
-          entityId={row.id}
-          title="Imágenes del producto (catálogo)"
-          onChanged={onMediaChanged}
-        />
-      </div>
       <div className="mb-3 flex w-full min-w-0 items-center gap-2">
         <IconButton
           icon="Plus"
@@ -270,7 +248,6 @@ function ProductExpandPanel({
               onDefineRecipe={
                 onDefineRecipe ? () => onDefineRecipe(row, v) : undefined
               }
-              onMediaChanged={onMediaChanged}
             />
           ))}
         </div>
@@ -453,10 +430,9 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
         row={row}
         onAddVariant={openVariantDialog}
         onDefineRecipe={openRecipeDialog}
-        onMediaChanged={() => router.refresh()}
       />
     ),
-    [openRecipeDialog, openVariantDialog, router],
+    [openRecipeDialog, openVariantDialog],
   );
 
   return (

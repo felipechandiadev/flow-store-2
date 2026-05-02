@@ -1,0 +1,54 @@
+"use client";
+
+import { TabPageLayout } from "@/shared/components/layouts";
+import Tabs from "@/shared/components/Tabs/Tabs";
+
+const SHOWCASE_TABS = [
+  { label: "General", url: "/ui-components/tab-page-layout" },
+  { label: "Button", url: "/ui-components/button" },
+  { label: "TextField", url: "/ui-components/textfield" },
+];
+
+export function TabPageLayoutShowcaseClient() {
+  return (
+    <>
+      <TabPageLayout
+        title="TabPageLayout"
+        subtitle="En md+ el título ocupa ~30vw a la izquierda y el slot de pestañas se alinea a la derecha; en viewport angosto se apilan."
+        tabs={
+          <div className="w-full min-w-0 border-b border-border">
+            <Tabs items={SHOWCASE_TABS} activeTab="/ui-components/tab-page-layout" />
+          </div>
+        }
+        data-test-id="ui-showcase-tab-page-layout-main"
+      >
+        <div className="rounded-lg border border-border bg-muted/20 p-6 text-sm text-muted-foreground">
+          Área de contenido bajo{" "}
+          <code className="rounded bg-background px-1 py-0.5 text-xs text-foreground">
+            tab-page-layout-content
+          </code>
+          . Las pestañas son enlaces reales; aquí la activa se fuerza con{" "}
+          <code className="rounded bg-background px-1 py-0.5 text-xs text-foreground">activeTab</code> para la demo.
+        </div>
+      </TabPageLayout>
+
+      <div className="mt-10 rounded-lg border border-dashed border-border p-4">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Variante: solo pestañas (sin título)
+        </p>
+        <TabPageLayout
+          tabs={
+            <div className="w-full min-w-0 border-b border-border">
+              <Tabs items={SHOWCASE_TABS} activeTab="/ui-components/button" />
+            </div>
+          }
+          data-test-id="ui-showcase-tab-page-layout-tabs-only"
+        >
+          <p className="text-sm text-muted-foreground">
+            Útil cuando el título vive en el shell, breadcrumbs u otro bloque.
+          </p>
+        </TabPageLayout>
+      </div>
+    </>
+  );
+}

@@ -1,5 +1,13 @@
 import React from "react";
 
+import {
+  layoutPageContentClassName,
+  layoutPageHeaderClassName,
+  layoutPageRootClassName,
+  layoutPageSubtitleClassName,
+  layoutPageTitleClassName,
+} from "./layoutPageTokens";
+
 export type TabPageLayoutProps = {
   /** Título principal (h1), columna izquierda (~30vw en `md+`). */
   title?: React.ReactNode;
@@ -32,8 +40,8 @@ function hasChunk(node: React.ReactNode): boolean {
 }
 
 /**
- * Layout de página con pestañas: raíz y área de contenido alineados a {@link CollectionPageLayout}
- * (`flex w-full min-w-0 max-w-full flex-col gap-4` + contenido `min-h-0 min-w-0 w-full max-w-full flex-1`).
+ * Layout de página con pestañas: comparte tokens de `layoutPageTokens` con {@link CollectionPageLayout}
+ * (raíz, título `text-lg`, subtítulo, bloque de contenido).
  *
  * Encabezado en `md+`: a la izquierda ~**30vw** para título (+ subtítulo); a la derecha
  * el slot `tabs` alineado a la **derecha** (p. ej. `Tabs`). En viewport angosto se apilan (título arriba).
@@ -57,11 +65,11 @@ export function TabPageLayout({
     showTitle || showSubtitle ? (
       <>
         {showTitle ? (
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
+          <h1 className={layoutPageTitleClassName}>{title}</h1>
         ) : null}
         {showSubtitle ? (
           <p
-            className={showTitle ? "mt-1 text-sm text-muted" : "text-sm text-muted"}
+            className={layoutPageSubtitleClassName}
             data-test-id="tab-page-layout-subtitle"
           >
             {subtitle}
@@ -72,12 +80,12 @@ export function TabPageLayout({
 
   return (
     <div
-      className={`flex w-full min-w-0 max-w-full flex-col gap-4 ${className}`.trim()}
+      className={`${layoutPageRootClassName} ${className}`.trim()}
       data-test-id={dataTestId ?? "tab-page-layout"}
     >
       {showHeading || showTabs ? (
         <header
-          className={`w-full min-w-0 shrink-0 ${headerClassName}`.trim()}
+          className={`${layoutPageHeaderClassName} ${headerClassName}`.trim()}
           data-test-id="tab-page-layout-header"
         >
           {showHeading && showTabs ? (
@@ -96,7 +104,7 @@ export function TabPageLayout({
       ) : null}
 
       <section
-        className={`min-h-0 min-w-0 w-full max-w-full flex-1 ${contentClassName}`.trim()}
+        className={`${layoutPageContentClassName} ${contentClassName}`.trim()}
         data-test-id="tab-page-layout-content"
       >
         {children}

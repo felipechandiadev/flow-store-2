@@ -24,7 +24,6 @@ shared/components/
 ├── LocationPicker/             # Selector de ubicación
 ├── DotProgress/                # Indicador de progreso
 ├── PrintDialog/                # Diálogo de impresión
-├── ListCardsLayout/            # Layout de tarjetas
 ├── TopBar/                     # Barra superior
 ├── IconButton/                 # Botón con icono
 ├── SplashScreen/               # Pantalla de inicio
@@ -104,6 +103,8 @@ import { Card } from '@/shared/components';
 ### TextField
 Campo de texto avanzado con soporte para tipos especiales.
 
+**Inicio del campo:** use `startSymbol` para un carácter o texto muy corto (cadena), o `startAdornment` para un nodo React (icono Lucide, etc.). Ambos comparten el mismo padding izquierdo (`pl-10`). Si envía `startSymbol` y `startAdornment`, solo se muestra el símbolo. Al final, `endSymbol` funciona igual que `startSymbol` pero a la derecha.
+
 ```tsx
 import { TextField } from '@/shared/components';
 
@@ -161,7 +162,8 @@ import { TextField } from '@/shared/components';
 - `placeholder`: Placeholder
 - `required`: Campo requerido
 - `disabled`: Desactivado
-- `startIcon`/`endIcon`: Iconos
+- `startSymbol` / `endSymbol`: carácter o símbolo corto (cadena) al inicio o al final.
+- `startAdornment`: nodo React al inicio (p. ej. icono Lucide); mismo espacio y padding que `startSymbol`. Si se pasan ambos, prevalece `startSymbol`.
 - `currencySymbol`: Símbolo de moneda
 - `phonePrefix`: Prefijo de teléfono
 - `passwordVisibilityToggle`: Mostrar/ocultar contraseña
@@ -298,25 +300,6 @@ const columns = [
   data={users}
   onRowClick={(row) => navigateToDetail(row.id)}
   selectable={true}
-/>
-```
-
----
-
-### ListCardsLayout
-Layout de tarjetas para listados.
-
-```tsx
-import { ListCardsLayout } from '@/shared/components';
-
-<ListCardsLayout
-  items={products}
-  renderCard={(product) => (
-    <Card>
-      <h3>{product.name}</h3>
-      <p>${product.price}</p>
-    </Card>
-  )}
 />
 ```
 
@@ -678,7 +661,6 @@ import {
   // Datos
   DataGrid,
   RowActions,
-  ListCardsLayout,
 
   // Diálogos
   Dialog,
