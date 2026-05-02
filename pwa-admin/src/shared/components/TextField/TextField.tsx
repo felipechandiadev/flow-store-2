@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Eye, EyeOff } from 'lucide-react';
 
 import "./textfield.css";
@@ -12,9 +12,12 @@ interface TextFieldProps {
   type?: string;
   name?: string;
   placeholder?: string;
-  startIcon?: string;
+  /** Caracteres o símbolo corto mostrado al inicio (cadena). Mutuamente excluyente con `startAdornment` si ambos se pasan: gana `startSymbol`. */
+  startSymbol?: string;
+  /** Contenido React al inicio (p. ej. icono SVG/Lucide); mismo hueco y padding que `startSymbol`. */
   startAdornment?: React.ReactNode;
-  endIcon?: string;
+  /** Igual que `startSymbol` pero al final del campo. */
+  endSymbol?: string;
   className?: string;
   variante?: "normal" | "contrast" | "autocomplete";
   rows?: number;
@@ -49,9 +52,9 @@ export const TextField: React.FC<TextFieldProps> = ({
   type = "text",
   name,
   placeholder,
-  startIcon,
+  startSymbol,
   startAdornment,
-  endIcon,
+  endSymbol,
   className = "",
   variante = "normal",
   rows,
@@ -69,10 +72,12 @@ export const TextField: React.FC<TextFieldProps> = ({
   passwordVisibilityToggle = true, // Default: true para mostrar toggle en password
   autoComplete,
   alwaysShowLabel = false,
+  style,
   ...props
 }) => {
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const startLeadingRef = useRef<HTMLSpanElement>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [currencyRawValue, setCurrencyRawValue] = useState<string>(value);
   const passwordToggleLabel = showPassword ? "Ocultar contraseña" : "Mostrar contraseña";
@@ -182,7 +187,7 @@ export const TextField: React.FC<TextFieldProps> = ({
         return '';
       }
 
-      let result = `${symbol} ${formattedInteger}`;
+      let result = symbol ? `${symbol} ${formattedInteger}` : formattedInteger;
 
       if (hasComma) {
         const cleanDecimals = decimalPartRaw.replace(/\D/g, '').slice(0, 2);
@@ -200,7 +205,7 @@ export const TextField: React.FC<TextFieldProps> = ({
     if (!digitsOnly) return '';
 
     const formattedInteger = Number(digitsOnly).toLocaleString('es-CL');
-    return `${symbol} ${formattedInteger}`;
+    return symbol ? `${symbol} ${formattedInteger}` : formattedInteger;
   };
 
   const handleDNIChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -302,14 +307,57 @@ export const TextField: React.FC<TextFieldProps> = ({
     return (prefix ? prefix + ' ' : '') + formatted.trim();
   };
 
+  /** Debe declararse antes de `getDisplayValue` (moneda / tel usan el símbolo en slot, no duplicado en el texto). */
+  const hasStartSymbol = typeof startSymbol === "string" && startSymbol.length > 0;
+  const hasStartLeading = hasStartSymbol || Boolean(startAdornment);
+  /** Alineado con `.fs-text-field__icon { left }` y espacio antes del texto editable. */
+  const START_LEADING_INSET = "0.75rem";
+  const START_LEADING_GAP = "0.5rem";
+  const [startLeadingMeasuredPx, setStartLeadingMeasuredPx] = useState(0);
+  const startLeadingFallbackPx =
+    hasStartSymbol && startSymbol
+      ? Math.max(8, startSymbol.length * 12)
+      : hasStartLeading
+        ? 20
+        : 0;
+  const startLeadingSlotPx = startLeadingMeasuredPx || startLeadingFallbackPx;
+  const inputPaddingStart =
+    hasStartLeading
+      ? `calc(${START_LEADING_INSET} + ${startLeadingSlotPx}px + ${START_LEADING_GAP})`
+      : undefined;
+  const startPaddingClass = hasStartLeading ? "" : "pl-3";
+  const floatingStartLeft = hasStartLeading ? inputPaddingStart ?? START_LEADING_INSET : "0.75rem";
+
+  useLayoutEffect(() => {
+    const el = startLeadingRef.current;
+    if (!hasStartLeading || !el) {
+      setStartLeadingMeasuredPx(0);
+      return;
+    }
+    const apply = () => setStartLeadingMeasuredPx(el.offsetWidth);
+    apply();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(apply) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [hasStartLeading, startSymbol, startAdornment]);
+
   const getDisplayValue = () => {
     if (type === 'currency') {
       if (!currencyRawValue) {
         return '';
       }
-      return formatCurrency(currencyRawValue, currencySymbol);
+      const symbolForFormat = hasStartSymbol ? "" : currencySymbol;
+      return formatCurrency(currencyRawValue, symbolForFormat);
     }
-    if (type === 'tel' && value) {
+    if (type === "tel" && value) {
+      if (hasStartSymbol && phonePrefix && value.startsWith(phonePrefix)) {
+        const rest = value.slice(phonePrefix.length).replace(/\s+/g, "");
+        let formatted = "";
+        for (let i = 0; i < rest.length; i += 3) {
+          formatted += rest.slice(i, i + 3) + (i + 3 < rest.length ? " " : "");
+        }
+        return formatted.trim();
+      }
       return formatPhone(value, phonePrefix);
     }
     return value;
@@ -370,35 +418,37 @@ export const TextField: React.FC<TextFieldProps> = ({
 
   const isTextArea = type === "textarea" || typeof rows === "number";
 
-  const hasStartAdornment =
-    (typeof startIcon === "string" && startIcon.length > 0) || Boolean(startAdornment);
-  /** pl-* solo en clases: el CSS del input no usa padding shorthand para no pisar esto. */
-  const hasWideStart = Boolean(startAdornment) && !(
-    typeof startIcon === "string" && startIcon.length > 0
-  );
-  const startPaddingClass = hasStartAdornment
-    ? hasWideStart
-      ? "pl-12"
-      : "pl-10"
-    : "pl-3";
-  const floatingStartLeft = hasStartAdornment ? (hasWideStart ? "3rem" : "2.5rem") : "0.75rem";
-
   return (
     <div className={variante === "autocomplete" ? "relative w-full" : "fs-text-field"}>
       <div className={`relative ${className}`} data-test-id="text-field-root">
-      {typeof startIcon === "string" && startIcon.length > 0 && (
+      {hasStartSymbol && (
         <span
+          ref={startLeadingRef}
           className={`fs-text-field__icon ${showDisabledChrome ? "text-muted opacity-50" : "text-secondary"}`}
-          style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{
+            fontSize: 20,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            whiteSpace: "nowrap",
+            lineHeight: 1,
+            minHeight: 20,
+          }}
         >
-          {/* Icon rendering placeholder - should be replaced with lucide icon logic */}
-          {startIcon}
+          {startSymbol}
         </span>
       )}
-      {startIcon === undefined && startAdornment && (
+      {!hasStartSymbol && startAdornment && (
         <span
+          ref={startLeadingRef}
           className={`fs-text-field__icon ${showDisabledChrome ? "text-muted opacity-50" : "text-secondary"}`}
-          style={{ fontSize: 14, width: 'auto', minWidth: 16, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', paddingRight: 4 }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: 20,
+            minWidth: 20,
+          }}
         >
           {startAdornment}
         </span>
@@ -424,7 +474,8 @@ export const TextField: React.FC<TextFieldProps> = ({
           style={{
             resize: 'none',
             paddingTop: '0.75rem',
-            ...(props.style || {})
+            ...(hasStartLeading && inputPaddingStart ? { paddingLeft: inputPaddingStart } : {}),
+            ...(style || {}),
           }}
           data-test-id={props["data-test-id"]}
           {...props}
@@ -444,7 +495,7 @@ export const TextField: React.FC<TextFieldProps> = ({
             onBlur={() => setFocused(false)}
             onChange={type === "dni" ? handleDNIChange : type === "currency" ? handleCurrencyChange : handleChange}
             onKeyDown={onKeyDown}
-            className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${borderlessInputClass} block min-w-[180px] ${startPaddingClass} ${(endIcon || (type === "password" && passwordVisibilityToggle)) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
+            className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${borderlessInputClass} block min-w-[180px] ${startPaddingClass} ${(endSymbol || (type === "password" && passwordVisibilityToggle)) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
             placeholder={
               type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
               (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))
@@ -457,6 +508,10 @@ export const TextField: React.FC<TextFieldProps> = ({
             max={type === "datePicker" ? new Date().getFullYear().toString() : undefined}
             maxLength={type === "dni" ? 12 : type === "datePicker" ? 4 : undefined}
             data-test-id={props["data-test-id"]}
+            style={{
+              ...(hasStartLeading && inputPaddingStart ? { paddingLeft: inputPaddingStart } : {}),
+              ...(style || {}),
+            }}
             {...(type === "dni" || type === "currency" || type === "datePicker" || type === "tel" ? {} : props)}
           />
           {type === "password" && passwordVisibilityToggle && (
@@ -494,7 +549,7 @@ export const TextField: React.FC<TextFieldProps> = ({
           style={{
             backgroundColor: "var(--color-background)",
             left: floatingStartLeft,
-            paddingRight: (endIcon || (type === "password" && passwordVisibilityToggle)) ? '40px' : '12px',
+            paddingRight: (endSymbol || (type === "password" && passwordVisibilityToggle)) ? '40px' : '12px',
             top: isTextArea ? '1.25rem' : '50%',
             transform: isTextArea ? 'none' : 'translateY(-50%)'
           }}
@@ -517,13 +572,12 @@ export const TextField: React.FC<TextFieldProps> = ({
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
-      {typeof endIcon === 'string' && endIcon.length > 0 && (
+      {typeof endSymbol === "string" && endSymbol.length > 0 && (
         <span
               className={`fs-text-field__icon--end ${showDisabledChrome ? "text-muted opacity-50" : "text-secondary"}`}
           style={{ fontSize: 20, width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          {/* End icon rendering placeholder - should be replaced with lucide icon logic */}
-          {endIcon}
+          {endSymbol}
         </span>
       )}
     </div>

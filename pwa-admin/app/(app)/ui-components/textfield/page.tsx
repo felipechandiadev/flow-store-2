@@ -23,16 +23,20 @@ export default function TextFieldPage() {
   const [normal, setNormal] = useState('Variante normal');
   const [contrast, setContrast] = useState('Sobre fondo primary');
   const [autocomplete, setAutocomplete] = useState('Búsqueda');
-  const [endIcon, setEndIcon] = useState('');
+  const [demoEndSymbol, setDemoEndSymbol] = useState('');
   const [codigo, setCodigo] = useState('');
+  const [adornmentSearchDemo, setAdornmentSearchDemo] = useState('');
+  const [adornmentEmailDemo, setAdornmentEmailDemo] = useState('');
 
   return (
     <div className="p-8 space-y-12 max-w-3xl">
       <div>
         <h1 className="text-3xl font-bold mb-2">TextField — casos de uso</h1>
         <p className="text-gray-600">
-          Ejemplos interactivos del input con etiqueta flotante, formatos (RUT, moneda, teléfono) y
-          variantes.
+          Ejemplos interactivos del input con etiqueta flotante, formatos (RUT, moneda, teléfono),
+          <code className="mx-1 rounded bg-muted/50 px-1 text-xs">startSymbol</code>/
+          <code className="rounded bg-muted/50 px-1 text-xs">endSymbol</code> (cadenas) y{" "}
+          <code className="rounded bg-muted/50 px-1 text-xs">startAdornment</code> (React), y variantes.
         </p>
       </div>
 
@@ -104,7 +108,6 @@ export default function TextFieldPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            startAdornment={<Mail className="h-4 w-4" aria-hidden />}
           />
           <TextField
             label="Stock"
@@ -138,9 +141,12 @@ export default function TextFieldPage() {
           value={moneda}
           onChange={(e) => setMoneda(e.target.value)}
           currencySymbol="$"
+          startSymbol="$"
         />
         <p className="text-sm text-gray-500">
-          Valor almacenado numérico en string; se muestra con separadores es-CL.
+          El símbolo va en <code className="rounded bg-muted/50 px-1 text-xs">startSymbol</code>; el valor formateado solo
+          muestra dígitos con separadores es-CL. <code className="rounded bg-muted/50 px-1 text-xs">currencySymbol</code>{" "}
+          sigue usándose para parsear lo que el usuario pega o escribe.
         </p>
       </section>
 
@@ -152,8 +158,13 @@ export default function TextFieldPage() {
           value={monedaDecimal}
           onChange={(e) => setMonedaDecimal(e.target.value)}
           currencySymbol="€"
+          startSymbol="€"
           allowDecimalComma
         />
+        <p className="text-sm text-gray-500">
+          Mismo patrón: <code className="rounded bg-muted/50 px-1 text-xs">startSymbol=&quot;€&quot;</code> y número con coma
+          decimal en el área de texto.
+        </p>
       </section>
 
       <section className="space-y-4">
@@ -164,7 +175,13 @@ export default function TextFieldPage() {
           value={telefono}
           onChange={(e) => setTelefono(e.target.value)}
           phonePrefix="+56"
+          startSymbol="+56"
         />
+        <p className="text-sm text-gray-500">
+          <code className="rounded bg-muted/50 px-1 text-xs">startSymbol</code> muestra el prefijo; el valor sigue
+          almacenando <code className="rounded bg-muted/50 px-1 text-xs">+56</code> + dígitos y el campo solo formatea la
+          parte nacional con espacios.
+        </p>
       </section>
 
       <section className="space-y-4">
@@ -190,27 +207,53 @@ export default function TextFieldPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-2xl font-semibold">Adornos: icono al inicio y al final (string)</h2>
+        <h2 className="text-2xl font-semibold">Símbolos al inicio y al final (cadena)</h2>
+        <p className="text-sm text-muted-foreground">
+          <code className="rounded bg-muted/50 px-1">startSymbol</code> y{" "}
+          <code className="rounded bg-muted/50 px-1">endSymbol</code> son texto corto en la misma caja que el input (p.
+          ej. <code className="rounded bg-muted/50 px-1">#</code>, moneda o ✓). Para iconos SVG use{" "}
+          <code className="rounded bg-muted/50 px-1">startAdornment</code> (ver siguiente bloque).
+        </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
             label="Código"
             value={codigo}
             onChange={(e) => setCodigo(e.target.value)}
-            startIcon="#"
+            startSymbol="#"
             placeholder="Solo demostración"
             className="w-full"
           />
           <TextField
             label="Etiqueta final"
-            value={endIcon}
-            onChange={(e) => setEndIcon(e.target.value)}
-            endIcon="✓"
+            value={demoEndSymbol}
+            onChange={(e) => setDemoEndSymbol(e.target.value)}
+            endSymbol="✓"
           />
         </div>
-        <p className="text-sm text-gray-500">
-          En producción se suelen acoplar iconos reales; aquí se muestran strings para la API
-          expuesta.
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">startAdornment (mismo hueco que startSymbol)</h2>
+        <p className="text-sm text-muted-foreground">
+          El padding izquierdo del campo es el mismo con símbolo (cadena) o con adorno (React). Si se pasan ambos, solo se
+          muestra <code className="rounded bg-muted/50 px-1">startSymbol</code>.
         </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField
+            label="Búsqueda con adorno"
+            value={adornmentSearchDemo}
+            onChange={(e) => setAdornmentSearchDemo(e.target.value)}
+            placeholder="Filtrar…"
+            startAdornment={<Search className="h-4 w-4" aria-hidden />}
+          />
+          <TextField
+            label="Correo con adorno"
+            value={adornmentEmailDemo}
+            onChange={(e) => setAdornmentEmailDemo(e.target.value)}
+            type="email"
+            startAdornment={<Mail className="h-4 w-4" aria-hidden />}
+          />
+        </div>
       </section>
 
       <section className="space-y-4">
