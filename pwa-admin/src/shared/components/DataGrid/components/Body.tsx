@@ -16,6 +16,8 @@ interface BodyProps {
   expandableRowContent?: (row: any) => React.ReactNode;
   pinActionsColumn?: boolean;
   actionsColumnField?: string;
+  /** Si está definido y la fila está expandida, la fila de datos queda `sticky` bajo el header al hacer scroll. */
+  stickyExpandedRowTopPx?: number;
 }
 
 const Body: React.FC<BodyProps> = ({ 
@@ -29,6 +31,7 @@ const Body: React.FC<BodyProps> = ({
   expandableRowContent,
   pinActionsColumn = false,
   actionsColumnField = 'actions',
+  stickyExpandedRowTopPx,
 }) => {
   const [hoveredRowId, setHoveredRowId] = useState<string | number | null>(null);
   const visibleColumns = columns.filter((c) => !c.hide);
@@ -46,8 +49,17 @@ const Body: React.FC<BodyProps> = ({
         return (
           <React.Fragment key={rowId}>
             <div
-              className="flex min-w-full items-stretch data-grid-row"
-              style={{ minWidth: 'max-content' }}
+              className={`flex min-w-full items-stretch data-grid-row ${
+                expandable && isExpanded && stickyExpandedRowTopPx != null
+                  ? 'sticky z-[25] border-b border-border bg-background shadow-sm'
+                  : ''
+              }`}
+              style={{
+                minWidth: 'max-content',
+                ...(expandable && isExpanded && stickyExpandedRowTopPx != null
+                  ? { top: stickyExpandedRowTopPx }
+                  : undefined),
+              }}
               data-test-id="data-grid-row"
             >
               {/* Expand/Collapse button */}
