@@ -5,6 +5,7 @@ import { User, ImageOff, Image as ImageIcon, RotateCcw, Plus } from 'lucide-reac
 import IconButton from '../IconButton/IconButton';
 import Alert from '../Alert/Alert';
 import { bannerAreaClassName, bannerPlaceholderIconDimension } from './multimedia-banner-size';
+import { logoAreaClassName, logoPlaceholderIconDimension } from './multimedia-logo-size';
 import { MultimediaUpdaterProps } from './types';
 
 const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
@@ -21,6 +22,7 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
   className = '',
   previewSize = 'md',
   bannerSize = 'md',
+  logoSize = 'md',
   disabled = false,
 }) => {
   const inputId = useId();
@@ -217,7 +219,7 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
           className={`flex flex-col gap-4 ${bannerSize === 'full' ? 'w-full' : 'items-center'}`}
         >
           <div
-            className={`${bannerAreaClassName(bannerSize)} border border-transparent bg-muted/25 hover:border-blue-500`}
+            className={`${bannerAreaClassName(bannerSize)} border border-border bg-muted/25 hover:border-blue-500`}
             onClick={openFile}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -240,6 +242,36 @@ const MultimediaUpdater: React.FC<MultimediaUpdaterProps> = ({
             onClick={openFile}
             disabled={disabled}
             ariaLabel="Seleccionar imagen"
+          />
+        </div>
+      ) : variant === 'logo' ? (
+        <div
+          className={`flex flex-col gap-4 ${logoSize === 'full' ? 'w-full' : 'items-center'}`}
+        >
+          <div
+            className={logoAreaClassName(logoSize)}
+            onClick={openFile}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {previewUrl ? (
+              renderPreview()
+            ) : (
+              <ImageIcon className="text-secondary" size={logoPlaceholderIconDimension(logoSize)} />
+            )}
+            {allowDragDrop && isDragOver && (
+              <div className="absolute inset-0 bg-blue-500 bg-opacity-50 flex items-center justify-center text-white font-semibold rounded-lg">
+                Arrastra aquí
+              </div>
+            )}
+          </div>
+          <IconButton
+            icon={previewUrl ? 'RotateCcw' : 'Plus'}
+            variant="containedSecondary"
+            onClick={openFile}
+            disabled={disabled}
+            ariaLabel="Seleccionar logo"
           />
         </div>
       ) : (

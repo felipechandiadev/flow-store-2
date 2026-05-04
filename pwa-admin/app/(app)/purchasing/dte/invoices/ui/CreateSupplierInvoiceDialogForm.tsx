@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import TextField from "@/shared/components/TextField";
 import { Button } from "@/shared/components/Button";
 import type { CreateSupplierInvoiceInput } from "@/features/purchasing-invoices/types/supplier-invoice.types";
@@ -11,7 +12,12 @@ function n(v: string): number {
   return Number.isFinite(x) ? x : 0;
 }
 
-export function SupplierInvoiceForm() {
+export type CreateSupplierInvoiceDialogFormProps = {
+  onClose?: () => void;
+};
+
+export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoiceDialogFormProps) {
+  const router = useRouter();
   const [supplierId, setSupplierId] = useState("");
   const [externalReference, setExternalReference] = useState("");
   const [notes, setNotes] = useState("");
@@ -26,7 +32,7 @@ export function SupplierInvoiceForm() {
   async function onSubmit() {
     setError(null);
     if (!supplierId.trim()) {
-      setError("supplierId es requerido (por ahora, se ingresa manual).");
+      setError("Indique el proveedor (UUID).");
       return;
     }
     setBusy(true);
@@ -53,49 +59,41 @@ export function SupplierInvoiceForm() {
       };
 
       await createSupplierInvoiceAction(input);
+      onClose?.();
+      router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error creando la factura");
+      setError(e instanceof Error ? e.message : "Error al crear la factura");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="min-w-0 max-w-3xl" data-test-id="supplier-invoices-new-form">
-      <h2 className="text-lg font-semibold tracking-tight text-foreground">Nueva factura</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Versión inicial: crea una transacción <code>SUPPLIER_INVOICE</code>. (Luego la conectamos a PO/Recepción y líneas reales.)
-      </p>
-
-      <div className="mt-4 grid gap-3">
-        <TextField label="Supplier ID (uuid)" value={supplierId} onChange={(e: any) => setSupplierId(String(e?.target?.value ?? ""))} />
-        <TextField
-          label="Referencia externa"
-          value={externalReference}
-          onChange={(e: any) => setExternalReference(String(e?.target?.value ?? ""))}
-        />
-        <TextField label="Notas" value={notes} onChange={(e: any) => setNotes(String(e?.target?.value ?? ""))} />
-        <TextField label="Total" value={total} onChange={(e: any) => setTotal(String(e?.target?.value ?? "0"))} />
-        <TextField
-          label="Payment status (PENDING | PARTIAL | PAID)"
-          value={paymentStatus}
-          onChange={(e: any) => setPaymentStatus(String(e?.target?.value ?? "PENDING") as any)}
-        />
-        <TextField
-          label="Amount paid"
-          value={amountPaid}
-          onChange={(e: any) => setAmountPaid(String(e?.target?.value ?? "0"))}
-        />
-
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
-
-        <div className="mt-2 flex justify-end">
-          <Button variant="primary" onClick={onSubmit} disabled={!canSubmit}>
-            {busy ? "Creando..." : "Crear factura"}
-          </Button>
-        </div>
+    <div className="grid gap-3" data-test-id="create-supplier-invoice-dialog-form">
+      <TextField label="Supplier ID (uuid)" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} />
+      <TextField label="Referencia externa" value={externalReference} onChange={(e) => setExternalReference(e.target.value)} />
+      <TextField label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <TextField label="Total" value={total} onChange={(e) => setTotal(e.target.value || "0")} />
+      <TextField
+        label="Payment status (PENDING | PARTIAL | PAID)"
+        value={paymentStatus}
+        onChange={(e) => {
+          const v = e.target.value.trim().toUpperCase();
+          if (v === "PENDING" || v === "PARTIAL" || v === "PAID") {
+            setPaymentStatus(v);
+          }
+        }}
+      />
+      <TextField label="Amount paid" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value || "0")} />
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      <div className="mt-2 flex justify-between gap-2">
+        <Button variant="secondary" type="button" onClick={() => onClose?.()}>
+          Cancelar
+        </Button>
+        <Button variant="primary" type="button" disabled={!canSubmit} loading={busy} onClick={onSubmit}>
+          Crear
+        </Button>
       </div>
     </div>
   );
 }
-

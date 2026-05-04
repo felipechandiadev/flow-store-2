@@ -11,6 +11,7 @@ import { User } from '@modules/users/domain/user.entity';
 import { Person } from '@modules/persons/domain/person.entity';
 import { CashSession } from '@modules/cash-sessions/domain/cash-session.entity';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
+import { DocumentSequence } from '@modules/transactions/domain/document-sequence.entity';
 import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
 import { Product } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
@@ -73,6 +74,7 @@ export const typeOrmConfig = (
       Person,
       CashSession,
       Transaction,
+      DocumentSequence,
       TransactionLine,
       Product,
       ProductVariant,

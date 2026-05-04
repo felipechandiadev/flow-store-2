@@ -38,6 +38,12 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     session: async ({ session, token }) => {
+      // Canonical app user id (DB `users.id`). accessToken is set at login to the same value; keep id in sync so server actions don’t use a different `sub` from the JWT.
+      const backendUserId = (token.accessToken as string | undefined) ||
+        (token.sub as string | undefined);
+      if (backendUserId) {
+        session.user.id = backendUserId;
+      }
       session.user.accessToken = token.accessToken;
       return session;
     },

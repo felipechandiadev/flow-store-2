@@ -22,6 +22,7 @@ import {
 import { Type, plainToInstance } from 'class-transformer';
 import {
   TransactionType,
+  TransactionStatus,
   PaymentMethod,
   PaymentStatus,
 } from '@modules/transactions/domain/transaction.entity';
@@ -116,6 +117,11 @@ export class CreateTransactionDto {
   @IsEnum(TransactionType)
   transactionType!: TransactionType;
 
+  /** Si se omite en creación → CONFIRMED en el use case. Solo PURCHASE_ORDER admite DRAFT de forma segura desde pedidos OC. */
+  @IsOptional()
+  @IsEnum(TransactionStatus)
+  transactionStatus?: TransactionStatus;
+
   @IsUUID()
   branchId!: string;
 
@@ -139,7 +145,7 @@ export class CreateTransactionDto {
   discountAmount: number = 0;
 
   @IsNumber()
-  @Min(0.01)
+  @Min(0)
   total!: number;
 
   // ==========================================
@@ -301,9 +307,16 @@ export class CreateTransactionDto {
     }
 
     // algunos tipos necesitan monto positivo
+    const poDraft =
+      this.transactionType === TransactionType.PURCHASE_ORDER &&
+      this.transactionStatus === TransactionStatus.DRAFT;
+
     const requirePositive = [
       TransactionType.SALE,
       TransactionType.PURCHASE,
+      TransactionType.PURCHASE_ORDER,
+      TransactionType.PURCHASE_RETURN,
+      TransactionType.SUPPLIER_CREDIT_NOTE,
       TransactionType.SUPPLIER_PAYMENT,
       TransactionType.EXPENSE_PAYMENT,
       TransactionType.CASH_DEPOSIT,
@@ -313,7 +326,7 @@ export class CreateTransactionDto {
       TransactionType.PAYROLL,
       TransactionType.PAYMENT_EXECUTION,
     ];
-    if (requirePositive.includes(this.transactionType)) {
+    if (requirePositive.includes(this.transactionType) && !poDraft) {
       if (this.subtotal < 0.01) {
         errors.push('subtotal debe ser mayor a 0');
       }
@@ -417,11 +430,52 @@ export class CreateTransactionDto {
         }
         break;
 
+      case TransactionType.PURCHASE_ORDER:
+        if (!poDraft) {
+          if (!this.supplierId) {
+            errors.push('PURCHASE_ORDER requiere supplierId');
+          }
+          if (!this.lines || this.lines.length === 0) {
+            errors.push('PURCHASE_ORDER requiere al menos una línea');
+          }
+        }
+        break;
+
       case TransactionType.OPERATING_EXPENSE:
         if (!this.expenseCategoryId) {
           errors.push('OPERATING_EXPENSE requiere expenseCategoryId');
         }
         break;
+
+      case TransactionType.PURCHASE_RETURN:
+        if (!this.supplierId) {
+          errors.push('PURCHASE_RETURN requiere supplierId');
+        }
+        if (!this.storageId) {
+          errors.push('PURCHASE_RETURN requiere storageId');
+        }
+        if (!this.lines || this.lines.length === 0) {
+          errors.push('PURCHASE_RETURN requiere al menos una línea');
+        }
+        break;
+
+      case TransactionType.SUPPLIER_CREDIT_NOTE: {
+        if (!this.supplierId) {
+          errors.push('SUPPLIER_CREDIT_NOTE requiere supplierId');
+        }
+        const prId = this.metadata?.links?.purchaseReturnId;
+        const uuidRe =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!prId || typeof prId !== 'string' || !uuidRe.test(String(prId).trim())) {
+          errors.push(
+            'SUPPLIER_CREDIT_NOTE requiere metadata.links.purchaseReturnId (UUID de PURCHASE_RETURN)',
+          );
+        }
+        if (!this.lines || this.lines.length === 0) {
+          errors.push('SUPPLIER_CREDIT_NOTE requiere al menos una línea');
+        }
+        break;
+      }
 
       // ... más validaciones según tipo...
     }

@@ -9,6 +9,7 @@ import MultimediaUpdater from "@/shared/components/FileUploader/MultimediaUpdate
 const BANNER_SIZES: MultimediaBannerSize[] = ["xs", "sm", "md", "lg", "xl", "full"];
 
 const DEMO_IMAGE_URL = "https://picsum.photos/seed/flowstore-multimedia/640/360";
+const DEMO_LOGO_URL = "https://picsum.photos/seed/flowstore-logo/400/400";
 
 function FileListHint({ files }: { files: File[] }) {
   if (files.length === 0) {
@@ -29,12 +30,14 @@ export default function MultimediaUiComponentsPage() {
   const [uploaderDefaultFiles, setUploaderDefaultFiles] = useState<File[]>([]);
   const [uploaderIconFiles, setUploaderIconFiles] = useState<File[]>([]);
   const [uploaderAvatarFiles, setUploaderAvatarFiles] = useState<File[]>([]);
+  const [uploaderLogoFiles, setUploaderLogoFiles] = useState<File[]>([]);
   const [uploaderBannerFiles, setUploaderBannerFiles] = useState<File[]>([]);
   const [uploaderBannerSizesNote, setUploaderBannerSizesNote] = useState<string>("");
 
   const [updaterDefaultNote, setUpdaterDefaultNote] = useState<string>("");
   const [updaterBannerNote, setUpdaterBannerNote] = useState<string>("");
   const [updaterAvatarNote, setUpdaterAvatarNote] = useState<string>("");
+  const [updaterLogoNote, setUpdaterLogoNote] = useState<string>("");
 
   return (
     <div className="mx-auto max-w-4xl space-y-14 p-8">
@@ -47,7 +50,7 @@ export default function MultimediaUiComponentsPage() {
           Casos de uso de <code className="rounded bg-muted px-1 py-0.5 text-xs">MultimediaUploader</code> (variante{" "}
           <code className="rounded bg-muted px-1 py-0.5 text-xs">collection</code>: varios archivos, rejilla) y{" "}
           <code className="rounded bg-muted px-1 py-0.5 text-xs">MultimediaUpdater</code> (un
-          archivo, reemplazo / banner / avatar). Aquí solo hay vista previa local; en productos el envío va al API.
+          archivo, reemplazo / banner / logo / avatar). Aquí solo hay vista previa local; en productos el envío va al API.
         </p>
       </div>
 
@@ -102,6 +105,22 @@ export default function MultimediaUiComponentsPage() {
             onChange={setUploaderAvatarFiles}
           />
           <FileListHint files={uploaderAvatarFiles} />
+        </div>
+
+        <div className="rounded-xl border border-border bg-muted/20 p-6">
+          <h3 className="text-sm font-semibold text-foreground">Variante logo — 1:1 (prop logoSize)</h3>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Misma escala <code className="rounded bg-muted px-1">xs</code> … <code className="rounded bg-muted px-1">full</code> que{" "}
+            <code className="rounded bg-muted px-1">bannerSize</code>, pero área cuadrada (p. ej. logo de empresa).
+          </p>
+          <MultimediaUploader
+            uploadPath="demo:logo"
+            variant="logo"
+            logoSize="md"
+            accept="image/*"
+            onChange={setUploaderLogoFiles}
+          />
+          <FileListHint files={uploaderLogoFiles} />
         </div>
 
         <div className="rounded-xl border border-border bg-muted/20 p-6">
@@ -205,6 +224,26 @@ export default function MultimediaUiComponentsPage() {
             ))}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">{updaterBannerNote || "Suelte o elija un archivo en cualquier tamaño."}</p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-muted/20 p-6">
+          <h3 className="text-sm font-semibold text-foreground">Logo — logoSize + URL + arrastrar</h3>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Variante cuadrada; prop <code className="rounded bg-muted px-1">logoSize</code> (igual que escala de banner).
+          </p>
+          <MultimediaUpdater
+            currentUrl={DEMO_LOGO_URL}
+            currentType="image"
+            variant="logo"
+            logoSize="sm"
+            allowDragDrop
+            acceptedTypes={["image/*"]}
+            maxSize={5}
+            onFileChange={(f) =>
+              setUpdaterLogoNote(f ? `Logo: ${f.name} (${(f.size / 1024).toFixed(1)} KB)` : "Sin archivo")
+            }
+          />
+          <p className="mt-2 text-xs text-muted-foreground">{updaterLogoNote || "—"}</p>
         </div>
 
         <div className="rounded-xl border border-border bg-muted/20 p-6">

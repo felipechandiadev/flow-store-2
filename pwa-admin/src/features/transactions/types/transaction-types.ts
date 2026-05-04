@@ -45,6 +45,13 @@ export const TRANSACTION_TYPE_OPTIONS: TransactionTypeOption[] = [
     description:
       "Registra devolución/nota de crédito a proveedor asociada a una compra o recepción previa, ajustando montos y eventualmente stock.",
   },
+  {
+    id: "SUPPLIER_CREDIT_NOTE",
+    label: "Nota de crédito proveedor",
+    category: "Compras",
+    description:
+      "Documento fiscal del proveedor que reduce CxP; debe vincularse a una PURCHASE_RETURN existente (metadata.links.purchaseReturnId). No mueve stock por sí sola.",
+  },
 
   // Movimientos de inventario
   {

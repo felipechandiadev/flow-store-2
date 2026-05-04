@@ -59,6 +59,14 @@ export class Reception {
   @Column({ type: 'varchar', length: 255, nullable: true })
   documentNumber?: string;
 
+  /** Número/folio del DTE (factura, boleta o guía) asociado al ingreso. */
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  dteNumber?: string;
+
+  /** `invoice` | `receipt` | `guide` | `other` — alineado con metadata `dte_type` en la transacción. */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  dteType?: string;
+
   @Column({ type: 'text', nullable: true })
   notes?: string;
 

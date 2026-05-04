@@ -5,6 +5,17 @@ import { MultimediaRequest } from "../infrastructure/multimedia.request";
 import type { MultimediaAssetListItem, MultimediaEntityType } from "../types/multimedia.types";
 
 const PRODUCTS_PATH = "/inventory/products";
+const SETTINGS_COMPANY_PATH = "/settings/company";
+
+const ENTITY_TYPES: MultimediaEntityType[] = ["product", "product-variant", "company"];
+
+function revalidatePathsForEntityType(entityType: MultimediaEntityType) {
+  if (entityType === "company") {
+    revalidatePath(SETTINGS_COMPANY_PATH, "page");
+  } else {
+    revalidatePath(PRODUCTS_PATH, "page");
+  }
+}
 
 export type ListMultimediaResult =
   | { success: true; assets: MultimediaAssetListItem[] }
@@ -27,7 +38,7 @@ export async function uploadMultimediaForEntityAction(formData: FormData): Promi
   const entityType = String(formData.get("entityType") ?? "").trim() as MultimediaEntityType;
   const entityId = String(formData.get("entityId") ?? "").trim();
   const isPrimary = formData.get("isPrimary") === "true" || formData.get("isPrimary") === "1";
-  if (entityType !== "product" && entityType !== "product-variant") {
+  if (!ENTITY_TYPES.includes(entityType)) {
     return { success: false, error: "Tipo de entidad no válido" };
   }
   if (!entityId) {
@@ -35,7 +46,7 @@ export async function uploadMultimediaForEntityAction(formData: FormData): Promi
   }
   const r = await MultimediaRequest.uploadForEntity({ file, entityType, entityId, isPrimary });
   if (r.success) {
-    revalidatePath(PRODUCTS_PATH, "page");
+    revalidatePathsForEntityType(entityType);
   }
   return r;
 }
@@ -51,7 +62,7 @@ export async function setPrimaryMultimediaAssetAction(input: {
     assetId: input.assetId.trim(),
   });
   if (r.success) {
-    revalidatePath(PRODUCTS_PATH, "page");
+    revalidatePathsForEntityType(input.entityType);
   }
   return r;
 }
@@ -69,7 +80,7 @@ export async function unlinkMultimediaFromEntityAction(input: {
     usageType: input.usageType,
   });
   if (r.success) {
-    revalidatePath(PRODUCTS_PATH, "page");
+    revalidatePathsForEntityType(input.entityType);
   }
   return r;
 }

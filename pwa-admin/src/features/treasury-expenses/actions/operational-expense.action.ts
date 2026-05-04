@@ -71,7 +71,9 @@ export async function createOperationalExpenseAction(input: {
   }
 
   const session = await getServerSession(authOptions);
-  const userId = (session?.user?.id || session?.user?.accessToken || "").trim();
+  const userId = (
+    session?.user?.accessToken || session?.user?.id || ""
+  ).trim();
   if (!UUID_RE.test(userId)) {
     return {
       success: false,

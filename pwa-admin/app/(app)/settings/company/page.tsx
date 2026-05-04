@@ -8,8 +8,8 @@ export default async function Page() {
   return (
     <BasicPageLayout
       title="Empresa"
-      subtitle="Configuración de la organización (datos desde el backend)"
-      className="max-w-4xl"
+      className="min-w-0 w-full max-w-none"
+      contentClassName="min-w-0 w-full max-w-full"
       data-test-id="settings-company-page"
     >
       {company == null ? (

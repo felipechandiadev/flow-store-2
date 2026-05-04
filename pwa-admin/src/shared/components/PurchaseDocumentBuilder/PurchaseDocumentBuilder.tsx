@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { TextField } from "@/shared/components/TextField/TextField";
 import NumberStepper from "@/shared/components/NumberStepper/NumberStepper";
@@ -14,16 +13,23 @@ import type { PurchasingVariantSearchItem, PurchasingVariantSearchResult } from 
 import type { SupplierGridRow } from "@/features/purchasing-suppliers/types/supplier.types";
 import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
 import type { TaxListItem } from "@/features/accounting-taxes/types/tax.types";
-
-/** Query en URL para búsqueda SSR de variantes. */
-export const PURCHASE_DOC_URL_QUERY = "v";
-/** Página de resultados (10 por página). */
-export const PURCHASE_DOC_URL_PAGE = "vp";
+import type {
+  CreatePurchaseOrderInput,
+  CreatePurchaseOrderResult,
+} from "@/features/purchasing-document/types/purchase-order.types";
+import type {
+  CreateDirectReceptionInput,
+  CreateReceptionResult,
+  ReceptionDteType,
+} from "@/features/receptions/types/reception.types";
+import { formatMoney, InlineSepDot, ProductNameWithAttributes } from "./PurchaseDocumentProductPreview";
+import { PurchaseDocumentVariantSearchPanel } from "./PurchaseDocumentVariantSearchPanel";
 
 export type PurchaseDocumentMode = "reception" | "purchase_order";
 
 export type PurchaseDocumentLine = {
   key: string;
+  productId: string;
   variantId: string;
   productName: string;
   sku: string;
@@ -43,9 +49,12 @@ export type PurchaseDocumentBuilderProps = {
   suppliers: SupplierGridRow[];
   storages: StorageListItem[];
   taxes: TaxListItem[];
-  /** Solo usable desde un padre cliente; si no se pasa, Guardar no hace persistencia. */
-  onSave?: () => void | Promise<void>;
-  isSaving?: boolean;
+  /** Sucursal (UUID) para asiento contable; requerida para guardar orden de compra o recepción. */
+  branchId?: string;
+  /** Modo orden de compra: crea transacción `PURCHASE_ORDER` en el API. */
+  onSavePurchaseOrder?: (input: CreatePurchaseOrderInput) => Promise<CreatePurchaseOrderResult>;
+  /** Modo recepción: `POST /receptions/direct` con DTE en metadata de la transacción de ingreso. */
+  onSaveReception?: (input: CreateDirectReceptionInput) => Promise<CreateReceptionResult>;
 };
 
 function supplierLabel(s: SupplierGridRow): string {
@@ -65,56 +74,6 @@ function supplierLabel(s: SupplierGridRow): string {
   return joined || s.id;
 }
 
-function formatMoney(amount: number): string {
-  try {
-    return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(
-      Math.round(amount),
-    );
-  } catch {
-    return String(Math.round(amount));
-  }
-}
-
-function attributeValueParts(av: Record<string, string>): string[] {
-  return Object.values(av)
-    .map((x) => x.trim())
-    .filter(Boolean);
-}
-
-/** Mismo separador circular que entre nombre y atributos (secondary, ~5px). */
-function InlineSepDot() {
-  return (
-    <span
-      aria-hidden
-      className="inline-block h-[0.3125rem] w-[0.3125rem] shrink-0 rounded-full bg-secondary align-middle"
-    />
-  );
-}
-
-function ProductNameWithAttributes({
-  name,
-  attributeValues,
-  className = "",
-}: {
-  name: string;
-  attributeValues: Record<string, string>;
-  className?: string;
-}) {
-  const parts = attributeValueParts(attributeValues);
-  const label = [name, ...parts].join(" · ");
-  return (
-    <p className={`flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 ${className}`.trim()} title={label}>
-      <span className="min-w-0">{name}</span>
-      {parts.map((part, i) => (
-        <span key={`${i}-${part}`} className="inline-flex min-w-0 items-center gap-x-1.5">
-          <InlineSepDot />
-          <span className="shrink-0">{part}</span>
-        </span>
-      ))}
-    </p>
-  );
-}
-
 function todayIsoDate(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -131,13 +90,11 @@ export function PurchaseDocumentBuilder({
   suppliers,
   storages,
   taxes,
-  onSave,
-  isSaving = false,
+  branchId,
+  onSavePurchaseOrder,
+  onSaveReception,
 }: PurchaseDocumentBuilderProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
 
   const activeTaxes = useMemo(() => taxes.filter((t) => t.isActive !== false), [taxes]);
   const activeStorages = useMemo(() => storages.filter((s) => s.isActive !== false), [storages]);
@@ -152,61 +109,24 @@ export function PurchaseDocumentBuilder({
     [activeStorages],
   );
 
-  const [draftSearch, setDraftSearch] = useState(searchQuery);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  /** Página desde la URL (se actualiza al navegar); el prop `searchPage` puede ir atrasado respecto a `router.replace`. */
-  const urlPage = useMemo(() => {
-    const raw = searchParams.get(PURCHASE_DOC_URL_PAGE);
-    const n = parseInt(raw || String(searchPage), 10);
-    return Math.max(1, Number.isFinite(n) ? n : searchPage);
-  }, [searchParams, searchPage]);
-
-  useEffect(() => {
-    setDraftSearch(searchQuery);
-  }, [searchQuery]);
-
-  const pushSearchToUrl = useCallback(
-    (q: string, page: number) => {
-      const next = new URLSearchParams(searchParams.toString());
-      const t = q.trim();
-      if (t) {
-        next.set(PURCHASE_DOC_URL_QUERY, t);
-      } else {
-        next.delete(PURCHASE_DOC_URL_QUERY);
-      }
-      next.set(PURCHASE_DOC_URL_PAGE, String(Math.max(1, page)));
-      const qs = next.toString();
-      startTransition(() => {
-        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-      });
-    },
-    [pathname, router, searchParams, startTransition],
+  const dteTypeOptions: Option[] = useMemo(
+    () => [
+      { id: "invoice", label: "Factura" },
+      { id: "receipt", label: "Boleta" },
+      { id: "guide", label: "Guía de despacho" },
+      { id: "other", label: "Otro" },
+    ],
+    [],
   );
-
-  useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-    debounceRef.current = setTimeout(() => {
-      debounceRef.current = null;
-      if (draftSearch.trim() === searchQuery.trim()) {
-        return;
-      }
-      pushSearchToUrl(draftSearch, 1);
-    }, 400);
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, [draftSearch, pushSearchToUrl, searchQuery]);
 
   const [lines, setLines] = useState<PurchaseDocumentLine[]>([]);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [storageId, setStorageId] = useState<string | null>(null);
   const [docDate, setDocDate] = useState(todayIsoDate);
-  const [invoiceFolio, setInvoiceFolio] = useState("");
+  const [dteType, setDteType] = useState<string>("invoice");
+  const [dteNumber, setDteNumber] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const selectedSupplierOption = useMemo(() => {
     if (supplierId == null || supplierId === "") {
@@ -226,6 +146,7 @@ export function PurchaseDocumentBuilder({
       const price = Math.max(0, Math.round(item.pmp || 0));
       const row: PurchaseDocumentLine = {
         key: `${item.id}-${Date.now()}`,
+        productId: item.productId,
         variantId: item.id,
         productName: item.productName,
         sku: item.sku,
@@ -264,8 +185,6 @@ export function PurchaseDocumentBuilder({
     );
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(variantSearch.total / variantSearch.pageSize) || 1);
-
   const summary = useMemo(() => {
     const taxById = new Map(activeTaxes.map((t) => [t.id, t]));
     let subtotalNeto = 0;
@@ -288,127 +207,172 @@ export function PurchaseDocumentBuilder({
     return { subtotalNeto, impuestosTotal, total };
   }, [lines, activeTaxes]);
 
-  const modeLabel = mode === "reception" ? "recepción" : "orden de compra";
   const modeTitle = mode === "reception" ? "Recepción de compra" : "Orden de compra";
 
-  const handleSave = useCallback(async () => {
-    await onSave?.();
-  }, [onSave]);
+  const canSavePurchaseOrderBase =
+    mode === "purchase_order" && Boolean(onSavePurchaseOrder) && Boolean(branchId?.trim());
+  /** Orden confirmada: proveedor + al menos una línea. */
+  const canConfirmPurchaseOrder =
+    canSavePurchaseOrderBase && Boolean(supplierId?.trim()) && lines.length > 0;
+
+  const canSaveReceptionBase =
+    mode === "reception" && Boolean(onSaveReception) && Boolean(branchId?.trim());
+  const canConfirmReception =
+    canSaveReceptionBase &&
+    Boolean(supplierId?.trim()) &&
+    Boolean(storageId?.trim()) &&
+    lines.length > 0 &&
+    (dteType === "invoice" || dteType === "receipt" || dteType === "guide" || dteType === "other");
+
+  const submitPurchaseOrder = useCallback(
+    async (saveAsDraft: boolean) => {
+      setSaveError(null);
+      if (mode !== "purchase_order") {
+        setSaveError("El guardado aún no está disponible para recepciones.");
+        return;
+      }
+      if (!onSavePurchaseOrder) {
+        setSaveError("No hay servicio de guardado configurado.");
+        return;
+      }
+      if (!branchId?.trim()) {
+        setSaveError("No hay sucursal configurada. Revise la empresa o cree una sucursal.");
+        return;
+      }
+      if (!saveAsDraft) {
+        if (!supplierId?.trim()) {
+          setSaveError("Seleccione un proveedor.");
+          return;
+        }
+        if (lines.length === 0) {
+          setSaveError("Agregue al menos una línea de producto.");
+          return;
+        }
+      }
+
+      const storageTrim = storageId?.trim();
+      const input: CreatePurchaseOrderInput = {
+        branchId: branchId.trim(),
+        ...(supplierId?.trim() ? { supplierId: supplierId.trim() } : {}),
+        ...(storageTrim ? { storageId: storageTrim } : {}),
+        documentDate: docDate,
+        lines: lines.map((l) => ({
+          productId: l.productId,
+          variantId: l.variantId,
+          productName: l.productName,
+          sku: l.sku,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          taxIds: l.taxIds,
+        })),
+        ...(saveAsDraft ? { saveAsDraft: true } : {}),
+      };
+
+      setIsSaving(true);
+      try {
+        const result = await onSavePurchaseOrder(input);
+        if (result.success) {
+          router.push("/purchasing/orders/list");
+        } else {
+          setSaveError(result.error);
+        }
+      } catch (e) {
+        setSaveError(e instanceof Error ? e.message : "Error al guardar.");
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [mode, onSavePurchaseOrder, branchId, supplierId, storageId, docDate, lines, router],
+  );
+
+  const submitReception = useCallback(async () => {
+    setSaveError(null);
+    if (mode !== "reception") {
+      return;
+    }
+    if (!onSaveReception) {
+      setSaveError("No hay servicio de guardado configurado.");
+      return;
+    }
+    if (!branchId?.trim()) {
+      setSaveError("No hay sucursal configurada.");
+      return;
+    }
+    if (!storageId?.trim()) {
+      setSaveError("Seleccione almacén destino.");
+      return;
+    }
+    if (!supplierId?.trim()) {
+      setSaveError("Seleccione un proveedor.");
+      return;
+    }
+    if (lines.length === 0) {
+      setSaveError("Agregue al menos una línea de producto.");
+      return;
+    }
+    if (dteType !== "invoice" && dteType !== "receipt" && dteType !== "guide" && dteType !== "other") {
+      setSaveError("Seleccione tipo de DTE.");
+      return;
+    }
+
+    const input: CreateDirectReceptionInput = {
+      branchId: branchId.trim(),
+      storageId: storageId.trim(),
+      supplierId: supplierId.trim(),
+      dteNumber: dteNumber.trim() || null,
+      dteType: dteType as ReceptionDteType,
+      notes: null,
+      lines: lines.map((l) => ({
+        productId: l.productId,
+        productVariantId: l.variantId,
+        productName: l.productName,
+        sku: l.sku,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        receivedQuantity: l.quantity,
+      })),
+    };
+
+    setIsSaving(true);
+    try {
+      const result = await onSaveReception(input);
+      if (result.success) {
+        router.push("/purchasing/receptions/list");
+      } else {
+        setSaveError(result.error);
+      }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Error al guardar.");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [mode, onSaveReception, branchId, storageId, supplierId, lines, dteNumber, dteType, router]);
 
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch"
       data-test-id="purchase-document-builder"
     >
-      <aside
-        className="flex h-[80vh] min-h-0 w-full min-w-0 shrink-0 flex-col gap-3 rounded-xl border border-border bg-background p-3 lg:max-w-sm lg:basis-[22rem]"
-        data-test-id="purchase-document-search-panel"
-      >
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar productos</p>
-        <TextField
-          label="Buscar"
-          name="purchase-doc-variant-search"
-          value={draftSearch}
-          onChange={(e) => setDraftSearch(e.target.value)}
-          placeholder="Nombre, SKU, código, categoría…"
-          alwaysShowLabel
-          startAdornment={<Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />}
-          data-test-id="purchase-doc-search-field"
-        />
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
-          {variantSearch.items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin resultados.</p>
-          ) : (
-            variantSearch.items.map((item) => (
-              <article
-                key={item.id}
-                className="rounded-lg border border-border/80 bg-muted/20 p-2.5 shadow-sm"
-                data-test-id={`purchase-doc-variant-card-${item.id}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <ProductNameWithAttributes
-                      name={item.productName}
-                      attributeValues={item.attributeValues}
-                      className="text-sm font-medium text-foreground"
-                    />
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 font-mono text-[11px] text-muted-foreground">
-                      <span>
-                        SKU {item.sku}
-                      </span>
-                      {item.barcode ? (
-                        <>
-                          <InlineSepDot />
-                          <span>{item.barcode}</span>
-                        </>
-                      ) : null}
-                    </p>
-                    {item.categoryName ? (
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">{item.categoryName}</p>
-                    ) : null}
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs tabular-nums text-foreground">
-                      <span>PMP {formatMoney(item.pmp)}</span>
-                      {item.unitLabel ? (
-                        <>
-                          <InlineSepDot />
-                          <span className="text-muted-foreground">{item.unitLabel}</span>
-                        </>
-                      ) : null}
-                    </p>
-                  </div>
-                  <IconButton
-                    icon="Plus"
-                    variant="basicSecondary"
-                    size="sm"
-                    title="Agregar a la lista"
-                    ariaLabel="Agregar variante al documento"
-                    onClick={() => addVariant(item)}
-                    data-test-id={`purchase-doc-add-${item.id}`}
-                  />
-                </div>
-              </article>
-            ))
-          )}
-        </div>
-        <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
-          <span className="text-xs text-muted-foreground">
-            Pág. {urlPage} / {totalPages} ({variantSearch.total} variantes)
-          </span>
-          <div className="flex gap-1">
-            <IconButton
-              icon="ChevronLeft"
-              variant="basicSecondary"
-              size="sm"
-              disabled={urlPage <= 1}
-              title="Anterior"
-              ariaLabel="Página anterior"
-              onClick={() => pushSearchToUrl(draftSearch, urlPage - 1)}
-              data-test-id="purchase-doc-search-prev"
-            />
-            <IconButton
-              icon="ChevronRight"
-              variant="basicSecondary"
-              size="sm"
-              disabled={urlPage >= totalPages}
-              title="Siguiente"
-              ariaLabel="Página siguiente"
-              onClick={() => pushSearchToUrl(draftSearch, urlPage + 1)}
-              data-test-id="purchase-doc-search-next"
-            />
-          </div>
-        </div>
-      </aside>
+      <PurchaseDocumentVariantSearchPanel
+        variantSearch={variantSearch}
+        searchQuery={searchQuery}
+        searchPage={searchPage}
+        onAddVariant={addVariant}
+      />
 
       <section
         className="flex h-[80vh] min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-xl border border-border bg-background p-3"
         data-test-id="purchase-document-detail-panel"
       >
         <div className="flex w-full min-w-0 flex-col gap-3" data-test-id="purchase-doc-header-fields">
-          <h2 className="truncate text-sm font-semibold text-foreground" data-test-id="purchase-doc-title">
-            {modeTitle}
-          </h2>
-          <div className="grid w-full min-w-0 grid-cols-1 items-start gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-1">
-            <div className="min-w-0 w-full self-stretch">
+          <div className="flex w-full min-w-0 items-start justify-between gap-4">
+            <h2
+              className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground"
+              data-test-id="purchase-doc-title"
+            >
+              {modeTitle}
+            </h2>
+            <div className="min-w-0 w-[min(100%,18rem)] shrink-0 sm:w-[min(100%,20rem)]">
               <AutoComplete
                 label="Proveedor"
                 name="purchase-doc-supplier"
@@ -420,6 +384,12 @@ export function PurchaseDocumentBuilder({
                 data-test-id="purchase-doc-supplier"
               />
             </div>
+          </div>
+          <div
+            className={`grid w-full min-w-0 grid-cols-1 items-start gap-x-4 gap-y-3 lg:grid-rows-1 ${
+              mode === "reception" ? "sm:grid-cols-2 lg:grid-cols-4" : "max-w-xs"
+            }`}
+          >
             <div className="min-w-0 w-full self-stretch">
               <TextField
                 label="Fecha"
@@ -431,32 +401,49 @@ export function PurchaseDocumentBuilder({
                 data-test-id="purchase-doc-date"
               />
             </div>
-            <div className="min-w-0 w-full self-stretch">
-              <Select
-                label="Almacén destino"
-                name="purchase-doc-storage"
-                placeholder="Seleccionar"
-                options={storageOptions}
-                value={storageId}
-                onChange={(id) => setStorageId(id == null ? null : String(id))}
-                allowClear
-                alwaysShowLabel
-                className="w-full min-w-0"
-                data-test-id="purchase-doc-storage"
-              />
-            </div>
-            <div className="min-w-0 w-full self-stretch">
-              <TextField
-                label="Folio factura"
-                name="purchase-doc-invoice-folio"
-                value={invoiceFolio}
-                onChange={(e) => setInvoiceFolio(e.target.value)}
-                placeholder="Ej: 12345"
-                alwaysShowLabel
-                className="w-full min-w-0"
-                data-test-id="purchase-doc-invoice-folio"
-              />
-            </div>
+            {mode === "reception" ? (
+              <>
+                <div className="min-w-0 w-full self-stretch">
+                  <Select
+                    label="Almacén destino"
+                    name="purchase-doc-storage"
+                    placeholder="Seleccionar"
+                    options={storageOptions}
+                    value={storageId}
+                    onChange={(id) => setStorageId(id == null ? null : String(id))}
+                    allowClear
+                    alwaysShowLabel
+                    className="w-full min-w-0"
+                    data-test-id="purchase-doc-storage"
+                  />
+                </div>
+                <div className="min-w-0 w-full self-stretch">
+                  <Select
+                    label="Tipo de DTE"
+                    name="purchase-doc-dte-type"
+                    placeholder="Seleccionar"
+                    options={dteTypeOptions}
+                    value={dteType}
+                    onChange={(id) => setDteType(id == null ? "invoice" : String(id))}
+                    alwaysShowLabel
+                    className="w-full min-w-0"
+                    data-test-id="purchase-doc-dte-type"
+                  />
+                </div>
+                <div className="min-w-0 w-full self-stretch">
+                  <TextField
+                    label="Folio DTE"
+                    name="purchase-doc-dte-number"
+                    value={dteNumber}
+                    onChange={(e) => setDteNumber(e.target.value)}
+                    placeholder="Número del documento tributario"
+                    alwaysShowLabel
+                    className="w-full min-w-0"
+                    data-test-id="purchase-doc-dte-number"
+                  />
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
 
@@ -486,8 +473,8 @@ export function PurchaseDocumentBuilder({
             <tbody>
               {lines.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                    Agregue variantes desde el panel izquierdo. Detalle de {modeLabel} (borrador).
+                  <td colSpan={6} className="py-10">
+                    <span className="sr-only">Sin líneas en el documento</span>
                   </td>
                 </tr>
               ) : (
@@ -601,17 +588,64 @@ export function PurchaseDocumentBuilder({
               </span>
             </div>
           </footer>
-          <div className="flex justify-end pt-3">
-            <Button
-              variant="primary"
-              size="md"
-              type="button"
-              disabled={isSaving}
-              onClick={() => void handleSave()}
-              data-test-id="purchase-doc-save"
-            >
-              {isSaving ? "Guardando…" : "Guardar"}
-            </Button>
+          <div className="flex w-full flex-col items-stretch gap-2 pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            {saveError ? (
+              <p
+                className="max-w-full flex-1 text-right text-sm text-error sm:min-w-0 sm:flex-none sm:w-full sm:order-last"
+                role="alert"
+                data-test-id="purchase-doc-save-error"
+              >
+                {saveError}
+              </p>
+            ) : null}
+            {mode === "purchase_order" && onSavePurchaseOrder ? (
+              <>
+                <Button
+                  variant="outlinedSecondary"
+                  size="md"
+                  type="button"
+                  disabled={isSaving || !canSavePurchaseOrderBase}
+                  onClick={() => void submitPurchaseOrder(true)}
+                  data-test-id="purchase-doc-save-draft"
+                  title={
+                    !canSavePurchaseOrderBase ? "Configure sucursal para guardar borrador." : undefined
+                  }
+                >
+                  {isSaving ? "Guardando…" : "Borrador"}
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="md"
+                  type="button"
+                  disabled={isSaving || !canConfirmPurchaseOrder}
+                  onClick={() => void submitPurchaseOrder(false)}
+                  data-test-id="purchase-doc-save"
+                  title={
+                    !canConfirmPurchaseOrder
+                      ? "Orden confirmada: seleccione proveedor, líneas y sucursal."
+                      : undefined
+                  }
+                >
+                  {isSaving ? "Guardando…" : "Guardar"}
+                </Button>
+              </>
+            ) : mode === "reception" && onSaveReception ? (
+              <Button
+                variant="primary"
+                size="md"
+                type="button"
+                disabled={isSaving || !canConfirmReception}
+                onClick={() => void submitReception()}
+                data-test-id="purchase-doc-save-reception"
+                title={
+                  !canConfirmReception
+                    ? "Recepción: sucursal, proveedor, almacén, tipo de DTE y al menos una línea."
+                    : undefined
+                }
+              >
+                {isSaving ? "Guardando…" : "Guardar recepción"}
+              </Button>
+            ) : null}
           </div>
         </div>
       </section>

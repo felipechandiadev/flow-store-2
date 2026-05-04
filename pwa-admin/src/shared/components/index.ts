@@ -38,7 +38,7 @@ export { default as LocationPickerWrapper } from './LocationPicker';
 
 // File Upload
 export { MultimediaUploader, MultimediaUpdater } from './FileUploader';
-export type { MultimediaBannerSize } from './FileUploader';
+export type { MultimediaBannerSize, MultimediaLogoSize } from './FileUploader';
 export { default as FileUploader } from './FileUploader/MultimediaUpdater';
 
 // Feedback & Progress

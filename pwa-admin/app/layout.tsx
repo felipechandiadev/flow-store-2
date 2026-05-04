@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   manifest: '/manifest.json',
-  title: 'Flow Store Web Admin',
+  title: 'FlowStore - Panel de administración',
   description: 'Administrador de tienda Flow Store',
 };
 
@@ -34,10 +34,9 @@ export default function RootLayout({
   return (
     <html lang="es-CL">
       <head>
-        <link rel="icon" href="/favicon.ico" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="FlowAdmin" />
+        <meta name="apple-mobile-web-app-title" content="FlowStore - Panel de administración" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} min-h-full flex flex-col`}>
         <AuthProvider>

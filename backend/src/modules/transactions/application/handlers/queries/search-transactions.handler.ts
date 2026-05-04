@@ -19,12 +19,16 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
   }> {
     const qb = this.transactionRepository.createQueryBuilder('tx');
 
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(Math.max(1, Number(query.limit) || 25), 200);
+
     // Load relations
     qb.leftJoinAndSelect('tx.branch', 'branch');
     qb.leftJoinAndSelect('tx.user', 'user');
     qb.leftJoinAndSelect('user.person', 'person');
     qb.leftJoinAndSelect('tx.customer', 'customer');
     qb.leftJoinAndSelect('tx.supplier', 'supplier');
+    qb.leftJoinAndSelect('supplier.person', 'supplierPerson');
     qb.leftJoinAndSelect('tx.pointOfSale', 'pos');
     qb.leftJoinAndSelect('tx.cashSession', 'cashSession');
 
@@ -87,8 +91,7 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
     const total = await qb.getCount();
 
     // Apply pagination
-    const skip = (query.page - 1) * query.limit;
-    qb.skip(skip).take(query.limit);
+    qb.skip((page - 1) * limit).take(limit);
 
     // Order by creation date descending
     qb.orderBy('tx.createdAt', 'DESC');
@@ -98,8 +101,8 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
     return {
       data: results,
       total,
-      page: query.page,
-      limit: query.limit,
+      page,
+      limit,
     };
   }
 }

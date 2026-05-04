@@ -32,6 +32,7 @@ const MOVEMENT_DIRECTION: Record<TransactionType, MovementDirection | null> = {
   [TransactionType.SALE_RETURN]: 'IN',
   [TransactionType.PURCHASE_RETURN]: 'OUT',
   [TransactionType.SUPPLIER_INVOICE]: null,
+  [TransactionType.SUPPLIER_CREDIT_NOTE]: null,
   [TransactionType.CUSTOMER_ORDER]: null,
   [TransactionType.SERVICE_ORDER]: null,
   [TransactionType.PRODUCTION_BATCH]: null,

@@ -13,7 +13,7 @@ import {
   TransactionType,
 } from '../../domain/transaction.entity';
 import { TransactionCreatedEvent } from '../../../../shared/events/transaction-created.event';
-import { DOCUMENT_PREFIXES } from '../../../../shared/enums/document-prefixes';
+import { DocumentNumberService } from '../document-number.service';
 
 export class CompletePaymentCommand {
   constructor(
@@ -37,6 +37,7 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
     @InjectRepository(Transaction)
     private readonly transactionsRepository: Repository<Transaction>,
     private readonly eventBus: EventBus,
+    private readonly documentNumberService: DocumentNumberService,
   ) {}
 
   async execute(command: CompletePaymentCommand): Promise<Transaction> {
@@ -97,7 +98,7 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       throw new BadRequestException(`Payment ${paymentId} has no branchId`);
     }
 
-    const executionDocNumber = await this.generateDocumentNumber(
+    const executionDocNumber = await this.documentNumberService.allocateNext(
       payment.branchId,
       TransactionType.PAYMENT_EXECUTION,
     );
@@ -203,17 +204,4 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
     return transaction;
   }
 
-  private async generateDocumentNumber(
-    branchId: string,
-    txType: TransactionType,
-  ): Promise<string> {
-    // TODO: Implementar correlativo único por branch + type
-    const prefix = DOCUMENT_PREFIXES[txType];
-    const branchCode = branchId.substring(0, 8).toUpperCase();
-    const timestamp = Date.now().toString().slice(-8);
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, '0');
-    return `${prefix}${branchCode}-${timestamp}-${random}`;
-  }
 }

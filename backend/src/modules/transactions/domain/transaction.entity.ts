@@ -35,10 +35,12 @@ import { Installment } from '@modules/installments/domain/installment.entity';
  *    SALE: Venta a cliente (contado o crédito)
  *    SALE_RETURN: Devolución de venta con referencia a SALE original
  *
- * 2. COMPRAS Y DEVOLUCIONES (3 tipos)
+ * 2. COMPRAS Y DEVOLUCIONES (5 tipos)
  *    PURCHASE: Compra a proveedor
  *    PURCHASE_ORDER: Orden de compra (no afecta inventario aún)
- *    PURCHASE_RETURN: Devolución a proveedor
+ *    PURCHASE_RETURN: Devolución a proveedor (stock / reverso operativo)
+ *    SUPPLIER_INVOICE: Factura de proveedor
+ *    SUPPLIER_CREDIT_NOTE: Nota de crédito de proveedor (documento fiscal; asociada a PURCHASE_RETURN)
  *
  * 3. MOVIMIENTOS DE INVENTARIO (8 tipos)
  *    TRANSFER_OUT: Salida de transferencia entre bodegas
@@ -88,6 +90,7 @@ export enum TransactionType {
   PURCHASE_ORDER = 'PURCHASE_ORDER',
   PURCHASE_RETURN = 'PURCHASE_RETURN',
   SUPPLIER_INVOICE = 'SUPPLIER_INVOICE',
+  SUPPLIER_CREDIT_NOTE = 'SUPPLIER_CREDIT_NOTE',
 
   // Pedidos / Ejecución (no mueven stock por sí solos)
   CUSTOMER_ORDER = 'CUSTOMER_ORDER',

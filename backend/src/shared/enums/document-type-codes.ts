@@ -1,0 +1,40 @@
+import { TransactionType } from '@modules/transactions/domain/transaction.entity';
+
+/**
+ * Siglas cortas para folios correlativos `{CODE}-{YY}-{NNNNN}` por sucursal + tipo + año.
+ * Conviven con `DOCUMENT_PREFIXES` (textos largos legibles / legacy).
+ */
+export const DOCUMENT_TYPE_CODES: Record<TransactionType, string> = {
+  [TransactionType.SALE]: 'VTA',
+  [TransactionType.SALE_RETURN]: 'DEV',
+  [TransactionType.PURCHASE]: 'CMP',
+  [TransactionType.PURCHASE_ORDER]: 'OC',
+  [TransactionType.PURCHASE_RETURN]: 'DPC',
+  [TransactionType.SUPPLIER_INVOICE]: 'FPR',
+  [TransactionType.SUPPLIER_CREDIT_NOTE]: 'NCP',
+  [TransactionType.CUSTOMER_ORDER]: 'PCL',
+  [TransactionType.SERVICE_ORDER]: 'OTS',
+  [TransactionType.PRODUCTION_BATCH]: 'LPR',
+  [TransactionType.TRANSFER_OUT]: 'TSO',
+  [TransactionType.TRANSFER_IN]: 'TSI',
+  [TransactionType.ADJUSTMENT_IN]: 'AJP',
+  [TransactionType.ADJUSTMENT_OUT]: 'AJN',
+  [TransactionType.INVENTORY_COUNT]: 'INV',
+  [TransactionType.INVENTORY_RESERVATION]: 'RES',
+  [TransactionType.INVENTORY_BLOCK]: 'BLQ',
+  [TransactionType.INVENTORY_UNBLOCK]: 'DBL',
+  [TransactionType.PAYMENT_IN]: 'REC',
+  [TransactionType.PAYMENT_OUT]: 'PEM',
+  [TransactionType.SUPPLIER_PAYMENT]: 'PAG',
+  [TransactionType.EXPENSE_PAYMENT]: 'PGO',
+  [TransactionType.PAYROLL]: 'NOM',
+  [TransactionType.PAYMENT_EXECUTION]: 'EPN',
+  [TransactionType.VOID_ADJUSTMENT]: 'ANL',
+  [TransactionType.CASH_DEPOSIT]: 'DEP',
+  [TransactionType.OPERATING_EXPENSE]: 'GTO',
+  [TransactionType.CASH_SESSION_OPENING]: 'APC',
+  [TransactionType.CASH_SESSION_CLOSING]: 'CIE',
+  [TransactionType.CASH_SESSION_WITHDRAWAL]: 'RET',
+  [TransactionType.CASH_SESSION_DEPOSIT]: 'ING',
+  [TransactionType.BANK_WITHDRAWAL_TO_SHAREHOLDER]: 'RAC',
+};

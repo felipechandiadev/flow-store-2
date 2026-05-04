@@ -37,6 +37,7 @@ export type CreateSupplierInvoiceInput = {
 
 export type SupplierInvoiceListItem = {
   id: string;
+  documentNumber?: string | null;
   transactionType: "SUPPLIER_INVOICE";
   status: string;
   total: number;

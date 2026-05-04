@@ -1,0 +1,142 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Alert from "@/shared/components/Alert/Alert";
+import MultimediaUpdater from "@/shared/components/FileUploader/MultimediaUpdater";
+import {
+  listMultimediaForEntityAction,
+  uploadMultimediaForEntityAction,
+  unlinkMultimediaFromEntityAction,
+} from "@/features/multimedia/actions/multimedia.action";
+import type { MultimediaAssetListItem, MultimediaEntityType } from "@/features/multimedia/types/multimedia.types";
+
+const ENTITY_TYPE: MultimediaEntityType = "company";
+
+type Props = {
+  companyId: string;
+};
+
+function pickLogoUrl(assets: MultimediaAssetListItem[]): string | null {
+  const primary = assets.find((a) => a.isPrimary);
+  if (primary?.publicUrl) {
+    return primary.publicUrl;
+  }
+  const firstImage = assets.find((a) => a.mimeType.startsWith("image/") || a.kind === "image");
+  return firstImage?.publicUrl ?? null;
+}
+
+export function CompanyLogoSection({ companyId }: Props) {
+  const router = useRouter();
+  const [assets, setAssets] = useState<MultimediaAssetListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [updaterKey, setUpdaterKey] = useState(0);
+
+  const load = useCallback(async () => {
+    const id = companyId.trim();
+    if (!id) {
+      setAssets([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const r = await listMultimediaForEntityAction(ENTITY_TYPE, id);
+    setLoading(false);
+    if (r.success) {
+      setAssets(r.assets);
+    } else {
+      setError(r.error);
+      setAssets([]);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const currentUrl = pickLogoUrl(assets);
+
+  const handleFile = async (file: File | null) => {
+    if (!file) {
+      return;
+    }
+    const id = companyId.trim();
+    if (!id || busy) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      for (const a of assets) {
+        const u = await unlinkMultimediaFromEntityAction({
+          assetId: a.id,
+          entityType: ENTITY_TYPE,
+          entityId: id,
+          usageType: "default",
+        });
+        if (!u.success) {
+          setError(u.error);
+          setBusy(false);
+          return;
+        }
+      }
+      const form = new FormData();
+      form.append("file", file);
+      form.append("entityType", ENTITY_TYPE);
+      form.append("entityId", id);
+      form.append("isPrimary", "true");
+      const up = await uploadMultimediaForEntityAction(form);
+      if (!up.success) {
+        setError(up.error);
+        return;
+      }
+      await load();
+      setUpdaterKey((k) => k + 1);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!companyId.trim()) {
+    return null;
+  }
+
+  return (
+    <div
+      className="mx-auto flex w-full max-w-xl flex-col items-center gap-2"
+      data-test-id="settings-company-logo-section"
+    >
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Logo de la empresa</p>
+      {error ? (
+        <Alert variant="error" className="w-full max-w-xl">
+          {error}
+        </Alert>
+      ) : null}
+      <div className={`w-full max-w-xl ${loading || busy ? "pointer-events-none opacity-60" : ""}`}>
+        <MultimediaUpdater
+          key={`${updaterKey}-${currentUrl ?? "none"}`}
+          currentUrl={currentUrl}
+          currentType="image"
+          variant="logo"
+          logoSize="sm"
+          allowDragDrop
+          acceptedTypes={["image/*"]}
+          maxSize={5}
+          labelText=""
+          buttonText="Actualizar logo"
+          disabled={busy || loading}
+          className="mt-0 w-full space-y-3"
+          onFileChange={(f) => {
+            if (f) {
+              void handleFile(f);
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+}

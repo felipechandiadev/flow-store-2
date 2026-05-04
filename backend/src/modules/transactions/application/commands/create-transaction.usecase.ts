@@ -10,10 +10,11 @@ import {
 import { TransactionLine } from '../../../transaction-lines/domain/transaction-line.entity';
 import { Branch } from '../../../branches/domain/branch.entity';
 import { Customer } from '../../../customers/domain/customer.entity';
+import { User } from '../../../users/domain/user.entity';
 import { TransactionCreatedEvent } from '../../../../shared/events/transaction-created.event';
-import { DOCUMENT_PREFIXES } from '../../../../shared/enums/document-prefixes';
 import { AccountingPeriodsService } from '../../../accounting-periods/application/accounting-periods.service';
 import { CreateTransactionDto } from '../dto/create-transaction.dto';
+import { DocumentNumberService } from '../document-number.service';
 
 export class CreateTransactionCommand {
   constructor(public readonly dto: CreateTransactionDto) {}
@@ -29,9 +30,12 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
     private readonly transactionsRepository: Repository<Transaction>,
     @InjectRepository(Branch)
     private readonly branchRepository: Repository<Branch>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly dataSource: DataSource,
     private readonly accountingPeriodsService: AccountingPeriodsService,
     private readonly eventBus: EventBus,
+    private readonly documentNumberService: DocumentNumberService,
   ) {}
 
   async execute(command: CreateTransactionCommand): Promise<Transaction> {
@@ -56,6 +60,15 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
       );
     }
 
+    const userExists = await this.userRepository.exist({
+      where: { id: dto.userId },
+    });
+    if (!userExists) {
+      throw new BadRequestException(
+        `Usuario no encontrado (userId inválido). Vuelva a iniciar sesión o verifique el id de usuario.`,
+      );
+    }
+
     const companyId = branch.companyId;
 
     // Paso 0: ASEGURAR período contable (APERTURA AUTOMÁTICA)
@@ -73,17 +86,24 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
     // Usar transacción DB para ATOMICIDAD
     return this.dataSource.transaction(async (manager) => {
       try {
-        // Paso 2: Generar documentNumber único
-        const documentNumber = await this.generateDocumentNumber(
+        // Paso 2: Folio correlativo (SIGLA-YY-00001)
+        const documentNumber = await this.documentNumberService.allocateNext(
           dto.branchId,
           dto.transactionType,
+          manager,
         );
 
         // Paso 3-4: Crear y guardar Transaction en BD
+        const initialStatus =
+          dto.transactionType === TransactionType.PURCHASE_ORDER &&
+          dto.transactionStatus === TransactionStatus.DRAFT
+            ? TransactionStatus.DRAFT
+            : TransactionStatus.CONFIRMED;
+
         const transactionData: any = {
           documentNumber,
           transactionType: dto.transactionType,
-          status: TransactionStatus.CONFIRMED,
+          status: initialStatus,
           branchId: dto.branchId,
           userId: dto.userId,
           pointOfSaleId: dto.pointOfSaleId || null,
@@ -202,17 +222,4 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
     });
   }
 
-  private async generateDocumentNumber(
-    branchId: string,
-    txType: TransactionType,
-  ): Promise<string> {
-    // TODO: Implementar correlativo único por branch + type
-    const prefix = DOCUMENT_PREFIXES[txType];
-    const branchCode = branchId.substring(0, 8).toUpperCase();
-    const timestamp = Date.now().toString().slice(-8);
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, '0');
-    return `${prefix}${branchCode}-${timestamp}-${random}`;
-  }
 }

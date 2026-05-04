@@ -528,6 +528,45 @@ export const ACCOUNTING_RULES_SEED = [
       description: 'Reverso de IVA deducible en devolución',
     },
   },
+
+  /**
+   * Nota de crédito proveedor: reduce CxP (2.1.01) sin repetir salida de inventario
+   * (el stock ya salió con PURCHASE_RETURN). Contra ingreso / descuento sobre compras (4.1.02).
+   * Activar en BD por compañía según política contable.
+   */
+  {
+    name: 'Supplier Credit Note - reduce AP',
+    companyId: 'PLACEHOLDER_COMPANY_ID',
+    appliesTo: 'TRANSACTION',
+    transactionType: 'SUPPLIER_CREDIT_NOTE',
+    expenseCategoryId: null,
+    taxId: null,
+    paymentMethod: null,
+    debitAccountCode: '2.1.01',
+    creditAccountCode: '4.1.02',
+    priority: 94,
+    isActive: true,
+    metadata: {
+      description: 'NC proveedor: baja pasivo proveedores vs devoluciones/descuentos',
+    },
+  },
+
+  {
+    name: 'IVA on Supplier Credit Note (line)',
+    companyId: 'PLACEHOLDER_COMPANY_ID',
+    appliesTo: 'TRANSACTION_LINE',
+    transactionType: 'SUPPLIER_CREDIT_NOTE',
+    expenseCategoryId: null,
+    taxId: 'PLACEHOLDER_IVA_TAX_ID',
+    paymentMethod: null,
+    debitAccountCode: '2.1.01',
+    creditAccountCode: '1.2.04',
+    priority: 95,
+    isActive: true,
+    metadata: {
+      description: 'Ajuste IVA deducible en nota de crédito proveedor',
+    },
+  },
 ];
 
 /**

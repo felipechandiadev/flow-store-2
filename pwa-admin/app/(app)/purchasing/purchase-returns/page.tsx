@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function Page() {
-  redirect("/purchasing/invoices/list");
+  redirect("/purchasing/purchase-returns/list");
 }
-

@@ -9,9 +9,8 @@ import {
   TransactionType,
 } from '@modules/transactions/domain/transaction.entity';
 import { TransactionOrmEntity } from '@modules/transactions/infrastructure/orm-mappers/transaction.orm-entity';
-import { BranchOrmEntity } from '@modules/branches/infrastructure/orm-mappers/branch.orm-entity';
 import { TransactionCreatedEvent } from '@shared/events/transaction-created.event';
-import { DOCUMENT_PREFIXES } from '@shared/enums/document-prefixes';
+import { DocumentNumberService } from '@modules/transactions/application/document-number.service';
 
 @CommandHandler(CompleteSupplierPaymentCommand)
 export class CompleteSupplierPaymentCommandHandler implements ICommandHandler<CompleteSupplierPaymentCommand> {
@@ -22,10 +21,9 @@ export class CompleteSupplierPaymentCommandHandler implements ICommandHandler<Co
   constructor(
     @InjectRepository(TransactionOrmEntity)
     private readonly transactionRepository: Repository<TransactionOrmEntity>,
-    @InjectRepository(BranchOrmEntity)
-    private readonly branchRepository: Repository<BranchOrmEntity>,
     private readonly dataSource: DataSource,
     private readonly eventBus: EventBus,
+    private readonly documentNumberService: DocumentNumberService,
   ) {}
 
   async execute(command: CompleteSupplierPaymentCommand): Promise<Transaction> {
@@ -94,10 +92,10 @@ export class CompleteSupplierPaymentCommandHandler implements ICommandHandler<Co
         `Payment ${command.paymentId} marked as CONFIRMED. Amount: ${payment.total}`,
       );
 
-      // 2. Generate document number for PAYMENT_EXECUTION
-      const executionDocNumber = await this.generateDocumentNumber(
+      const executionDocNumber = await this.documentNumberService.allocateNext(
         payment.branchId || '',
         TransactionType.PAYMENT_EXECUTION,
+        manager,
       );
 
       // 3. Create PAYMENT_EXECUTION transaction
@@ -156,25 +154,6 @@ export class CompleteSupplierPaymentCommandHandler implements ICommandHandler<Co
     );
 
     return domainTransaction;
-  }
-
-  private async generateDocumentNumber(
-    branchId: string,
-    transactionType: string,
-  ): Promise<string> {
-    const branch = await this.branchRepository.findOne({
-      where: { id: branchId },
-    });
-
-    if (!branch) {
-      throw new BadRequestException(`Branch ${branchId} not found`);
-    }
-
-    const prefix = DOCUMENT_PREFIXES[transactionType] || 'TXN';
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-    return `${prefix}-${branch.id.substring(0, 8)}-${timestamp}-${random}`;
   }
 
   private toDomain(orm: TransactionOrmEntity): Transaction {

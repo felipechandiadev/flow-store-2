@@ -1,6 +1,8 @@
-import { listSupplierInvoicesForPage } from "@/features/purchasing-invoices/actions/supplier-invoice.action";
+import { listPurchaseReturnsForPage } from "@/features/purchasing-purchase-returns/actions/purchase-return.action";
 
-export default async function SupplierInvoiceListPage({
+export const dynamic = "force-dynamic";
+
+export default async function PurchaseReturnsListPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -9,14 +11,12 @@ export default async function SupplierInvoiceListPage({
   const page = Math.max(1, parseInt((sp.page as string) || "1", 10) || 1);
   const limit = Math.min(100, Math.max(1, parseInt((sp.limit as string) || "25", 10) || 25));
 
-  const res = await listSupplierInvoicesForPage({ page, limit });
+  const res = await listPurchaseReturnsForPage({ page, limit });
 
   return (
-    <div className="min-w-0 max-w-5xl" data-test-id="supplier-invoices-list-page">
+    <div className="min-w-0 max-w-5xl" data-test-id="purchase-returns-list-page">
       <h2 className="text-lg font-semibold tracking-tight text-foreground">Listado</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {res.total} facturas
-      </p>
+      <p className="mt-2 text-sm text-muted-foreground">{res.total} devoluciones</p>
 
       <div className="mt-4 overflow-x-auto rounded-md border border-border">
         <table className="w-full min-w-[720px] text-sm">
@@ -50,7 +50,7 @@ export default async function SupplierInvoiceListPage({
             {res.data.length === 0 ? (
               <tr>
                 <td className="px-3 py-6 text-muted-foreground" colSpan={5}>
-                  No hay facturas aún.
+                  No hay devoluciones aún.
                 </td>
               </tr>
             ) : null}
@@ -60,4 +60,3 @@ export default async function SupplierInvoiceListPage({
     </div>
   );
 }
-

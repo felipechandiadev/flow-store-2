@@ -2,14 +2,16 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsDateString,
+  IsIn,
   IsNumber,
-  IsObject,
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
+import { RECEPTION_DTE_TYPES } from '../../domain/reception-dte-type';
 
 export class ReceptionPaymentDto {
   @Type(() => Number)
@@ -106,6 +108,16 @@ export class CreateReceptionDto {
   @IsOptional()
   @IsString()
   documentNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  dteNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn([...RECEPTION_DTE_TYPES])
+  dteType?: (typeof RECEPTION_DTE_TYPES)[number];
 
   @IsOptional()
   @IsString()

@@ -15,7 +15,7 @@ import { CustomerOrmEntity } from '@modules/customers/infrastructure/orm-mappers
 import { BranchOrmEntity } from '@modules/branches/infrastructure/orm-mappers/branch.orm-entity';
 import { AccountingPeriodsService } from '@modules/accounting-periods/application/accounting-periods.service';
 import { TransactionCreatedEvent } from '@shared/events/transaction-created.event';
-import { DOCUMENT_PREFIXES } from '@shared/enums/document-prefixes';
+import { DocumentNumberService } from '@modules/transactions/application/document-number.service';
 
 @CommandHandler(CreateTransactionCommand)
 export class CreateTransactionCommandHandler implements ICommandHandler<CreateTransactionCommand> {
@@ -31,6 +31,7 @@ export class CreateTransactionCommandHandler implements ICommandHandler<CreateTr
     private readonly dataSource: DataSource,
     private readonly accountingPeriodsService: AccountingPeriodsService,
     private readonly eventBus: EventBus,
+    private readonly documentNumberService: DocumentNumberService,
   ) {}
 
   async execute(command: CreateTransactionCommand): Promise<Transaction> {
@@ -64,10 +65,10 @@ export class CreateTransactionCommandHandler implements ICommandHandler<CreateTr
 
     // Execute transaction creation in DB transaction
     const result = await this.dataSource.transaction(async (manager) => {
-      // Generate document number
-      const documentNumber = await this.generateDocumentNumber(
+      const documentNumber = await this.documentNumberService.allocateNext(
         command.branchId,
-        command.transactionType,
+        command.transactionType as TransactionType,
+        manager,
       );
 
       // Create transaction entity
@@ -193,26 +194,6 @@ export class CreateTransactionCommandHandler implements ICommandHandler<CreateTr
     );
 
     return this.toDomain(result);
-  }
-
-  private async generateDocumentNumber(
-    branchId: string,
-    transactionType: string,
-  ): Promise<string> {
-    // Get branch for code
-    const branch = await this.branchRepository.findOne({
-      where: { id: branchId },
-    });
-
-    if (!branch) {
-      throw new BadRequestException(`Branch ${branchId} not found`);
-    }
-
-    const prefix = DOCUMENT_PREFIXES[transactionType] || 'TXN';
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-    return `${prefix}-${branch.id.substring(0, 8)}-${timestamp}-${random}`;
   }
 
   private toDomain(orm: TransactionOrmEntity): Transaction {

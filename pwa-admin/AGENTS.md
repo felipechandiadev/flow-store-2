@@ -20,6 +20,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Contexto de negocio en servidor:** si hace falta otra entidad (p. ej. `companyId` al crear), resolverlo en el **use case** vía otras clases de `infrastructure` (`CompanyRequest`, etc.), no en componentes.
 - Tras implementar una pantalla nueva con este patrón, respetar también las reglas de **UI** (diálogos, copy «Crear» / «Actualizar», `alertArea`, etc.) de la siguiente sección.
 
+## Formato de fechas en la UI admin
+
+- **Solo fecha** (campos de calendario, metadata sin hora, `YYYY-MM-DD`): **`DD/MM/YYYY`** con barras, día y mes con dos dígitos cuando aplique; ejemplo: `03/05/2026`.
+- **Fecha y hora** (timestamps, `createdAt`, etc.): **`DD/MM/YYYY HH:mm`** con barras, año de 4 dígitos, hora **24 h**, horas y minutos con dos dígitos; ejemplo: `03/05/2026 11:57`. **No** añadir segundos salvo requisito explícito.
+- Interpretar valores en zona **local del navegador** salvo que el producto documente zona fija para esa pantalla.
+
 ## UI: diálogos y cards
 
 - **Todos** los modales / diálogos deben construirse con el componente compartido `Dialog` (`@/shared/components/Dialog/Dialog.tsx`).

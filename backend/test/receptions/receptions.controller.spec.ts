@@ -392,8 +392,41 @@ describe('ReceptionsController - Integration Tests', () => {
             receptionType: 'direct',
             storageId: 'storage-1',
             supplierId: 'supplier-1',
+            dte_number: null,
+            dte_type: null,
           }),
           externalReference: 'REF-123',
+        }),
+      );
+    });
+
+    it('incluye dte_number y dte_type en metadata cuando se envían', async () => {
+      const createData = {
+        storageId: 'storage-1',
+        branchId: 'branch-1',
+        userId: 'user-1',
+        supplierId: 'supplier-1',
+        dteNumber: 'T-123456',
+        dteType: 'receipt' as const,
+        lines: [
+          {
+            productName: 'Producto Test',
+            quantity: 10,
+            unitPrice: 5000,
+            receivedQuantity: 10,
+          },
+        ],
+      };
+
+      await controller.create(createData);
+
+      expect(mockTransactionsService.createTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            dte_number: 'T-123456',
+            dte_type: 'receipt',
+          }),
+          externalReference: 'T-123456',
         }),
       );
     });

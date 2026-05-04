@@ -1,4 +1,4 @@
-export type MultimediaEntityType = "product" | "product-variant";
+export type MultimediaEntityType = "product" | "product-variant" | "company";
 
 export type MultimediaAssetListItem = {
   id: string;

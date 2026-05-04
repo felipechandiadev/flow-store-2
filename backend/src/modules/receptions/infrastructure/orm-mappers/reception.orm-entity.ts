@@ -45,6 +45,12 @@ export class ReceptionOrmEntity {
   @Column({ type: 'varchar', length: 255, nullable: true })
   documentNumber?: string;
 
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  dteNumber?: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  dteType?: string;
+
   @Column({ type: 'text', nullable: true })
   notes?: string;
 

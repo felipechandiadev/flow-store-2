@@ -127,6 +127,7 @@ export class ReceptionsService {
 
   private mapReceptionListItem(reception: any) {
     const documentNumber =
+      reception?.dteNumber ||
       reception?.documentNumber ||
       reception?.reference ||
       (typeof reception?.id === 'string' ? reception.id : null);
@@ -303,7 +304,15 @@ export class ReceptionsService {
       dto.total = 0;
       dto.lines = [];
       dto.notes = reception.notes || null;
-      dto.externalReference = reception.reference || reception.documentNumber || null;
+      const dteNum =
+        (reception.dteNumber && String(reception.dteNumber).trim()) ||
+        (reception.documentNumber && String(reception.documentNumber).trim()) ||
+        null;
+      dto.externalReference =
+        dteNum || reception.reference || reception.documentNumber || null;
+
+      const dteTypeNorm =
+        reception.dteType && String(reception.dteType).trim().toLowerCase();
 
       // Attach reception-specific metadata so consumers can identify origin
       dto.metadata = {
@@ -312,6 +321,8 @@ export class ReceptionsService {
         receptionType: reception.type || 'direct',
         storageId: reception.storageId || null,
         supplierId: reception.supplierId || null,
+        dte_number: dteNum,
+        dte_type: dteTypeNorm || null,
         links: {
           // Reception currently doesn't store PO id as FK; keep link placeholders in metadata.
           purchaseOrderId: null,
@@ -404,6 +415,8 @@ export class ReceptionsService {
       userId: data.userId,
       reference: data.reference,
       documentNumber: data.documentNumber,
+      dteNumber: data.dteNumber,
+      dteType: data.dteType || null,
       notes: data.notes,
       payments: data.payments,
       subtotal: 0,
@@ -487,6 +500,8 @@ export class ReceptionsService {
       userId: data.userId,
       reference: data.reference,
       documentNumber: data.documentNumber,
+      dteNumber: data.dteNumber,
+      dteType: data.dteType || null,
       notes: data.notes,
       payments: data.payments,
       subtotal: 0,
@@ -570,6 +585,8 @@ export class ReceptionsService {
       userId: data.userId,
       reference: data.reference,
       documentNumber: data.documentNumber,
+      dteNumber: data.dteNumber,
+      dteType: data.dteType || null,
       notes: data.notes,
       payments: data.payments,
       subtotal: 0,

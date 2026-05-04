@@ -5,6 +5,8 @@ import { Button } from '../Button/Button';
 import IconButton from '../IconButton/IconButton';
 import type { MultimediaBannerSize } from './multimedia-banner-size';
 import { bannerAreaClassName, bannerPlaceholderIconDimension } from './multimedia-banner-size';
+import type { MultimediaLogoSize } from './multimedia-logo-size';
+import { logoAreaClassName, logoPlaceholderIconDimension } from './multimedia-logo-size';
 // TODO: Create shared/hooks/useAlert hook
 // import { useAlert } from '@/shared/hooks/useAlert';
 
@@ -18,10 +20,12 @@ interface MultimediaUploaderProps {
   maxSize?: number; // Tamaño máximo en MB
   aspectRatio?: 'square' | 'video' | '16:9' | 'auto';
   buttonType?: 'icon' | 'normal';
-  /** `collection` = varios archivos + rejilla; `avatar` / `banner` = un solo archivo con layout fijo. */
-  variant?: 'collection' | 'avatar' | 'banner';
+  /** `collection` = varios archivos + rejilla; `avatar` / `banner` / `logo` = un solo archivo con layout fijo. */
+  variant?: 'collection' | 'avatar' | 'banner' | 'logo';
   /** Solo `variant="banner"`: ancho del área 16:9 (vacío + preview): xs … full. Por defecto `md`. */
   bannerSize?: MultimediaBannerSize;
+  /** Solo `variant="logo"`: ancho del área 1:1 (vacío + preview): xs … full. Por defecto `md`. */
+  logoSize?: MultimediaLogoSize;
   previewSize?: 'xs' | 'sm' | 'normal' | 'lg' | 'xl'; // Opciones de tamaño de miniatura
   disabled?: boolean;
 }
@@ -37,6 +41,7 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
   buttonType = 'icon',
   variant = 'collection',
   bannerSize = 'md',
+  logoSize = 'md',
   previewSize = 'normal', // xs | sm | normal | lg | xl
   disabled = false,
 }) => {
@@ -76,7 +81,7 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
     if (selectedFiles.length === 0) return;
 
     // Para variante avatar: solo un archivo y solo imágenes
-    if (variant === 'avatar' || variant === 'banner') {
+    if (variant === 'avatar' || variant === 'banner' || variant === 'logo') {
       const file = selectedFiles[0];
       
       // Solo imágenes
@@ -207,8 +212,8 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
             <input
         ref={inputRef}
         type="file"
-        accept={variant === 'avatar' || variant === 'banner' ? 'image/*' : accept}
-        multiple={variant !== 'avatar' && variant !== 'banner'} // solamente single para avatar/banner
+        accept={variant === 'avatar' || variant === 'banner' || variant === 'logo' ? 'image/*' : accept}
+        multiple={variant !== 'avatar' && variant !== 'banner' && variant !== 'logo'}
         style={{ display: 'none' }}
         disabled={disabled}
         onChange={handleFileChange}
@@ -245,7 +250,7 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
           className={`flex flex-col gap-4 ${bannerSize === 'full' ? 'w-full' : 'items-center'}`}
         >
           <div
-            className={`${bannerAreaClassName(bannerSize)} hover:border-blue-500 border border-transparent bg-muted/25`}
+            className={`${bannerAreaClassName(bannerSize)} border border-border bg-muted/25 hover:border-blue-500`}
             onClick={openPicker}
           >
             {previewUrls.length > 0 ? (
@@ -265,6 +270,30 @@ export const MultimediaUploader: React.FC<MultimediaUploaderProps> = ({
             onClick={openPicker}
             disabled={disabled}
             ariaLabel="Seleccionar imagen"
+          />
+        </div>
+      ) : variant === 'logo' ? (
+        <div
+          className={`flex flex-col gap-4 ${logoSize === 'full' ? 'w-full' : 'items-center'}`}
+        >
+          <div className={logoAreaClassName(logoSize)} onClick={openPicker}>
+            {previewUrls.length > 0 ? (
+              <img
+                src={previewUrls[0]}
+                alt="Logo preview"
+                className="h-full w-full object-cover rounded-lg"
+              />
+            ) : (
+              <ImageIcon className="text-secondary" size={logoPlaceholderIconDimension(logoSize)} />
+            )}
+          </div>
+
+          <IconButton
+            icon="Plus"
+            variant="containedSecondary"
+            onClick={openPicker}
+            disabled={disabled}
+            ariaLabel="Seleccionar logo"
           />
         </div>
       ) : (

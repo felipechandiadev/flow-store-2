@@ -31,6 +31,26 @@ END $$;
         `Could not ensure SUPPLIER_INVOICE enum value: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+    try {
+      await this.dataSource.query(`
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_enum e ON t.oid = e.enumtypid
+    WHERE t.typname = 'transactions_transactiontype_enum'
+      AND e.enumlabel = 'SUPPLIER_CREDIT_NOTE'
+  ) THEN
+    ALTER TYPE transactions_transactiontype_enum ADD VALUE 'SUPPLIER_CREDIT_NOTE';
+  END IF;
+END $$;
+      `);
+    } catch (err) {
+      this.logger.warn(
+        `Could not ensure SUPPLIER_CREDIT_NOTE enum value: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 }
 

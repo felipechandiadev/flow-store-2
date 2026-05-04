@@ -39,7 +39,8 @@ export function UserCard({ user, "data-test-id": dataTestId }: UserCardProps) {
   const [deleteErrors, setDeleteErrors] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const sessionUserId = session?.user?.id ?? session?.user?.accessToken;
+  const sessionUserId =
+    session?.user?.accessToken ?? session?.user?.id;
   const isSelf = sessionUserId != null && String(sessionUserId) === String(user.id);
   const title = displayName(user);
   const sub = `@${user.userName}`;

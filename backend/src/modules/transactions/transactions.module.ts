@@ -3,10 +3,13 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TransactionsController } from './presentation/transactions.controller';
 import { SupplierPaymentsController } from './presentation/supplier-payments.controller';
+import { PurchaseOrdersController } from './presentation/purchase-orders.controller';
 import { OperatingExpenseTransactionsController } from './presentation/operating-expense-transactions.controller';
 import { InventoryController } from './presentation/controllers/inventory.controller';
 import { TransactionsService } from './application/transactions.service';
+import { PurchaseOrdersService } from './application/purchase-orders.service';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
+import { DocumentSequence } from '@modules/transactions/domain/document-sequence.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
 import { TransactionOrmEntity } from './infrastructure/orm-mappers/transaction.orm-entity';
 import { BranchOrmEntity } from '@modules/branches/infrastructure/orm-mappers/branch.orm-entity';
@@ -17,6 +20,7 @@ import { Product } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
 import { User } from '@modules/users/domain/user.entity';
+import { Tax } from '@modules/taxes/domain/tax.entity';
 import { Customer } from '@modules/customers/domain/customer.entity';
 import { LedgerEntriesModule } from '@modules/ledger-entries/ledger-entries.module';
 import { AccountingPeriodsModule } from '@modules/accounting-periods/accounting-periods.module';
@@ -42,6 +46,7 @@ import { GetTotalSalesForSessionQueryHandler } from './application/queries/get-t
 import { GetMovementsForSessionQueryHandler } from './application/queries/get-movements-for-session.query';
 import { FindTransactionQueryHandler } from './application/queries/find-transaction.query';
 import { TransactionsServiceAdapter } from './application/transactions.service.adapter';
+import { DocumentNumberService } from './application/document-number.service';
 
 // Inventory CQRS
 import { inventoryCommandHandlers } from './application/commands/inventory';
@@ -55,6 +60,7 @@ import { EventStoreModule } from './infrastructure/event-store/event-store.modul
   imports: [
     TypeOrmModule.forFeature([
       Transaction,
+      DocumentSequence,
       TransactionOrmEntity,
       TransactionLineOrmEntity,
       TransactionLine,
@@ -66,6 +72,7 @@ import { EventStoreModule } from './infrastructure/event-store/event-store.modul
       User,
       Customer,
       CustomerOrmEntity,
+      Tax,
     ]),
     LedgerEntriesModule,
     AccountingPeriodsModule,
@@ -76,10 +83,13 @@ import { EventStoreModule } from './infrastructure/event-store/event-store.modul
   controllers: [
     TransactionsController,
     SupplierPaymentsController,
+    PurchaseOrdersController,
     OperatingExpenseTransactionsController,
     InventoryController,
   ],
   providers: [
+    DocumentNumberService,
+    PurchaseOrdersService,
     TransactionsService, // Adapter for backward compatibility
     TransactionsServiceAdapter,
     TransactionRepository,
