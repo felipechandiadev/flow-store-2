@@ -19,6 +19,14 @@ import {
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 import { AttributesService } from '@modules/attributes/application/attributes.service';
 import { SearchPurchasingVariantsDto } from './dto/search-purchasing-variants.dto';
+import { appendPmpHistory } from './helpers/pmp-history';
+import {
+  foldPurchasingSearchText,
+  mysqlFoldLowerColumnExpr,
+  PG_PURCHASING_SEARCH_TRANSLATE_FROM,
+  PG_PURCHASING_SEARCH_TRANSLATE_TO,
+  purchasingSearchLikePattern,
+} from './helpers/purchasing-search-text-fold';
 
 @Injectable()
 export class ProductVariantsService {
@@ -262,6 +270,7 @@ export class ProductVariantsService {
       ? [...sanitizedData.multimediaAssetIds]
       : undefined;
     delete sanitizedData.multimediaAssetIds;
+    delete (sanitizedData as any).pmpHistory;
 
     this.assertUniquePriceListIdsInPayload(sanitizedData.priceListItems);
 
@@ -274,13 +283,23 @@ export class ProductVariantsService {
       normalizedAttrValues,
     );
 
+    const initialPmp = Number(sanitizedData.pmp ?? 0) || 0;
     const variant = {
       productId: sanitizedData.productId || null,
       sku: sanitizedData.sku || '',
       barcode: sanitizedData.barcode || null,
       basePrice: sanitizedData.basePrice ?? 0,
       baseCost: sanitizedData.baseCost ?? 0,
-      pmp: sanitizedData.pmp ?? 0,
+      pmp: initialPmp,
+      ...(initialPmp !== 0
+        ? {
+            pmpHistory: appendPmpHistory(undefined, {
+              previousPmp: 0,
+              newPmp: initialPmp,
+              source: 'initial',
+            }),
+          }
+        : {}),
       unitId: sanitizedData.unitId,
       weight: sanitizedData.weight ?? null,
       weightUnit: sanitizedData.weightUnit ?? 'kg',
@@ -345,6 +364,7 @@ export class ProductVariantsService {
       ? [...sanitizedData.multimediaAssetIds]
       : undefined;
     delete sanitizedData.multimediaAssetIds;
+    delete (sanitizedData as any).pmpHistory;
 
     const v =
       typeof (this.variantRepository as any).findById === 'function'
@@ -363,6 +383,12 @@ export class ProductVariantsService {
       delete sanitizedData.attributeValues;
     }
 
+    const pmpProvided = Object.prototype.hasOwnProperty.call(
+      sanitizedData,
+      'pmp',
+    );
+    const prevPmp = Number((v as any).pmp ?? 0) || 0;
+
     Object.assign(v, sanitizedData);
     if (normalizedAttrValues !== undefined) {
       await this.assertUniqueAttributeValuesAmongSiblings(
@@ -372,6 +398,16 @@ export class ProductVariantsService {
       );
       (v as any).attributeValues = normalizedAttrValues;
     }
+
+    if (pmpProvided) {
+      const newPmp = Number((v as any).pmp ?? 0) || 0;
+      (v as any).pmpHistory = appendPmpHistory((v as any).pmpHistory, {
+        previousPmp: prevPmp,
+        newPmp,
+        source: 'manual_api',
+      });
+    }
+
     const saved = await this.variantRepository.save(v);
 
     if (
@@ -421,11 +457,38 @@ export class ProductVariantsService {
       .andWhere('product.deletedAt IS NULL');
 
     if (q) {
-      const like = `%${q}%`;
-      qb.andWhere(
-        '(product.name LIKE :like OR (product.brand IS NOT NULL AND product.brand LIKE :like) OR v.sku LIKE :like OR (v.barcode IS NOT NULL AND v.barcode LIKE :like) OR (category.name IS NOT NULL AND category.name LIKE :like))',
-        { like },
-      );
+      /**
+       * Mismo criterio que el grid de productos (`get-all-products.handler`):
+       * pliegue en TS + `lower(translate(col))` (Postgres) o `REPLACE` (MySQL) para tildes comunes.
+       */
+      const likeParam = purchasingSearchLikePattern(foldPurchasingSearchText(q));
+      const dbType = this.variantOrm.manager.connection.options.type as string;
+      if (dbType === 'postgres') {
+        const ff = PG_PURCHASING_SEARCH_TRANSLATE_FROM;
+        const ft = PG_PURCHASING_SEARCH_TRANSLATE_TO;
+        qb.andWhere(
+          `(lower(translate(product.name, :ff, :ft)) LIKE :q
+            OR (product.brand IS NOT NULL AND lower(translate(product.brand, :ff, :ft)) LIKE :q)
+            OR lower(translate(v.sku, :ff, :ft)) LIKE :q
+            OR (v.barcode IS NOT NULL AND lower(translate(v.barcode, :ff, :ft)) LIKE :q)
+            OR (category.name IS NOT NULL AND lower(translate(category.name, :ff, :ft)) LIKE :q))`,
+          { q: likeParam, ff, ft },
+        );
+      } else {
+        const pName = mysqlFoldLowerColumnExpr('product.name');
+        const pBrand = mysqlFoldLowerColumnExpr('product.brand');
+        const pSku = mysqlFoldLowerColumnExpr('v.sku');
+        const pBarcode = mysqlFoldLowerColumnExpr('v.barcode');
+        const pCat = mysqlFoldLowerColumnExpr('category.name');
+        qb.andWhere(
+          `(${pName} LIKE :q
+            OR (product.brand IS NOT NULL AND ${pBrand} LIKE :q)
+            OR ${pSku} LIKE :q
+            OR (v.barcode IS NOT NULL AND ${pBarcode} LIKE :q)
+            OR (category.name IS NOT NULL AND ${pCat} LIKE :q))`,
+          { q: likeParam },
+        );
+      }
     }
 
     qb.orderBy('product.name', 'ASC').addOrderBy('v.sku', 'ASC');

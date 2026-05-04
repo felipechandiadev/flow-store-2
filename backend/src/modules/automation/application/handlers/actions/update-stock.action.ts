@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { appendPmpHistory } from '@modules/product-variants/application/helpers/pmp-history';
 import { Transaction, TransactionType } from '@modules/transactions/domain/transaction.entity';
 import { AutomationEventType } from '../../../domain/automation-event-type.enum';
 
@@ -90,12 +91,22 @@ export class UpdateStockActionHandler {
           const variant = await variantRepo.findOne({ where: { id: variantId } });
           if (variant) {
             const prevPmp = Number((variant as any).pmp ?? 0);
-            const newPmp =
+            const newPmpRaw =
               previousStock <= 0
                 ? unitCost
                 : (previousStock * prevPmp + qty * unitCost) /
                   (previousStock + qty);
-            (variant as any).pmp = Number(newPmp.toFixed(2));
+            const newPmp = Number(newPmpRaw.toFixed(2));
+            (variant as any).pmp = newPmp;
+            (variant as any).pmpHistory = appendPmpHistory((variant as any).pmpHistory, {
+              previousPmp: prevPmp,
+              newPmp,
+              source: 'transaction_cost',
+              transactionId: tx.id,
+              storageId,
+              unitCost,
+              quantity: qty,
+            });
             await variantRepo.save(variant);
           }
         }

@@ -9,6 +9,7 @@ export {
   PURCHASE_DOC_URL_QUERY,
   PURCHASE_DOC_URL_PAGE,
   PURCHASE_DOC_URL_LIMIT,
+  PURCHASE_DOC_SEARCH_DEBOUNCE_MS,
   type PurchaseDocumentVariantSearchPanelProps,
 } from "./PurchaseDocumentVariantSearchPanel";
 export {

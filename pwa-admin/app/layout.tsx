@@ -26,6 +26,9 @@ export const viewport: Viewport = {
   themeColor: '#000000',
 };
 
+/** Solo en build/SSR; no usar `process` dentro del string del `<script>` (en el browser no existe). */
+const registerServiceWorkerInProduction = process.env.NODE_ENV === "production";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -34,7 +37,7 @@ export default function RootLayout({
   return (
     <html lang="es-CL">
       <head>
-        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="FlowStore - Panel de administración" />
       </head>
@@ -47,7 +50,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+              if ('serviceWorker' in navigator && ${registerServiceWorkerInProduction}) {
                 navigator.serviceWorker.register('/sw.js');
               }
             `,

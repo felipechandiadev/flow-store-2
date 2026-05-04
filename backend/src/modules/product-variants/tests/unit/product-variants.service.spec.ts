@@ -233,4 +233,93 @@ describe('ProductVariantsService', () => {
       NotFoundException,
     );
   });
+
+  it('should append pmpHistory when pmp is updated via API', async () => {
+    variantRepository.findById
+      .mockResolvedValueOnce({
+        id: 'variant-1',
+        productId: 'product-1',
+        sku: 'SKU-1',
+        pmp: 100,
+        pmpHistory: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'variant-1',
+        productId: 'product-1',
+        sku: 'SKU-1',
+        pmp: 250,
+      });
+    variantRepository.save.mockImplementation(async (row: any) => ({ ...row }));
+    multimediaService.listByEntity.mockResolvedValue([]);
+
+    await service.update('variant-1', { pmp: 250 });
+
+    expect(variantRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pmp: 250,
+        pmpHistory: expect.arrayContaining([
+          expect.objectContaining({
+            previousPmp: 100,
+            newPmp: 250,
+            source: 'manual_api',
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it('should strip pmpHistory from client payload on update', async () => {
+    variantRepository.findById
+      .mockResolvedValueOnce({
+        id: 'variant-1',
+        productId: 'product-1',
+        sku: 'SKU-1',
+        pmp: 10,
+      })
+      .mockResolvedValueOnce({ id: 'variant-1', sku: 'SKU-1' });
+    variantRepository.save.mockImplementation(async (row: any) => ({ ...row }));
+    multimediaService.listByEntity.mockResolvedValue([]);
+
+    await service.update('variant-1', {
+      sku: 'SKU-1',
+      pmpHistory: [{ forged: true }] as any,
+    });
+
+    const saved = variantRepository.save.mock.calls[0][0] as any;
+    expect(saved.pmpHistory).toBeUndefined();
+  });
+
+  it('should set pmpHistory on create when initial pmp is non-zero', async () => {
+    variantRepository.save.mockImplementation(async (row: any) => ({
+      id: 'variant-new',
+      ...row,
+    }));
+    variantRepository.findById.mockResolvedValue({
+      id: 'variant-new',
+      productId: 'product-1',
+      priceListItems: [],
+    });
+    multimediaService.listByEntity.mockResolvedValue([]);
+
+    await service.create({
+      productId: 'product-1',
+      sku: 'SKU-PMP',
+      basePrice: 1,
+      unitId: 'unit-1',
+      pmp: 99.5,
+    });
+
+    expect(variantRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pmp: 99.5,
+        pmpHistory: expect.arrayContaining([
+          expect.objectContaining({
+            previousPmp: 0,
+            newPmp: 99.5,
+            source: 'initial',
+          }),
+        ]),
+      }),
+    );
+  });
 });

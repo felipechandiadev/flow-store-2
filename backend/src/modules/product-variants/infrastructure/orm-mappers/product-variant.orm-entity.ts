@@ -14,6 +14,7 @@ import {
 import { ProductOrmEntity as Product } from '@modules/products/infrastructure/orm-mappers/product.orm-entity';
 import { UnitOrmEntity as Unit } from '@modules/units/infrastructure/orm-mappers/unit.orm-entity';
 import { PriceListItemOrmEntity as PriceListItem } from '@modules/price-list-items/infrastructure/orm-mappers/price-list-item.orm-entity';
+import type { PmpHistoryEntry } from '@modules/product-variants/domain/pmp-history.types';
 
 @Entity('product_variants')
 export class ProductVariantOrmEntity {
@@ -37,6 +38,9 @@ export class ProductVariantOrmEntity {
 
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   pmp!: number;
+
+  @Column({ type: 'json', nullable: true })
+  pmpHistory?: PmpHistoryEntry[] | null;
 
   @Column({ type: 'uuid', name: 'unit_id' })
   unitId!: string;

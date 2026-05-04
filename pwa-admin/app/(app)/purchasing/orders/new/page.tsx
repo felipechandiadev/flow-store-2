@@ -1,26 +1,16 @@
-import { PurchasingVariantSearchRequest } from "@/features/purchasing-document/infrastructure/purchasing-variant-search.request";
-import { createPurchaseOrderAction } from "@/features/purchasing-document/actions/purchase-order.action";
-import { listSuppliersForGrid } from "@/features/purchasing-suppliers/actions/supplier.action";
-import { listStoragesForPage } from "@/features/inventory-storages/actions/storage.action";
-import { listTaxesForPage } from "@/features/accounting-taxes/actions/tax.action";
-import { listBranchesForSettingsPage } from "@/features/settings-branches/actions/branch.action";
-import {
-  PurchaseDocumentBuilder,
-  PURCHASE_DOC_URL_LIMIT,
-  PURCHASE_DOC_URL_PAGE,
-  PURCHASE_DOC_URL_QUERY,
-  clampPurchaseDocVariantSearchPageSize,
-  PURCHASE_DOC_VARIANT_SEARCH_DEFAULT_PAGE_SIZE,
-} from "@/shared/components/PurchaseDocumentBuilder";
+import { Suspense } from "react";
+import { unstable_noStore as noStore } from "next/cache";
+import { connection } from "next/server";
+import PurchaseOrderNewPageContent from "./PurchaseOrderNewPageContent";
 
 export const dynamic = "force-dynamic";
 
-function parseSp(sp: Record<string, string | string[] | undefined>, key: string): string {
-  const v = sp[key];
-  if (Array.isArray(v)) {
-    return typeof v[0] === "string" ? v[0] : "";
-  }
-  return typeof v === "string" ? v : "";
+function PurchaseOrderNewFallback() {
+  return (
+    <div className="min-h-0 min-w-0 p-3 text-sm text-muted-foreground" data-test-id="purchase-orders-new-skeleton">
+      Cargando búsqueda…
+    </div>
+  );
 }
 
 export default async function NewPurchaseOrderPage({
@@ -28,38 +18,12 @@ export default async function NewPurchaseOrderPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const sp = await searchParams;
-  const q = parseSp(sp, PURCHASE_DOC_URL_QUERY);
-  const page = Math.max(1, parseInt(parseSp(sp, PURCHASE_DOC_URL_PAGE) || "1", 10) || 1);
-  const limitRaw = parseSp(sp, PURCHASE_DOC_URL_LIMIT);
-  const limitParsed = limitRaw ? parseInt(limitRaw, 10) : NaN;
-  const pageSize = Number.isFinite(limitParsed)
-    ? clampPurchaseDocVariantSearchPageSize(limitParsed)
-    : PURCHASE_DOC_VARIANT_SEARCH_DEFAULT_PAGE_SIZE;
-
-  const [variantSearch, suppliersResult, storages, taxes, branches] = await Promise.all([
-    PurchasingVariantSearchRequest.search({ q, page, pageSize }),
-    listSuppliersForGrid(),
-    listStoragesForPage(),
-    listTaxesForPage(),
-    listBranchesForSettingsPage(),
-  ]);
-
-  const branchId = branches[0]?.id ?? "";
+  await connection();
+  noStore();
 
   return (
-    <div className="min-h-0 min-w-0" data-test-id="purchase-orders-new-page">
-      <PurchaseDocumentBuilder
-        mode="purchase_order"
-        variantSearch={variantSearch}
-        searchQuery={q}
-        searchPage={page}
-        suppliers={suppliersResult.rows}
-        storages={storages}
-        taxes={taxes}
-        branchId={branchId}
-        onSavePurchaseOrder={createPurchaseOrderAction}
-      />
-    </div>
+    <Suspense fallback={<PurchaseOrderNewFallback />}>
+      <PurchaseOrderNewPageContent searchParams={searchParams} />
+    </Suspense>
   );
 }

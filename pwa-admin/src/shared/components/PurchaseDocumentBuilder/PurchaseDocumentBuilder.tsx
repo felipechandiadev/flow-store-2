@@ -24,6 +24,7 @@ import type {
 } from "@/features/receptions/types/reception.types";
 import { formatMoney, InlineSepDot, ProductNameWithAttributes } from "./PurchaseDocumentProductPreview";
 import { PurchaseDocumentVariantSearchPanel } from "./PurchaseDocumentVariantSearchPanel";
+import { usePurchaseDocumentReferenceData } from "./usePurchaseDocumentReferenceData";
 
 export type PurchaseDocumentMode = "reception" | "purchase_order";
 
@@ -46,11 +47,6 @@ export type PurchaseDocumentBuilderProps = {
   variantSearch: PurchasingVariantSearchResult;
   searchQuery: string;
   searchPage: number;
-  suppliers: SupplierGridRow[];
-  storages: StorageListItem[];
-  taxes: TaxListItem[];
-  /** Sucursal (UUID) para asiento contable; requerida para guardar orden de compra o recepción. */
-  branchId?: string;
   /** Modo orden de compra: crea transacción `PURCHASE_ORDER` en el API. */
   onSavePurchaseOrder?: (input: CreatePurchaseOrderInput) => Promise<CreatePurchaseOrderResult>;
   /** Modo recepción: `POST /receptions/direct` con DTE en metadata de la transacción de ingreso. */
@@ -87,14 +83,18 @@ export function PurchaseDocumentBuilder({
   variantSearch,
   searchQuery,
   searchPage,
-  suppliers,
-  storages,
-  taxes,
-  branchId,
   onSavePurchaseOrder,
   onSaveReception,
 }: PurchaseDocumentBuilderProps) {
   const router = useRouter();
+  const reference = usePurchaseDocumentReferenceData();
+  const suppliers = reference.status === "ready" ? reference.suppliers : [];
+  const storages = reference.status === "ready" ? reference.storages : [];
+  const taxes = reference.status === "ready" ? reference.taxes : [];
+  const branchId = reference.status === "ready" ? reference.branchId : "";
+  const referenceLoading = reference.status === "loading";
+  const referenceError = reference.status === "error" ? reference.message : null;
+  const referenceFieldsLocked = referenceLoading || referenceError != null;
 
   const activeTaxes = useMemo(() => taxes.filter((t) => t.isActive !== false), [taxes]);
   const activeStorages = useMemo(() => storages.filter((s) => s.isActive !== false), [storages]);
@@ -365,6 +365,11 @@ export function PurchaseDocumentBuilder({
         data-test-id="purchase-document-detail-panel"
       >
         <div className="flex w-full min-w-0 flex-col gap-3" data-test-id="purchase-doc-header-fields">
+          {referenceError ? (
+            <p className="rounded-md border border-error/40 bg-error/10 px-3 py-2 text-sm text-error" role="alert">
+              {referenceError}
+            </p>
+          ) : null}
           <div className="flex w-full min-w-0 items-start justify-between gap-4">
             <h2
               className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground"
@@ -376,11 +381,12 @@ export function PurchaseDocumentBuilder({
               <AutoComplete
                 label="Proveedor"
                 name="purchase-doc-supplier"
-                placeholder="Buscar o seleccionar…"
+                placeholder={referenceLoading ? "Cargando…" : "Buscar o seleccionar…"}
                 options={supplierOptions}
                 value={selectedSupplierOption}
                 onChange={(opt) => setSupplierId(opt ? String(opt.id) : null)}
                 alwaysShowLabel
+                disabled={referenceFieldsLocked}
                 data-test-id="purchase-doc-supplier"
               />
             </div>
@@ -407,12 +413,13 @@ export function PurchaseDocumentBuilder({
                   <Select
                     label="Almacén destino"
                     name="purchase-doc-storage"
-                    placeholder="Seleccionar"
+                    placeholder={referenceLoading ? "Cargando…" : "Seleccionar"}
                     options={storageOptions}
                     value={storageId}
                     onChange={(id) => setStorageId(id == null ? null : String(id))}
                     allowClear
                     alwaysShowLabel
+                    disabled={referenceFieldsLocked}
                     className="w-full min-w-0"
                     data-test-id="purchase-doc-storage"
                   />
@@ -527,7 +534,9 @@ export function PurchaseDocumentBuilder({
                     </td>
                     <td className="py-2 pr-2 align-middle">
                       <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1">
-                        {activeTaxes.length === 0 ? (
+                        {referenceLoading ? (
+                          <span className="text-xs text-muted-foreground">Cargando impuestos…</span>
+                        ) : activeTaxes.length === 0 ? (
                           <span className="text-xs text-muted-foreground">Sin impuestos definidos</span>
                         ) : (
                           activeTaxes.map((tax) => (

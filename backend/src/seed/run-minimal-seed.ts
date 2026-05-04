@@ -1,7 +1,7 @@
 #!/usr/bin/env ts-node
 
 import { NestFactory } from '@nestjs/core';
-import { DataSource } from 'typeorm';
+import { DataSource, DeepPartial } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { MinimalSeedModule } from './minimal-seed.module';
 import { User, UserRole } from '@modules/users/domain/user.entity';
@@ -38,6 +38,7 @@ import {
 import { assertValidChileCompanyRut } from '@shared/utils/chile-company-rut.util';
 import { Product, ProductType } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { appendPmpHistory } from '@modules/product-variants/application/helpers/pmp-history';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import {
   Storage,
@@ -538,6 +539,11 @@ async function bootstrap() {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_actions_rule_sort
       ON automation_actions ("ruleId", "sortOrder");
     `);
+
+    // Variantes: historial PMP (JSON). Migración 010; necesario si DB_SYNCHRONIZE está off.
+    await dataSource.query(
+      `ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS "pmpHistory" json`,
+    );
 
     if (process.env.SEED_SKIP_TRUNCATE === 'true') {
       console.log(
@@ -1540,8 +1546,21 @@ async function bootstrap() {
       product = await productRepo.save(product);
 
       for (const vd of def.variants) {
-        let variant = await variantRepo.findOne({ where: { sku: vd.sku } });
-        const variantPayload = {
+        let variant: ProductVariant | null = await variantRepo.findOne({
+          where: { sku: vd.sku },
+        });
+        const initialPmp = Number(vd.pmp) || 0;
+        const seedPmpHistory =
+          initialPmp !== 0
+            ? appendPmpHistory(undefined, {
+                previousPmp: 0,
+                newPmp: initialPmp,
+                source: 'initial',
+                at: '2020-01-01T00:00:00.000Z',
+              })
+            : undefined;
+
+        const variantPayload: DeepPartial<ProductVariant> = {
           productId: product.id,
           sku: vd.sku,
           barcode: vd.barcode,
@@ -1558,24 +1577,37 @@ async function bootstrap() {
           maximumStock: 0,
           reorderPoint: 0,
         };
+
         if (!variant) {
-          variant = variantRepo.create(variantPayload);
+          const createPayload: DeepPartial<ProductVariant> = {
+            ...variantPayload,
+          };
+          if (seedPmpHistory) {
+            createPayload.pmpHistory = seedPmpHistory;
+          }
+          variant = variantRepo.create(createPayload);
         } else {
           Object.assign(variant, variantPayload);
+          const h = variant.pmpHistory;
+          const historyEmpty = !h || !Array.isArray(h) || h.length === 0;
+          if (seedPmpHistory && historyEmpty) {
+            variant.pmpHistory = seedPmpHistory;
+          }
         }
-        variant = await variantRepo.save(variant);
+
+        const savedVariant = await variantRepo.save(variant);
 
         await upsertPriceListItem({
           priceListId: minorista.id,
           productId: product.id,
-          productVariantId: variant.id,
+          productVariantId: savedVariant.id,
           net: vd.retailNet,
           taxId: ivaTax.id,
         });
         await upsertPriceListItem({
           priceListId: mayorista.id,
           productId: product.id,
-          productVariantId: variant.id,
+          productVariantId: savedVariant.id,
           net: vd.wholesaleNet,
           taxId: ivaTax.id,
         });

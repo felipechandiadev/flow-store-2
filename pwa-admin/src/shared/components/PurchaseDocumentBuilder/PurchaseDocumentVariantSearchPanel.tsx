@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import IconButton from "@/shared/components/IconButton/IconButton";
@@ -24,6 +24,9 @@ export const PURCHASE_DOC_URL_PAGE = "vp";
 /** Resultados por página (se envía al backend vía SSR / `PurchasingVariantSearchRequest.search`). */
 export const PURCHASE_DOC_URL_LIMIT = "limit";
 
+/** Tiempo de espera antes de reflejar el texto del buscador en la URL (evita un SSR por tecla). */
+export const PURCHASE_DOC_SEARCH_DEBOUNCE_MS = 400;
+
 export type PurchaseDocumentVariantSearchPanelProps = {
   variantSearch: PurchasingVariantSearchResult;
   searchQuery: string;
@@ -40,13 +43,25 @@ export function PurchaseDocumentVariantSearchPanel({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
 
   const [draftSearch, setDraftSearch] = useState(searchQuery);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [draftPageSize, setDraftPageSize] = useState(() => PURCHASE_DOC_VARIANT_SEARCH_DEFAULT_PAGE_SIZE);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncedLimitRef = useRef(false);
+
+  /**
+   * Misma idea que `DataGrid`/paginación de productos (`Pagination.tsx`): `router.push` con pathname + query (evita rutas relativas solo `?…`).
+   * Sin `router.refresh()`: el App Router vuelve a ejecutar el Server Component de la ruta actual.
+   * `refresh` + `replace` duplicaban GET y podían armar bucles.
+   */
+  const navigatePurchaseDocSearch = useCallback(
+    (params: URLSearchParams) => {
+      const qs = params.toString();
+      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router],
+  );
 
   const urlPage = useMemo(() => {
     const raw = searchParams.get(PURCHASE_DOC_URL_PAGE);
@@ -88,11 +103,8 @@ export function PurchaseDocumentVariantSearchPanel({
     syncedLimitRef.current = true;
     const next = new URLSearchParams(searchParams.toString());
     next.set(PURCHASE_DOC_URL_LIMIT, String(stored));
-    const qs = next.toString();
-    startTransition(() => {
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-    });
-  }, [pathname, router, searchParams, startTransition]);
+    navigatePurchaseDocSearch(next);
+  }, [navigatePurchaseDocSearch, searchParams]);
 
   const pushSearchToUrl = useCallback(
     (q: string, page: number, limit: number) => {
@@ -105,13 +117,20 @@ export function PurchaseDocumentVariantSearchPanel({
       }
       next.set(PURCHASE_DOC_URL_PAGE, String(Math.max(1, page)));
       next.set(PURCHASE_DOC_URL_LIMIT, String(clampPurchaseDocVariantSearchPageSize(limit)));
-      const qs = next.toString();
-      startTransition(() => {
-        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-      });
+      navigatePurchaseDocSearch(next);
     },
-    [pathname, router, searchParams, startTransition],
+    [navigatePurchaseDocSearch, searchParams],
   );
+
+  const flushDebouncedSearchToUrl = useCallback(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    if (draftSearch.trim() !== searchQuery.trim()) {
+      pushSearchToUrl(draftSearch, 1, pageSizeFromUrl);
+    }
+  }, [draftSearch, pageSizeFromUrl, pushSearchToUrl, searchQuery]);
 
   useEffect(() => {
     if (debounceRef.current) {
@@ -123,13 +142,15 @@ export function PurchaseDocumentVariantSearchPanel({
         return;
       }
       pushSearchToUrl(draftSearch, 1, pageSizeFromUrl);
-    }, 400);
+    }, PURCHASE_DOC_SEARCH_DEBOUNCE_MS);
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
     };
   }, [draftSearch, pageSizeFromUrl, pushSearchToUrl, searchQuery]);
+
+  const searchTextPending = draftSearch.trim() !== searchQuery.trim();
 
   const totalPages = Math.max(1, Math.ceil(variantSearch.total / variantSearch.pageSize) || 1);
 
@@ -156,12 +177,28 @@ export function PurchaseDocumentVariantSearchPanel({
         name="purchase-doc-variant-search"
         value={draftSearch}
         onChange={(e) => setDraftSearch(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            flushDebouncedSearchToUrl();
+          }
+        }}
         placeholder="Nombre, SKU, código, categoría…"
         alwaysShowLabel
         startAdornment={<Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />}
         data-test-id="purchase-doc-search-field"
+        aria-busy={searchTextPending}
       />
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+      {searchTextPending ? (
+        <p className="text-xs text-muted-foreground" data-test-id="purchase-doc-search-pending">
+          Sincronizando búsqueda…
+        </p>
+      ) : null}
+      <div
+        className="min-h-0 flex-1 space-y-2 overflow-y-auto"
+        aria-busy={searchTextPending}
+        data-test-id="purchase-doc-search-results"
+      >
         {variantSearch.items.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sin resultados.</p>
         ) : (

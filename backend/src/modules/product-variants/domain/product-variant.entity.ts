@@ -13,6 +13,7 @@ import {
 import { Product } from '@modules/products/domain/product.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
+import type { PmpHistoryEntry } from './pmp-history.types';
 
 export interface ProductVariantMediaAsset {
   id: string;
@@ -60,6 +61,12 @@ export class ProductVariant {
    */
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   pmp!: number;
+
+  /**
+   * Historial de cambios de PMP (append-only en aplicación). El valor vigente sigue en `pmp`.
+   */
+  @Column({ type: 'json', nullable: true })
+  pmpHistory?: PmpHistoryEntry[] | null;
 
   @Column({ type: 'uuid', name: 'unit_id' })
   unitId!: string;
