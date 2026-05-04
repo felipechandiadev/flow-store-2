@@ -51,6 +51,29 @@ END $$;
         `Could not ensure SUPPLIER_CREDIT_NOTE enum value: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+
+    for (const label of ['SUPPLIER_RECEIPT', 'SUPPLIER_GUIDE'] as const) {
+      try {
+        await this.dataSource.query(`
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_enum e ON t.oid = e.enumtypid
+    WHERE t.typname = 'transactions_transactiontype_enum'
+      AND e.enumlabel = '${label}'
+  ) THEN
+    ALTER TYPE transactions_transactiontype_enum ADD VALUE '${label}';
+  END IF;
+END $$;
+        `);
+      } catch (err) {
+        this.logger.warn(
+          `Could not ensure ${label} enum value: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
   }
 }
 

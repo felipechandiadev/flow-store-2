@@ -19,7 +19,7 @@ export declare enum AccountTypeName {
 }
 export declare enum BankName {
   BANCO_CHILE = 'Banco de Chile',
-  BANCO_ESTADO = 'Banco del Estado de Chile',
+  BANCO_ESTADO = 'Banco Estado',
   BANCO_SANTANDER = 'Banco Santander Chile',
   BANCO_BCI = 'Banco de Cr\u00E9dito e Inversiones',
   BANCO_FALABELLA = 'Banco Falabella',

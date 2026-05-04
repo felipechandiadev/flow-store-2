@@ -58,11 +58,12 @@ import { AutomationAction } from '@modules/automation/domain/automation-action.e
 import { Recipe } from '@modules/recipes/domain/recipe.entity';
 import { RecipeLine } from '@modules/recipes/domain/recipe-line.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
+import { AddTaxNonDeletable1740000000000 } from '../migrations/1740000000000-AddTaxNonDeletable';
 
 /**
- * DataSource usado por `typeorm` CLI (p. ej. `schema:log`).
- * **No** hay carpeta de migraciones: en desarrollo el esquema se alinea con las entidades vía
- * `DB_SYNCHRONIZE=true` en el arranque de Nest (ver `typeorm.config.ts`).
+ * DataSource usado por `typeorm` CLI (`migration:run`, `schema:log`, …).
+ * Migraciones explícitas en `src/migrations/`; en desarrollo también puede aplicarse DDL vía
+ * `DB_SYNCHRONIZE=true` en Nest (`typeorm.config.ts`).
  */
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -124,6 +125,8 @@ export const AppDataSource = new DataSource({
     MultimediaLink,
   ],
   subscribers: [AuditSubscriber],
+  migrations: [AddTaxNonDeletable1740000000000],
+  migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',
   extra: {
     connectionLimit: 10,

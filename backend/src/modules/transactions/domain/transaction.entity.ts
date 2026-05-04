@@ -40,6 +40,8 @@ import { Installment } from '@modules/installments/domain/installment.entity';
  *    PURCHASE_ORDER: Orden de compra (no afecta inventario aún)
  *    PURCHASE_RETURN: Devolución a proveedor (stock / reverso operativo)
  *    SUPPLIER_INVOICE: Factura de proveedor
+ *    SUPPLIER_RECEIPT: Boleta de proveedor
+ *    SUPPLIER_GUIDE: Guía de despacho de proveedor
  *    SUPPLIER_CREDIT_NOTE: Nota de crédito de proveedor (documento fiscal; asociada a PURCHASE_RETURN)
  *
  * 3. MOVIMIENTOS DE INVENTARIO (8 tipos)
@@ -90,6 +92,8 @@ export enum TransactionType {
   PURCHASE_ORDER = 'PURCHASE_ORDER',
   PURCHASE_RETURN = 'PURCHASE_RETURN',
   SUPPLIER_INVOICE = 'SUPPLIER_INVOICE',
+  SUPPLIER_RECEIPT = 'SUPPLIER_RECEIPT',
+  SUPPLIER_GUIDE = 'SUPPLIER_GUIDE',
   SUPPLIER_CREDIT_NOTE = 'SUPPLIER_CREDIT_NOTE',
 
   // Pedidos / Ejecución (no mueven stock por sí solos)

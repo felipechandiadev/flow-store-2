@@ -41,6 +41,10 @@ export class SupplierCreditNoteRequest {
 
   static async create(input: CreateSupplierCreditNoteInput & { userId: string }): Promise<unknown> {
     const headers = await authHeaders();
+    const dte =
+      input.dteNumber != null && String(input.dteNumber).trim() !== ""
+        ? String(input.dteNumber).trim()
+        : "";
     const res = await fetch(apiUrl("supplier-credit-notes"), {
       method: "POST",
       headers,
@@ -55,11 +59,13 @@ export class SupplierCreditNoteRequest {
         externalReference: input.externalReference,
         notes: input.notes,
         lines: input.lines,
+        ...(dte ? { dteNumber: dte } : {}),
         metadata: {
           links: {
             purchaseReturnId: input.purchaseReturnId,
             supplierInvoiceId: input.supplierInvoiceId ?? null,
           },
+          ...(dte ? { dteNumber: dte } : {}),
         },
       }),
     });

@@ -5,6 +5,10 @@ import { FindTransactionQuery } from '@modules/transactions/application/queries/
 import { TransactionType, PaymentStatus } from '@modules/transactions/domain/transaction.entity';
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
+import {
+  applyDteNumberToSupplierDocumentDto,
+  normalizeDteNumberFromBody,
+} from '@modules/transactions/presentation/helpers/supplier-dte-create.helper';
 
 @Controller('supplier-invoices')
 export class SupplierInvoicesController {
@@ -65,9 +69,12 @@ export class SupplierInvoicesController {
     dto.notes = body.notes ?? undefined;
     dto.externalReference = body.externalReference ?? undefined;
     dto.relatedTransactionId = body.relatedTransactionId ?? undefined;
+    applyDteNumberToSupplierDocumentDto(body, dto);
+    const dteNumber = normalizeDteNumberFromBody(body);
     dto.metadata = {
       ...(body.metadata ?? {}),
       origin: 'SUPPLIER_INVOICE',
+      ...(dteNumber ? { dteNumber } : {}),
       links: {
         purchaseOrderId: body?.metadata?.links?.purchaseOrderId ?? null,
         receptionId: body?.metadata?.links?.receptionId ?? null,

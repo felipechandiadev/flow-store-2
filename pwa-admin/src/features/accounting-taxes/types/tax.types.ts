@@ -11,6 +11,8 @@ export type TaxListItem = {
   description: string | null;
   isDefault: boolean;
   isActive: boolean;
+  /** API: no se puede eliminar (borrado lógico bloqueado). */
+  nonDeletable?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

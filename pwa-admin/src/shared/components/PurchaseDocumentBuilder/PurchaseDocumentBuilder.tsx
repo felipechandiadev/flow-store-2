@@ -607,17 +607,25 @@ export function PurchaseDocumentBuilder({
                 {saveError}
               </p>
             ) : null}
-            {mode === "purchase_order" && onSavePurchaseOrder ? (
+            {(mode === "purchase_order" && onSavePurchaseOrder) || (mode === "reception" && onSaveReception) ? (
               <>
                 <Button
                   variant="outlinedSecondary"
                   size="md"
                   type="button"
-                  disabled={isSaving || !canSavePurchaseOrderBase}
-                  onClick={() => void submitPurchaseOrder(true)}
+                  disabled={isSaving || mode !== "purchase_order" || !canSavePurchaseOrderBase}
+                  onClick={() => {
+                    if (mode === "purchase_order") {
+                      void submitPurchaseOrder(true);
+                    }
+                  }}
                   data-test-id="purchase-doc-save-draft"
                   title={
-                    !canSavePurchaseOrderBase ? "Configure sucursal para guardar borrador." : undefined
+                    mode === "reception"
+                      ? "El borrador solo está disponible en orden de compra."
+                      : !canSavePurchaseOrderBase
+                        ? "Configure sucursal para guardar borrador."
+                        : undefined
                   }
                 >
                   {isSaving ? "Guardando…" : "Borrador"}
@@ -626,34 +634,31 @@ export function PurchaseDocumentBuilder({
                   variant="outlined"
                   size="md"
                   type="button"
-                  disabled={isSaving || !canConfirmPurchaseOrder}
-                  onClick={() => void submitPurchaseOrder(false)}
+                  disabled={
+                    isSaving ||
+                    (mode === "purchase_order" ? !canConfirmPurchaseOrder : !canConfirmReception)
+                  }
+                  onClick={() => {
+                    if (mode === "purchase_order") {
+                      void submitPurchaseOrder(false);
+                    } else {
+                      void submitReception();
+                    }
+                  }}
                   data-test-id="purchase-doc-save"
                   title={
-                    !canConfirmPurchaseOrder
-                      ? "Orden confirmada: seleccione proveedor, líneas y sucursal."
-                      : undefined
+                    mode === "purchase_order"
+                      ? !canConfirmPurchaseOrder
+                        ? "Orden confirmada: seleccione proveedor, líneas y sucursal."
+                        : undefined
+                      : !canConfirmReception
+                        ? "Recepción: sucursal, proveedor, almacén, tipo de DTE y al menos una línea."
+                        : undefined
                   }
                 >
                   {isSaving ? "Guardando…" : "Guardar"}
                 </Button>
               </>
-            ) : mode === "reception" && onSaveReception ? (
-              <Button
-                variant="primary"
-                size="md"
-                type="button"
-                disabled={isSaving || !canConfirmReception}
-                onClick={() => void submitReception()}
-                data-test-id="purchase-doc-save-reception"
-                title={
-                  !canConfirmReception
-                    ? "Recepción: sucursal, proveedor, almacén, tipo de DTE y al menos una línea."
-                    : undefined
-                }
-              >
-                {isSaving ? "Guardando…" : "Guardar recepción"}
-              </Button>
             ) : null}
           </div>
         </div>

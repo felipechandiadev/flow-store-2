@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import type { SupplierInvoiceListItem } from "@/features/purchasing-invoices/types/supplier-invoice.types";
+import { dteFolioDisplay } from "@/features/purchasing-dte/lib/dte-folio-display";
 import { CreateSupplierInvoiceDialogForm } from "./CreateSupplierInvoiceDialogForm";
 
 function pad2(n: number): string {
@@ -73,11 +74,19 @@ export default function DteInvoicesDataGrid({ rows, total }: DteInvoicesDataGrid
         },
       },
       {
-        field: "externalReference",
-        headerName: "Referencia",
+        field: "dteFolio",
+        headerName: "Folio DTE",
         sortable: false,
         width: 140,
-        valueGetter: ({ row }) => (row as SupplierInvoiceListItem).externalReference || "—",
+        valueGetter: ({ row }) => dteFolioDisplay(row as SupplierInvoiceListItem),
+      },
+      {
+        field: "subtotal",
+        headerName: "Neto",
+        sortable: true,
+        width: 120,
+        align: "right",
+        valueGetter: ({ row }) => formatMoney(Number((row as SupplierInvoiceListItem).subtotal ?? 0)),
       },
       {
         field: "total",
@@ -109,7 +118,7 @@ export default function DteInvoicesDataGrid({ rows, total }: DteInvoicesDataGrid
       showExportButton={false}
       showSortButton={false}
       showFilterButton={false}
-      createFormTitle="Crear factura"
+      createFormTitle="Ingresar factura"
       createForm={<CreateSupplierInvoiceDialogForm />}
       data-test-id="dte-invoices-data-grid"
     />

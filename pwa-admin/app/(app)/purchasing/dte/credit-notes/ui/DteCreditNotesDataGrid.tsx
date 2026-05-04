@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import type { SupplierCreditNoteListItem } from "@/features/purchasing-supplier-credit-notes/types/supplier-credit-note.types";
+import { dteFolioDisplay } from "@/features/purchasing-dte/lib/dte-folio-display";
 import { CreateSupplierCreditNoteDialogForm } from "./CreateSupplierCreditNoteDialogForm";
 
 function pad2(n: number): string {
@@ -73,11 +74,11 @@ export default function DteCreditNotesDataGrid({ rows, total }: DteCreditNotesDa
         },
       },
       {
-        field: "externalReference",
-        headerName: "Referencia",
+        field: "dteFolio",
+        headerName: "Folio DTE",
         sortable: false,
         width: 140,
-        valueGetter: ({ row }) => (row as SupplierCreditNoteListItem).externalReference || "—",
+        valueGetter: ({ row }) => dteFolioDisplay(row as SupplierCreditNoteListItem),
       },
       {
         field: "total",

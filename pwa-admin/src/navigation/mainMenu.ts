@@ -58,7 +58,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
       { id: 'purchasing-receptions', label: 'Recepciones', url: '/purchasing/receptions' },
       { id: 'purchasing-suppliers', label: 'Proveedores', url: '/purchasing/suppliers' },
       { id: 'purchasing-orders', label: 'Órdenes de compra', url: '/purchasing/orders' },
-      { id: 'purchasing-dte', label: 'DTE proveedor', url: '/purchasing/dte' },
+      { id: 'purchasing-dte', label: "DTE's proveedor", url: '/purchasing/dte' },
       { id: 'purchasing-purchase-returns', label: 'Devoluciones proveedor', url: '/purchasing/purchase-returns' },
       { id: 'purchasing-flow', label: 'Flujo del proceso', url: '/purchasing/flow' },
     ],

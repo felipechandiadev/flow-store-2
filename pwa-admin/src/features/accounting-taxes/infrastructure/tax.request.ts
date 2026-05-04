@@ -57,6 +57,7 @@ function normalizeTax(row: unknown): TaxListItem | null {
     description: o.description != null && String(o.description).trim() ? String(o.description).trim() : null,
     isDefault: o.isDefault === true,
     isActive: o.isActive !== false,
+    nonDeletable: o.nonDeletable === true,
     createdAt: o.createdAt != null ? String(o.createdAt) : undefined,
     updatedAt: o.updatedAt != null ? String(o.updatedAt) : undefined,
   };

@@ -3,7 +3,7 @@
 Tareas del seed mínimo:
 
 1. **Empresa** — busca por `rut` (único). Si no existe, crea con razón social, nombre de fantasía, giro y RUT en formato chileno (`xx.xxx.xxx-d`). Si ya existe, actualiza razón social, nombre de fantasía y giro desde variables de entorno.
-2. **Impuesto IVA (ejemplo)** — por empresa: busca un impuesto con nombre `IVA` y tipo `IVA`. Si no existe, crea uno con tasa **19%**, sin código, descripción estándar de IVA, `isDefault=false`, `isActive=true`. Si ya existe, alinea esos campos con el ejemplo del seed.
+2. **Impuesto IVA (ejemplo)** — por empresa: busca un impuesto con nombre `IVA` y tipo `IVA`. Si no existe, crea uno con tasa **19%**, sin código, descripción estándar de IVA, `isDefault=false`, `isActive=true`, **`nonDeletable=true`** (no eliminable por API). Si ya existe, alinea esos campos con el ejemplo del seed.
 3. **Sucursal (ejemplo)** — por empresa: busca la sucursal **Local Principal** (incluyendo borrado lógico). Si no existe, la crea con dirección `Av. Anibal Pinto 1000, Parral`, teléfono `999999999`, ubicación `{lat:-36.15943159155879,lng:-71.78741455078126}`, `isActive=true`, `isHeadquarters=false`. Si existía eliminada, la recupera y alinea datos; si ya estaba activa, actualiza dirección, teléfono, ubicación y flags con el mismo ejemplo.
 4. **Unidades de medida (ejemplos)** — asegura 2 registros en `units`:
    - **UNIDAD** (`UN`) base: `dimension=count`, `conversionFactor=1`, `allowDecimals=false`, `isBase=true`, `active=true`.

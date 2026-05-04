@@ -82,7 +82,7 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
     // Text search
     if (query.search) {
       qb.andWhere(
-        '(tx.documentNumber LIKE :search OR tx.externalReference LIKE :search)',
+        '(tx.documentNumber LIKE :search OR tx.externalReference LIKE :search OR tx.documentFolio LIKE :search)',
         { search: `%${query.search}%` },
       );
     }

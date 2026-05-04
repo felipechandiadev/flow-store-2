@@ -1,6 +1,6 @@
 import { BasicPageLayout } from "@/shared/components/layouts";
 import { GetCompanyUseCase } from "@/features/settings-company/application/get-company.usecase";
-import { CompanyFormReadonly } from "./CompanyFormReadonly";
+import { CompanySettingsContent } from "./CompanySettingsContent";
 
 export default async function Page() {
   const company = await GetCompanyUseCase.execute();
@@ -15,7 +15,7 @@ export default async function Page() {
       {company == null ? (
         <p className="text-sm text-muted">No se pudo cargar la empresa. Revisa la sesión y el API.</p>
       ) : (
-        <CompanyFormReadonly company={company} />
+        <CompanySettingsContent company={company} />
       )}
     </BasicPageLayout>
   );

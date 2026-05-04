@@ -4,10 +4,7 @@ import { DteMainTabs } from "./DteMainTabs";
 
 export default function DteProveedorLayout({ children }: { children: ReactNode }) {
   return (
-    <TabPageLayout
-      title="DTE proveedor"
-      subtitle="Documentos tributarios electrónicos del proveedor: facturas, boletas y notas de crédito."
-      tabs={<DteMainTabs />}
+    <TabPageLayout title="DTE's proveedor" tabs={<DteMainTabs />}
       className="min-h-0"
       data-test-id="purchasing-dte-layout"
     >

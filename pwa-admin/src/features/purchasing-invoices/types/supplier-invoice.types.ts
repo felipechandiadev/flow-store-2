@@ -15,6 +15,10 @@ export type SupplierInvoiceLine = {
   unitCost?: number;
   subtotal?: number;
   lineNumber?: number;
+  taxId?: string;
+  taxRate?: number;
+  taxAmount?: number;
+  total?: number;
 };
 
 export type CreateSupplierInvoiceInput = {
@@ -22,6 +26,8 @@ export type CreateSupplierInvoiceInput = {
   userId?: string;
   supplierId: string;
   storageId?: string | null;
+  /** Folio DTE (tributario); mapea a `documentFolio` y `metadata.dteNumber` en el API. */
+  dteNumber?: string | null;
   externalReference?: string | null;
   notes?: string | null;
   subtotal: number;
@@ -40,11 +46,13 @@ export type SupplierInvoiceListItem = {
   documentNumber?: string | null;
   transactionType: "SUPPLIER_INVOICE";
   status: string;
+  subtotal?: number;
   total: number;
   createdAt: string;
+  documentFolio?: string | null;
   externalReference?: string | null;
   supplier?: { id: string; person?: { businessName?: string; firstName?: string; lastName?: string } };
-  metadata?: any;
+  metadata?: { dteNumber?: string | null; [k: string]: unknown };
 };
 
 export type SupplierInvoiceListResult = {

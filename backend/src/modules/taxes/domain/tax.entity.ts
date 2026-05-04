@@ -44,6 +44,10 @@ export class Tax {
   @Column({ type: 'boolean', default: true })
   isActive!: boolean;
 
+  /** When true, the tax cannot be removed (soft-delete blocked). */
+  @Column({ type: 'boolean', default: false })
+  nonDeletable!: boolean;
+
   @CreateDateColumn()
   createdAt!: Date;
 

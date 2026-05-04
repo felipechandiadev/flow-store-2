@@ -16,6 +16,10 @@ import {
 } from '@modules/transactions/domain/transaction.entity';
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
+import {
+  applyDteNumberToSupplierDocumentDto,
+  normalizeDteNumberFromBody,
+} from '@modules/transactions/presentation/helpers/supplier-dte-create.helper';
 
 @Controller('supplier-credit-notes')
 export class SupplierCreditNotesController {
@@ -104,9 +108,12 @@ export class SupplierCreditNotesController {
     dto.notes = body.notes ?? undefined;
     dto.externalReference = body.externalReference ?? undefined;
     dto.relatedTransactionId = purchaseReturnId;
+    applyDteNumberToSupplierDocumentDto(body, dto);
+    const dteNumber = normalizeDteNumberFromBody(body);
     dto.metadata = {
       ...(body.metadata ?? {}),
       origin: 'SUPPLIER_CREDIT_NOTE',
+      ...(dteNumber ? { dteNumber } : {}),
       links: {
         purchaseReturnId,
         supplierInvoiceId:

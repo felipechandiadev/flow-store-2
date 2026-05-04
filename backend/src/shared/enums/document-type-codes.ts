@@ -11,6 +11,8 @@ export const DOCUMENT_TYPE_CODES: Record<TransactionType, string> = {
   [TransactionType.PURCHASE_ORDER]: 'OC',
   [TransactionType.PURCHASE_RETURN]: 'DPC',
   [TransactionType.SUPPLIER_INVOICE]: 'FPR',
+  [TransactionType.SUPPLIER_RECEIPT]: 'BPR',
+  [TransactionType.SUPPLIER_GUIDE]: 'GDP',
   [TransactionType.SUPPLIER_CREDIT_NOTE]: 'NCP',
   [TransactionType.CUSTOMER_ORDER]: 'PCL',
   [TransactionType.SERVICE_ORDER]: 'OTS',

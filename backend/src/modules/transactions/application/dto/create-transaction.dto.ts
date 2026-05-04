@@ -316,6 +316,9 @@ export class CreateTransactionDto {
       TransactionType.PURCHASE,
       TransactionType.PURCHASE_ORDER,
       TransactionType.PURCHASE_RETURN,
+      TransactionType.SUPPLIER_INVOICE,
+      TransactionType.SUPPLIER_RECEIPT,
+      TransactionType.SUPPLIER_GUIDE,
       TransactionType.SUPPLIER_CREDIT_NOTE,
       TransactionType.SUPPLIER_PAYMENT,
       TransactionType.EXPENSE_PAYMENT,
@@ -458,6 +461,18 @@ export class CreateTransactionDto {
           errors.push('PURCHASE_RETURN requiere al menos una línea');
         }
         break;
+
+      case TransactionType.SUPPLIER_INVOICE:
+      case TransactionType.SUPPLIER_RECEIPT:
+      case TransactionType.SUPPLIER_GUIDE: {
+        if (!this.supplierId) {
+          errors.push(`${this.transactionType} requiere supplierId`);
+        }
+        if (!this.lines || this.lines.length === 0) {
+          errors.push(`${this.transactionType} requiere al menos una línea`);
+        }
+        break;
+      }
 
       case TransactionType.SUPPLIER_CREDIT_NOTE: {
         if (!this.supplierId) {

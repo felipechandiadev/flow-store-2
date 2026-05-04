@@ -54,10 +54,14 @@ export class SupplierInvoiceRequest {
   }
 
   static async create(input: CreateSupplierInvoiceInput) {
+    const dte = input.dteNumber != null && String(input.dteNumber).trim() !== "" ? String(input.dteNumber).trim() : "";
+    const { links, dteNumber: _d, ...rest } = input;
     const payload = {
-      ...input,
+      ...rest,
+      ...(dte ? { dteNumber: dte } : {}),
       metadata: {
-        links: input.links ?? {},
+        links: links ?? {},
+        ...(dte ? { dteNumber: dte } : {}),
       },
     };
     const headers = await authHeaders();

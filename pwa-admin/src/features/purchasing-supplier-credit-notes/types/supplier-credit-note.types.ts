@@ -9,6 +9,8 @@ export type SupplierCreditNoteListItem = {
     person?: { businessName?: string; firstName?: string; lastName?: string };
   };
   externalReference?: string | null;
+  documentFolio?: string | null;
+  metadata?: { dteNumber?: string | null; [k: string]: unknown };
 };
 
 export type SupplierCreditNoteListResult = {
@@ -29,6 +31,7 @@ export type CreateSupplierCreditNoteInput = {
   taxAmount: number;
   discountAmount: number;
   total: number;
+  dteNumber?: string | null;
   externalReference?: string | null;
   notes?: string | null;
   lines: Array<{
@@ -39,5 +42,6 @@ export type CreateSupplierCreditNoteInput = {
     total?: number;
     taxAmount?: number;
     taxRate?: number;
+    taxId?: string;
   }>;
 };

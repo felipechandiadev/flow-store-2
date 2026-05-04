@@ -19,6 +19,7 @@ type TaxCardProps = {
 
 export function TaxCard({ tax, "data-test-id": dataTestId }: TaxCardProps) {
   const router = useRouter();
+  const deleteLocked = tax.nonDeletable === true;
   const [updateOpen, setUpdateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteErrors, setDeleteErrors] = useState<string[]>([]);
@@ -146,9 +147,12 @@ export function TaxCard({ tax, "data-test-id": dataTestId }: TaxCardProps) {
           {
             id: "delete",
             icon: "Trash2",
-            ariaLabel: "Eliminar impuesto",
-            disabled: isDeleting,
+            ariaLabel: deleteLocked ? "Este impuesto no se puede eliminar" : "Eliminar impuesto",
+            disabled: isDeleting || deleteLocked,
             onClick: () => {
+              if (deleteLocked) {
+                return;
+              }
               setDeleteErrors([]);
               setDeleteOpen(true);
             },

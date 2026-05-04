@@ -18,7 +18,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "migration:run": "node -e \"console.log('No hay migraciones en este repo: usa DB_SYNCHRONIZE=true, vacía la base y levanta el API (o `npx typeorm -d dist/config/data-source.js schema:log`).');\"",
+    "migration:run": "npm run build && typeorm migration:run -d dist/config/data-source.js",
     "seed": "ts-node -r tsconfig-paths/register src/seed/run-minimal-seed.ts"
   },
   "dependencies": {

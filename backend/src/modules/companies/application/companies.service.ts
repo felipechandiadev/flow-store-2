@@ -1,7 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Company } from '../domain/company.entity';
+import { PersonBankAccountDto } from '@modules/persons/application/dto/person-bank-account.dto';
+import { Company, type CompanyBankAccount } from '../domain/company.entity';
+import { UpdateCompanyDto } from './dto/update-company.dto';
 
 @Injectable()
 export class CompaniesService {
@@ -59,5 +65,75 @@ export class CompaniesService {
         bankAccounts: [],
       };
     }
+  }
+
+  async updateCompany(data: UpdateCompanyDto) {
+    const company = await this.companyRepository.findOne({
+      where: { isActive: true },
+      order: { createdAt: 'ASC' },
+    });
+
+    if (!company) {
+      throw new NotFoundException('Empresa no encontrada');
+    }
+
+    if (data.rut !== undefined && data.rut.trim() !== company.rut) {
+      const conflict = await this.companyRepository.findOne({
+        where: { rut: data.rut.trim() },
+      });
+      if (conflict && conflict.id !== company.id) {
+        throw new ConflictException('El RUT ya está registrado');
+      }
+    }
+
+    if (data.razonSocial !== undefined) {
+      company.razonSocial = data.razonSocial.trim();
+    }
+    if (data.nombreFantasia !== undefined) {
+      const v = data.nombreFantasia.trim();
+      company.nombreFantasia = v === '' ? null : v;
+    }
+    if (data.businessActivity !== undefined) {
+      const v = data.businessActivity.trim();
+      company.businessActivity = v === '' ? null : v;
+    }
+    if (data.rut !== undefined) {
+      company.rut = data.rut.trim();
+    }
+
+    await this.companyRepository.save(company);
+    return this.getCompany();
+  }
+
+  async addBankAccount(accountData: PersonBankAccountDto) {
+    const company = await this.companyRepository.findOne({
+      where: { isActive: true },
+      order: { createdAt: 'ASC' },
+    });
+
+    if (!company) {
+      throw new NotFoundException('Empresa no encontrada');
+    }
+
+    if (!company.bankAccounts) {
+      company.bankAccounts = [];
+    }
+
+    const accountKey = `${accountData.bankName}_${accountData.accountNumber}_${Date.now()}`;
+    const newAccount: CompanyBankAccount = {
+      ...accountData,
+      accountKey,
+    };
+
+    if (newAccount.isPrimary) {
+      company.bankAccounts = company.bankAccounts.map((acc) => ({
+        ...acc,
+        isPrimary: false,
+      }));
+    }
+
+    company.bankAccounts.push(newAccount);
+    await this.companyRepository.save(company);
+    return this.getCompany();
   }
 }

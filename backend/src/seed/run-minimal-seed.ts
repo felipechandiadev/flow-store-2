@@ -628,6 +628,7 @@ async function bootstrap() {
         description: SEED_IVA_DESCRIPTION,
         isDefault: false,
         isActive: true,
+        nonDeletable: true,
       });
       await taxRepo.save(ivaTax);
       console.log(
@@ -640,6 +641,7 @@ async function bootstrap() {
       ivaTax.isDefault = false;
       ivaTax.isActive = true;
       ivaTax.taxType = TaxType.IVA;
+      ivaTax.nonDeletable = true;
       await taxRepo.save(ivaTax);
       console.log(
         `✅ Impuesto ejemplo IVA ya existía: id=${ivaTax.id} (sincronizado con seed)`,

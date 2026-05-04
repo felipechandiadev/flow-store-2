@@ -19,11 +19,39 @@ async function authHeaders(): Promise<HeadersInit> {
   return h;
 }
 
+async function errorBodyMessage(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  try {
+    const data = text ? (JSON.parse(text) as Record<string, unknown>) : null;
+    const m = data?.message;
+    if (Array.isArray(m)) {
+      return m.map(String).join("; ");
+    }
+    if (typeof m === "string" && m.trim()) {
+      return m.trim();
+    }
+  } catch {
+    // ignore
+  }
+  return text.trim() || `HTTP ${res.status}`;
+}
+
 export type CurrentCompany = {
   /** Puede ser `null` si el backend no tiene empresa en BD (placeholder de nombre sin uuid). */
   id: string | null;
   razonSocial: string;
   isActive?: boolean;
+};
+
+export type CompanyBankAccountItem = {
+  accountKey?: string;
+  bankName: string;
+  accountType: string;
+  accountNumber: string;
+  accountHolderName?: string;
+  isPrimary?: boolean;
+  notes?: string;
+  currentBalance?: number;
 };
 
 /** Respuesta de GET /api/company según el backend, para visualización. */
@@ -38,7 +66,23 @@ export type CompanyDetails = {
   fiscalYearStart: string | null;
   isActive: boolean;
   settings: Record<string, unknown>;
-  bankAccounts: unknown[];
+  bankAccounts: CompanyBankAccountItem[];
+};
+
+export type UpdateCompanyGeneralInput = {
+  razonSocial?: string;
+  nombreFantasia?: string;
+  businessActivity?: string;
+  rut?: string;
+};
+
+export type AddCompanyBankAccountInput = {
+  bankName: string;
+  accountType: string;
+  accountNumber: string;
+  accountHolderName?: string;
+  isPrimary?: boolean;
+  notes?: string;
 };
 
 type CompanyApiResponse = {
@@ -70,6 +114,60 @@ function parseFiscalYearStart(raw: string | null | undefined): string | null {
   return s;
 }
 
+function normalizeBankAccounts(raw: unknown): CompanyBankAccountItem[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out: CompanyBankAccountItem[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") {
+      continue;
+    }
+    const o = row as Record<string, unknown>;
+    const bankName = o.bankName != null ? String(o.bankName) : "";
+    const accountType = o.accountType != null ? String(o.accountType) : "";
+    const accountNumber = o.accountNumber != null ? String(o.accountNumber) : "";
+    if (!bankName || !accountNumber) {
+      continue;
+    }
+    out.push({
+      accountKey: o.accountKey != null ? String(o.accountKey) : undefined,
+      bankName,
+      accountType,
+      accountNumber,
+      accountHolderName: o.accountHolderName != null ? String(o.accountHolderName) : undefined,
+      isPrimary: o.isPrimary === true,
+      notes: o.notes != null ? String(o.notes) : undefined,
+      currentBalance: typeof o.currentBalance === "number" ? o.currentBalance : undefined,
+    });
+  }
+  return out;
+}
+
+function mapCompanyResponse(data: CompanyApiResponse): CompanyDetails | null {
+  if (data?.razonSocial == null) {
+    return null;
+  }
+  const rawId = data.id != null && String(data.id).trim() !== "" ? String(data.id).trim() : null;
+  const id = rawId && isUuidString(rawId) ? rawId : null;
+  return {
+    id,
+    razonSocial: data.razonSocial,
+    nombreFantasia:
+      data.nombreFantasia != null && String(data.nombreFantasia).trim() !== "" ? String(data.nombreFantasia) : null,
+    businessActivity:
+      data.businessActivity != null && String(data.businessActivity).trim() !== ""
+        ? String(data.businessActivity)
+        : null,
+    rut: data.rut != null && String(data.rut).trim() !== "" ? String(data.rut) : null,
+    defaultCurrency: data.defaultCurrency != null && String(data.defaultCurrency).trim() !== "" ? String(data.defaultCurrency) : "CLP",
+    fiscalYearStart: parseFiscalYearStart(data.fiscalYearStart != null ? String(data.fiscalYearStart) : null),
+    isActive: data.isActive !== false,
+    settings: data.settings && typeof data.settings === "object" && !Array.isArray(data.settings) ? data.settings : {},
+    bankAccounts: normalizeBankAccounts(data.bankAccounts),
+  };
+}
+
 export class CompanyRequest {
   /** Detalle de la empresa (primera activa en BD), según backend. */
   static async getDetails(): Promise<CompanyDetails | null> {
@@ -84,28 +182,46 @@ export class CompanyRequest {
         return null;
       }
       const data = (await res.json()) as CompanyApiResponse;
-      if (data?.razonSocial == null) {
-        return null;
-      }
-      const rawId = data.id != null && String(data.id).trim() !== "" ? String(data.id).trim() : null;
-      const id = rawId && isUuidString(rawId) ? rawId : null;
-      return {
-        id,
-        razonSocial: data.razonSocial,
-        nombreFantasia: data.nombreFantasia != null && String(data.nombreFantasia).trim() !== "" ? String(data.nombreFantasia) : null,
-        businessActivity: data.businessActivity != null && String(data.businessActivity).trim() !== "" ? String(data.businessActivity) : null,
-        rut: data.rut != null && String(data.rut).trim() !== "" ? String(data.rut) : null,
-        defaultCurrency: data.defaultCurrency != null && String(data.defaultCurrency).trim() !== "" ? String(data.defaultCurrency) : "CLP",
-        fiscalYearStart: parseFiscalYearStart(
-          data.fiscalYearStart != null ? String(data.fiscalYearStart) : null,
-        ),
-        isActive: data.isActive !== false,
-        settings: data.settings && typeof data.settings === "object" && !Array.isArray(data.settings) ? data.settings : {},
-        bankAccounts: Array.isArray(data.bankAccounts) ? data.bankAccounts : [],
-      };
+      return mapCompanyResponse(data);
     } catch {
       return null;
     }
+  }
+
+  static async patchGeneral(input: UpdateCompanyGeneralInput): Promise<CompanyDetails> {
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl("company"), {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      throw new Error(await errorBodyMessage(res));
+    }
+    const data = (await res.json()) as CompanyApiResponse;
+    const mapped = mapCompanyResponse(data);
+    if (!mapped) {
+      throw new Error("Respuesta de empresa inválida");
+    }
+    return mapped;
+  }
+
+  static async addBankAccount(input: AddCompanyBankAccountInput): Promise<CompanyDetails> {
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl("company/bank-accounts"), {
+      method: "POST",
+      headers,
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      throw new Error(await errorBodyMessage(res));
+    }
+    const data = (await res.json()) as CompanyApiResponse;
+    const mapped = mapCompanyResponse(data);
+    if (!mapped) {
+      throw new Error("Respuesta de empresa inválida");
+    }
+    return mapped;
   }
 
   /** Empresa activa (alias reducido para flujos que solo requieren id/nombre). */

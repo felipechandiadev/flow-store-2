@@ -15,6 +15,8 @@ const ENTITY_TYPE: MultimediaEntityType = "company";
 
 type Props = {
   companyId: string;
+  /** Si es true, no se muestra el rótulo interno (lo pone la sección padre). */
+  embedded?: boolean;
 };
 
 function pickLogoUrl(assets: MultimediaAssetListItem[]): string | null {
@@ -26,7 +28,7 @@ function pickLogoUrl(assets: MultimediaAssetListItem[]): string | null {
   return firstImage?.publicUrl ?? null;
 }
 
-export function CompanyLogoSection({ companyId }: Props) {
+export function CompanyLogoSection({ companyId, embedded = false }: Props) {
   const router = useRouter();
   const [assets, setAssets] = useState<MultimediaAssetListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +112,9 @@ export function CompanyLogoSection({ companyId }: Props) {
       className="mx-auto flex w-full max-w-xl flex-col items-center gap-2"
       data-test-id="settings-company-logo-section"
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Logo de la empresa</p>
+      {embedded ? null : (
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Logo de la empresa</p>
+      )}
       {error ? (
         <Alert variant="error" className="w-full max-w-xl">
           {error}

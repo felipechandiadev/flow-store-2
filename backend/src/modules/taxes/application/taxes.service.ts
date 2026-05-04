@@ -54,6 +54,7 @@ export class TaxesService {
       description: data.description ?? undefined,
       isDefault: !!data.isDefault,
       isActive: data.isActive !== false,
+      nonDeletable: false,
     } as DeepPartial<Tax>);
 
     const saved = await this.taxRepository.save(tax);
@@ -97,6 +98,17 @@ export class TaxesService {
   }
 
   async deleteTax(id: string) {
+    const tax = await this.taxRepository.findOne({ where: { id } });
+    if (!tax) {
+      return { success: false, message: 'Tax not found', statusCode: 404 };
+    }
+    if (tax.nonDeletable) {
+      return {
+        success: false,
+        message: 'This tax cannot be deleted',
+        statusCode: 403,
+      };
+    }
     const result = await this.taxRepository.softDelete(id);
     if (!result.affected) {
       return { success: false, message: 'Tax not found', statusCode: 404 };
@@ -115,6 +127,7 @@ export class TaxesService {
       description: tax.description ?? null,
       isDefault: tax.isDefault,
       isActive: tax.isActive,
+      nonDeletable: tax.nonDeletable,
       createdAt: tax.createdAt,
       updatedAt: tax.updatedAt,
     };

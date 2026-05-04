@@ -54,6 +54,8 @@ import { InstallmentsModule } from './modules/installments/installments.module';
 import { MultimediaModule } from './modules/multimedia/multimedia.module';
 import { ObservabilityModule } from './shared/observability.module';
 import { SupplierInvoicesModule } from './modules/supplier-invoices/supplier-invoices.module';
+import { SupplierReceiptsModule } from './modules/supplier-receipts/supplier-receipts.module';
+import { SupplierGuidesModule } from './modules/supplier-guides/supplier-guides.module';
 import { PurchasingSupplierDocumentsModule } from './modules/purchasing-supplier-documents/purchasing-supplier-documents.module';
 import { RecipesModule } from './modules/recipes/recipes.module';
 import { OrdersModule } from './modules/orders/orders.module';
@@ -109,6 +111,8 @@ import { OrdersModule } from './modules/orders/orders.module';
     SuppliersModule,
     ReceptionsModule,
     SupplierInvoicesModule,
+    SupplierReceiptsModule,
+    SupplierGuidesModule,
     PurchasingSupplierDocumentsModule,
     RecipesModule,
     OrdersModule,

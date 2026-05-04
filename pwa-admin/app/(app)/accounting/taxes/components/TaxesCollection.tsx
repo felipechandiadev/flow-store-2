@@ -39,7 +39,7 @@ export function TaxesCollection({ initialTaxes }: TaxesCollectionProps) {
       showSearch
       searchParamName="search"
       searchLabel="Buscar"
-      searchPlaceholder="Buscar por nombre, código, tipo o descripción"
+      searchPlaceholder="buscar"
       contentEmptyMessage="No hay impuestos que mostrar"
       contentItems={
         filtered.length > 0
