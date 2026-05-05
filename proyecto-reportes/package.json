@@ -1,0 +1,22 @@
+{
+  "name": "proyecto-reportes",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && cp dist/assets/*.css public/styles.css",
+    "preview": "vite preview",
+    "vivliostyle:preview": "vivliostyle preview",
+    "vivliostyle:build": "vivliostyle build"
+  },
+  "devDependencies": {
+    "@vivliostyle/cli": "^9.8.2",
+    "@vivliostyle/core": "^2.36.2",
+    "autoprefixer": "^10.4.22",
+    "postcss": "^8.5.6",
+    "vite": "^7.2.4",
+    "vivliostyle": "^2019.8.101"
+  }
+}
+

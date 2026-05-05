@@ -1,0 +1,333 @@
+/* ═══════════════════════════════════════════════════════════════ */
+/* Estilos Personalizados para Reportes                            */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* Libre Franklin: sans geométrica muy clara en impreso/PDF; pesos fuertes se leen más “enfocados” que Source Sans */
+@import url("https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,400;0,600;0,700;0,800;0,900&display=swap");
+
+:root {
+  --color-primary: #3b82f6;
+  --color-secondary: #1e40af;
+  --color-accent: #f59e0b;
+  --color-dark: #1f2937;
+  --color-light: #f9fafb;
+}
+
+html {
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+html,
+body {
+  font-family: "Libre Franklin", Arial, "Helvetica Neue", Helvetica, system-ui, sans-serif;
+  color: var(--color-dark);
+}
+
+/* Cuerpo: párrafos justificados (informe / capítulos) */
+body p {
+  text-align: justify;
+  text-align-last: left;
+}
+
+/* Estilos de Portada */
+.cover {
+  page-break-after: always;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  background: none;
+  color: var(--color-dark);
+  padding-top: 22mm;
+  padding-bottom: 16mm;
+}
+
+.cover .cover-logo {
+  width: 95mm;
+  max-width: 70%;
+  height: auto;
+  display: block;
+}
+
+.cover .cover-title {
+  margin: 14pt 0 0;
+  font-size: 26pt;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.cover .cover-version {
+  margin-top: 6pt;
+  font-size: 14pt;
+  font-weight: 700;
+  color: #334155;
+}
+
+.cover .cover-subtitle {
+  margin-top: 28pt;
+  font-size: 16pt;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.cover .cover-meta {
+  /* Sin depender de flex "auto": en el viewer a veces no hay altura disponible y el bloque no baja. */
+  margin-top: 22pt;
+  width: 100%;
+  display: grid;
+  gap: 8pt;
+  text-align: center;
+}
+
+.cover .cover-meta .who {
+  font-size: 11pt;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.cover .cover-meta .role {
+  font-size: 10pt;
+  font-weight: 600;
+  color: #334155;
+}
+
+.cover .cover-meta .client {
+  margin-top: 6pt;
+  font-size: 10pt;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.cover .cover-meta .client small {
+  display: block;
+  margin-top: 2pt;
+  font-weight: 600;
+  color: #334155;
+}
+
+/* Estilos de Capítulo */
+.chapter {
+  page-break-before: always;
+  page-break-after: avoid;
+}
+
+/* Título principal de cada archivo de capítulo (más jerarquía visual que h3+) */
+.chapter h2 {
+  font-size: 19pt;
+  font-weight: 800;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  margin: 0 0 20pt;
+  padding: 12pt 14pt 12pt 16pt;
+  border-left: 5px solid var(--color-primary);
+  background-color: #f1f5f9;
+}
+
+.chapter h3 {
+  font-size: 16pt;
+  font-weight: 1600;
+  line-height: 1.28;
+  letter-spacing: -0.028em;
+  color: #020617;
+  margin: 18pt 0 9pt;
+  border-bottom: 2px solid #cbd5e1;
+  padding-bottom: 6pt;
+}
+
+/* Tabla de Contenidos */
+.toc {
+  page-break-after: always;
+}
+
+.toc ul {
+  list-style: none;
+  padding: 0;
+}
+
+.toc li {
+  margin: 6pt 0;
+}
+
+.toc a {
+  text-decoration: none;
+  color: var(--color-primary);
+}
+
+.section-toc .toc-title {
+  font-size: 18pt;
+  font-weight: 800;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  margin: 0 0 16pt;
+  padding: 12pt 14pt 12pt 16pt;
+  border-left: 5px solid var(--color-primary);
+  background-color: #f1f5f9;
+}
+
+.toc-intro {
+  font-size: 10pt;
+  color: #475569;
+  margin-bottom: 14pt;
+  text-align: justify;
+  text-align-last: left;
+}
+
+.toc-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: decimal;
+  list-style-position: inside;
+}
+
+.toc-list li {
+  margin: 8pt 0;
+  padding-left: 4pt;
+}
+
+.toc-list a {
+  color: var(--color-dark);
+  text-decoration: none;
+}
+
+.toc-list a:hover {
+  text-decoration: underline;
+}
+
+.toc-label {
+  font-weight: 700;
+}
+
+/* Párrafos placeholder en secciones en blanco */
+.placeholder {
+  font-style: italic;
+  color: #64748b;
+  padding: 12pt 0;
+  text-align: justify;
+  text-align-last: left;
+}
+
+/* Tablas de datos (impresión / PDF) */
+.table-wrap {
+  overflow: hidden;
+  margin: 10pt 0 16pt;
+  break-inside: avoid;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  break-inside: auto;
+}
+
+.data-table th,
+.data-table td {
+  border: 1px solid #cbd5e1;
+  padding: 6pt 7pt;
+  text-align: left;
+  vertical-align: top;
+}
+
+.data-table thead th {
+  background: #e2e8f0;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.data-table--compact {
+  font-size: 8pt;
+}
+
+.data-table--tco {
+  font-size: 7.5pt;
+}
+
+.data-table--tco th,
+.data-table--tco td {
+  padding: 5pt 5pt;
+}
+
+.fine-print {
+  font-size: 8.5pt;
+  color: #475569;
+  line-height: 1.45;
+  text-align: justify;
+  text-align-last: left;
+}
+
+.source-note {
+  margin-top: 16pt;
+}
+
+/* Lista de definiciones: términos discretos, cuerpo alineado con el resto del informe */
+.def-list {
+  margin: 12pt 0 18pt;
+  padding: 0;
+}
+
+.def-list dt {
+  font-family: "Libre Franklin", Arial, Helvetica, sans-serif;
+  font-size: 13pt;
+  font-weight: 1600;
+  font-style: normal;
+  color: #020617;
+  letter-spacing: -0.02em;
+  margin-top: 14pt;
+  margin-bottom: 0;
+  break-after: avoid;
+}
+
+.def-list dt:first-child {
+  margin-top: 0;
+}
+
+.def-list dd {
+  margin: 6pt 0 0;
+  padding: 0 0 0 2pt;
+  line-height: 1.52;
+  text-align: justify;
+  text-align-last: left;
+  color: var(--color-dark);
+  font-weight: 400;
+  break-inside: avoid;
+}
+
+.def-list dd + dd {
+  margin-top: 0;
+}
+
+/* Notas y Callouts */
+.note,
+.warning,
+.info {
+  padding: 12pt;
+  margin: 12pt 0;
+  border-left: 4px solid var(--color-primary);
+  background: #f0f9ff;
+  break-inside: avoid;
+}
+
+.warning {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.note strong,
+.warning strong,
+.info strong {
+  display: block;
+  margin-bottom: 4pt;
+  color: var(--color-dark);
+}
+
+.note,
+.info,
+.warning {
+  text-align: justify;
+  text-align-last: left;
+}
+

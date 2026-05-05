@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generador de Reportes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,400;0,600;0,700;0,800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <article>
+      <h1>Generador de Reportes - Vivliostyle + Vite</h1>
+
+      <section>
+        <h2>Cómo Usar</h2>
+        <ol>
+          <li>Crea archivos HTML en carpeta <code>content/</code></li>
+          <li>Actualiza <code>vivliostyle.config.js</code> con tus archivos en <code>entry: []</code></li>
+          <li>Ejecuta: <code>npm run vivliostyle:build</code></li>
+          <li>Tu PDF estará en <code>output.pdf</code></li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Scripts Disponibles</h2>
+        <ul>
+          <li><code>npm run dev</code> - Servidor Vite en desarrollo</li>
+          <li><code>npm run build</code> - Build Vite + copiar CSS</li>
+          <li><code>npm run vivliostyle:preview</code> - Ver documento en preview</li>
+          <li><code>npm run vivliostyle:build</code> - Generar PDF final</li>
+        </ul>
+      </section>
+    </article>
+  </body>
+</html>
+

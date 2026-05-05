@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mercado ERP/POS</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <section class="chapter" id="sec02-mercado">
+    <h2>Mercado ERP/POS en Chile</h2>
+
+    <h3>Conceptos: POS, ERP y cómo se usa el lenguaje del mercado</h3>
+    <p>
+      En catálogos y páginas web de proveedores se mezclan siglas y promesas parecidas; conviene fijar una lectura común
+      <strong>antes</strong> de comparar precios o marcas.
+    </p>
+    <dl class="def-list">
+      <dt>POS (punto de venta)</dt>
+      <dd>
+        En sentido <strong>amplio</strong>, es el lugar o el momento en que se registra la <strong>venta</strong> y suele emitirse el
+        documento de pago/DTE (boleta, factura, etc.). En sentido <strong>software</strong>, un POS es la aplicación orientada a
+        <strong>caja</strong>: cobrar, aplicar descuentos, abrir y cerrar turno o sesión de caja, y enlazar esa venta al stock o al
+        catálogo según el caso. Un POS <strong>no implica por sí solo</strong> contabilidad completa u otros módulos de “back office”.
+      </dd>
+      <dt>ERP (planificación de recursos empresariales)</dt>
+      <dd>
+        Originalmente, un ERP es un sistema que integra <strong>varias áreas del negocio</strong> —ventas, compras, inventario,
+        contabilidad, tesorería, a veces personas o producción— sobre <strong>una misma base de datos y reglas</strong>, para que los
+        números cuadren entre sí. En el mercado chileno la palabra <strong>«ERP»</strong> a veces se usa de forma
+        <strong>comercial</strong> para productos que son sobre todo <strong>POS + stock + integraciones</strong>, sin un módulo contable
+        pleno. Por eso, en este informe se distingue cuando la evidencia respalda un <strong>ERP integrado</strong> en sentido fuerte
+        (p. ej. contabilidad enlazada al POS) frente a una <strong>gestión operativa</strong> más acotada.
+      </dd>
+      <dt>Terminal POS / Smart POS / “adquirente”</dt>
+      <dd>
+        No es lo mismo el <strong>programa de gestión</strong> que el <strong>equipo o servicio para cobrar con tarjeta</strong>.
+        Las <strong>terminales inteligentes</strong> o <strong>Smart POS</strong> suelen centrar el valor en el cobro (y a veces la emisión
+        de boleta o comprobante tributario), con un software de administración <strong>más ligero</strong> que un ERP.
+      </dd>
+      <dt>Módulos modulares vs. “todo en uno”</dt>
+      <dd>
+        Algunas soluciones cobran <strong>por función</strong> (boleta, factura, POS, bodegas, etc.): el costo crece al agregar módulos.
+        Otras empacan muchas funciones en <strong>planes</strong> cerrados (mensualidad más alta, pero predecible).
+      </dd>
+      <dt>DTE y TCO (mención rápida)</dt>
+      <dd>
+        <strong>DTE</strong>: documentos electrónicos ante el SII (boleta, factura, nota de crédito, etc.).
+        <strong>TCO</strong> (costo total de propiedad): lo que cuesta el software <strong>más</strong> implementación, excedentes,
+        hardware y, si aplica, <strong>comisiones</strong> por tarjeta, en un horizonte de meses.
+      </dd>
+    </dl>
+
+    <h3>Resumen ejecutivo</h3>
+    <p>
+      En Chile, la digitalización del comercio y las exigencias del <strong>Servicio de Impuestos Internos (SII)</strong>
+      —en particular la <strong>boleta electrónica</strong> y los <strong>documentos tributarios electrónicos (DTE)</strong>—
+      hicieron del software de <strong>punto de venta (POS)</strong> un requisito operativo, no solo una comodidad.
+      El mercado se compone de <strong>plataformas de gestión amplia</strong> (a veces llamadas “ERP” en sentido comercial),
+      <strong>terminales y servicios de cobro</strong> con facturación integrada, ofertas <strong>modulares o de bajo costo</strong>,
+      modelos de <strong>pago único o licencia perpetua</strong>, y soluciones <strong>verticales</strong> (por ejemplo, gastronomía).
+    </p>
+    <p>
+      Más allá de la cuota mensual, el <strong>costo total de propiedad (TCO)</strong> proyectado sobre un horizonte razonable
+      (en este informe, <strong>acumulado a 24 meses</strong>) depende de la <strong>implementación</strong>, los <strong>excedentes de DTE o SKU</strong>,
+      el <strong>hardware</strong> y, en muchos casos, las <strong>comisiones por ventas con tarjeta</strong>. Los valores de este capítulo son
+      <strong>referenciales</strong> y deben verificarse con cada proveedor al momento de una decisión de compra.
+    </p>
+
+    <h3>Por qué clasificar por funcionalidad (y no solo por precio)</h3>
+    <p>
+      Dos alternativas con precio similar pueden resolver <strong>problemas distintos</strong>: una microempresa que solo requiere
+      cumplimiento tributario y boletas no tiene el mismo encaje que una pyme omnicanal con inventario multibodega o una empresa
+      que necesita lectura financiera desde el mismo sistema que cobra en caja. Por eso este informe ordena primero el mercado por
+      <strong>familias funcionales</strong> y solo después cruza esa lectura con el <strong>TCO acumulado a 24&nbsp;meses</strong>.
+    </p>
+
+    <p class="fine-print">
+      Muchas marcas son <strong>híbridas</strong>: puede usarse etiqueta principal y columna de “matiz” en la siguiente matriz.
+      El término “ERP” en el mercado es flexible; donde la evidencia no sea contundente, conviene hablar de
+      <strong>gestión amplia tipo ERP</strong> frente a <strong>POS + DTE</strong>.
+    </p>
+
+    <h3>Matriz de clasificación: alternativa → familia → funciones</h3>
+    <div class="table-wrap">
+      <table class="data-table data-table--compact">
+        <thead>
+          <tr>
+            <th>Alternativa</th>
+            <th>Familia (principal)</th>
+            <th>Matiz / secundaria</th>
+            <th>Funciones típicas cubiertas</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Bsale</td>
+            <td>Retail / omnicanal + stock</td>
+            <td>Planes full con énfasis e-commerce</td>
+            <td>POS, stock, DTE, omnicanalidad, límites por SKU/DTE según plan</td>
+          </tr>
+          <tr>
+            <td>Kame ERP</td>
+            <td>ERP integrado</td>
+            <td>—</td>
+            <td>POS, DTE, contabilidad/tesorería/RRHH (visión holística)</td>
+          </tr>
+          <tr>
+            <td>Laudus</td>
+            <td>Retail complejo</td>
+            <td>Integración Transbank</td>
+            <td>POS, retail avanzado, guías/exportación, cobros</td>
+          </tr>
+          <tr>
+            <td>Haulmer (Tuu)</td>
+            <td>Terminal + SaaS</td>
+            <td>Comisiones transaccionales</td>
+            <td>Cobro, boleta; plan Plus para gestión; hardware en compra</td>
+          </tr>
+          <tr>
+            <td>Transbank Smart POS</td>
+            <td>Adquirente / Smart POS</td>
+            <td>Arriendo; MA/TI variables</td>
+            <td>Cobro, voucher/boleta; costo variable por comercio</td>
+          </tr>
+          <tr>
+            <td>Lioren</td>
+            <td>Modular</td>
+            <td>≈0,1 UF por módulo (+ POS simple 0,2 UF); operación mixta suele sumar factura / nota de crédito</td>
+            <td>Boleta, factura (referencial informe), nota de crédito (idem), catálogo, bodegas, POS simple, usuarios — composición define el TCO</td>
+          </tr>
+          <tr>
+            <td>Facturacion.cl</td>
+            <td>Emisión por tramos</td>
+            <td>Costo incorporación bajo</td>
+            <td>Boletas por rangos; escalamiento por volumen</td>
+          </tr>
+          <tr>
+            <td>LibreDTE</td>
+            <td>Emisión por tramos / gestión</td>
+            <td>Planes MIPYME / Plus</td>
+            <td>Boletas/documentos según plan; módulos de gestión en planes superiores</td>
+          </tr>
+          <tr>
+            <td>Eleventa</td>
+            <td>Licencia perpetua</td>
+            <td>Actualizaciones opcionales post 12 meses</td>
+            <td>POS/cajas según edición; sin mensualidad obligatoria citada</td>
+          </tr>
+          <tr>
+            <td>Toteat</td>
+            <td>Gastronomía</td>
+            <td>Fijo + % sobre ventas</td>
+            <td>Delivery, insumos/recetas, costo variable alto en ejemplos de alto volumen</td>
+          </tr>
+          <tr>
+            <td>TAS Chile</td>
+            <td>Gastronomía</td>
+            <td>Suscripción UF</td>
+            <td>Turnos/apertura-cierre (ej. Total Restaurant)</td>
+          </tr>
+          <tr>
+            <td>Setec Chile</td>
+            <td>Gastronomía / hardware</td>
+            <td>Kit + plataforma SII</td>
+            <td>Hardware cocina/caja; software según uso gratuito SII</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>TCO comparativo: supuestos del escenario base</h3>
+    <p>
+      Para comparar proveedores con cifras <strong>comparables</strong>, este capítulo usa un <strong>escenario base sintético</strong>:
+      un negocio con operación suficientemente “típica” en volumen de ventas y uso de boletas, pero sin multisucursal ni equipo grande.
+      Es un <strong>modelo referencial</strong> (ordenado para confrontar opciones entre sí, sin pretender igualar cada detalle contractual):
+      aquí la lectura económica se centra en el <strong>costo total acumulado a 24&nbsp;meses</strong>, tanto para ubicar magnitudes relativas como para
+      dejar detrás cualquier uso de “solo el primer año” cuando el ciclo típico de contratación/recurrencia suele verse en un plazo cercano al biennio.
+    </p>
+    <p><strong>Parámetros del escenario base</strong> (según consolidación del análisis; verificar valores vigentes con cada proveedor):</p>
+    <ul>
+      <li>
+        <strong>Ventas netas mensuales: $8.000.000 CLP.</strong>
+        Escala de venta medio-pequeña suficiente para que importen costos proporcionales o comisiones, sin ser un corporativo multisucursal.
+      </li>
+      <li>
+        <strong>1.200 boletas o documentos mensuales (orden de magnitud).</strong>
+        Aproxima uso de sistemas donde el volumen DTE tiene impacto en cuotas (excedentes, tramos por plan).
+      </li>
+      <li>
+        <strong>Una sucursal y dos usuarios del sistema.</strong>
+        Simplifica el cómputo (“un local”, pocos puntos concurrentes): no contempla cargos por redes de locales o grandes matricas de usuarios.
+      </li>
+      <li>
+        <strong>70% de ventas cobradas con tarjeta</strong> ⇒ alrededor de <strong>$5.600.000 CLP/mes</strong> en flujo susceptible a comisión adquirente
+        cuando el modelo de negocio del proveedor la incluye.
+      </li>
+      <li>
+        <strong>UF referencial para conversión numérica en tablas principales: $40.000 CLP.</strong>
+        Solo coherencia aritmética con el trabajo de investigación; no es cotización oficial del día.
+      </li>
+    </ul>
+
+    <h3>Costos acumulados a 24 meses</h3>
+    <p class="fine-print">
+      El número que interesa como <strong>comparativo principal</strong> es la columna de <strong>acumulado a 24&nbsp;meses</strong>; “Mes&nbsp;1” y “desde mes&nbsp;2”
+      solo muestran de dónde sale ese total (primer mes puede incluir implementación o equipo). Donde aplique cobro con tarjeta con comisión, debe mirarse sobre todo en las <strong>observaciones por fila</strong> — no está desglosado en columnas.
+    </p>
+    <div class="table-wrap">
+      <table class="data-table data-table--tco">
+        <thead>
+          <tr>
+            <th>Alternativa</th>
+            <th>Tipo funcional</th>
+            <th>Modelo de cobro</th>
+            <th>Mes 1 (CLP neto)</th>
+            <th>Desde mes 2 (CLP&nbsp;neto&nbsp;/&nbsp;mes típ.)</th>
+            <th><strong>Acumulado 24&nbsp;meses</strong></th>
+            <th>Observaciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Lioren</td>
+            <td>Modular</td>
+            <td><strong>0,6 UF/mes</strong> (escenario informe)</td>
+            <td>$24.000</td>
+            <td>$24.000</td>
+            <td><strong>$576.000</strong></td>
+            <td>Boleta + catálogo + POS simple + <strong>factura electrónica</strong> + <strong>nota de crédito</strong> (+0,2 UF sobre 0,4 UF). Supuesto <strong>0,1 UF/módulo</strong> alineado al modelo modular de la fuente; <strong>confirmar</strong> en Lioren.</td>
+          </tr>
+          <tr>
+            <td>Haulmer Plus</td>
+            <td>Terminal + SaaS</td>
+            <td>Equipo + plan mensual</td>
+            <td>$74.900</td>
+            <td>$15.000</td>
+            <td><strong>$419.900</strong></td>
+            <td>Costo equipo+plan hasta mes 24; <strong>más aparte</strong> ~1,49% + IVA (≈ <strong>$83.440/mes</strong> sobre ~$5,6M tarjeta según fuente): TCO con comisiones en 24 meses ≈ <strong>$2.422.460</strong>.</td>
+          </tr>
+          <tr>
+            <td>Facturacion.cl</td>
+            <td>Emisión por tramos</td>
+            <td>Incorporación + mensualidad</td>
+            <td>$29.990</td>
+            <td>$20.000</td>
+            <td><strong>$489.990</strong></td>
+            <td>Enfoque sencillez tributaria / volumen boletas</td>
+          </tr>
+          <tr>
+            <td>Bsale estándar</td>
+            <td>Retail / omnicanal + stock</td>
+            <td>1,5 UF/mes</td>
+            <td>$60.000</td>
+            <td>$60.000</td>
+            <td><strong>$1.440.000</strong></td>
+            <td>Límites SKU/DTE y cargos extra según plan</td>
+          </tr>
+          <tr>
+            <td>Kame ERP Mi Pyme</td>
+            <td>ERP integrado</td>
+            <td>Impl. mes 1 + 1,5 UF/mes</td>
+            <td>$140.000</td>
+            <td>$60.000</td>
+            <td><strong>$1.520.000</strong></td>
+            <td>Contabilidad integrada; capacitación puede ser costo adicional en plan mensual</td>
+          </tr>
+          <tr>
+            <td>Laudus POS</td>
+            <td>Retail complejo</td>
+            <td>Impl. mes 1 + 1,5 UF/mes</td>
+            <td>$220.000</td>
+            <td>$60.000</td>
+            <td><strong>$1.600.000</strong></td>
+            <td>Barrera inicial alta; beneficios para retail complejo según caso</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Otras alternativas (menos comparables en el mismo escenario)</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Indicador ~24 meses</th>
+            <th>Comentario breve</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Toteat</td>
+            <td>&gt; $4.000.000 (ejemplo con ~$20M netos/mes)</td>
+            <td>Fijo + 0,7% sobre ventas; depende fuertemente del volumen.</td>
+          </tr>
+          <tr>
+            <td>TAS Chile «Total Restaurant»</td>
+            <td>~$1.632.000 (1,7 UF/mes × 24 a UF $40.000)</td>
+            <td>Solo cuota; sin kit ni comisiones TC en el cómputo citado.</td>
+          </tr>
+          <tr>
+            <td>Setec Chile (kit)</td>
+            <td>$499.900 pago único</td>
+            <td>Hardware; software mediante plataforma SII según uso.</td>
+          </tr>
+          <tr>
+            <td>Eleventa</td>
+            <td>~USD 81–189 una vez</td>
+            <td>Licencia perpetua; renovación de actualizaciones opcional tras 12 meses.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Ranking rápido — 24 meses (escenario homogéneo)</h3>
+    <p class="fine-print">Orden según la columna «Acumulado 24 meses» de la tabla principal, <strong>de menor a mayor</strong>.</p>
+    <ol>
+      <li>Haulmer Plus — <strong>$419.900</strong></li>
+      <li>Facturacion.cl — <strong>$489.990</strong></li>
+      <li>Lioren — <strong>$576.000</strong></li>
+      <li>Bsale estándar — <strong>$1.440.000</strong></li>
+      <li>Kame ERP Mi Pyme — <strong>$1.520.000</strong></li>
+      <li>Laudus POS — <strong>$1.600.000</strong></li>
+    </ol>
+
+    <h3>Conclusiones orientadas a la decisión</h3>
+    <ul>
+      <li>El precio de lista o la mensualidad <strong>no bastan</strong>: hay que modelar <strong>implementación</strong>, <strong>excedentes</strong> (DTE/SKU) y <strong>comisiones</strong> de medios de pago.</li>
+      <li>Las soluciones <strong>modulares o de emisión por tramos</strong> suelen minimizar el costo fijo para quien parte con poco volumen — pero el TCO cambia rápido al sumar documentos típicos de operación mixta (<strong>factura</strong> y <strong>nota de crédito</strong> en stacks como Lioren).</li>
+      <li>La <strong>omnicanalidad y el stock unificado</strong> empujan hacia plataformas retail integradas, con TCO más alto pero con menor riesgo operativo de “silos”.</li>
+      <li>Quien requiere <strong>gestión contable y financiera</strong> estrechamente ligada al POS tenderá a evaluar ofertas <strong>tipo ERP integrado</strong>.</li>
+      <li>Antes de comparar marcas, conviene fijar el <strong>perfil</strong> del negocio (solo cumplimiento vs gestión integral vs cobro móvil) usando la taxonomía de este capítulo.</li>
+    </ul>
+
+  </section>
+</body>
+</html>

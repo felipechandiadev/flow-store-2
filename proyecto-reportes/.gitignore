@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# vite
+dist/
+
+# vivliostyle
+.vivliostyle/
+output.pdf
+book/
+
+# IDE
+.VS_Code
+.idea/
+*.swp
+*.swo
+.DS_Store
+
