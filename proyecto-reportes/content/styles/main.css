@@ -255,16 +255,19 @@ b {
   letter-spacing: -0.028em;
   color: var(--text-strong);
   margin: 18pt 0 9pt;
-  border-bottom: 2px solid #cbd5e1;
+  border-bottom: 2px solid var(--border-heading-accent);
   padding-bottom: 6pt;
 }
 
 .chapter h4 {
-  font-size: 11.5pt;
+  font-size: 12.25pt;
   font-weight: var(--fw-extrabold);
-  line-height: 1.3;
-  color: var(--text-heading);
-  margin: 14pt 0 6pt;
+  line-height: 1.34;
+  letter-spacing: -0.024em;
+  color: var(--text-strong);
+  margin: 16pt 0 7pt;
+  padding-left: 12px;
+  border-left: 3px solid var(--border-heading-accent);
   break-after: avoid;
 }
 
@@ -367,6 +370,62 @@ b {
   padding: 5pt 5pt;
 }
 
+/* Matriz de clasificación definitiva (muchas columnas) */
+.chapter .classification-matrix {
+  font-size: 8.5pt;
+}
+
+.chapter .classification-matrix th,
+.chapter .classification-matrix td {
+  text-align: center;
+  vertical-align: middle;
+  padding: 4pt 4pt;
+}
+
+.chapter .classification-matrix th:first-child,
+.chapter .classification-matrix td:first-child {
+  text-align: left;
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+
+/* Matriz: modelo de cobro (ajuste de anchos por columna) */
+.chapter .payment-model-matrix {
+  table-layout: fixed;
+}
+
+.chapter .payment-model-matrix th:nth-child(1),
+.chapter .payment-model-matrix td:nth-child(1) {
+  width: 24%;
+}
+
+.chapter .payment-model-matrix th:nth-child(2),
+.chapter .payment-model-matrix td:nth-child(2) {
+  width: 12%;
+}
+
+/* Reducir ancho: Suscripción + implementación */
+.chapter .payment-model-matrix th:nth-child(3),
+.chapter .payment-model-matrix td:nth-child(3) {
+  width: 14%;
+}
+
+.chapter .payment-model-matrix th:nth-child(4),
+.chapter .payment-model-matrix td:nth-child(4) {
+  width: 14%;
+}
+
+.chapter .payment-model-matrix th:nth-child(5),
+.chapter .payment-model-matrix td:nth-child(5) {
+  width: 20%;
+}
+
+/* Aumentar ancho: Modular */
+.chapter .payment-model-matrix th:nth-child(6),
+.chapter .payment-model-matrix td:nth-child(6) {
+  width: 16%;
+}
+
 .fine-print {
   font-size: 8.5pt;
   color: var(--text-muted);
@@ -429,6 +488,47 @@ b {
 .warning {
   border-left-color: var(--color-accent);
   background: #fffbeb;
+}
+
+/* Recuadro destacado (síntesis, lectura clave; no usar .note aquí: .note trata todo <strong> como título bloque) */
+.chapter .chapter-callout {
+  margin: 14pt 0 18pt;
+  padding: 11pt 13pt 12pt 15pt;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #f8fafc;
+  border-left: 4px solid var(--border-heading-accent);
+  break-inside: avoid;
+}
+
+.chapter .chapter-callout__title {
+  margin: 0 0 8pt;
+  padding-bottom: 5pt;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 10.75pt;
+  font-weight: var(--fw-extrabold);
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+}
+
+.chapter .chapter-callout__label {
+  display: block;
+  margin-bottom: 3pt;
+  font-size: 8pt;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.chapter .chapter-callout ul {
+  margin: 4pt 0 0;
+  padding-left: 1.05em;
+}
+
+.chapter .chapter-callout li {
+  margin: 5pt 0;
 }
 
 /* Título del callout: mismo énfasis que strong global + tamaño de etiqueta */

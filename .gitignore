@@ -1,0 +1,11 @@
+# Root ignores (repo-wide)
+
+# Backend runtime artifacts
+backend/logs/
+backend/public/uploads/
+backend/*.tsbuildinfo
+
+# Root markdown (keep README.md)
+/*.md
+!README.md
+

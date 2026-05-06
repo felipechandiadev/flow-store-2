@@ -12,6 +12,7 @@ dist/
 # Logs
 *.log
 npm-debug.log*
+logs/
 
 # OS files
 .DS_Store
@@ -29,3 +30,9 @@ coverage/
 
 # Temporary files
 *.tmp
+
+# Runtime uploads (shouldn't be tracked)
+public/uploads/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
