@@ -55,14 +55,18 @@ export class SupplierInvoiceRequest {
 
   static async create(input: CreateSupplierInvoiceInput) {
     const dte = input.dteNumber != null && String(input.dteNumber).trim() !== "" ? String(input.dteNumber).trim() : "";
-    const { links, dteNumber: _d, ...rest } = input;
+    const { links, dteNumber: _d, plannedPayments, ...rest } = input;
+    const metadata: Record<string, unknown> = {
+      links: links ?? {},
+      ...(dte ? { dteNumber: dte } : {}),
+    };
+    if (plannedPayments && plannedPayments.length > 0) {
+      metadata.plannedPayments = plannedPayments;
+    }
     const payload = {
       ...rest,
       ...(dte ? { dteNumber: dte } : {}),
-      metadata: {
-        links: links ?? {},
-        ...(dte ? { dteNumber: dte } : {}),
-      },
+      metadata,
     };
     const headers = await authHeaders();
     const res = await fetch(apiUrl(`supplier-invoices`), {

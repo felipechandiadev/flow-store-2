@@ -1,6 +1,10 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
-import type { SupplierGridRow, SupplierPersonGrid } from "../types/supplier.types";
+import type {
+  SupplierGridRow,
+  SupplierPersonBankAccount,
+  SupplierPersonGrid,
+} from "../types/supplier.types";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -18,6 +22,35 @@ async function authHeaders(): Promise<HeadersInit> {
     h.Authorization = `Bearer ${token}`;
   }
   return h;
+}
+
+function normalizePersonBankAccounts(raw: unknown): SupplierPersonBankAccount[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out: SupplierPersonBankAccount[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") {
+      continue;
+    }
+    const o = row as Record<string, unknown>;
+    const bankName = o.bankName != null ? String(o.bankName) : "";
+    const accountType = o.accountType != null ? String(o.accountType) : "";
+    const accountNumber = o.accountNumber != null ? String(o.accountNumber) : "";
+    if (!bankName || !accountNumber) {
+      continue;
+    }
+    out.push({
+      accountKey: o.accountKey != null ? String(o.accountKey) : undefined,
+      bankName,
+      accountType,
+      accountNumber,
+      accountHolderName: o.accountHolderName != null ? String(o.accountHolderName) : undefined,
+      isPrimary: o.isPrimary === true,
+      notes: o.notes != null ? String(o.notes) : undefined,
+    });
+  }
+  return out;
 }
 
 function normalizePerson(raw: unknown): SupplierPersonGrid | null {
@@ -40,6 +73,7 @@ function normalizePerson(raw: unknown): SupplierPersonGrid | null {
     email: p.email != null && String(p.email).trim() ? String(p.email) : null,
     phone: p.phone != null && String(p.phone).trim() ? String(p.phone) : null,
     address: p.address != null && String(p.address).trim() ? String(p.address) : null,
+    bankAccounts: normalizePersonBankAccounts(p.bankAccounts),
   };
 }
 

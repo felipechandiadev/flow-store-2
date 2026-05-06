@@ -115,10 +115,16 @@ export class LedgerEntriesService {
       // FASE 2: Matching de reglas
       const applicableRules = await this.matchRules(transaction, companyId);
 
+      const metaEarly = (transaction.metadata || {}) as Record<string, unknown>;
+      const hubCashDeposit =
+        transaction.transactionType === TransactionType.CASH_DEPOSIT &&
+        ((transaction as any).cashHubId || metaEarly.cashHubDeposit);
+
       // PAYROLL no requiere reglas contables, se genera directamente desde metadata
       if (
         applicableRules.length === 0 &&
-        transaction.transactionType !== TransactionType.PAYROLL
+        transaction.transactionType !== TransactionType.PAYROLL &&
+        !hubCashDeposit
       ) {
         this.logger.warn(
           `No accounting rules found for transaction ${transaction.id} (type: ${transaction.transactionType})`,
@@ -141,6 +147,7 @@ export class LedgerEntriesService {
         transaction,
         applicableRules,
         personId,
+        companyId,
       );
 
       if (entries.length === 0) {
@@ -236,8 +243,12 @@ export class LedgerEntriesService {
       return errors; // Detener aquí
     }
 
-    // V1: Validar saldo en origen para bancarias (bankToCashTransfer)
-    if (transaction.metadata?.bankToCashTransfer === true) {
+    // V1: Validar saldo en origen para bancarias (bankToCashTransfer / giro a caja)
+    if (
+      transaction.metadata?.bankToCashTransfer === true ||
+      transaction.transactionType === TransactionType.CASH_WITHDRAWAL_TO_PETTY_CASH ||
+      transaction.metadata?.cashWithdrawalToPettyCash === true
+    ) {
       const bankBalance = await this.getAccountBalance(
         '1.1.02', // Banco
         transaction.createdAt,
@@ -360,7 +371,16 @@ export class LedgerEntriesService {
     transaction: Transaction,
     rules: AccountingRule[],
     personId: string | null,
+    companyId: string,
   ): Promise<LedgerEntryDto[]> {
+    const meta = (transaction.metadata || {}) as Record<string, unknown>;
+    if (
+      transaction.transactionType === TransactionType.CASH_DEPOSIT &&
+      ((transaction as any).cashHubId || meta.cashHubDeposit)
+    ) {
+      return this.buildHubCashDepositEntries(transaction, personId, companyId);
+    }
+
     // CASO ESPECIAL: Remuneraciones (PAYROLL)
     // No depende de reglas contables, genera asientos directamente desde metadata
     if (transaction.transactionType === TransactionType.PAYROLL) {
@@ -456,6 +476,54 @@ export class LedgerEntriesService {
     }
 
     return entries;
+  }
+
+  /** Depósito desde centro de acopio (1110) hacia banco (1102): Debe banco / Haber efectivo acopio. */
+  private async buildHubCashDepositEntries(
+    transaction: Transaction,
+    personId: string | null,
+    companyId: string,
+  ): Promise<LedgerEntryDto[]> {
+    const accounts = await this.accountRepo.findByCompanyId(companyId);
+    const byCode = new Map(accounts.map((a) => [a.code, a.id]));
+    const bankId =
+      byCode.get('1102') ?? byCode.get('1.1.02') ?? byCode.get('1.1.2');
+    const hubId = byCode.get('1110') ?? byCode.get('1.1.10');
+    if (!bankId || !hubId) {
+      this.logger.warn(
+        `[ledger] CASH_DEPOSIT con hub: faltan cuentas 1102/1110 para companyId=${companyId}; sin asientos.`,
+      );
+      return [];
+    }
+    const amount = Math.abs(Number(transaction.total || 0));
+    if (amount < 0.01) {
+      return [];
+    }
+    const desc =
+      transaction.notes ||
+      'Depósito bancario desde centro de acopio (efectivo acopio → banco)';
+    return [
+      {
+        transactionId: transaction.id,
+        accountId: bankId,
+        personId,
+        entryDate: transaction.createdAt,
+        description: desc,
+        debit: amount,
+        credit: 0,
+        metadata: { cashHubDeposit: true, scope: 'TRANSACTION' },
+      },
+      {
+        transactionId: transaction.id,
+        accountId: hubId,
+        personId,
+        entryDate: transaction.createdAt,
+        description: desc,
+        debit: 0,
+        credit: amount,
+        metadata: { cashHubDeposit: true, scope: 'TRANSACTION' },
+      },
+    ];
   }
 
   /**

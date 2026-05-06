@@ -11,6 +11,7 @@ import { HealthModule } from './modules/health/health.module';
 import { PosModule } from './modules/points-of-sale/pos.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CashSessionsModule } from './modules/cash-sessions/cash-sessions.module';
+import { CashHubsModule } from './modules/cash-hubs/cash-hubs.module';
 import { TreasuryAccountsModule } from './modules/treasury-accounts/treasury-accounts.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { ProductsModule } from './modules/products/products.module';
@@ -37,6 +38,7 @@ import { BankAccountsModule } from './modules/bank-accounts/bank-accounts.module
 import { CapitalContributionsModule } from './modules/capital-contributions/capital-contributions.module';
 import { BankTransfersModule } from './modules/bank-transfers/bank-transfers.module';
 import { BankWithdrawalsModule } from './modules/bank-withdrawals/bank-withdrawals.module';
+import { PettyCashWithdrawalsModule } from './modules/petty-cash-withdrawals/petty-cash-withdrawals.module';
 import { CashDepositsModule } from './modules/cash-deposits/cash-deposits.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { ResultCentersModule } from './modules/result-centers/result-centers.module';
@@ -55,6 +57,7 @@ import { MultimediaModule } from './modules/multimedia/multimedia.module';
 import { ObservabilityModule } from './shared/observability.module';
 import { SupplierInvoicesModule } from './modules/supplier-invoices/supplier-invoices.module';
 import { SupplierReceiptsModule } from './modules/supplier-receipts/supplier-receipts.module';
+import { SupplierHonorariumReceiptsModule } from './modules/supplier-honorarium-receipts/supplier-honorarium-receipts.module';
 import { SupplierGuidesModule } from './modules/supplier-guides/supplier-guides.module';
 import { PurchasingSupplierDocumentsModule } from './modules/purchasing-supplier-documents/purchasing-supplier-documents.module';
 import { RecipesModule } from './modules/recipes/recipes.module';
@@ -87,9 +90,11 @@ import { OrdersModule } from './modules/orders/orders.module';
     CapitalContributionsModule,
     BankTransfersModule,
     BankWithdrawalsModule,
+    PettyCashWithdrawalsModule,
     CashDepositsModule,
     EmployeesModule,
     CashSessionsModule,
+    CashHubsModule,
     TreasuryAccountsModule,
     CustomersModule,
     ProductsModule,
@@ -112,6 +117,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     ReceptionsModule,
     SupplierInvoicesModule,
     SupplierReceiptsModule,
+    SupplierHonorariumReceiptsModule,
     SupplierGuidesModule,
     PurchasingSupplierDocumentsModule,
     RecipesModule,

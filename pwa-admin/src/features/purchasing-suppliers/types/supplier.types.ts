@@ -14,6 +14,17 @@ export type SupplierCommercialType =
   | "LOGISTICS"
   | "IMPORTER";
 
+/** Cuentas bancarias del `person` del proveedor (JSON en API). */
+export type SupplierPersonBankAccount = {
+  accountKey?: string;
+  bankName: string;
+  accountType: string;
+  accountNumber: string;
+  accountHolderName?: string;
+  isPrimary?: boolean;
+  notes?: string;
+};
+
 export type SupplierPersonGrid = {
   id: string;
   type: SupplierPersonType;
@@ -25,6 +36,7 @@ export type SupplierPersonGrid = {
   email?: string | null;
   phone?: string | null;
   address?: string | null;
+  bankAccounts?: SupplierPersonBankAccount[];
 };
 
 export type SupplierGridRow = {

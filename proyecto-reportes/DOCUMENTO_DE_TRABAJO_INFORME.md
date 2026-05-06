@@ -102,7 +102,15 @@ Usar estas **familias** como ancla (los nombres pueden ajustarse al tono del inf
 
 ## Sección 3 — FlowStore
 
-### 3.1 Introducción (arquitectura explicada para cliente)
+### 3.1 ¿Qué es FlowStore?
+
+#### Propósito
+Dar una **definición comercial** del producto, con foco en **ventas** (mensaje para cliente/decisor antes del detalle técnico).
+
+#### Entregables
+- 1 párrafo/bloque redactado (valor percibido: cobro, catálogo, circuito hacia back office / cumplimiento).
+
+### 3.2 Introducción (arquitectura explicada para cliente)
 
 #### Propósito
 Explicar la solución FlowStore desde una mirada de **producto**:
@@ -116,7 +124,7 @@ Explicar la solución FlowStore desde una mirada de **producto**:
 - 1 diagrama simple “Admin ↔ POS ↔ Operación” (opcional).
 - 1 bloque “Qué resuelve FlowStore” (beneficios).
 
-### 3.2 App de Administraciones (Admin)
+### 3.3 App de Administraciones (Admin)
 
 #### Propósito
 Describir la app Admin **por módulos y pantallas**, siempre desde UI/función:
@@ -130,10 +138,10 @@ Describir la app Admin **por módulos y pantallas**, siempre desde UI/función:
 #### Estructura obligatoria del informe (espejo del menú Admin)
 Cada bloque debe tener: **para qué sirve**, **flujo típico**, **capturas** (si aplica), **supuestos** (si requiere datos previos).
 
-##### 3.2.1 Panel
+##### 3.3.1 Panel
 - **Ruta**: `/dashboard`
 
-##### 3.2.2 Ventas
+##### 3.3.2 Ventas
 - **Rutas**:
   - **Transacciones**: `/sales/transactions`
   - **Clientes**: `/sales/customers`
@@ -142,7 +150,7 @@ Cada bloque debe tener: **para qué sirve**, **flujo típico**, **capturas** (si
   - **Sesiones de caja**: `/sales/cash-sessions`
   - **Listas de precios**: `/sales/price-lists`
 
-##### 3.2.3 Compras
+##### 3.3.3 Compras
 - **Rutas**:
   - **Recepciones**: `/purchasing/receptions`
   - **Proveedores**: `/purchasing/suppliers`
@@ -155,9 +163,8 @@ Cada bloque debe tener: **para qué sirve**, **flujo típico**, **capturas** (si
       - Guías de despacho (`/purchasing/dte/guides`)
       - Notas de crédito (`/purchasing/dte/credit-notes`)
   - **Devoluciones proveedor**: `/purchasing/purchase-returns`
-  - **Flujo del proceso**: `/purchasing/flow`
 
-##### 3.2.4 Inventario y Catálogo
+##### 3.3.4 Inventario y Catálogo
 - **Rutas**:
   - **Productos**: `/inventory/products`
   - **Categorías**: `/inventory/categories`
@@ -166,7 +173,8 @@ Cada bloque debe tener: **para qué sirve**, **flujo típico**, **capturas** (si
   - **Atributos**: `/inventory/attributes`
   - **Almacenes**: `/inventory/storages`
 
-##### 3.2.5 Tesorería
+##### 3.3.5 Tesorería
+- En el HTML del informe: mismo esquema que Ventas/Compras (**párrafo introductorio del módulo** + **`h5.screen-title`** por pantalla); las figuras **3.13** (`GASTO OPERATIVO.png`) y **3.14** (`ACCOUNTS-BANKS.png`) van tras **Gastos operativos** y **Cuentas bancarias y cajas** respectivamente (Conciliaciones y Flujo de caja no figuran en esa sección).
 - **Rutas**:
   - **Gastos operativos**: `/treasury/expenses`
   - **Categorías de gasto**: `/treasury/expense-categories`
@@ -177,34 +185,40 @@ Cada bloque debe tener: **para qué sirve**, **flujo típico**, **capturas** (si
   - **Conciliaciones**: `/treasury/reconciliations`
   - **Flujo de caja (Cash flow)**: `/treasury/cash-flow`
 
-##### 3.2.6 Contabilidad
-- **Rutas**:
+##### 3.3.6 Contabilidad
+- En el HTML del informe: mismo esquema que Ventas/Compras (**párrafo introductorio del módulo** + **`h5.screen-title`** por pantalla); figura **3.15** (`TAXES.png`) tras el apartado **Impuestos**.
+- En el HTML del informe (cap. 3) **no se mencionan** las pantallas de automatizaciones, flujos, transacciones soportadas ni asientos manuales; existen en la app pero quedan fuera de este documento.
+- **Rutas** (informe — alineadas al texto del capítulo 3):
   - **Plan de cuentas**: `/accounting/chart-of-accounts`
   - **Reglas contables**: `/accounting/rules`
-  - **Automatizaciones**: `/accounting/automation`
-  - **Flujos**: `/accounting/flows/sales`
-  - **Transacciones soportadas**: `/accounting/transactions`
   - **Cuentas por cobrar**: `/accounting/accounts-receivable`
   - **Cuentas por pagar**: `/accounting/accounts-payable`
   - **Libros contables**: `/accounting/ledgers`
-  - **Asientos manuales**: `/accounting/journal-entries`
   - **Impuestos**: `/accounting/taxes`
   - **Estados financieros**: `/accounting/reports`
+- **Referencia técnica (no en informe)**:
+  - **Automatizaciones**: `/accounting/automation`
+  - **Flujos**: `/accounting/flows/sales`
+  - **Transacciones soportadas**: `/accounting/transactions`
+  - **Asientos manuales**: `/accounting/journal-entries`
 
-##### 3.2.7 RRHH
+##### 3.3.7 RRHH
+- En el HTML del informe: mismo esquema que Ventas/Compras (**párrafo introductorio del módulo** + **`h5.screen-title`** por pantalla); en esta versión del capítulo 3 **no hay figura** asociada a RRHH (`proyecto-reportes/public/` no incluye captura de ese módulo).
 - **Rutas**:
   - **Empleados**: `/hr/employees`
   - **Remuneraciones**: `/hr/remunerations`
   - **Unidades organizativas**: `/hr/organizational-units`
 
-##### 3.2.8 Configuración
-- **Rutas**:
+##### 3.3.8 Configuración
+- En el HTML del informe (cap. 3), la tabla de **Configuración** **no incluye** la pantalla de parámetros del sistema (solo Empresa, Sucursales y Usuarios).
+- **Rutas** (informe — alineadas a la tabla del capítulo 3):
   - **Empresa**: `/settings/company`
   - **Sucursales**: `/settings/branches`
   - **Usuarios**: `/settings/users`
+- **Referencia técnica (no en esa tabla del informe)**:
   - **Parámetros del sistema**: `/settings/parameters`
 
-##### 3.2.9 (Opcional / interno) UI Components
+##### 3.3.9 (Opcional / interno) UI Components
 - Showcase de componentes (no orientado al cliente final). Si se incluye, moverlo a **Anexos**. Rutas en `uiComponentItems` dentro de `mainMenu.ts`:
   - Alert (`/ui-components/alert`)
   - Autocomplete (`/ui-components/autocomplete`)
@@ -228,13 +242,20 @@ Cada bloque debe tener: **para qué sirve**, **flujo típico**, **capturas** (si
 
 
 #### Imágenes
-- Usar capturas desde `proyecto-reportes/public/` (definir listado final).
+- Origen: `proyecto-reportes/public/`. En el informe HTML (`content/05-seccion-3-flowstore.html`) la numeración **Figura 3.1–3.17** queda alineada con este orden de archivos:
+  - **3.1–3.3 (panel / inicio)**: `DASHBOARD-1.png`, `SIDEBAR.png`, `DASHBOARD-2.png` (esta última figura va textualmente junto al apartado «Panel» 3.3.1)
+  - **3.4–3.5** Ventas: `POINT-OF-SALE.png`, `PRICES-LISTS.png`
+  - **3.6–3.7** Compras: `RECEPCION.png` (tras apartado Recepciones), `DTE.png` (tras apartado DTE’s proveedor)
+  - **3.8–3.12** Inventario y catálogo: `PRODUCTOS.png` (tras apartado Productos), `STOCK.png` (tras Existencias), `UNIDAD.png`, `ATRIB.png`, `STORAGES.png`
+  - **3.13–3.14** Tesorería: `GASTO OPERATIVO.png` (tras apartado Gastos operativos), `ACCOUNTS-BANKS.png` (tras Cuentas bancarias y cajas)
+  - **3.15** Contabilidad: `TAXES.png` (tras apartado Impuestos)
+  - **3.16–3.17** POS (sección 3.4 del informe): `POS.png`, `PAY.png`
 
 #### Entregables
 - Sub-secciones por módulo (1–2 páginas c/u máximo).
 - Capturas con pie de foto (qué se logra en esa pantalla).
 
-### 3.3 App POS
+### 3.4 App POS
 
 #### Propósito
 Describir la app POS desde el flujo de operación:
@@ -249,7 +270,7 @@ Describir la app POS desde el flujo de operación:
 - Gestión de caja (apertura/cierre, arqueo, sesiones).
 
 #### Imágenes
-- Usar capturas desde `proyecto-reportes/public/` (definir listado final).
+- En `proyecto-reportes/public/`: principalmente `POS.png` y `PAY.png` (en el informe armado corresponden a **Figura 3.16** y **Figura 3.17** del capítulo 3).
 
 #### Entregables
 - Flujo “paso a paso” con 6–10 bullets.

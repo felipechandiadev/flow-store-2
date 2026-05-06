@@ -13,8 +13,10 @@ import { Category } from '@modules/categories/domain/category.entity';
 import { Attribute } from '@modules/attributes/domain/attribute.entity';
 import { PriceList } from '@modules/price-lists/domain/price-list.entity';
 import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
+import { CashHub } from '@modules/cash-hubs/domain/cash-hub.entity';
 import { ExpenseCategory } from '@modules/expense-categories/domain/expense-category.entity';
 import { Supplier } from '@modules/suppliers/domain/supplier.entity';
+import { Shareholder } from '@modules/shareholders/domain/shareholder.entity';
 import { AccountingAccount } from '@modules/accounting-accounts/domain/accounting-account.entity';
 import { AccountingRule } from '@modules/accounting-rules/domain/accounting-rule.entity';
 import { AccountingRuleLine } from '@modules/accounting-rules/domain/accounting-rule-line.entity';
@@ -46,8 +48,10 @@ import { Storage } from '@modules/storages/domain/storage.entity';
       Attribute,
       PriceList,
       PointOfSale,
+      CashHub,
       ExpenseCategory,
       Supplier,
+      Shareholder,
       AccountingAccount,
       AccountingRule,
       AccountingRuleLine,

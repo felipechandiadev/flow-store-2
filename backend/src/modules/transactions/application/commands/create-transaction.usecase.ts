@@ -124,6 +124,7 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
           paymentMethod: dto.paymentMethod,
           paymentStatus: dto.paymentStatus,
           bankAccountKey: dto.bankAccountKey || null,
+          cashHubId: dto.cashHubId || null,
           documentType: dto.documentType || null,
           documentFolio: dto.documentFolio || null,
           paymentDueDate: dto.paymentDueDate

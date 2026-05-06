@@ -25,3 +25,21 @@ export function pickIvaTaxForLines(taxes: TaxListItem[]): { taxId?: string; rate
   }
   return { rate: ivaRatePercentFromTaxList(taxes) };
 }
+
+const HONORARIOS_RETENTION_NAME_RE = /honorarios/i;
+
+/** Retención de honorarios: preferir RETENTION cuyo nombre mencione honorarios; si no, primer RETENTION activo. */
+export function pickHonorariumRetentionTaxForLines(taxes: TaxListItem[]): { taxId?: string; rate: number } {
+  const active = taxes.filter((t) => t.isActive !== false);
+  const named = active.find(
+    (t) => t.taxType === "RETENTION" && HONORARIOS_RETENTION_NAME_RE.test(String(t.name ?? "").trim()),
+  );
+  if (named && typeof named.rate === "number" && Number.isFinite(named.rate)) {
+    return { taxId: named.id, rate: named.rate };
+  }
+  const anyRetention = active.find((t) => t.taxType === "RETENTION");
+  if (anyRetention && typeof anyRetention.rate === "number" && Number.isFinite(anyRetention.rate)) {
+    return { taxId: anyRetention.id, rate: anyRetention.rate };
+  }
+  return { rate: 15.25 };
+}

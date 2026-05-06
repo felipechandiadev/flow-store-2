@@ -7,6 +7,7 @@ import { CompanyRequest } from "@/features/settings-branches/infrastructure/comp
 import { OperationalExpenseRequest } from "../infrastructure/operational-expense.request";
 import type {
   ExpenseCategoryOption,
+  OperationalExpenseCreateLinkedTributaryDocument,
   OperationalExpenseGridRow,
   OperationalExpenseStatus,
   SupplierOption,
@@ -64,6 +65,7 @@ export async function createOperationalExpenseAction(input: {
   operationDate: string;
   description?: string;
   supplierId?: string;
+  linkedTributaryDocument?: OperationalExpenseCreateLinkedTributaryDocument;
 }): Promise<{ success: true; id: string } | { success: false; error: string }> {
   const company = await CompanyRequest.getCurrent();
   if (!company?.id) {
@@ -91,6 +93,29 @@ export async function createOperationalExpenseAction(input: {
     return { success: false, error: "La fecha de operación es obligatoria." };
   }
 
+  if (input.linkedTributaryDocument) {
+    if (!UUID_RE.test(input.supplierId ?? "")) {
+      return {
+        success: false,
+        error: "Con documento tributario debe indicar un proveedor válido.",
+      };
+    }
+    const d = input.linkedTributaryDocument;
+    if (d.netAmount < 0.01 || d.totalAmount < 0.01) {
+      return { success: false, error: "Los montos del documento deben ser mayores a cero." };
+    }
+    if (!d.plannedPayments?.length) {
+      return { success: false, error: "Debe definir al menos una línea de pago planificado." };
+    }
+    const sum = d.plannedPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    if (Math.abs(sum - d.totalAmount) > 1) {
+      return {
+        success: false,
+        error: "La suma de los pagos planificados debe coincidir con el total del documento.",
+      };
+    }
+  }
+
   const result = await OperationalExpenseRequest.create({
     companyId: company.id,
     name: input.name,
@@ -101,6 +126,9 @@ export async function createOperationalExpenseAction(input: {
     supplierId: input.supplierId?.trim() || undefined,
     createdBy: userId,
     status: "DRAFT",
+    ...(input.linkedTributaryDocument
+      ? { metadata: { linkedTributaryDocument: input.linkedTributaryDocument } }
+      : {}),
   });
 
   if (result.success) {

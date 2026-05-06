@@ -76,6 +76,7 @@ export class GetMovementsForSessionQueryHandler implements IQueryHandler<GetMove
       case TransactionType.PAYMENT_IN:
         return 'IN';
       case TransactionType.CASH_SESSION_WITHDRAWAL:
+      case TransactionType.CASH_SESSION_TO_HUB_TRANSFER:
       case TransactionType.OPERATING_EXPENSE:
       case TransactionType.PAYMENT_OUT:
       case TransactionType.CASH_DEPOSIT:

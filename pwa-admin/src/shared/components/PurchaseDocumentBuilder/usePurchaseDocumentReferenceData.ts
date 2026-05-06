@@ -3,11 +3,29 @@
 import { useEffect, useState } from "react";
 import { listTaxesForPage } from "@/features/accounting-taxes/actions/tax.action";
 import { listStoragesForPage } from "@/features/inventory-storages/actions/storage.action";
+import { loadCompanyBankAccountsForPurchasingAction } from "@/features/purchasing-invoices/actions/company-banks.action";
 import { listSuppliersForGrid } from "@/features/purchasing-suppliers/actions/supplier.action";
 import { listBranchesForSettingsPage } from "@/features/settings-branches/actions/branch.action";
 import type { TaxListItem } from "@/features/accounting-taxes/types/tax.types";
 import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
 import type { SupplierGridRow } from "@/features/purchasing-suppliers/types/supplier.types";
+import type { CompanyBankAccountItem } from "@/features/settings-branches/infrastructure/company.request";
+import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
+
+function pickDefaultBranchId(branches: BranchListItem[]): string {
+  if (!branches.length) {
+    return "";
+  }
+  const hq = branches.find((b) => b.isHeadquarters && b.isActive !== false);
+  if (hq) {
+    return hq.id;
+  }
+  const active = branches.find((b) => b.isActive !== false);
+  if (active) {
+    return active.id;
+  }
+  return branches[0]?.id ?? "";
+}
 
 export type PurchaseDocumentReferenceState =
   | { status: "loading" }
@@ -18,6 +36,7 @@ export type PurchaseDocumentReferenceState =
       storages: StorageListItem[];
       taxes: TaxListItem[];
       branchId: string;
+      companyBankAccounts: CompanyBankAccountItem[];
     };
 
 /**
@@ -32,11 +51,12 @@ export function usePurchaseDocumentReferenceData(): PurchaseDocumentReferenceSta
 
     void (async () => {
       try {
-        const [suppliersResult, storages, taxes, branches] = await Promise.all([
+        const [suppliersResult, storages, taxes, branches, companyBankAccounts] = await Promise.all([
           listSuppliersForGrid(),
           listStoragesForPage(),
           listTaxesForPage(),
           listBranchesForSettingsPage(),
+          loadCompanyBankAccountsForPurchasingAction(),
         ]);
         if (cancelled) {
           return;
@@ -46,7 +66,8 @@ export function usePurchaseDocumentReferenceData(): PurchaseDocumentReferenceSta
           suppliers: suppliersResult.rows,
           storages,
           taxes,
-          branchId: branches[0]?.id ?? "",
+          branchId: pickDefaultBranchId(branches),
+          companyBankAccounts,
         });
       } catch (e) {
         if (cancelled) {

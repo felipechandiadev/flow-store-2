@@ -1,7 +1,21 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
+/** En dev cada app usa su propio origen (p. ej. :3021 vs :3022): las cookies ya no se mezclan. Nombres explícitos por si más adelante comparten host detrás de un proxy. */
+const isProd = process.env.NODE_ENV === 'production';
+
 export const authOptions: NextAuthOptions = {
+  cookies: {
+    sessionToken: {
+      name: isProd ? '__Secure-next-auth.session.flowstore-admin' : 'next-auth.session.flowstore-admin',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: isProd,
+      },
+    },
+  },
   providers: [
     CredentialsProvider({
       name: 'credentials',

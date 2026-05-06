@@ -79,6 +79,24 @@ describe('CreateTransactionDto', () => {
       expect(errors.some((e) => e.includes('purchaseReturnId'))).toBe(true);
     });
 
+    it('should reject SUPPLIER_HONORARIUM_RECEIPT without supplierId', () => {
+      const dto = new CreateTransactionDto();
+      dto.transactionType = TransactionType.SUPPLIER_HONORARIUM_RECEIPT;
+      dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.userId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.subtotal = 100;
+      dto.total = 100;
+      dto.lines = [
+        plainLine({ productName: 'x', quantity: 1, unitPrice: 100, subtotal: 100, total: 100 }),
+      ];
+
+      const errors = dto.validate();
+
+      expect(
+        errors.some((e) => e.includes('SUPPLIER_HONORARIUM_RECEIPT requiere supplierId')),
+      ).toBe(true);
+    });
+
     it('should reject SUPPLIER_RECEIPT without supplierId', () => {
       const dto = new CreateTransactionDto();
       dto.transactionType = TransactionType.SUPPLIER_RECEIPT;

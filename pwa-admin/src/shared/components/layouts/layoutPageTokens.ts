@@ -5,6 +5,10 @@
 export const layoutPageRootClassName =
   "flex w-full min-w-0 max-w-full flex-col gap-4";
 
+/** Misma raíz que {@link layoutPageRootClassName} con menos espacio entre cabecera y contenido (p. ej. pestañas). */
+export const layoutPageRootClassNameCompact =
+  "flex w-full min-w-0 max-w-full flex-col gap-2";
+
 /** Bloque de cabecera (título / subtítulo / toolbar). */
 export const layoutPageHeaderClassName = "w-full min-w-0";
 

@@ -1,11 +1,8 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { CustomersService } from './customers.service';
-import { CreateCustomerCommand } from './commands/create-customer.command';
 import { UpdateCustomerCommand } from './commands/update-customer.command';
 import { DeleteCustomerCommand } from './commands/delete-customer.command';
-import { SearchCustomersQuery } from './queries/search-customers.query';
-import { GetCustomerQuery } from './queries/get-customer.query';
 import { GetCustomerPaymentsQuery } from './queries/get-customer-payments.query';
 import { GetCustomerPendingPaymentsQuery } from './queries/get-customer-pending-payments.query';
 import { GetCustomerPurchasesQuery } from './queries/get-customer-purchases.query';
@@ -15,71 +12,14 @@ export class CustomersServiceAdapter extends CustomersService {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    /** Servicio legacy con creación y persona persistidas (el bus CQRS usa handlers incompletos). */
+    private readonly customersCore: CustomersService,
   ) {
     super(null as any, null as any, null as any); // We won't use the legacy dependencies
   }
 
   async create(createCustomerDto: any) {
-    const command = new CreateCustomerCommand(
-      createCustomerDto.personType,
-      createCustomerDto.firstName,
-      'system-user', // userId
-      createCustomerDto.lastName,
-      createCustomerDto.businessName,
-      createCustomerDto.documentNumber,
-      createCustomerDto.documentType,
-      createCustomerDto.email,
-      createCustomerDto.phone,
-      createCustomerDto.address,
-      createCustomerDto.creditLimit,
-      createCustomerDto.paymentDayOfMonth,
-      createCustomerDto.notes,
-    );
-
-    const result = await this.commandBus.execute(command);
-
-    // After creating, fetch the customer read model (which should include person fields)
-    const customerFull = await this.queryBus.execute(
-      new GetCustomerQuery(result.id),
-    );
-
-    const creditInfo = {
-      creditLimit: customerFull.creditLimit ?? result.creditLimit,
-      usedCredit: customerFull.usedCredit ?? 0,
-      availableCredit:
-        (customerFull.creditLimit ?? result.creditLimit) -
-        (customerFull.usedCredit ?? 0),
-    };
-
-    const displayName =
-      customerFull.displayName ||
-      this.buildDisplayNameFromPerson(customerFull.person);
-
-    return {
-      success: true,
-      customer: {
-        customerId: result.id,
-        personId: result.personId,
-        displayName,
-        documentType: customerFull.person?.documentType ?? null,
-        documentNumber: customerFull.person?.documentNumber ?? null,
-        email: customerFull.person?.email ?? null,
-        phone: customerFull.person?.phone ?? null,
-        address: customerFull.person?.address ?? null,
-        creditLimit: creditInfo.creditLimit,
-        usedCredit: creditInfo.usedCredit,
-        availableCredit: creditInfo.availableCredit,
-        paymentDayOfMonth: result.paymentDayOfMonth,
-        createdAt: result.createdAt,
-        updatedAt: result.updatedAt,
-      },
-    };
-  }
-
-  private buildDisplayNameFromPerson(person: any) {
-    if (!person) return '';
-    if (person.type === 'BUSINESS') return person.businessName || '';
-    return `${person.firstName || ''} ${person.lastName || ''}`.trim();
+    return this.customersCore.create(createCustomerDto);
   }
 
   async update(customerId: string, updateData: any) {
@@ -113,8 +53,7 @@ export class CustomersServiceAdapter extends CustomersService {
   }
 
   async findOne(id: string) {
-    const query = new GetCustomerQuery(id);
-    return this.queryBus.execute(query);
+    return this.customersCore.findOne(id);
   }
 
   async getPayments(customerId: string) {
@@ -123,8 +62,7 @@ export class CustomersServiceAdapter extends CustomersService {
   }
 
   async search(dto: any) {
-    const query = new SearchCustomersQuery(dto.query, dto.page, dto.pageSize);
-    return this.queryBus.execute(query);
+    return this.customersCore.search(dto);
   }
 
   async getPendingPayments(customerId: string) {

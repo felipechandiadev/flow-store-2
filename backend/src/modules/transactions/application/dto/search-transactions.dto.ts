@@ -117,4 +117,19 @@ export class SearchTransactionsDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Clave de cuenta bancaria de la empresa (movimientos en esa cuenta)',
+    example: 'main-checking',
+  })
+  @IsOptional()
+  @IsString()
+  bankAccountKey?: string;
+
+  @ApiPropertyOptional({
+    description: 'Centro de acopio (transacciones con cashHubId)',
+  })
+  @IsOptional()
+  @IsString()
+  cashHubId?: string;
 }

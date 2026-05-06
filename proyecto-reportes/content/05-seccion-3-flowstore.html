@@ -8,8 +8,690 @@
 </head>
 <body>
   <section class="chapter" id="sec03-flowstore">
-    <h2>Sección 3 — FlowStore</h2>
-    <p class="placeholder">Contenido pendiente. Se desarrollará según la guía del documento de trabajo.</p>
+    <h2>FlowStore</h2>
+
+    <h3 id="sec03-definicion">3.1 ¿Qué es FlowStore?</h3>
+    <p>
+      FlowStore es el software con el que la empresa <strong>atiende al cliente y cobra</strong> sin perder el hilo de lo
+      vendido: catálogo y precios coherentes, disponibilidad visible desde el mostrador y registro ordenado de cada
+      operación. En la práctica comercial, el valor central es que la <strong>venta deja de ser un evento aislado</strong>
+      y se convierte en el punto de partida de un mismo circuito —ticket o documento, inventario actualizado, cobros y,
+      cuando corresponde, información lista para administración, tesorería y cumplimiento tributario— sin depender de
+      cuadraturas manuales paralelas. FlowStore acerca esa experiencia con una <strong>app POS pensada para caja</strong>
+      (rapidez y claridad al cobrar) y un <strong>panel de administración</strong> donde se definen productos, listas de
+      precios, puntos de venta y políticas que el equipo comercial y operativo respeta en el día a día.
+    </p>
+
+    <h3 id="sec03-arquitectura">3.2 Arquitectura del producto</h3>
+    <p>
+      FlowStore ayuda a gestionar el negocio de punta a punta: inventario, compras y ventas, el dinero que entra y sale
+      en caja y bancos y, cuando aplica, la contabilidad ligada a esas operaciones, además del cobro en el local. La solución
+      consta de <strong>dos aplicaciones web</strong> que trabajan con la misma información de fondo; desde el navegador se
+      pueden <strong>instalar como aplicación</strong> (acceso desde el escritorio o la pantalla de inicio del celular o tablet).
+      <strong>Ambas</strong> pueden usarse en computador, en tablet y en teléfono móvil. El <strong>panel de administración</strong>
+      concentra la configuración, la supervisión y los informes; el <strong>punto de venta (POS)</strong> está pensado para el
+      día a día de vender y cobrar en caja.
+    </p>
+    <pre class="ascii-diagram" style="font-size: 8pt; line-height: 1.35; margin: 10pt 0 14pt; padding: 10pt 12pt; background: #f8fafc; border: 1px solid #e2e8f0; overflow-x: auto;">
+          Operación / caja
+                │
+                ▼
+    ┌───────────────────────┐         ┌────────────────────────┐
+    │  FlowStore — POS      │───────► │  Información central    │
+    │  (venta, carrito,     │         │  compartida             │
+    │   cobro, caja)        │         └───────────▲────────────┘
+    └───────────┬───────────┘                     │
+                │                                 │
+                │                                 │ consultas y
+                │                                 │ actualizaciones
+                ▼                                 │
+    ┌───────────────────────┐                     │
+    │  FlowStore — Admin    │─────────────────────┘
+    │  (configuración,      │
+    │   informes, gestión   │
+    │   interna)            │
+    └───────────────────────┘
+    </pre>
+    <p><strong>Qué aporta FlowStore (resumen)</strong></p>
+    <ul>
+      <li><strong>Un solo registro operativo</strong>: lo que se vende o compra y lo que pasa por caja o banco queda
+        trazado en el mismo sistema, reduciendo duplicación de planillas o reconciliaciones manuales extensas.</li>
+      <li><strong>Separación clara de roles</strong>: cajeros pueden trabajar desde el POS enfocados en velocidad de cobro,
+        mientras que administración y contabilidad usan el panel con más detalle.</li>
+      <li><strong>Extensión modular</strong>: compras con DTE de proveedor, inventario multicentro, tesorería, plan contable,
+        remuneraciones u otros bloques están disponibles según la configuración implementada en cada proyecto.</li>
+      <li><strong>Acceso desde navegador</strong>: las aplicaciones pueden instalarse como acceso directo en equipo de caja u oficina;
+        los detalles de despliegue e infraestructura se cubren en secciones posteriores de este informe.</li>
+    </ul>
+
+    <h3 id="sec03-admin">3.3 FlowStore — Panel de administración</h3>
+    <p>
+      El panel es la aplicación para la <strong>administración y la gestión interna</strong>: permite mantener al día
+      productos, clientes y proveedores; revisar ventas y compras; llevar tesorería y contabilidad; y ajustar cómo está
+      configurada la empresa y quién tiene acceso. La navegación es un <strong>menú lateral</strong>; arriba se ve la marca,
+      el usuario que inició sesión y acciones habituales como el cambio de contraseña.
+    </p>
+
+
+    <figure class="figure-screenshot">
+      <img src="../public/DASHBOARD-1.png" alt="Panel FlowStore — vista inicial del dashboard" />
+      <figcaption>Figura 3.1. Panel de administración: ejemplo de página de inicio (dashboard).</figcaption>
+    </figure>
+
+    <figure class="figure-screenshot">
+      <img src="../public/SIDEBAR.png" alt="Menú lateral del panel FlowStore Admin" />
+      <figcaption>Figura 3.2. Menú lateral con los módulos operativos del panel.</figcaption>
+    </figure>
+
+    <h4 id="sec03-3-1">3.3.1 Panel</h4>
+    <p>
+      El <strong>panel de inicio</strong> es la primera impresión de FlowStore para quien administra el negocio: concentra
+      <strong>indicadores y gráficas</strong> que permiten ver de un vistazo cómo va la operación, sin tener que abrir aún cada
+      módulo. Eso traduce en <strong>menos tiempo</strong> buscando información, una lectura más <strong>ordenada</strong> del
+      negocio y atajos hacia las áreas que suelen requerir seguimiento. Tras iniciar sesión, la persona llega a un espacio
+      pensado para orientarse rápidamente y, desde ahí, desplazarse al detalle —Ventas, Compras, inventario u otros bloques— con
+      el menú lateral, manteniendo la sensación de un sistema integrado y fácil de recorrer.
+    </p>
+
+    <figure class="figure-screenshot">
+      <img src="../public/DASHBOARD-2.png" alt="Panel FlowStore — dashboard vista complementaria con indicadores" />
+      <figcaption>Figura 3.3. Panel de administración: vista complementaria del dashboard (indicadores y detalle).</figcaption>
+    </figure>
+
+    <h4 id="sec03-3-2">3.3.2 Ventas</h4>
+    <p>
+      El módulo <strong>Ventas</strong> es el área del panel donde FlowStore concentra lo necesario para sustentar la operación
+      comercial: mantención de <strong>clientes</strong>, definición de <strong>puntos de venta</strong> y <strong>listas de
+      precios</strong>, seguimiento de los pagos recibidos, consulta del <strong>detalle de ventas</strong>
+      y revisión de las <strong>sesiones de caja</strong> asociadas al punto de venta. En conjunto ofrece una mirada de
+      administración y control alineada con lo que ocurre en el mostrador.
+    </p>
+
+    <h5 class="screen-title">Transacciones</h5>
+    <p>
+      Sirve para revisar y dar seguimiento al detalle de las ventas y otros movimientos que se registran desde el punto de
+      venta: consultas, trazabilidad y auditoría del día a día comercial.
+    </p>
+
+    <h5 class="screen-title">Clientes</h5>
+    <p>
+      Es el lugar donde se crea y mantiene la base de clientes: datos de contacto y facturación, y las condiciones comerciales
+      definidas por la empresa.
+      La <strong>vista de detalle del cliente</strong> reúne su información en un solo lugar y permite revisar el
+      <strong>historial de compras</strong> con trazabilidad.
+      Cuando la política del negocio autoriza <strong>crédito interno</strong> como medio de pago, aquí también se visualiza el
+      <strong>saldo</strong>, se configura el <strong>límite o cupo de crédito</strong> y se consultan los <strong>pagos realizados</strong>
+      por el cliente.
+    </p>
+
+    <h5 class="screen-title">Puntos de venta</h5>
+    <p>
+      Permite definir el <strong>punto físico</strong> donde opera la app POS. En FlowStore, un <strong>punto de venta</strong>
+      representa la <strong>caja</strong> o el espacio de atención donde se realiza la transacción; por eso queda asociado a una
+      <strong>sucursal</strong> y define el <strong>contexto de venta</strong> (qué precios aplican y con qué políticas se opera).
+      Cada punto de venta puede trabajar con <strong>una o varias listas de precios</strong>, lo que permite habilitar listas
+      distintas según la caja: por ejemplo, dos cajas en la misma sala, una orientada a <strong>venta al por menor</strong> y otra a
+      <strong>venta al por mayor</strong>, sin mezclar condiciones ni obligar al cajero a “adivinar” qué precio corresponde.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/POINT-OF-SALE.png" alt="Ventas — configuración de puntos de venta" />
+      <figcaption>Figura 3.4. Ventas — puntos de venta (definición de locales y políticas del POS).</figcaption>
+    </figure>
+
+    <h5 class="screen-title">Pagos recibidos</h5>
+    <p>
+      Aquí puede ver <strong>todos los cobros que ya ingresaron</strong>: en una misma vista queda claro <strong>quién
+      pagó</strong> (cliente), <strong>con qué medio</strong> lo hizo (por ejemplo efectivo, tarjeta o transferencia), en
+      <strong>qué local o caja</strong> se registró el cobro y <strong>a qué venta corresponde</strong>. Sirve para revisar el
+      dinero cobrado sin tener que reconstruir lo que pasó solo desde la caja del día: ordena la información para consultas,
+      cuadraturas y seguimiento de ventas a crédito o cuotas cuando el negocio trabaja así.
+    </p>
+
+    <h5 class="screen-title">Sesiones de caja</h5>
+    <p>
+      En FlowStore, una <strong>sesión de caja</strong> representa el ciclo de trabajo de la <strong>caja del punto de venta</strong>:
+      lo que en la práctica sería abrir la caja registradora al iniciar el turno, registrar lo que entra y sale de efectivo durante
+      ese período y cerrar al terminar. Aquí queda el <strong>historial</strong> de esas sesiones ligadas al POS —apertura con el
+      dinero inicial, <strong>movimientos intermedios</strong> (por ejemplo retiros o ingresos de efectivo que se anotan en la
+      sesión además de los cobros por ventas) y el <strong>cierre</strong>— para poder revisar y cuadrar lo registrado en el
+      sistema con lo operado en el local.
+    </p>
+
+    <h5 class="screen-title">Listas de precios</h5>
+    <p>
+      Desde administración se pueden <strong>crear varias listas de precios</strong> y mantener en cada una el valor de venta
+      de los productos. Esas listas se utilizan luego para aplicar <strong>precios diferenciados</strong> según la política
+      del negocio: por ejemplo una lista estándar para el público general, otra para <strong>clientes con condición
+      preferente</strong>, otra para <strong>venta al por mayor</strong>, u otras combinaciones que la empresa defina. La
+      ventaja es ordenar la política comercial en un solo lugar.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/PRICES-LISTS.png" alt="Ventas — listas de precios" />
+      <figcaption>Figura 3.5. Ventas — listas de precios.</figcaption>
+    </figure>
+
+    <h4 id="sec03-3-3">3.3.3 Compras</h4>
+    <p>
+      El módulo <strong>Compras</strong> es el área del panel donde FlowStore organiza lo que entra al negocio desde los
+      proveedores: el registro de <strong>mercadería recibida</strong>, la información de <strong>proveedores</strong>, las
+      <strong>órdenes de compra</strong> cuando la operación las utiliza, los <strong>documentos tributarios electrónicos</strong>
+      emitidos por el proveedor y las <strong>devoluciones</strong> cuando corresponda devolver productos o ajustar compras.
+    </p>
+
+    <h5 class="screen-title">Recepciones</h5>
+    <p>
+      Aquí se registra la <strong>llegada física de mercadería</strong> y su vínculo con la compra o el documento que respalda
+      el ingreso. Permite que el <strong>stock</strong> refleje lo que realmente entró a bodega o local, con orden y respaldo
+      para revisar diferencias entre lo pedido, lo facturado y lo recibido.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/RECEPCION.png" alt="Compras — recepciones de mercadería" />
+      <figcaption>Figura 3.6. Compras — recepciones de mercadería.</figcaption>
+    </figure>
+
+    <h5 class="screen-title">Proveedores</h5>
+    <p>
+      En esta pantalla se <strong>registran y mantienen los proveedores</strong> con sus datos de trabajo habituales: nombre o
+      razón social, datos de contacto, identificación tributaria y el resto de campos que compras y documentación necesitan.
+      Esa información queda <strong>centralizada</strong>: cada operación la reutiliza sin tener que volver a cargarla, lo que
+      reduce errores y tiempo administrativo. El <strong>detalle del proveedor</strong> concentra en un mismo lugar la ficha
+      completa y la lectura operativa asociada —compras, documentos y pagos vinculados a ese proveedor— para revisar el
+      historial y las obligaciones con claridad.
+    </p>
+
+    <h5 class="screen-title">Órdenes de compra</h5>
+    <p>
+      Cuando el negocio compra con anticipación, sirve para dejar constancia del <strong>pedido</strong> antes del ingreso de
+      mercadería o de la facturación: útil para seguimiento interno, acuerdos con proveedor y coherencia con las recepciones y
+      documentos posteriores.
+    </p>
+
+    <h5 class="screen-title">DTE’s proveedor</h5>
+    <p>
+      Este apartado reúne los <strong>documentos tributarios electrónicos</strong> que forman parte de las compras: los emitidos
+      por proveedor y los que la empresa registra en su circuito operativo —entre otros, <strong>facturas de compra</strong>,
+      <strong>boletas</strong>, <strong>boletas de honorarios</strong>, <strong>guías de despacho</strong> y <strong>notas de
+      crédito</strong>, según los tipos de documento habituales en Chile ante el SII. FlowStore los clasifica <strong>por tipo de
+      documento</strong>, mediante <strong>pestañas o vistas separadas</strong> en el mismo módulo. Así compras y contabilidad
+      comparten una misma base ordenada y localizan cada comprobante con claridad, sin mezclar tipologías.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/DTE.png" alt="Compras — documentos tributarios de proveedor (DTE)" />
+      <figcaption>Figura 3.7. Compras — documentos tributarios de proveedor (DTE).</figcaption>
+    </figure>
+
+    <h5 class="screen-title">Devoluciones proveedor</h5>
+    <p>
+      Cubre la gestión de <strong>devoluciones de mercadería</strong> o ajustes asociados al proveedor cuando la operación lo
+      requiere (productos defectuosos, sobrestock acordado, diferencias con documentos, etc.), manteniendo coherencia entre stock,
+      compras y documentación.
+    </p>
+
+    <h4 id="sec03-3-4">3.3.4 Inventario y catálogo</h4>
+    <p>
+      El módulo <strong>Inventario y catálogo</strong> es el área del panel donde FlowStore concentra las definiciones que
+      alimentan compras, punto de venta e informes: los productos y sus variantes, la organización por categorías, las
+      cantidades en existencias, las unidades de medida, los atributos que permiten armar variantes sin duplicar fichas y los
+      almacenes donde reside el stock.
+    </p>
+
+    <h5 class="screen-title">Productos</h5>
+    <p>
+      Aquí se crean y mantienen los ítems vendibles o comprables: nombre comercial, datos tributarios cuando aplican,
+      categorías, precios de lista y la configuración de variantes.
+      Los <strong>atributos</strong> son dimensiones reutilizables que describen en qué puede diferir un mismo concepto de
+      producto —por ejemplo color y talla— y se administran en su propia pantalla para no repetir las mismas opciones en cada
+      ficha.
+      Las <strong>variantes</strong> son las combinaciones concretas que el negocio vende o compra: cada una puede tener precio
+      propio, existencias por almacén, <strong>código SKU</strong> interno y <strong>código de barras</strong> para uso en
+      mostrador.
+      El SKU ofrece una clave estable para inventario, reportes y cuadraturas sin depender del nombre visible al cliente; el
+      código de barras agiliza la búsqueda en el POS al escanear y reduce errores frente a digitación manual de descripciones
+      largas o SKUs.
+      FlowStore calcula de forma coherente montos netos, impuestos y totales según las tasas y reglas definidas en el negocio,
+      de modo que lo configurado en catálogo se refleja de manera consistente en ventas y en los documentos que las respaldan.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/PRODUCTOS.png" alt="Inventario — productos" />
+      <figcaption>Figura 3.8. Inventario y catálogo — mantención de productos.</figcaption>
+    </figure>
+
+    <h5 class="screen-title">Categorías</h5>
+    <p>
+      Agrupa productos en una jerarquía padre–hijo: cualquier categoría puede tener varias categorías hijas, sin definir un
+      tipo aparte de subcategoría; así el catálogo se organiza como árbol flexible para navegar el inventario en administración y
+      ordenar surtidos amplios con mayor claridad.
+    </p>
+
+    <h5 class="screen-title">Existencias (Stock)</h5>
+    <p>
+      Permite revisar saldos por variante y por almacén —totales y cantidad <strong>disponible</strong>— y abrir el detalle por
+      ubicación cuando el negocio trabaja con más de una bodega o local.
+      El modelo de stock es <strong>transaccional</strong>: las ventas en el POS y el ingreso de mercadería por compras
+      (recepciones), entre otros movimientos que el sistema registre, actualizan las existencias de forma
+      <strong>automática</strong>, sin recargar cantidades manualmente por cada operación cotidiana.
+      Para situaciones excepcionales ofrece además <strong>transferencia entre almacenes</strong> y <strong>ajuste directo</strong>
+      del stock, útil tras inventarios físicos, mermas o correcciones
+      puntuales.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/STOCK.png" alt="Inventario — existencias" />
+      <figcaption>Figura 3.9. Inventario — vista de existencias en stock.</figcaption>
+    </figure>
+
+    <h5 class="screen-title">Unidades de medida</h5>
+    <p>
+      Administra las unidades de <strong>conteo, masa, longitud o volumen</strong> que usará el catálogo. El esquema distingue
+      una <strong>unidad base</strong> por dimensión —por ejemplo la <strong>unidad</strong> suelta como referencia mínima de
+      inventario— y <strong>unidades derivadas</strong> enlazadas a esa base mediante un <strong>factor de conversión</strong>.
+      Así puede definirse, por ejemplo, que <strong>1 caja = 12 unidades</strong>: en compras o en ventas se registra lo que ocurre
+      en cajas, mientras existencias y reportes pueden homogeneizarse en la unidad base, sin mezclar cantidades que no son
+      directamente sumables.
+    </p>
+
+    <figure class="figure-screenshot">
+      <img src="../public/UNIDAD.png" alt="Inventario — unidades de medida" />
+      <figcaption>Figura 3.10. Inventario — unidades de medida.</figcaption>
+    </figure>
+
+    <h5 class="screen-title">Atributos</h5>
+    <p>
+      Concentra las dimensiones reutilizables que alimentan las variantes —por ejemplo <strong>color</strong>,
+      <strong>talla</strong>, <strong>material</strong> o <strong>contenido</strong>— definidas una sola vez para todo el
+      catálogo.
+      Al armar un producto con variantes, esas etiquetas permiten generar y mantener combinaciones sin duplicar el mismo concepto
+      en cada ficha; POS, existencias y compras siempre referencian la <strong>misma variante concreta</strong> (SKU, barras y
+      precio propios).
+    </p>
+    <p>
+      <strong>Ejemplo (inventario por talla).</strong> Un único producto comercial «Camiseta estampada» puede tener variantes M, L
+      y XL: sin atributos ni variantes el stock sería un número agregado que no indicaría cuántas quedan de cada talla; con la
+      combinación talla + variante el sistema muestra <strong>existencias por cada talla</strong> y permite vender o reponer sin
+      confusiones en caja o bodega.
+    </p>
+    <p>
+      <strong>Ejemplo (mismo producto, distinto atributo y precio).</strong> «Coca-Cola» puede modelarse como un producto con
+      variantes según un atributo de <strong>presentación</strong> (por ejemplo 1&nbsp;L y 2&nbsp;L): el nombre de familia es
+      uno, pero cada volumen es una <strong>variante independiente</strong> con <strong>precio de venta y costo propios</strong>,
+      coherente en listas de precios, ticket y reportes.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/ATRIB.png" alt="Inventario — atributos de producto" />
+      <figcaption>Figura 3.11. Inventario — atributos para variantes.</figcaption>
+    </figure>
+
+    <h5 class="screen-title">Almacenes</h5>
+    <p>
+      FlowStore utiliza un modelo de almacenes <strong>flexible y multibodega</strong>: cada ubicación tiene <strong>tipo</strong>
+      (por ejemplo <strong>Almacén</strong>, <strong>Tienda</strong>, tránsito o cámara fría) y <strong>categoría</strong>
+      (en sucursal, central o externa).
+      Un almacén puede quedar <strong>sin sucursal asociada</strong> —típico de un depósito central o un sitio externo de
+      acopio— y cumplir solo funciones de abastecimiento o transición; otro puede estar <strong>ligado a una sucursal</strong>
+      concreta, con dirección o mapa alineados al local.
+    </p>
+    <p>
+      Ese esquema permite representar varios escenarios a la vez (sala, bodega trasera, centro de distribución, tránsito) y
+      llevar existencias y transferencias con trazabilidad por ubicación.
+      El tipo <strong>Tienda</strong> sirve para modelar la <strong>sala de venta</strong> frente a un <strong>Almacén</strong> de
+      reserva en el mismo establecimiento; opcionalmente puede marcarse un <strong>almacén predeterminado</strong> para ordenar la
+      política del negocio.
+    </p>
+    <p>
+      El punto de venta está asociado a una <strong>sucursal</strong>: la <strong>disponibilidad que ve el cajero</strong>
+      corresponde al inventario <strong>consolidado</strong> en los almacenes <strong>vinculados a esa sucursal</strong> (donde
+      normalmente se ubica lo vendible: sala y, según operación, también bodega del local).
+      Las bodegas central o externa <strong>sin sucursal</strong> no entran en ese total de caja; su stock entra al circuito de
+      venta cuando la operación registra <strong>recepciones o transferencias</strong> hacia el local. Así se separa bien el depósito
+      corporativo de la disponibilidad del mostrador, manteniendo informes y stock alineados sin forzar un único almacén físico.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/STORAGES.png" alt="Inventario — almacenes" />
+      <figcaption>Figura 3.12. Inventario — almacenes y ubicaciones.</figcaption>
+    </figure>
+
+    <h4 id="sec03-3-5">3.3.5 Tesorería</h4>
+    <p>
+      El módulo <strong>Tesorería</strong> es el área del panel donde FlowStore concentra el <strong>efectivo y los bancos</strong>,
+      así como los <strong>gastos operativos</strong> clasificados: permite registrar cargos recurrentes u ocasionales, mantener una
+      estructura de <strong>categorías de gasto</strong> alineada a la administración del negocio y administrar cuentas
+      <strong>bancarias</strong> y <strong>cajas</strong> de efectivo con el detalle de movimientos que reflejan entradas, salidas
+      y órdenes de pago. En conjunto completa la mirada financiera junto al POS y las compras, sin depender solo del resumen diario de caja.
+    </p>
+
+    <h5 class="screen-title">Gastos operativos</h5>
+    <p>
+      Es la pantalla donde se <strong>registran y consultan</strong> los gastos del día a día: montos, fechas, proveedor o descripción y la <strong>categoría de gasto</strong>, que permite analizar el gasto por rubro en informes y decisiones.
+      Mantiene trazabilidad de lo ejecutado fuera del flujo automático de ventas o documentos de compra cuando el negocio necesita
+      anotar un costo directamente.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/GASTO%20OPERATIVO.png" alt="Tesorería — gastos operativos" />
+      <figcaption>Figura 3.13. Tesorería — gastos operativos.</figcaption>
+    </figure>
+
+    <h5 class="screen-title">Categorías de gasto</h5>
+    <p>
+      Define el <strong>árbol o listado de clasificación</strong> que etiqueta cada gasto: servicios básicos, arriendo, marketing,
+      transporte u otros criterios que la empresa utilice para contabilidad y control gerencial.
+      Una categoría coherente evita cargar textos libres distintos para el mismo concepto y ordena los reportes posteriores.
+    </p>
+
+    <h5 class="screen-title">Cuentas bancarias y cajas</h5>
+    <p>
+      Agrupa en un solo lugar del menú las <strong>cuentas bancarias</strong> (corrientes o vistas) y las <strong>cajas</strong> de
+      efectivo ligadas a la operación, organizadas en <strong>pestañas separadas</strong>: en una se trabaja el mundo banco
+      (saldos, abonos, cargos y transferencias registradas) y en la otra el mundo <strong>efectivo</strong> por caja o hub de
+      tesorería, con su propio movimiento y contexto de sucursal o punto de venta cuando corresponde.
+    </p>
+    <p>
+      El valor del módulo es ver el <strong>recorrido del dinero</strong> entre esas cuentas, no solo el saldo aislado.
+      Un esquema típico es: desde una <strong>cuenta bancaria</strong> se registra un <strong>retiro o giro</strong> que alimenta
+      efectivo para la <strong>apertura de caja</strong> en el POS; durante el día los <strong>cobros</strong> y movimientos de
+      sesión van dejando trazado el efectivo en la caja; al <strong>cierre de caja</strong> el sobrante puede concentrarse en una
+      <strong>caja o depósito</strong> intermedio de tesorería y, al cierre de un período (por ejemplo semanal), volver a
+      registrarse un <strong>depósito en cuenta corriente</strong>. Así el negocio entiende <strong>dónde está el dinero</strong> en
+      cada etapa —banco, tránsito o mostrador— con el mismo criterio de trazabilidad que en ventas y compras, lo que apoya el
+      control interno y las cuadraturas frente a extractos y arqueos reales.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/ACCOUNTS-BANKS.png" alt="Tesorería — cuentas bancarias" />
+      <figcaption>Figura 3.14. Tesorería — cuentas bancarias y movimientos asociados.</figcaption>
+    </figure>
+
+    <h4 id="sec03-3-6">3.3.6 Contabilidad</h4>
+    <p>
+      El módulo <strong>Contabilidad</strong> enlaza lo que ocurre en <strong>ventas</strong>, <strong>compras</strong> y
+      <strong>tesorería</strong> con la estructura formal del negocio: plan de cuentas, obligaciones pendientes de cobro y pago,
+      libros consultables y criterios de impuestos coherentes con el catálogo y los documentos.
+      FlowStore <strong>reduce la brecha</strong> entre operación diaria y gestión financiera al mantener una
+      <strong>trazabilidad unificada</strong>:
+      menos reconstrucción en planillas paralelas y una lectura ordenada para administración y asesores contables cuando revisan la
+      misma información que usa el equipo comercial y de bodega.
+    </p>
+
+    <h5 class="screen-title">Plan de cuentas</h5>
+    <p>
+      Es la columna vertebral sobre la que se apoyan asientos y reportes: la <strong>estructura de cuentas</strong> permite
+      clasificar cada movimiento con criterios estables para balances y auditoría.
+      En FlowStore el plan es <strong>personalizable y configurable</strong> según lo que cada empresa necesite —niveles de detalle,
+      agrupaciones y convenciones propias—, lo que aporta una <strong>ventaja comparativa</strong> frente a esquemas rígidos: la
+      organización puede <strong>modelar la estructura contable con libertad</strong>, ordenarla de forma inteligente para su
+      propia forma de llevar cuentas y mantener coherencia con los informes, sin quedar <strong>atrapada</strong> en un plan ajeno —
+      el típico esquema “impuesto” que no corresponde a cómo trabaja día a día un <strong>emprendimiento</strong> ni a lo que la
+      realidad operativa necesita ver reflejado en los números.
+    </p>
+
+    <h5 class="screen-title">Reglas contables</h5>
+    <p>
+      Define <strong>cómo las operaciones del sistema impactan las cuentas</strong>: qué combinación de cargos y abonos resulta de
+      una venta, una compra, un gasto u otros procesos parametrizados. La ventaja inmediata es la <strong>repetibilidad</strong>:
+      reglas claras reducen diferencias inexplicadas entre períodos cuando el equipo registra mucho volumen.
+    </p>
+    <p>
+      Las reglas son <strong>flexibles</strong>: pueden armarse según las <strong>necesidades y política</strong> de cada empresa,
+      e <strong>incorporarse, modificarse o eliminarse</strong> en cualquier momento si cambian los intereses o la estrategia
+      contable —sin quedar atadas a un guion fijo desde el primer día. Mantener esas reglas al día alinea libro y operación cuando
+      el negocio incorpora nuevos flujos o reordena prioridades.
+    </p>
+
+    <h5 class="screen-title">Cuentas por cobrar</h5>
+    <p>
+      Concentra el <strong>detalle documentado pendiente</strong> de cobro por parte de los clientes: saldos abiertos, origen del
+      crédito y seguimiento alineado con lo facturado o emitido desde la operación. Facilita priorizar cobros y responder con datos
+      concretos ante consultas sin depender solo del resumen diario del POS.
+    </p>
+
+    <h5 class="screen-title">Cuentas por pagar</h5>
+    <p>
+      Este módulo muestra, con lenguaje claro, <strong>qué se le debe a quién</strong> y <strong>cuándo conviene pagar</strong>:
+      facturas y compromisos ligados a compras o servicios que aún no salieron de caja, ordenados para que administración y tesorería
+      actúen sin sorpresas. La ventaja es comercial y financiera a la vez — se evita perder descuentos por pronto pago, se preserva la
+      relación con proveedores al cumplir fechas conocidas de antemano y se ve de un solo vistazo cómo viene la carga de egresos
+      respecto del flujo esperado del negocio.
+    </p>
+    <p>
+      Para planificar mejor, FlowStore también ofrece <strong>visualización en modo calendario</strong>: los vencimientos y
+      compromisos adquiridos aparecen sobre una línea de tiempo que facilita reorganizar prioridades de pago —por ejemplo agrupar
+      salidas en ventanas donde haya mayor liquidez— y conversar internamente con cifras compartidas, sin depender de recordatorios
+      sueltos o planillas paralelas al sistema.
+    </p>
+
+    <h5 class="screen-title">Libros contables</h5>
+    <p>
+      Reúne las consultas habituales del contador y de administración en <strong>secciones diferenciadas</strong>, en particular el
+      <strong>libro diario</strong> —el registro cronológico de asientos— y el <strong>libro mayor</strong> —el detalle por cuenta y
+      período— para reconstruir movimientos período a período cuando se preparan declaraciones, se responde fiscalización o revisión
+      externa o se audita la coherencia entre operación y contabilidad.
+      Así se apoya en la <strong>misma base</strong> que alimenta cobros, pagos y el resto del circuito operativo, sin duplicar registros
+      en hojas paralelas.
+    </p>
+
+    <h5 class="screen-title">Impuestos</h5>
+    <p>
+      Administra <strong>tasas y definiciones tributarias</strong> utilizadas por el catálogo, las líneas de documento y el cálculo
+      consistente entre administración y punto de venta. Mantenerlos actualizados y alineados con la política del negocio evita que
+      el precio cotizado discrepe del asiento implícito tras el cobro o la compra registrada.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/TAXES.png" alt="Contabilidad — impuestos" />
+      <figcaption>Figura 3.15. Contabilidad — administración de impuestos según la configuración del negocio.</figcaption>
+    </figure>
+
+    <h5 class="screen-title">Estados financieros</h5>
+    <p>
+      Reúne los <strong>informes y vistas financieras</strong> que permiten leer el negocio por arriba —por ejemplo <strong>estado de
+      resultados</strong>, <strong>balance</strong> y otros derivados— como <strong>capa gerencial</strong> construida sobre el mismo
+      plan de cuentas y los movimientos que ya provienen de ventas, compras y tesorería.
+      La ventaja es <strong>traducir la operación en una síntesis ejecutiva</strong>: se gana velocidad para decisiones (rentabilidad,
+      apalancamiento, desempeño por período).
+    </p>
+
+    <h4 id="sec03-3-7">3.3.7 RRHH</h4>
+    <p>
+      El módulo <strong>RRHH</strong> es el área del panel donde FlowStore concentra lo relativo a las <strong>personas que trabajan
+      en el negocio</strong>: fichas de empleados, estructura organizativa y el circuito de <strong>remuneraciones</strong> para
+      procesar y revisar haberes por período.
+      Complementa ventas, tesorería y contabilidad al dejar identificada la base humana detrás de la empresa y de los cargos que
+      impactan costos —con una información ordenada para administración sin depender de fichas sueltas fuera del sistema.
+    </p>
+
+    <h5 class="screen-title">Empleados</h5>
+    <p>
+      Permite crear y mantener el <strong>registro del personal</strong>: datos laborales, vínculos con la organización y
+      el contexto operativo necesario cuando el equipo atiende locales o participa en procesos internos registrados en FlowStore.
+      La <strong>vista de detalle del empleado</strong> concentra en un solo lugar la información relacionada con esa persona, de modo que
+      quien consulte no debe saltar entre pantallas dispersas para armar una ficha completa.
+      Actúa así como <strong>fuente única de datos del personal</strong> para asignaciones, reportes y el resto del flujo de RRHH en la aplicación.
+    </p>
+
+    <h5 class="screen-title">Remuneraciones</h5>
+    <p>
+      Aquí se arma en esencia el <strong>pago por período</strong>: la liquidación de remuneraciones incorpora <strong>haberes</strong>
+      y <strong>descuentos</strong> configurables por concepto —entre los haberes pueden figurar, por ejemplo,
+      sueldo o remuneración ordinaria, horas extraordinarias, <strong>bonos</strong>, gratificaciones, viáticos o <strong>comisiones</strong>;
+      entre los descuentos suelen aparecer cotizaciones previsionales (<strong>AFP</strong>, <strong>salud</strong>,
+      <strong>seguro de cesantía</strong>), retenciones por <strong>impuesto a la renta</strong>, cuotas por préstamos o anticipos,
+      junto con otros ítems que cada empresa necesite cargar sin redactar desde cero cada línea de liquidación período tras período.
+      Así es posible <strong>integrar el neto a pagar</strong> con el detalle transparente que después debe cuadrar con tesorería.
+    </p>
+    <p>
+      Una vez cerrado el período queda constancia para <strong>consultar historial</strong>, apoyar cumplimiento ante el trabajador y
+      responder con rapidez ante una auditoría revisando el mismo mes que ya quedó registrado en operación y en nómina dentro de
+      FlowStore —menos reprocesos y menos desalineación entre “lo pagado” y “lo liquidado”.
+    </p>
+
+    <h5 class="screen-title">Unidades organizativas</h5>
+    <p>
+      Son los <strong>bloques o equipos</strong> en los que se divide la empresa para saber <strong>quién pertenece a qué área</strong>:
+      por ejemplo <strong>«Ventas en tienda»</strong>, <strong>«Bodega»</strong> y <strong>«Administración»</strong>, o tres
+      <strong>sucursales</strong> con nombre propio bajo la misma razón social.
+      Cada empleado puede quedar asignado a una unidad; así los reportes separan, por ejemplo, <strong>lo que pasa en ventas</strong> de
+      <strong>lo que pasa en bodega</strong> sin mezclar cantidad de personal ni costos entre áreas distintas.
+    </p>
+
+    <h4 id="sec03-3-8">3.3.8 Configuración</h4>
+    <p>
+      El módulo <strong>Configuración</strong> concentra los datos base que sostienen el resto del sistema: la información de la
+      empresa, las sucursales desde donde se opera y los usuarios que acceden al panel y al POS. Al mantener estas definiciones en un
+      solo lugar, FlowStore asegura que documentos, permisos, inventario y tesorería trabajen sobre una misma referencia y evita
+      inconsistencias entre lo que se vende, lo que se registra y quién puede hacerlo.
+    </p>
+
+    <h5 class="screen-title">Empresa</h5>
+    <p>
+      Centraliza la <strong>ficha de la empresa</strong> (identificación y datos de trabajo) utilizada en el panel y en los
+      documentos que el negocio emite o registra. Además, en esta misma sección se administra información que se utiliza en otras
+      áreas del producto: la definición de <strong>socios</strong> (para dejar la estructura societaria registrada) y las
+      <strong>cuentas bancarias de la empresa</strong>, que luego se utilizan en tesorería para ordenar el flujo del dinero.
+      La ventaja es que los datos quedan <strong>estandarizados</strong> y se reutilizan en todo el flujo de la empresa.
+    </p>
+
+    <h5 class="screen-title">Sucursales</h5>
+    <p>
+      Permite definir los <strong>locales</strong> o sedes desde los que opera la empresa. Esa estructura es clave para ordenar la
+      operación: conecta el punto de venta con su contexto, separa lecturas por local y alinea inventario y tesorería con la realidad
+      física del negocio.
+    </p>
+
+    <h5 class="screen-title">Usuarios</h5>
+    <p>
+      Gestiona las <strong>cuentas de acceso</strong> y los <strong>perfiles de permisos</strong> necesarios para operar: quién puede
+      administrar catálogo, quién puede ver tesorería, y quién puede atender en caja desde el POS. Con roles claros se protege la
+      operación y se reduce el riesgo de errores por accesos indebidos, manteniendo trazabilidad por usuario en los procesos.
+    </p>
+
+    <h3 id="sec03-pos">3.4 App POS — punto de venta</h3>
+    <p>
+      La app <strong>POS (punto de venta)</strong> de FlowStore está diseñada para el <strong>mostrador</strong> y para la velocidad
+      del día a día: buscar productos o variantes en segundos, armar el carrito, cobrar y seguir atendiendo sin fricción.
+      Su interfaz es <strong>minimalista y muy simple de usar</strong>, pensada para que un cajero aprenda rápido y cometa menos
+      errores bajo presión; al mismo tiempo es <strong>potente</strong>, porque trabaja conectada al catálogo, precios, clientes y
+      stock del sistema, manteniendo trazabilidad con la <strong>sesión de caja</strong> y con lo que ocurre en administración.
+    </p>
+
+    <h4>Diseño de la interfaz (UI) y flujo de trabajo</h4>
+    <p>
+      A diferencia de un panel administrativo con menús laterales y secciones profundas, el POS está construido para operar
+      <strong>en una sola pantalla</strong>: no depende de una barra lateral ni de un menú desplegable para vender. Esta decisión de
+      diseño lo hace ideal para <strong>pantallas touch</strong> y equipos de atención como <strong>tablet</strong> o
+      <strong>smartphone</strong>, manteniendo un flujo minimalista orientado a pasos rápidos y repetibles.
+    </p>
+    <p>
+      En la vista principal conviven dos áreas que el cajero usa todo el tiempo: el <strong>buscador de productos</strong> y el
+      <strong>carrito</strong>. El buscador permite encontrar productos por <strong>nombre</strong>, <strong>SKU</strong> o
+      <strong>código de barras</strong>, lo que habilita trabajar con <strong>pistola o escáner</strong> cuando el local lo requiere;
+      además, el contexto de búsqueda se alinea con la <strong>lista de precios</strong> activa del punto de venta, de modo que el
+      cajero siempre trabaja con los valores correctos para ese local.
+      El carrito muestra de forma simple e intuitiva el detalle de la compra (ítems, cantidades y totales) y permite ajustar la venta
+      antes de cobrar sin perder el ritmo de atención.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/POS.png" alt="Vista principal del POS — búsqueda y carrito" />
+      <figcaption>Figura 3.16. Punto de venta — espacio de trabajo con búsqueda de productos y carrito.</figcaption>
+    </figure>
+    <p>
+      La <strong>barra superior</strong> reúne accesos rápidos a funciones de operación: <strong>Clientes</strong> (registrar nuevos,
+      consultar detalle e historial de compras), revisión de <strong>deudas</strong> y <strong>pagos</strong> cuando el negocio trabaja
+      con <strong>crédito interno</strong>, además de atajos para <strong>ingreso de efectivo</strong> (por ejemplo para hacer cambio
+      cuando falta sencillo), <strong>egreso de efectivo</strong> (retiros antes del cierre) y el <strong>cierre de caja</strong> con su
+      arqueo. La lógica es que lo recurrente esté siempre a un toque, sin navegar por múltiples pantallas.
+    </p>
+    <p>
+      El proceso de <strong>cobro</strong> soporta <strong>múltiples medios de pago</strong> y <strong>pago mixto</strong> en una misma
+      transacción: por ejemplo una parte en efectivo y el resto con tarjeta de débito, u otras combinaciones según la operación.
+      FlowStore calcula automáticamente el <strong>vuelto</strong>, permite asociar la venta a un <strong>cliente</strong> y, si se usa
+      crédito interno, valida en el momento si el cliente tiene <strong>crédito autorizado</strong> y si la compra respeta su
+      <strong>cupo</strong>, evitando ventas a crédito fuera de política por descuido en caja.
+    </p>
+    <figure class="figure-screenshot">
+      <img src="../public/PAY.png" alt="POS — pantalla de pago / cobro" />
+      <figcaption>Figura 3.17. Cobro — medios de pago y revisión del total antes de confirmar.</figcaption>
+    </figure>
+
+    <h4>Flujo de venta resumido (paso a paso)</h4>
+    <ol>
+      <li>
+        <strong>Inicio de sesión</strong>: el operador ingresa sus credenciales; el sistema valida usuario y contraseña y confirma que
+        su <strong>perfil</strong> tiene permisos para operar en la app POS.
+      </li>
+      <li>
+        <strong>Configurar sesión de caja</strong>: se selecciona la <strong>sucursal</strong> y el <strong>punto de venta</strong>
+        habilitados para operar, y se registra el <strong>monto de apertura</strong>. Al confirmar queda abierta la sesión y definido
+        el contexto de trabajo (local y listas de precios asociadas a ese punto de venta). Un mismo punto de venta no permite abrir
+        una nueva sesión mientras exista una <strong>sesión de caja abierta</strong>: primero debe cerrarse la anterior.
+      </li>
+      <li>
+        <strong>Venta en mostrador</strong>: buscar productos o variantes, armar el carrito, ajustar cantidades y revisar
+        el resumen antes de cobrar.
+      </li>
+      <li>
+        <strong>Cobro</strong>: elegir <strong>medios de pago</strong>, validar montos y confirmar; al terminar se vuelve al
+        espacio de venta para iniciar una nueva operación. La venta genera el <strong>ticket</strong> y se imprime en la
+        <strong>impresora</strong> configurada para el punto de venta, según el flujo del local.
+      </li>
+    </ol>
+
+
+
+    <h3 id="sec03-compare">3.5 Funcionalidad de FlowStore vs. alternativas del mercado</h3>
+    <p>
+      En el capítulo de mercado se observa que el ecosistema chileno mezcla soluciones con promesas parecidas pero con alcances
+      distintos: desde <strong>terminales y servicios de cobro</strong> con software ligero, hasta plataformas de <strong>emisión
+      tributaria por tramos</strong>, ofertas <strong>modulares</strong> que se arman “por piezas”, sistemas de <strong>retail
+      complejo</strong> y alternativas tipo <strong>ERP integrado. </strong>La diferencia práctica no es solo el precio, sino <strong>qué tan lejos llega la trazabilidad</strong> entre vender, comprar,
+      manejar stock y entender el dinero.
+    </p>
+
+    <h4>Lo que FlowStore resuelve de forma integrada</h4>
+    <p>
+      FlowStore se posiciona como una solución donde el <strong>POS</strong> no es una aplicación aislada: el cobro en mostrador
+      trabaja sobre el mismo catálogo (variantes, atributos, unidades y listas de precios), actualiza stock por almacén y deja
+      trazabilidad hacia administración. En paralelo, el panel reúne ventas, compras, inventario, tesorería y contabilidad
+      operativa en una sola base, lo que reduce el “doble registro” típico (caja en un sistema, stock en otro, y finanzas en una
+      planilla).
+    </p>
+
+    <h4>Comparación por familias funcionales del mercado</h4>
+    <p>
+      <strong>1) Smart POS / adquirentes.</strong> Son muy buenos para el <strong>cobro</strong> y suelen resolver el “salir a vender”
+      rápido, pero su administración suele ser más ligera. FlowStore apunta a que el negocio no solo cobre, sino que mantenga
+      <strong>catálogo, precios, clientes y stock</strong> con coherencia y control desde el mismo flujo.
+    </p>
+    <p>
+      <strong>2) Modelos modulares.</strong> Permiten partir barato y sumar piezas, pero en la práctica la operación tiende a exigir
+      el “set completo” (stock, devoluciones, pagos, etc.). FlowStore propone una experiencia más coherente: el POS y el panel ya
+      están diseñados para trabajar juntos, con un flujo estándar que evita inconsistencias entre módulos.
+    </p>
+    <p>
+      <strong>3) Retail complejo u omnicanal.</strong> En ese mundo el valor está en reglas avanzadas y múltiples canales. FlowStore
+      se enfoca en el <strong>circuito físico</strong> del negocio (mostrador, stock, compras, caja/banco y lectura financiera),
+      con una interfaz POS minimalista que no sacrifica control.
+    </p>
+    <p>
+      <strong>4) ERP integrado.</strong> Cuando la empresa necesita que <strong>contabilidad y tesorería</strong> no sean un “post
+      proceso”, sino una lectura ligada a lo que ocurre en caja y en compras, FlowStore aporta módulos que sostienen esa continuidad:
+      cuentas por cobrar/pagar, libros (diario y mayor), impuestos y estados financieros a partir de una base de operación.
+    </p>
+
+    <h4>Ventajas funcionales que destacan en la operación</h4>
+    <ul>
+      <li><strong>Un solo registro operativo</strong>: ventas, compras, inventario y dinero quedan conectados; se reduce el trabajo
+        de reconciliar sistemas distintos y planillas.</li>
+      <li><strong>POS simple pero potente</strong>: interfaz touch-first, búsqueda por nombre/SKU/barras, pago mixto y control por
+        sesión de caja, con rapidez real para operador del punto de venta.</li>
+      <li><strong>Inventario “de verdad”</strong>: variantes por atributos, unidades con conversión, stock multibodega y acciones de
+        ajuste/transferencia para cuadrar con inventarios físicos.</li>
+      <li><strong>Control de caja y bancos</strong>: tesorería permite entender <strong>dónde está el dinero</strong> y cómo se mueve
+        entre banco y efectivo, conectando cobros y pagos.</li>
+      <li><strong>Escalabilidad por complejidad</strong>: cuando el negocio crece (más productos, más bodegas, crédito interno, más
+        reportes), la estructura ya está en FlowStore y no requiere rearmar procesos desde cero.</li>
+    </ul>
+
+    <p>
+      En síntesis, desde el  punto de vista de la funcionalidad, mientras varias alternativas del mercado optimizan solo una parte del problema (cobro, emisión o inventario),
+      FlowStore destaca por su <strong>continuidad de punta a punta</strong>: el mismo sistema que cobra es el que ordena catálogo,
+      stock y lectura financiera, con una experiencia POS diseñada para ser rápida y amigable para el equipo de caja.
+    </p>
   </section>
 </body>
 </html>

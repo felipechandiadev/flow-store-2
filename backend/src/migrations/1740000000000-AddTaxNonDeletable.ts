@@ -5,7 +5,7 @@ export class AddTaxNonDeletable1740000000000 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `ALTER TABLE "taxes" ADD "nonDeletable" boolean NOT NULL DEFAULT false`,
+      `ALTER TABLE "taxes" ADD COLUMN IF NOT EXISTS "nonDeletable" boolean NOT NULL DEFAULT false`,
     );
   }
 

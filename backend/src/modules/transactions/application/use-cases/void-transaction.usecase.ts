@@ -95,6 +95,7 @@ export class VoidTransactionUseCase {
     voidTransaction.supplierId = originalTransaction.supplierId;
     voidTransaction.pointOfSaleId = originalTransaction.pointOfSaleId;
     voidTransaction.cashSessionId = originalTransaction.cashSessionId;
+    voidTransaction.cashHubId = originalTransaction.cashHubId ?? null;
 
     // Generar número de documento
     voidTransaction.documentNumber = await this.generateVoidDocumentNumber(

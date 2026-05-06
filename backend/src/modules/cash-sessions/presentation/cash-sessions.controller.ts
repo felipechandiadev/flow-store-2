@@ -118,11 +118,15 @@ export class CashSessionsController {
     }
 
     if (userId) {
-      return this.coreService.close(sessionId, userId);
+      return this.coreService.close(sessionId, userId, {
+        cashHubId: dto.cashHubId,
+      });
     }
 
     if (userName) {
-      return this.coreService.closeByUserName(sessionId, userName);
+      return this.coreService.closeByUserName(sessionId, userName, {
+        cashHubId: dto.cashHubId,
+      });
     }
 
     throw new BadRequestException(

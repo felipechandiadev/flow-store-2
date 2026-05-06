@@ -244,6 +244,10 @@ export class CreateTransactionDto {
   bankAccountKey?: string;
 
   @IsOptional()
+  @IsUUID()
+  cashHubId?: string;
+
+  @IsOptional()
   @IsString()
   notes?: string;
 
@@ -318,12 +322,16 @@ export class CreateTransactionDto {
       TransactionType.PURCHASE_RETURN,
       TransactionType.SUPPLIER_INVOICE,
       TransactionType.SUPPLIER_RECEIPT,
+      TransactionType.SUPPLIER_HONORARIUM_RECEIPT,
       TransactionType.SUPPLIER_GUIDE,
       TransactionType.SUPPLIER_CREDIT_NOTE,
       TransactionType.SUPPLIER_PAYMENT,
       TransactionType.EXPENSE_PAYMENT,
       TransactionType.CASH_DEPOSIT,
+      TransactionType.CAPITAL_CONTRIBUTION,
       TransactionType.BANK_WITHDRAWAL_TO_SHAREHOLDER,
+      TransactionType.CASH_WITHDRAWAL_TO_PETTY_CASH,
+      TransactionType.CASH_SESSION_TO_HUB_TRANSFER,
       TransactionType.PAYMENT_IN,
       TransactionType.PAYMENT_OUT,
       TransactionType.PAYROLL,
@@ -348,6 +356,30 @@ export class CreateTransactionDto {
           errors.push(
             'capitalContribution requiere shareholderId o bankAccountKey',
           );
+        }
+        break;
+
+      case TransactionType.CAPITAL_CONTRIBUTION:
+        if (!this.shareholderId) {
+          errors.push('CAPITAL_CONTRIBUTION requiere shareholderId');
+        }
+        if (!this.bankAccountKey) {
+          errors.push('CAPITAL_CONTRIBUTION requiere bankAccountKey');
+        }
+        break;
+
+      case TransactionType.BANK_WITHDRAWAL_TO_SHAREHOLDER:
+        if (!this.shareholderId) {
+          errors.push('BANK_WITHDRAWAL_TO_SHAREHOLDER requiere shareholderId');
+        }
+        if (!this.bankAccountKey) {
+          errors.push('BANK_WITHDRAWAL_TO_SHAREHOLDER requiere bankAccountKey');
+        }
+        break;
+
+      case TransactionType.CASH_WITHDRAWAL_TO_PETTY_CASH:
+        if (!this.bankAccountKey) {
+          errors.push('CASH_WITHDRAWAL_TO_PETTY_CASH requiere bankAccountKey');
         }
         break;
 
@@ -409,6 +441,18 @@ export class CreateTransactionDto {
         }
         break;
 
+      case TransactionType.CASH_SESSION_TO_HUB_TRANSFER:
+        if (!this.cashSessionId) {
+          errors.push('CASH_SESSION_TO_HUB_TRANSFER requiere cashSessionId');
+        }
+        if (!this.cashHubId) {
+          errors.push('CASH_SESSION_TO_HUB_TRANSFER requiere cashHubId');
+        }
+        if (!this.pointOfSaleId) {
+          errors.push('CASH_SESSION_TO_HUB_TRANSFER requiere pointOfSaleId');
+        }
+        break;
+
       case TransactionType.CASH_SESSION_OPENING:
         if (!this.pointOfSaleId) {
           errors.push('CASH_SESSION_OPENING requiere pointOfSaleId');
@@ -464,6 +508,7 @@ export class CreateTransactionDto {
 
       case TransactionType.SUPPLIER_INVOICE:
       case TransactionType.SUPPLIER_RECEIPT:
+      case TransactionType.SUPPLIER_HONORARIUM_RECEIPT:
       case TransactionType.SUPPLIER_GUIDE: {
         if (!this.supplierId) {
           errors.push(`${this.transactionType} requiere supplierId`);
@@ -526,7 +571,7 @@ export class CreateCapitalContributionDto {
     branchId: string,
   ): CreateTransactionDto {
     const dto = new CreateTransactionDto();
-    dto.transactionType = TransactionType.PAYMENT_IN;
+    dto.transactionType = TransactionType.CAPITAL_CONTRIBUTION;
     dto.branchId = branchId;
     dto.userId = userId;
     dto.shareholderId = this.shareholderId;
@@ -536,10 +581,12 @@ export class CreateCapitalContributionDto {
     dto.discountAmount = 0;
     dto.total = this.amount;
     dto.paymentMethod = PaymentMethod.TRANSFER;
+    dto.paymentStatus = PaymentStatus.PAID;
     dto.amountPaid = this.amount;
     dto.notes = this.notes;
     dto.metadata = {
       capitalContribution: true,
+      partnerId: this.shareholderId,
       occurredOn: this.occurredOn,
     };
     return dto;
@@ -551,6 +598,8 @@ export class CreateCashDepositDto {
   amount!: number;
   notes?: string;
   occurredOn?: string;
+  /** Depósito desde centro de acopio (1110) hacia banco; si se omite, caja clásica (1101). */
+  cashHubId?: string;
 
   toCreateTransactionDto(
     userId: string,
@@ -561,15 +610,20 @@ export class CreateCashDepositDto {
     dto.branchId = branchId;
     dto.userId = userId;
     dto.bankAccountKey = this.bankAccountKey;
+    if (this.cashHubId) {
+      dto.cashHubId = this.cashHubId;
+    }
     dto.subtotal = this.amount;
     dto.taxAmount = 0;
     dto.discountAmount = 0;
     dto.total = this.amount;
     dto.paymentMethod = PaymentMethod.CASH;
+    dto.paymentStatus = PaymentStatus.PAID;
     dto.amountPaid = this.amount;
     dto.notes = this.notes;
     dto.metadata = {
       cashDeposit: true,
+      ...(this.cashHubId ? { cashHubDeposit: true, cashHubId: this.cashHubId } : {}),
       occurredOn: this.occurredOn,
     };
     return dto;
@@ -612,6 +666,8 @@ export class CreateBankWithdrawalToShareholderDto {
   amount!: number;
   notes?: string;
   occurredOn?: string;
+  /** Retención de impuesto u otra retención (opcional), persiste en metadata. */
+  taxRetention?: number;
 
   toCreateTransactionDto(
     userId: string,
@@ -628,10 +684,44 @@ export class CreateBankWithdrawalToShareholderDto {
     dto.discountAmount = 0;
     dto.total = this.amount;
     dto.paymentMethod = PaymentMethod.TRANSFER;
+    dto.paymentStatus = PaymentStatus.PAID;
     dto.amountPaid = this.amount;
     dto.notes = this.notes;
     dto.metadata = {
       bankWithdrawalToShareholder: true,
+      dividendDistribution: true,
+      partnerId: this.shareholderId,
+      ...(this.taxRetention != null && Number.isFinite(this.taxRetention)
+        ? { taxRetention: Number(this.taxRetention) }
+        : {}),
+      occurredOn: this.occurredOn,
+    };
+    return dto;
+  }
+}
+
+export class CreateCashWithdrawalToPettyCashDto {
+  bankAccountKey!: string;
+  amount!: number;
+  notes?: string;
+  occurredOn?: string;
+
+  toCreateTransactionDto(userId: string, branchId: string): CreateTransactionDto {
+    const dto = new CreateTransactionDto();
+    dto.transactionType = TransactionType.CASH_WITHDRAWAL_TO_PETTY_CASH;
+    dto.branchId = branchId;
+    dto.userId = userId;
+    dto.bankAccountKey = this.bankAccountKey;
+    dto.subtotal = this.amount;
+    dto.taxAmount = 0;
+    dto.discountAmount = 0;
+    dto.total = this.amount;
+    dto.paymentMethod = PaymentMethod.TRANSFER;
+    dto.paymentStatus = PaymentStatus.PAID;
+    dto.amountPaid = this.amount;
+    dto.notes = this.notes;
+    dto.metadata = {
+      cashWithdrawalToPettyCash: true,
       occurredOn: this.occurredOn,
     };
     return dto;

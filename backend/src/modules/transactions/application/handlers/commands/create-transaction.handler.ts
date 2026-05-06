@@ -96,6 +96,7 @@ export class CreateTransactionCommandHandler implements ICommandHandler<CreateTr
         paymentMethod: command.paymentMethod,
         paymentStatus: command.paymentStatus,
         bankAccountKey: command.bankAccountKey || null,
+        cashHubId: (command as any).cashHubId || null,
         documentType: command.documentType || null,
         documentFolio: command.documentFolio || null,
         paymentDueDate: command.paymentDueDate

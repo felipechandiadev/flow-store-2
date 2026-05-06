@@ -94,6 +94,9 @@ export class TransactionOrmEntity {
   @Column({ type: 'varchar', length: 100, nullable: true })
   bankAccountKey?: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  cashHubId?: string | null;
+
   @Column({ type: 'varchar', length: 30, nullable: true })
   documentType?: string;
 

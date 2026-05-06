@@ -1,18 +1,35 @@
 /* ═══════════════════════════════════════════════════════════════ */
-/* Estilos Personalizados para Reportes                            */
+/* FlowStore — informe (Vivliostyle / PDF)                         */
+/* Una sola familia, pesos declarados en @import; tokens abajo.    */
 /* ═══════════════════════════════════════════════════════════════ */
 
-/* Libre Franklin: sans geométrica muy clara en impreso/PDF; pesos fuertes se leen más “enfocados” que Source Sans */
 @import url("https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,400;0,600;0,700;0,800;0,900&display=swap");
 
+/* ─── Tokens: colores + tipografía (no mezclar pesos fuera de 400–900) ─── */
 :root {
   --color-primary: #3b82f6;
-  --color-secondary: #1e40af;
   --color-accent: #f59e0b;
-  --color-dark: #1f2937;
-  --color-light: #f9fafb;
+
+  --font-text: "Libre Franklin", Arial, "Helvetica Neue", Helvetica, system-ui, sans-serif;
+
+  /* Pesos alineados al @import (solo estos) */
+  --fw-regular: 400;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-extrabold: 800;
+  --fw-black: 900;
+
+  --text-body: #1f2937;
+  --text-strong: #020617;
+  --text-heading: #0f172a;
+  --text-muted: #475569;
+  --text-soft: #64748b;
+
+  --surface-heading-band: #f1f5f9;
+  --border-heading-accent: var(--color-primary);
 }
 
+/* ─── Base (solo herencia global; sin “personalizar” por sección aquí) ─── */
 html {
   hyphens: auto;
   -webkit-hyphens: auto;
@@ -20,17 +37,38 @@ html {
 
 html,
 body {
-  font-family: "Libre Franklin", Arial, "Helvetica Neue", Helvetica, system-ui, sans-serif;
-  color: var(--color-dark);
+  font-family: var(--font-text);
+  color: var(--text-body);
 }
 
-/* Cuerpo: párrafos justificados (informe / capítulos) */
-body p {
-  text-align: justify;
-  text-align-last: left;
+/* ─── Énfasis: un solo tratamiento en todo el libro ─── */
+strong,
+b {
+  font-weight: var(--fw-bold);
+  font-style: normal;
+  font-synthesis: none;
+  color: var(--text-strong);
+  letter-spacing: -0.012em;
 }
 
-/* Estilos de Portada */
+/* Dentro de títulos de capítulo: mismo color que el encabezado, peso más alto si hace falta */
+.chapter h2 strong {
+  font-weight: var(--fw-black);
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+.chapter h3 strong,
+.chapter h4 strong {
+  font-weight: var(--fw-extrabold);
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* Portada — solo .cover (no hereda reglas de .chapter)             */
+/* ═══════════════════════════════════════════════════════════════ */
+
 .cover {
   page-break-after: always;
   text-align: center;
@@ -39,7 +77,7 @@ body p {
   justify-content: flex-start;
   align-items: center;
   background: none;
-  color: var(--color-dark);
+  color: var(--text-body);
   padding-top: 22mm;
   padding-bottom: 16mm;
 }
@@ -54,26 +92,26 @@ body p {
 .cover .cover-title {
   margin: 14pt 0 0;
   font-size: 26pt;
-  font-weight: 800;
+  font-weight: var(--fw-extrabold);
   letter-spacing: 0.5px;
+  color: var(--text-heading);
 }
 
 .cover .cover-version {
   margin-top: 6pt;
   font-size: 14pt;
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   color: #334155;
 }
 
 .cover .cover-subtitle {
   margin-top: 28pt;
   font-size: 16pt;
-  font-weight: 700;
-  color: #0f172a;
+  font-weight: var(--fw-bold);
+  color: var(--text-heading);
 }
 
 .cover .cover-meta {
-  /* Sin depender de flex "auto": en el viewer a veces no hay altura disponible y el bloque no baja. */
   margin-top: 22pt;
   width: 100%;
   display: grid;
@@ -83,61 +121,34 @@ body p {
 
 .cover .cover-meta .who {
   font-size: 11pt;
-  font-weight: 700;
-  color: #0f172a;
+  font-weight: var(--fw-bold);
+  color: var(--text-heading);
 }
 
 .cover .cover-meta .role {
   font-size: 10pt;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: #334155;
 }
 
 .cover .cover-meta .client {
   margin-top: 6pt;
   font-size: 10pt;
-  font-weight: 700;
-  color: #0f172a;
+  font-weight: var(--fw-bold);
+  color: var(--text-heading);
 }
 
 .cover .cover-meta .client small {
   display: block;
   margin-top: 2pt;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: #334155;
 }
 
-/* Estilos de Capítulo */
-.chapter {
-  page-break-before: always;
-  page-break-after: avoid;
-}
+/* ═══════════════════════════════════════════════════════════════ */
+/* Tabla de contenidos — .toc / .section-toc                       */
+/* ═══════════════════════════════════════════════════════════════ */
 
-/* Título principal de cada archivo de capítulo (más jerarquía visual que h3+) */
-.chapter h2 {
-  font-size: 19pt;
-  font-weight: 800;
-  line-height: 1.22;
-  letter-spacing: -0.02em;
-  color: #0f172a;
-  margin: 0 0 20pt;
-  padding: 12pt 14pt 12pt 16pt;
-  border-left: 5px solid var(--color-primary);
-  background-color: #f1f5f9;
-}
-
-.chapter h3 {
-  font-size: 16pt;
-  font-weight: 1600;
-  line-height: 1.28;
-  letter-spacing: -0.028em;
-  color: #020617;
-  margin: 18pt 0 9pt;
-  border-bottom: 2px solid #cbd5e1;
-  padding-bottom: 6pt;
-}
-
-/* Tabla de Contenidos */
 .toc {
   page-break-after: always;
 }
@@ -156,21 +167,22 @@ body p {
   color: var(--color-primary);
 }
 
+/* Misma “cinta” visual que el h2 de capítulo, solo en TOC */
 .section-toc .toc-title {
   font-size: 18pt;
-  font-weight: 800;
+  font-weight: var(--fw-extrabold);
   line-height: 1.22;
   letter-spacing: -0.02em;
-  color: #0f172a;
+  color: var(--text-heading);
   margin: 0 0 16pt;
   padding: 12pt 14pt 12pt 16pt;
-  border-left: 5px solid var(--color-primary);
-  background-color: #f1f5f9;
+  border-left: 5px solid var(--border-heading-accent);
+  background-color: var(--surface-heading-band);
 }
 
 .toc-intro {
   font-size: 10pt;
-  color: #475569;
+  color: var(--text-muted);
   margin-bottom: 14pt;
   text-align: justify;
   text-align-last: left;
@@ -188,8 +200,22 @@ body p {
   padding-left: 4pt;
 }
 
+.toc-sublist {
+  margin: 6pt 0 4pt;
+  padding-left: 16pt;
+  list-style: decimal;
+  list-style-position: outside;
+  font-size: 9.5pt;
+  font-weight: var(--fw-regular);
+  color: var(--text-muted);
+}
+
+.toc-sublist li {
+  margin: 4pt 0;
+}
+
 .toc-list a {
-  color: var(--color-dark);
+  color: var(--text-body);
   text-decoration: none;
 }
 
@@ -198,19 +224,109 @@ body p {
 }
 
 .toc-label {
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
-/* Párrafos placeholder en secciones en blanco */
+/* ═══════════════════════════════════════════════════════════════ */
+/* Capítulos — .chapter (cuerpo narrativo + tablas del informe)    */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.chapter {
+  page-break-before: always;
+  page-break-after: avoid;
+}
+
+.chapter h2 {
+  font-size: 19pt;
+  font-weight: var(--fw-extrabold);
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  color: var(--text-heading);
+  margin: 0 0 20pt;
+  padding: 12pt 14pt 12pt 16pt;
+  border-left: 5px solid var(--border-heading-accent);
+  background-color: var(--surface-heading-band);
+}
+
+.chapter h3 {
+  font-size: 16pt;
+  font-weight: var(--fw-extrabold);
+  line-height: 1.28;
+  letter-spacing: -0.028em;
+  color: var(--text-strong);
+  margin: 18pt 0 9pt;
+  border-bottom: 2px solid #cbd5e1;
+  padding-bottom: 6pt;
+}
+
+.chapter h4 {
+  font-size: 11.5pt;
+  font-weight: var(--fw-extrabold);
+  line-height: 1.3;
+  color: var(--text-heading);
+  margin: 14pt 0 6pt;
+  break-after: avoid;
+}
+
+/* Subtítulo de pantalla dentro de un subapartado (nombre visible en la app) */
+.chapter .screen-title {
+  font-size: 10.5pt;
+  font-weight: var(--fw-extrabold);
+  line-height: 1.32;
+  color: var(--text-strong);
+  margin: 16pt 0 5pt;
+  letter-spacing: -0.02em;
+  break-after: avoid;
+}
+
+.chapter h4 + p + .screen-title {
+  margin-top: 10pt;
+}
+
+/* Texto corrido del informe: solo dentro de capítulo (no afecta portada ni TOC salvo .toc-intro) */
+.chapter p,
+.chapter dd,
+.chapter li {
+  text-align: justify;
+  text-align-last: left;
+}
+
+.chapter figure.figure-screenshot {
+  margin: 12pt 0 14pt;
+  break-inside: avoid;
+}
+
+.chapter figure.figure-screenshot img {
+  display: block;
+  width: 100%;
+  max-width: 150mm;
+  height: auto;
+  margin: 0 auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 3px;
+}
+
+.chapter figure.figure-screenshot figcaption {
+  margin-top: 6pt;
+  font-size: 8.5pt;
+  color: var(--text-muted);
+  line-height: 1.42;
+  text-align: justify;
+  text-align-last: left;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* Utilidades compartidas (usadas dentro de .chapter u otros)      */
+/* ═══════════════════════════════════════════════════════════════ */
+
 .placeholder {
   font-style: italic;
-  color: #64748b;
+  color: var(--text-soft);
   padding: 12pt 0;
   text-align: justify;
   text-align-last: left;
 }
 
-/* Tablas de datos (impresión / PDF) */
 .table-wrap {
   overflow: hidden;
   margin: 10pt 0 16pt;
@@ -234,8 +350,8 @@ body p {
 
 .data-table thead th {
   background: #e2e8f0;
-  font-weight: 700;
-  color: #0f172a;
+  font-weight: var(--fw-bold);
+  color: var(--text-heading);
 }
 
 .data-table--compact {
@@ -253,7 +369,7 @@ body p {
 
 .fine-print {
   font-size: 8.5pt;
-  color: #475569;
+  color: var(--text-muted);
   line-height: 1.45;
   text-align: justify;
   text-align-last: left;
@@ -263,18 +379,16 @@ body p {
   margin-top: 16pt;
 }
 
-/* Lista de definiciones: términos discretos, cuerpo alineado con el resto del informe */
 .def-list {
   margin: 12pt 0 18pt;
   padding: 0;
 }
 
 .def-list dt {
-  font-family: "Libre Franklin", Arial, Helvetica, sans-serif;
   font-size: 13pt;
-  font-weight: 1600;
+  font-weight: var(--fw-extrabold);
   font-style: normal;
-  color: #020617;
+  color: var(--text-strong);
   letter-spacing: -0.02em;
   margin-top: 14pt;
   margin-bottom: 0;
@@ -291,8 +405,8 @@ body p {
   line-height: 1.52;
   text-align: justify;
   text-align-last: left;
-  color: var(--color-dark);
-  font-weight: 400;
+  color: var(--text-body);
+  font-weight: var(--fw-regular);
   break-inside: avoid;
 }
 
@@ -300,7 +414,6 @@ body p {
   margin-top: 0;
 }
 
-/* Notas y Callouts */
 .note,
 .warning,
 .info {
@@ -309,25 +422,24 @@ body p {
   border-left: 4px solid var(--color-primary);
   background: #f0f9ff;
   break-inside: avoid;
+  text-align: justify;
+  text-align-last: left;
 }
 
 .warning {
-  border-left-color: #f59e0b;
+  border-left-color: var(--color-accent);
   background: #fffbeb;
 }
 
+/* Título del callout: mismo énfasis que strong global + tamaño de etiqueta */
 .note strong,
 .warning strong,
 .info strong {
   display: block;
   margin-bottom: 4pt;
-  color: var(--color-dark);
+  font-weight: var(--fw-bold);
+  font-synthesis: none;
+  font-size: 10.5pt;
+  letter-spacing: -0.015em;
+  color: var(--text-strong);
 }
-
-.note,
-.info,
-.warning {
-  text-align: justify;
-  text-align-last: left;
-}
-

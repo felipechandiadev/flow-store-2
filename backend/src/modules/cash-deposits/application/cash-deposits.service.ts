@@ -62,6 +62,9 @@ export class CashDepositsService {
       createTxDto.amount = amount;
       createTxDto.notes = notes || undefined;
       createTxDto.occurredOn = occurredOn || undefined;
+      if (payload.cashHubId?.trim()) {
+        createTxDto.cashHubId = payload.cashHubId.trim();
+      }
 
       // Obtener una rama válida de la base de datos
       const branch = await this.branchRepository.findOne({

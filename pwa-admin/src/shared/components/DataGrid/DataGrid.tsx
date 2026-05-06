@@ -80,6 +80,12 @@ export interface DataGridProps {
   // Sticky actions column
   pinActionsColumn?: boolean;
   actionsColumnField?: string;
+  /** Clic en la fila (p. ej. cambiar selección vía URL). */
+  onRowClick?: (row: any) => void;
+  /** Resalta la fila cuyo `row.id` coincide (selección controlada desde fuera). */
+  selectedRowId?: string | number | null;
+  /** Oculta pie de paginación (listas cortas estáticas). */
+  showFooter?: boolean;
 }
 
 const DataGrid: React.FC<DataGridProps> = ({
@@ -117,6 +123,9 @@ const DataGrid: React.FC<DataGridProps> = ({
   headerActions,
   pinActionsColumn = false,
   actionsColumnField = 'actions',
+  onRowClick,
+  selectedRowId = null,
+  showFooter = true,
 }) => {
   // Map deprecated props to new ones
   const effectiveShowSearch = showSearch !== undefined ? showSearch : (enableSearch !== undefined ? enableSearch : true);
@@ -284,10 +293,11 @@ const DataGrid: React.FC<DataGridProps> = ({
           pinActionsColumn={pinActionsColumn}
           actionsColumnField={actionsColumnField}
           stickyExpandedRowTopPx={expandable ? expandedStickyRowTopPx : undefined}
+          onRowClick={onRowClick}
+          selectedRowId={selectedRowId}
         />
       </div>
-      {/* Footer - siempre pegado abajo */}
-      <Footer total={total} totalGeneral={totalGeneral}/>
+      {showFooter ? <Footer total={total} totalGeneral={totalGeneral} /> : null}
     </div>
   );
 };

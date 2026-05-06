@@ -9,8 +9,13 @@ import {
   Person,
   PersonType,
   DocumentType,
+  BankName,
+  AccountTypeName,
 } from '@modules/persons/domain/person.entity';
-import { Company } from '@modules/companies/domain/company.entity';
+import {
+  Company,
+  CompanyBankAccount,
+} from '@modules/companies/domain/company.entity';
 import { Tax, TaxType } from '@modules/taxes/domain/tax.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
@@ -19,8 +24,10 @@ import { Category } from '@modules/categories/domain/category.entity';
 import { Attribute } from '@modules/attributes/domain/attribute.entity';
 import { PriceList, PriceListType } from '@modules/price-lists/domain/price-list.entity';
 import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
+import { CashHub } from '@modules/cash-hubs/domain/cash-hub.entity';
 import { ExpenseCategory } from '@modules/expense-categories/domain/expense-category.entity';
 import { Supplier, SupplierType } from '@modules/suppliers/domain/supplier.entity';
+import { Shareholder } from '@modules/shareholders/domain/shareholder.entity';
 import { AccountingAccount, AccountType } from '@modules/accounting-accounts/domain/accounting-account.entity';
 import { AccountingRule, RuleScope } from '@modules/accounting-rules/domain/accounting-rule.entity';
 import {
@@ -49,6 +56,10 @@ import {
 const SEED_IVA_DESCRIPTION =
   'Impuesto al Valor Agregado sobre ventas, servicios e importaciones.';
 
+const SEED_HONORARIUM_RETENTION_NAME = 'Retención pago Honorarios';
+const SEED_HONORARIUM_RETENTION_DESCRIPTION =
+  'Retención de impuesto aplicable al pago de honorarios (tasa referencial 15,25%).';
+
 const SEED_BRANCH_NAME = 'Local Principal';
 const SEED_BRANCH_ADDRESS = 'Av. Anibal Pinto 1000, Parral';
 const SEED_BRANCH_PHONE = '999999999';
@@ -62,6 +73,37 @@ const SEED_STORAGE_SALA_NAME = 'Sala de venta';
 const SEED_STORAGE_SALA_CODE = 'SEED-SALA-VENTA';
 const SEED_STORAGE_DEPOSITO_NAME = 'Depósito principal';
 const SEED_STORAGE_DEPOSITO_CODE = 'SEED-DEP-PRINCIPAL';
+
+/** Claves estables para upsert en `companies.bank_accounts` sin borrar cuentas agregadas fuera del seed. */
+const SEED_COMPANY_BANK_ACCOUNT_KEYS = {
+  bchCorriente: 'seed-company-bank-bch-cc',
+  estadoVista: 'seed-company-bank-estado-vista',
+} as const;
+
+function buildSeedCompanyBankAccounts(
+  accountHolderName: string,
+): CompanyBankAccount[] {
+  return [
+    {
+      accountKey: SEED_COMPANY_BANK_ACCOUNT_KEYS.bchCorriente,
+      bankName: BankName.BANCO_CHILE,
+      accountType: AccountTypeName.CUENTA_CORRIENTE,
+      accountNumber: '111-00000-01',
+      accountHolderName,
+      isPrimary: true,
+      notes: 'Cuenta ejemplo (seed mínimo)',
+    },
+    {
+      accountKey: SEED_COMPANY_BANK_ACCOUNT_KEYS.estadoVista,
+      bankName: BankName.BANCO_ESTADO,
+      accountType: AccountTypeName.CUENTA_VISTA,
+      accountNumber: '22222222-2',
+      accountHolderName,
+      isPrimary: false,
+      notes: 'Cuenta ejemplo (seed mínimo)',
+    },
+  ];
+}
 
 const SEED_UNIT_BASE_NAME = 'UNIDAD';
 const SEED_UNIT_BASE_SYMBOL = 'UN';
@@ -126,6 +168,12 @@ const SEED_ACCOUNTING_ACCOUNTS: readonly {
   { code: '1100', name: 'Caja y bancos', type: AccountType.ASSET, parentCode: '1000' },
   { code: '1101', name: 'Caja', type: AccountType.ASSET, parentCode: '1100' },
   { code: '1102', name: 'Banco', type: AccountType.ASSET, parentCode: '1100' },
+  {
+    code: '1110',
+    name: 'Efectivo centros de acopio',
+    type: AccountType.ASSET,
+    parentCode: '1100',
+  },
   { code: '1200', name: 'Cuentas por cobrar', type: AccountType.ASSET, parentCode: '1000' },
   { code: '1201', name: 'Clientes', type: AccountType.ASSET, parentCode: '1200' },
 
@@ -564,8 +612,10 @@ async function bootstrap() {
     const attributeRepo = dataSource.getRepository(Attribute);
     const priceListRepo = dataSource.getRepository(PriceList);
     const posRepo = dataSource.getRepository(PointOfSale);
+    const cashHubRepo = dataSource.getRepository(CashHub);
     const expenseCategoryRepo = dataSource.getRepository(ExpenseCategory);
     const supplierRepo = dataSource.getRepository(Supplier);
+    const shareholderRepo = dataSource.getRepository(Shareholder);
     const accountingAccountRepo = dataSource.getRepository(AccountingAccount);
     const accountingRuleRepo = dataSource.getRepository(AccountingRule);
     const accountingRuleLineRepo = dataSource.getRepository(AccountingRuleLine);
@@ -611,6 +661,22 @@ async function bootstrap() {
       );
     }
 
+    const seedBankRows = buildSeedCompanyBankAccounts(company.razonSocial);
+    const byKey = new Map(
+      (company.bankAccounts ?? []).map((a) => [
+        a.accountKey ?? `${String(a.bankName)}_${a.accountNumber}`,
+        a,
+      ] as const),
+    );
+    for (const row of seedBankRows) {
+      byKey.set(row.accountKey!, row);
+    }
+    company.bankAccounts = Array.from(byKey.values());
+    await companyRepo.save(company);
+    console.log(
+      `✅ Cuentas bancarias ejemplo sincronizadas (${seedBankRows.length}) companyId=${company.id}`,
+    );
+
     let ivaTax = await taxRepo.findOne({
       where: {
         companyId: company.id,
@@ -645,6 +711,43 @@ async function bootstrap() {
       await taxRepo.save(ivaTax);
       console.log(
         `✅ Impuesto ejemplo IVA ya existía: id=${ivaTax.id} (sincronizado con seed)`,
+      );
+    }
+
+    let honorariumRetentionTax = await taxRepo.findOne({
+      where: {
+        companyId: company.id,
+        name: SEED_HONORARIUM_RETENTION_NAME,
+        taxType: TaxType.RETENTION,
+      },
+    });
+    if (!honorariumRetentionTax) {
+      honorariumRetentionTax = taxRepo.create({
+        companyId: company.id,
+        name: SEED_HONORARIUM_RETENTION_NAME,
+        code: null,
+        taxType: TaxType.RETENTION,
+        rate: 15.25,
+        description: SEED_HONORARIUM_RETENTION_DESCRIPTION,
+        isDefault: false,
+        isActive: true,
+        nonDeletable: true,
+      });
+      await taxRepo.save(honorariumRetentionTax);
+      console.log(
+        `✅ Impuesto ejemplo creado: ${SEED_HONORARIUM_RETENTION_NAME} 15,25% id=${honorariumRetentionTax.id} companyId=${company.id}`,
+      );
+    } else {
+      honorariumRetentionTax.code = null;
+      honorariumRetentionTax.rate = 15.25;
+      honorariumRetentionTax.description = SEED_HONORARIUM_RETENTION_DESCRIPTION;
+      honorariumRetentionTax.isDefault = false;
+      honorariumRetentionTax.isActive = true;
+      honorariumRetentionTax.taxType = TaxType.RETENTION;
+      honorariumRetentionTax.nonDeletable = true;
+      await taxRepo.save(honorariumRetentionTax);
+      console.log(
+        `✅ Impuesto ejemplo ${SEED_HONORARIUM_RETENTION_NAME} ya existía: id=${honorariumRetentionTax.id} (sincronizado con seed)`,
       );
     }
 
@@ -777,6 +880,51 @@ async function bootstrap() {
         debitAccountId: acc('5201'),
         creditAccountId: acc('1102'),
         priority: 10,
+        isActive: true,
+      },
+      {
+        companyId: company.id,
+        appliesTo: RuleScope.TRANSACTION,
+        transactionType: 'CAPITAL_CONTRIBUTION' as any,
+        debitAccountId: acc('1102'),
+        creditAccountId: acc('3101'),
+        priority: 5,
+        isActive: true,
+      },
+      {
+        companyId: company.id,
+        appliesTo: RuleScope.TRANSACTION,
+        transactionType: 'BANK_WITHDRAWAL_TO_SHAREHOLDER' as any,
+        debitAccountId: acc('3101'),
+        creditAccountId: acc('1102'),
+        priority: 5,
+        isActive: true,
+      },
+      {
+        companyId: company.id,
+        appliesTo: RuleScope.TRANSACTION,
+        transactionType: 'CASH_DEPOSIT' as any,
+        debitAccountId: acc('1102'),
+        creditAccountId: acc('1101'),
+        priority: 5,
+        isActive: true,
+      },
+      {
+        companyId: company.id,
+        appliesTo: RuleScope.TRANSACTION,
+        transactionType: 'CASH_WITHDRAWAL_TO_PETTY_CASH' as any,
+        debitAccountId: acc('1101'),
+        creditAccountId: acc('1102'),
+        priority: 5,
+        isActive: true,
+      },
+      {
+        companyId: company.id,
+        appliesTo: RuleScope.TRANSACTION,
+        transactionType: 'CASH_SESSION_TO_HUB_TRANSFER' as any,
+        debitAccountId: acc('1110'),
+        creditAccountId: acc('1101'),
+        priority: 6,
         isActive: true,
       },
     ];
@@ -1651,6 +1799,31 @@ async function bootstrap() {
       `✅ Punto de venta ${caja.name} ${existingPos ? 'ya existía' : 'creado'}: id=${caja.id}`,
     );
 
+    // Centro de acopio demo: vinculado a sucursal seed y al POS «CAJA LOCAL».
+    let seedCashHub = await cashHubRepo.findOne({
+      where: { companyId: company.id, code: 'CENTRAL' },
+    });
+    if (!seedCashHub) {
+      seedCashHub = cashHubRepo.create({
+        companyId: company.id,
+        name: 'Centro de efectivo central',
+        code: 'CENTRAL',
+        isActive: true,
+      });
+      await cashHubRepo.save(seedCashHub);
+    }
+    const seedBranchRow = await branchRepo.findOne({ where: { id: seedBranch.id } });
+    if (seedBranchRow) {
+      seedCashHub.branches = [seedBranchRow];
+    }
+    seedCashHub.pointsOfSale = [caja];
+    await cashHubRepo.save(seedCashHub);
+    caja.defaultCashHubId = seedCashHub.id;
+    await posRepo.save(caja);
+    console.log(
+      `✅ Centro de acopio «${seedCashHub.name}» sincronizado: id=${seedCashHub.id} (POS=${caja.id})`,
+    );
+
     // Expense categories (seed explícito): limpiar y recrear catálogo por empresa.
     const deleteResult = await expenseCategoryRepo
       .createQueryBuilder()
@@ -1738,6 +1911,70 @@ async function bootstrap() {
       supplier = await supplierRepo.save(supplier);
       console.log(
         `✅ Proveedor ${supplier.alias ?? person.businessName ?? `${person.firstName} ${person.lastName ?? ''}`.trim()} sincronizado: id=${supplier.id} tipo=${supplier.supplierType}`,
+      );
+    }
+
+    const seedShareholders = [
+      {
+        firstName: 'Ana',
+        lastName: 'López',
+        documentType: DocumentType.RUN,
+        documentNumber: '15234567-8',
+        ownershipPercentage: 40,
+        partnerType: 'FOUNDING_PARTNER',
+        joinDate: '2020-01-15',
+      },
+      {
+        firstName: 'Roberto',
+        lastName: 'Martínez',
+        documentType: DocumentType.RUN,
+        documentNumber: '18222333-4',
+        ownershipPercentage: 60,
+        partnerType: 'INVESTING_PARTNER',
+        joinDate: '2021-06-01',
+      },
+    ] as const;
+
+    for (const sh of seedShareholders) {
+      let person = await personRepo.findOne({
+        where: { documentNumber: sh.documentNumber, deletedAt: null as never },
+      });
+      if (!person) {
+        person = personRepo.create({
+          type: PersonType.NATURAL,
+          firstName: sh.firstName,
+          lastName: sh.lastName,
+          documentType: sh.documentType,
+          documentNumber: sh.documentNumber,
+        });
+      } else {
+        person.firstName = sh.firstName;
+        person.lastName = sh.lastName;
+        person.documentType = sh.documentType;
+      }
+      person = await personRepo.save(person);
+
+      let shRow = await shareholderRepo.findOne({
+        where: { companyId: company.id, personId: person.id, deletedAt: null as never },
+      });
+      if (!shRow) {
+        shRow = shareholderRepo.create({
+          companyId: company.id,
+          personId: person.id,
+          ownershipPercentage: sh.ownershipPercentage,
+          partnerType: sh.partnerType,
+          joinDate: sh.joinDate,
+          isActive: true,
+        });
+      } else {
+        shRow.ownershipPercentage = sh.ownershipPercentage;
+        shRow.partnerType = sh.partnerType;
+        shRow.joinDate = sh.joinDate;
+        shRow.isActive = true;
+      }
+      await shareholderRepo.save(shRow);
+      console.log(
+        `✅ Socio seed: ${sh.firstName} ${sh.lastName} participación=${sh.ownershipPercentage}% partnerType=${sh.partnerType}`,
       );
     }
 

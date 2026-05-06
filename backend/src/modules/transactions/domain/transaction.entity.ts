@@ -35,12 +35,13 @@ import { Installment } from '@modules/installments/domain/installment.entity';
  *    SALE: Venta a cliente (contado o crédito)
  *    SALE_RETURN: Devolución de venta con referencia a SALE original
  *
- * 2. COMPRAS Y DEVOLUCIONES (5 tipos)
+ * 2. COMPRAS Y DEVOLUCIONES (6 tipos)
  *    PURCHASE: Compra a proveedor
  *    PURCHASE_ORDER: Orden de compra (no afecta inventario aún)
  *    PURCHASE_RETURN: Devolución a proveedor (stock / reverso operativo)
  *    SUPPLIER_INVOICE: Factura de proveedor
  *    SUPPLIER_RECEIPT: Boleta de proveedor
+ *    SUPPLIER_HONORARIUM_RECEIPT: Boleta de honorarios de proveedor
  *    SUPPLIER_GUIDE: Guía de despacho de proveedor
  *    SUPPLIER_CREDIT_NOTE: Nota de crédito de proveedor (documento fiscal; asociada a PURCHASE_RETURN)
  *
@@ -77,8 +78,11 @@ import { Installment } from '@modules/installments/domain/installment.entity';
  *    OPERATING_EXPENSE: Gasto directo (café, mantenimiento, etc)
  *    CASH_DEPOSIT: Depósito de efectivo en banco
  *
- * 8. RETIROS DE CAPITAL (1 tipo)
- *    BANK_WITHDRAWAL_TO_SHAREHOLDER: Retiro a accionista
+ * 8. CAPITAL Y TESORERÍA (4 tipos)
+ *    CAPITAL_CONTRIBUTION: Aporte de capital (socio → banco / capital)
+ *    BANK_WITHDRAWAL_TO_SHAREHOLDER: Retiro de utilidades / egreso a socio
+ *    CASH_WITHDRAWAL_TO_PETTY_CASH: Giro banco → caja (fondo fijo / sencillado)
+ *    (CASH_DEPOSIT ya listado arriba: caja → banco)
  *
  * @see docs/TRANSACTION_TYPES_ANALYSIS.md - Análisis detallado
  */
@@ -93,6 +97,7 @@ export enum TransactionType {
   PURCHASE_RETURN = 'PURCHASE_RETURN',
   SUPPLIER_INVOICE = 'SUPPLIER_INVOICE',
   SUPPLIER_RECEIPT = 'SUPPLIER_RECEIPT',
+  SUPPLIER_HONORARIUM_RECEIPT = 'SUPPLIER_HONORARIUM_RECEIPT',
   SUPPLIER_GUIDE = 'SUPPLIER_GUIDE',
   SUPPLIER_CREDIT_NOTE = 'SUPPLIER_CREDIT_NOTE',
 
@@ -129,11 +134,15 @@ export enum TransactionType {
   OPERATING_EXPENSE = 'OPERATING_EXPENSE',
   CASH_SESSION_OPENING = 'CASH_SESSION_OPENING',
   CASH_SESSION_CLOSING = 'CASH_SESSION_CLOSING',
+  /** Efectivo de cierre de sesión / POS hacia centro de acopio (1110 vs 1101). */
+  CASH_SESSION_TO_HUB_TRANSFER = 'CASH_SESSION_TO_HUB_TRANSFER',
   CASH_SESSION_WITHDRAWAL = 'CASH_SESSION_WITHDRAWAL',
   CASH_SESSION_DEPOSIT = 'CASH_SESSION_DEPOSIT',
 
-  // Capital
+  // Capital / tesorería socios
+  CAPITAL_CONTRIBUTION = 'CAPITAL_CONTRIBUTION',
   BANK_WITHDRAWAL_TO_SHAREHOLDER = 'BANK_WITHDRAWAL_TO_SHAREHOLDER',
+  CASH_WITHDRAWAL_TO_PETTY_CASH = 'CASH_WITHDRAWAL_TO_PETTY_CASH',
 }
 
 // Expose class on globalThis so relation thunks that resolve at runtime (in bundled builds)
@@ -257,6 +266,10 @@ export class Transaction {
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   bankAccountKey?: string;
+
+  /** Centro de acopio: depósito bancario desde hub o movimiento asociado al hub. */
+  @Column({ type: 'uuid', nullable: true })
+  cashHubId?: string | null;
 
   @Column({ type: 'varchar', length: 30, nullable: true })
   documentType?: string; // Ej: Factura, Boleta, Guía

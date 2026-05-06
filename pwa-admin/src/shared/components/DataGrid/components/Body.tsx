@@ -18,6 +18,8 @@ interface BodyProps {
   actionsColumnField?: string;
   /** Si está definido y la fila está expandida, la fila de datos queda `sticky` bajo el header al hacer scroll. */
   stickyExpandedRowTopPx?: number;
+  onRowClick?: (row: any) => void;
+  selectedRowId?: string | number | null;
 }
 
 const Body: React.FC<BodyProps> = ({ 
@@ -32,6 +34,8 @@ const Body: React.FC<BodyProps> = ({
   pinActionsColumn = false,
   actionsColumnField = 'actions',
   stickyExpandedRowTopPx,
+  onRowClick,
+  selectedRowId = null,
 }) => {
   const [hoveredRowId, setHoveredRowId] = useState<string | number | null>(null);
   const visibleColumns = columns.filter((c) => !c.hide);
@@ -43,13 +47,30 @@ const Body: React.FC<BodyProps> = ({
     <div className="flex-1" data-test-id="data-grid-body">
       {/* Renderizar por filas para sincronizar alturas */}
       {rows.map((row, rowIndex) => {
-        const rowId = row.id || rowIndex;
+        const rowId = row.id ?? rowIndex;
         const isExpanded = expandedRowIds.has(rowId);
+        const isSelected =
+          selectedRowId != null && selectedRowId !== '' && String(rowId) === String(selectedRowId);
         
         return (
           <React.Fragment key={rowId}>
             <div
+              role={onRowClick ? 'button' : undefined}
+              tabIndex={onRowClick ? 0 : undefined}
+              onKeyDown={
+                onRowClick
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onRowClick(row);
+                      }
+                    }
+                  : undefined
+              }
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
               className={`flex min-w-full items-stretch data-grid-row ${
+                onRowClick ? 'cursor-pointer' : ''
+              } ${
                 expandable && isExpanded && stickyExpandedRowTopPx != null
                   ? 'sticky z-[25] border-b border-border bg-background shadow-sm'
                   : ''
@@ -61,6 +82,7 @@ const Body: React.FC<BodyProps> = ({
                   : undefined),
               }}
               data-test-id="data-grid-row"
+              aria-selected={onRowClick ? isSelected : undefined}
             >
               {/* Expand/Collapse button */}
               {expandable && (
@@ -88,8 +110,11 @@ const Body: React.FC<BodyProps> = ({
                 const style = computedStyles[colIndex];
                 const isPinnedActionsColumn =
                   pinActionsColumn && column.field === actionsColumnField;
-                const rowBackgroundColor =
-                  hoveredRowId === rowId ? "var(--color-hover)" : "var(--color-background)";
+                const rowBackgroundColor = isSelected
+                  ? "color-mix(in srgb, var(--color-primary) 16%, var(--color-background))"
+                  : hoveredRowId === rowId
+                    ? "var(--color-hover)"
+                    : "var(--color-background)";
 
                 const cellStyle = {
                   ...style,

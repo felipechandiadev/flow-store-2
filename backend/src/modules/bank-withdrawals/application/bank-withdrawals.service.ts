@@ -64,6 +64,9 @@ export class BankWithdrawalsService {
       createTxDto.amount = amount;
       createTxDto.notes = notes || undefined;
       createTxDto.occurredOn = occurredOn || undefined;
+      if (payload.taxRetention != null && Number.isFinite(Number(payload.taxRetention))) {
+        createTxDto.taxRetention = Number(payload.taxRetention);
+      }
 
       // Obtener una rama válida de la base de datos
       const branch = await this.branchRepository.findOne({

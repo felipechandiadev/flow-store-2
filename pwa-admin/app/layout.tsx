@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AuthProvider from '@/providers/AuthProvider';
@@ -47,15 +48,13 @@ export default function RootLayout({
             {children}
           </ErrorHandlerProvider>
         </AuthProvider>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator && ${registerServiceWorkerInProduction}) {
-                navigator.serviceWorker.register('/sw.js');
-              }
-            `,
-          }}
-        />
+        <Script id="flowstore-register-sw" strategy="afterInteractive">
+          {`
+            if ('serviceWorker' in navigator && ${registerServiceWorkerInProduction}) {
+              navigator.serviceWorker.register('/sw.js');
+            }
+          `}
+        </Script>
       </body>
     </html>
   );

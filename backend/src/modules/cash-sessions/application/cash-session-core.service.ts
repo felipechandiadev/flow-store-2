@@ -23,6 +23,7 @@ import {
   PaymentMethod,
 } from '@modules/transactions/domain/transaction.entity';
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
+import { CashHubsService } from '@modules/cash-hubs/application/cash-hubs.service';
 
 /**
  * CashSessionCoreService - Single Responsibility: Session Lifecycle Management
@@ -52,6 +53,7 @@ export class CashSessionCoreService {
     private readonly dataSource: DataSource,
     @Inject(forwardRef(() => TransactionsService))
     private readonly transactionsService: TransactionsService,
+    private readonly cashHubsService: CashHubsService,
   ) {}
 
   /**
@@ -363,7 +365,11 @@ export class CashSessionCoreService {
    * 5. Liberar stock reservado
    * 6. Marcar sesión como CLOSED
    */
-  async closeByUserName(sessionId: string, userName: string) {
+  async closeByUserName(
+    sessionId: string,
+    userName: string,
+    options?: { cashHubId?: string },
+  ) {
     const trimmedUserName = userName?.trim();
     if (!trimmedUserName) {
       throw new BadRequestException(
@@ -379,14 +385,18 @@ export class CashSessionCoreService {
       throw new NotFoundException(`Usuario ${trimmedUserName} no encontrado`);
     }
 
-    return this.close(sessionId, user.id);
+    return this.close(sessionId, user.id, options);
   }
 
-  async close(sessionId: string, userId: string) {
+  async close(
+    sessionId: string,
+    userId: string,
+    options?: { cashHubId?: string },
+  ) {
     // 1. Validar sesión
     const session = await this.cashSessionRepository.findOne({
       where: { id: sessionId },
-      relations: ['pointOfSale'],
+      relations: ['pointOfSale', 'pointOfSale.branch'],
     });
     if (!session) {
       throw new NotFoundException(`Sesión ${sessionId} no encontrada`);
@@ -427,6 +437,7 @@ export class CashSessionCoreService {
       );
     }
     let closingTxId: string | null = null;
+    let hubTransferId: string | null = null;
     if (Number(expectedAmount) >= 0.01) {
       const txDto = new CreateTransactionDto();
       txDto.transactionType = TransactionType.CASH_SESSION_CLOSING;
@@ -445,6 +456,56 @@ export class CashSessionCoreService {
 
       const closingTx = await this.transactionsService.createTransaction(txDto);
       closingTxId = closingTx.id;
+
+      const companyId = session.pointOfSale?.branch?.companyId;
+      const posId = session.pointOfSaleId;
+      if (companyId && posId) {
+        let hubId: string | null = null;
+        if (options?.cashHubId) {
+          const ok = await this.cashHubsService.validateHubForPos(
+            companyId,
+            posId,
+            options.cashHubId,
+          );
+          hubId = ok ? options.cashHubId : null;
+          if (!ok) {
+            this.logger.warn(
+              `cashHubId override inválido para sesión ${sessionId}; se omite traslado a centro de acopio.`,
+            );
+          }
+        } else {
+          hubId = await this.cashHubsService.resolveDefaultHubForPos(
+            companyId,
+            posId,
+          );
+        }
+        if (hubId) {
+          const hubTx = new CreateTransactionDto();
+          hubTx.transactionType = TransactionType.CASH_SESSION_TO_HUB_TRANSFER;
+          hubTx.branchId = branchId;
+          hubTx.userId = closedBy.id;
+          hubTx.pointOfSaleId = posId;
+          hubTx.cashSessionId = session.id;
+          hubTx.cashHubId = hubId;
+          hubTx.subtotal = expectedAmount;
+          hubTx.taxAmount = 0;
+          hubTx.discountAmount = 0;
+          hubTx.total = expectedAmount;
+          hubTx.paymentMethod = PaymentMethod.CASH;
+          hubTx.amountPaid = expectedAmount;
+          hubTx.lines = [];
+          hubTx.relatedTransactionId = closingTx.id;
+          hubTx.notes = 'Traslado de efectivo de cierre de sesión a centro de acopio';
+          hubTx.metadata = {
+            cashSessionToHub: true,
+            cashHubId: hubId,
+            closingTransactionId: closingTx.id,
+          };
+          const hubTxSaved =
+            await this.transactionsService.createTransaction(hubTx);
+          hubTransferId = hubTxSaved.id;
+        }
+      }
     }
 
     // 5. Actualizar sesión
@@ -461,6 +522,7 @@ export class CashSessionCoreService {
       message: 'Sesión cerrada correctamente',
       sessionId,
       closingTransactionId: closingTxId,
+      hubTransferTransactionId: hubTransferId,
       expectedAmount,
     };
   }

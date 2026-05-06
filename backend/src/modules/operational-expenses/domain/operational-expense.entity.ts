@@ -31,10 +31,36 @@ export enum OperationalExpenseStatus {
   CANCELLED = 'CANCELLED',
 }
 
+/** Plan de pagos asociado al DTE vinculado (misma forma que factura proveedor). */
+export type OperationalExpenseLinkedPlannedPayment = {
+  dueDate: string;
+  amount: number;
+  paymentMethod: 'CASH' | 'TRANSFER' | 'CHECK';
+  companyBankAccountKey?: string | null;
+  supplierBankAccountKey?: string | null;
+  chequeNumber?: string | null;
+};
+
+export type OperationalExpenseLinkedDteKind =
+  | 'SUPPLIER_INVOICE'
+  | 'SUPPLIER_RECEIPT'
+  | 'SUPPLIER_HONORARIUM_RECEIPT';
+
+export interface OperationalExpenseLinkedTributaryDocument {
+  kind: OperationalExpenseLinkedDteKind;
+  dteNumber?: string;
+  netAmount: number;
+  totalAmount: number;
+  taxAmount: number;
+  taxId?: string | null;
+  plannedPayments: OperationalExpenseLinkedPlannedPayment[];
+}
+
 export interface OperationalExpenseMetadata {
   estimatedAmount?: number;
   invoiceNumber?: string;
   notes?: string;
+  linkedTributaryDocument?: OperationalExpenseLinkedTributaryDocument | null;
 }
 
 @Entity('operational_expenses')

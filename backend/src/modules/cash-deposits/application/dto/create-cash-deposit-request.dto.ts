@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
 
@@ -23,4 +24,8 @@ export class CreateCashDepositRequestDto {
   @IsOptional()
   @IsDateString()
   occurredOn?: string;
+
+  @IsOptional()
+  @IsUUID()
+  cashHubId?: string;
 }

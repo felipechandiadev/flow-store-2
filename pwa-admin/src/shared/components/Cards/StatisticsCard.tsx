@@ -19,6 +19,8 @@ export interface StatisticsCardProps {
   hint?: string;
   /** Color del valor; por defecto `primary` (tema: --color-*) */
   tone?: StatisticsValueTone;
+  /** Tipografía y padding más ajustados (p. ej. grillas de tesorería). */
+  compact?: boolean;
   className?: string;
   onClick?: () => void;
   'data-test-id'?: string;
@@ -32,12 +34,14 @@ export function StatisticsCard({
   value,
   hint,
   tone = 'primary',
+  compact = false,
   className = '',
   onClick,
   'data-test-id': dataTestId,
 }: StatisticsCardProps) {
+  const rootClass = [className, compact ? 'fs-statistics-card--compact' : ''].filter(Boolean).join(' ');
   return (
-    <Card className={className} onClick={onClick} data-test-id={dataTestId}>
+    <Card className={rootClass} onClick={onClick} data-test-id={dataTestId}>
       <p className="fs-statistics-card__label">{label}</p>
       <p className={`fs-statistics-card__value ${valueToneClass[tone]}`}>{value}</p>
       {hint ? <p className="fs-statistics-card__hint">{hint}</p> : null}

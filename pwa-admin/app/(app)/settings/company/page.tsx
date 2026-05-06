@@ -1,9 +1,12 @@
 import { BasicPageLayout } from "@/shared/components/layouts";
 import { GetCompanyUseCase } from "@/features/settings-company/application/get-company.usecase";
+import { ShareholderRequest } from "@/features/settings-shareholders/infrastructure/shareholder.request";
 import { CompanySettingsContent } from "./CompanySettingsContent";
 
 export default async function Page() {
   const company = await GetCompanyUseCase.execute();
+  const shareholders =
+    company?.id != null ? await ShareholderRequest.list(company.id) : [];
 
   return (
     <BasicPageLayout
@@ -15,7 +18,7 @@ export default async function Page() {
       {company == null ? (
         <p className="text-sm text-muted">No se pudo cargar la empresa. Revisa la sesión y el API.</p>
       ) : (
-        <CompanySettingsContent company={company} />
+        <CompanySettingsContent company={company} shareholders={shareholders} />
       )}
     </BasicPageLayout>
   );

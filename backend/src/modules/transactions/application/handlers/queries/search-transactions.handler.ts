@@ -29,6 +29,8 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
     qb.leftJoinAndSelect('tx.customer', 'customer');
     qb.leftJoinAndSelect('tx.supplier', 'supplier');
     qb.leftJoinAndSelect('supplier.person', 'supplierPerson');
+    qb.leftJoinAndSelect('tx.shareholder', 'shareholder');
+    qb.leftJoinAndSelect('shareholder.person', 'shareholderPerson');
     qb.leftJoinAndSelect('tx.pointOfSale', 'pos');
     qb.leftJoinAndSelect('tx.cashSession', 'cashSession');
 
@@ -64,6 +66,18 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
     if (query.supplierId) {
       qb.andWhere('tx.supplierId = :supplierId', {
         supplierId: query.supplierId,
+      });
+    }
+
+    if (query.bankAccountKey) {
+      qb.andWhere('tx.bankAccountKey = :bankAccountKey', {
+        bankAccountKey: query.bankAccountKey,
+      });
+    }
+
+    if (query.cashHubId) {
+      qb.andWhere('tx.cashHubId = :cashHubId', {
+        cashHubId: query.cashHubId,
       });
     }
 

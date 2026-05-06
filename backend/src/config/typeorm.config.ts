@@ -10,6 +10,7 @@ import { PriceList } from '@modules/price-lists/domain/price-list.entity';
 import { User } from '@modules/users/domain/user.entity';
 import { Person } from '@modules/persons/domain/person.entity';
 import { CashSession } from '@modules/cash-sessions/domain/cash-session.entity';
+import { CashHub } from '@modules/cash-hubs/domain/cash-hub.entity';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
 import { DocumentSequence } from '@modules/transactions/domain/document-sequence.entity';
 import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
@@ -73,6 +74,7 @@ export const typeOrmConfig = (
       User,
       Person,
       CashSession,
+      CashHub,
       Transaction,
       DocumentSequence,
       TransactionLine,

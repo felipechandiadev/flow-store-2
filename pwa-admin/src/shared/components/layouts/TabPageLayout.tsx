@@ -4,6 +4,7 @@ import {
   layoutPageContentClassName,
   layoutPageHeaderClassName,
   layoutPageRootClassName,
+  layoutPageRootClassNameCompact,
   layoutPageSubtitleClassName,
   layoutPageTitleClassName,
 } from "./layoutPageTokens";
@@ -23,6 +24,8 @@ export type TabPageLayoutProps = {
   contentClassName?: string;
   /** Clases extra en el contenedor del encabezado (fila título + tabs). */
   headerClassName?: string;
+  /** Menos espacio vertical entre la fila de pestañas y el contenido. */
+  compact?: boolean;
   "data-test-id"?: string;
 };
 
@@ -54,8 +57,10 @@ export function TabPageLayout({
   className = "",
   contentClassName = "",
   headerClassName = "",
+  compact = false,
   "data-test-id": dataTestId,
 }: TabPageLayoutProps) {
+  const rootBase = compact ? layoutPageRootClassNameCompact : layoutPageRootClassName;
   const showTitle = hasChunk(title);
   const showSubtitle = hasChunk(subtitle);
   const showHeading = showTitle || showSubtitle;
@@ -80,7 +85,7 @@ export function TabPageLayout({
 
   return (
     <div
-      className={`${layoutPageRootClassName} ${className}`.trim()}
+      className={`${rootBase} ${className}`.trim()}
       data-test-id={dataTestId ?? "tab-page-layout"}
     >
       {showHeading || showTabs ? (

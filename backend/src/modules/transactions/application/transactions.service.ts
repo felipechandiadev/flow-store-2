@@ -54,6 +54,8 @@ export class TransactionsService {
         dto.dateFrom,
         dto.dateTo,
         dto.search,
+        dto.bankAccountKey,
+        dto.cashHubId,
       ),
     );
   }

@@ -49,4 +49,9 @@ export class CloseCashSessionDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Opcional: centro de acopio destino (debe estar vinculado al POS o ser default del POS). */
+  @IsOptional()
+  @IsUUID()
+  cashHubId?: string;
 }

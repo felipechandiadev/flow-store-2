@@ -52,6 +52,7 @@ import { ReceptionLine } from '@modules/receptions/domain/reception-line.entity'
 import { Installment } from '@modules/installments/domain/installment.entity';
 import { MultimediaAsset } from '@modules/multimedia/domain/multimedia-asset.entity';
 import { MultimediaLink } from '@modules/multimedia/domain/multimedia-link.entity';
+import { CashHub } from '@modules/cash-hubs/domain/cash-hub.entity';
 import { AccountingRuleLine } from '@modules/accounting-rules/domain/accounting-rule-line.entity';
 import { AutomationRule } from '@modules/automation/domain/automation-rule.entity';
 import { AutomationAction } from '@modules/automation/domain/automation-action.entity';
@@ -59,6 +60,8 @@ import { Recipe } from '@modules/recipes/domain/recipe.entity';
 import { RecipeLine } from '@modules/recipes/domain/recipe-line.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
 import { AddTaxNonDeletable1740000000000 } from '../migrations/1740000000000-AddTaxNonDeletable';
+import { CashHubsAndSessionToHub1741000000000 } from '../migrations/1741000000000-CashHubsAndSessionToHub';
+import { AddCashSessionToHubTransferAccountingRuleEnum1741100000000 } from '../migrations/1741100000000-AddCashSessionToHubTransferAccountingRuleEnum';
 
 /**
  * DataSource usado por `typeorm` CLI (`migration:run`, `schema:log`, …).
@@ -123,9 +126,14 @@ export const AppDataSource = new DataSource({
     Installment,
     MultimediaAsset,
     MultimediaLink,
+    CashHub,
   ],
   subscribers: [AuditSubscriber],
-  migrations: [AddTaxNonDeletable1740000000000],
+  migrations: [
+    AddTaxNonDeletable1740000000000,
+    CashHubsAndSessionToHub1741000000000,
+    AddCashSessionToHubTransferAccountingRuleEnum1741100000000,
+  ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',
   extra: {

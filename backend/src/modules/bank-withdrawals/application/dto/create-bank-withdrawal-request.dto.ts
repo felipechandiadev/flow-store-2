@@ -27,4 +27,10 @@ export class CreateBankWithdrawalRequestDto {
   @IsOptional()
   @IsDateString()
   occurredOn?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  taxRetention?: number;
 }

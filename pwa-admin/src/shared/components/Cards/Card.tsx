@@ -57,6 +57,11 @@ export type CardProps = {
    */
   actions?: CardAction[];
   /**
+   * `embedded`: pie de acciones sin borde superior y alineado al inicio
+   * (p. ej. icono abajo a la izquierda en grillas de tesorería).
+   */
+  actionsVariant?: 'default' | 'embedded';
+  /**
    * Ocupa la altura del contenedor (`height: 100%`) y hace que `.fs-card__content` crezca
    * para alinear el bloque de acciones al pie (p. ej. grillas con `items-stretch`).
    */
@@ -101,6 +106,7 @@ export function Card({
   content,
   children,
   actions,
+  actionsVariant = 'default',
   fillHeight = false,
 }: CardProps) {
   const structured = useStructured({
@@ -173,7 +179,10 @@ export function Card({
       ) : null}
 
       {hasActions ? (
-        <div className="fs-card__actions" data-test-id="card-actions">
+        <div
+          className={`fs-card__actions${actionsVariant === 'embedded' ? ' fs-card__actions--embedded' : ''}`}
+          data-test-id="card-actions"
+        >
           {actions!.map((a, i) => {
             if (isIconAction(a)) {
               return (

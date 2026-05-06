@@ -52,7 +52,11 @@ END $$;
       );
     }
 
-    for (const label of ['SUPPLIER_RECEIPT', 'SUPPLIER_GUIDE'] as const) {
+    for (const label of [
+      'SUPPLIER_RECEIPT',
+      'SUPPLIER_HONORARIUM_RECEIPT',
+      'SUPPLIER_GUIDE',
+    ] as const) {
       try {
         await this.dataSource.query(`
 DO $$

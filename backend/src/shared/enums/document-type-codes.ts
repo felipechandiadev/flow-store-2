@@ -12,6 +12,7 @@ export const DOCUMENT_TYPE_CODES: Record<TransactionType, string> = {
   [TransactionType.PURCHASE_RETURN]: 'DPC',
   [TransactionType.SUPPLIER_INVOICE]: 'FPR',
   [TransactionType.SUPPLIER_RECEIPT]: 'BPR',
+  [TransactionType.SUPPLIER_HONORARIUM_RECEIPT]: 'BHP',
   [TransactionType.SUPPLIER_GUIDE]: 'GDP',
   [TransactionType.SUPPLIER_CREDIT_NOTE]: 'NCP',
   [TransactionType.CUSTOMER_ORDER]: 'PCL',
@@ -36,7 +37,10 @@ export const DOCUMENT_TYPE_CODES: Record<TransactionType, string> = {
   [TransactionType.OPERATING_EXPENSE]: 'GTO',
   [TransactionType.CASH_SESSION_OPENING]: 'APC',
   [TransactionType.CASH_SESSION_CLOSING]: 'CIE',
+  [TransactionType.CASH_SESSION_TO_HUB_TRANSFER]: 'ACH',
   [TransactionType.CASH_SESSION_WITHDRAWAL]: 'RET',
   [TransactionType.CASH_SESSION_DEPOSIT]: 'ING',
+  [TransactionType.CAPITAL_CONTRIBUTION]: 'CAP',
   [TransactionType.BANK_WITHDRAWAL_TO_SHAREHOLDER]: 'RAC',
+  [TransactionType.CASH_WITHDRAWAL_TO_PETTY_CASH]: 'GCP',
 };

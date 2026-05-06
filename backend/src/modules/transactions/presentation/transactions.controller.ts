@@ -115,6 +115,8 @@ export class TransactionsController {
         query.dateFrom,
         query.dateTo,
         query.search,
+        query.bankAccountKey,
+        query.cashHubId,
       ),
     );
   }

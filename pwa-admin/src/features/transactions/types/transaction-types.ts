@@ -52,6 +52,55 @@ export const TRANSACTION_TYPE_OPTIONS: TransactionTypeOption[] = [
     description:
       "Documento fiscal del proveedor que reduce CxP; debe vincularse a una PURCHASE_RETURN existente (metadata.links.purchaseReturnId). No mueve stock por sí sola.",
   },
+  {
+    id: "SUPPLIER_INVOICE",
+    label: "Factura de proveedor",
+    category: "Compras",
+    description:
+      "Documento fiscal de compra (DTE factura). Registra obligación y líneas; suele enlazarse a recepción/compra según el flujo.",
+  },
+  {
+    id: "SUPPLIER_RECEIPT",
+    label: "Boleta de proveedor",
+    category: "Compras",
+    description: "Documento fiscal de compra tipo boleta (DTE). Similar a factura en impacto contable/operativo según configuración.",
+  },
+  {
+    id: "SUPPLIER_HONORARIUM_RECEIPT",
+    label: "Boleta de honorarios proveedor",
+    category: "Compras",
+    description:
+      "Documento fiscal por honorarios de proveedor. Impacta retenciones/obligaciones según reglas del documento y del catálogo.",
+  },
+  {
+    id: "SUPPLIER_GUIDE",
+    label: "Guía de despacho proveedor",
+    category: "Compras",
+    description:
+      "Guía de despacho recibida de proveedor. Puede asociarse a recepción física y a documentos tributarios posteriores.",
+  },
+
+  // Pedidos / ejecución (no mueven stock por sí solos)
+  {
+    id: "CUSTOMER_ORDER",
+    label: "Pedido de cliente",
+    category: "Pedidos",
+    description:
+      "Pedido/reserva comercial. Por sí solo no mueve inventario; prepara ejecución (venta, picking, etc.) según el flujo.",
+  },
+  {
+    id: "SERVICE_ORDER",
+    label: "Orden de servicio",
+    category: "Pedidos",
+    description: "Orden de trabajo/servicio. Trazabilidad operativa; el impacto contable/inventario depende del flujo de cumplimiento.",
+  },
+  {
+    id: "PRODUCTION_BATCH",
+    label: "Lote de producción",
+    category: "Producción",
+    description:
+      "Lote u orden de producción. Agrupa consumos/salidas y productos terminados según el proceso productivo definido.",
+  },
 
   // Movimientos de inventario
   {
@@ -210,14 +259,35 @@ export const TRANSACTION_TYPE_OPTIONS: TransactionTypeOption[] = [
     description:
       "Ingreso de efectivo a una sesión de caja (p. ej. fondo de caja, regularización). Se usa para cuadrar operación.",
   },
+  {
+    id: "CASH_SESSION_TO_HUB_TRANSFER",
+    label: "Traslado caja → centro de acopio",
+    category: "Caja",
+    description:
+      "Movimiento de efectivo desde cierre/sesión de caja hacia centro de acopio (tesorería). Deja trazabilidad contable entre cuentas de efectivo.",
+  },
 
   // Capital
+  {
+    id: "CAPITAL_CONTRIBUTION",
+    label: "Aporte de capital",
+    category: "Capital",
+    description:
+      "Ingreso de capital (socio → empresa), típicamente a banco o cuentas de capital. Requiere trazabilidad de socio y documento soporte.",
+  },
   {
     id: "BANK_WITHDRAWAL_TO_SHAREHOLDER",
     label: "Retiro a accionista",
     category: "Capital",
     description:
       "Salida de fondos desde banco hacia un accionista/socio. Se usa como retiro de capital/dividendos según política y trazabilidad.",
+  },
+  {
+    id: "CASH_WITHDRAWAL_TO_PETTY_CASH",
+    label: "Giro banco → caja chica",
+    category: "Capital",
+    description:
+      "Traslado desde banco hacia caja chica / fondo fijo (sencillado). Complementa flujos de tesorería y operación diaria.",
   },
 ];
 

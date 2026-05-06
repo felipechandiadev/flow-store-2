@@ -31,3 +31,27 @@ export type SupplierOption = {
   name: string;
 };
 
+export type OperationalExpenseLinkedDteKind =
+  | "SUPPLIER_INVOICE"
+  | "SUPPLIER_RECEIPT"
+  | "SUPPLIER_HONORARIUM_RECEIPT";
+
+export type OperationalExpenseCreatePlannedPayment = {
+  dueDate: string;
+  amount: number;
+  paymentMethod: "CASH" | "TRANSFER" | "CHECK";
+  companyBankAccountKey?: string | null;
+  supplierBankAccountKey?: string | null;
+  chequeNumber?: string | null;
+};
+
+export type OperationalExpenseCreateLinkedTributaryDocument = {
+  kind: OperationalExpenseLinkedDteKind;
+  dteNumber?: string;
+  netAmount: number;
+  totalAmount: number;
+  taxAmount: number;
+  taxId?: string | null;
+  plannedPayments: OperationalExpenseCreatePlannedPayment[];
+};
+

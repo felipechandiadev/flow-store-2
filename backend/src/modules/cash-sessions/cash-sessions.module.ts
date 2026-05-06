@@ -19,6 +19,7 @@ import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { Product } from '@modules/products/domain/product.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
+import { CashHubsModule } from '@modules/cash-hubs/cash-hubs.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { TransactionsModule } from '@modules/transactions/transactions.module';
       Storage,
     ]),
     TransactionsModule, // <-- NEW: For delegation of transaction creation
+    CashHubsModule,
     CqrsModule,
   ],
   controllers: [CashSessionsController],

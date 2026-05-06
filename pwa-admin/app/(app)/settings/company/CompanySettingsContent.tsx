@@ -2,15 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import type { CompanyDetails } from "@/features/settings-branches/infrastructure/company.request";
+import type { ShareholderRow } from "@/features/settings-shareholders/types/shareholder.types";
 import { CompanyGeneralSection } from "./CompanyGeneralSection";
 import { CompanyLogoSection } from "./CompanyLogoSection";
 import { CompanyBankAccountsSection } from "./CompanyBankAccountsSection";
+import { CompanyPartnersSection } from "./CompanyPartnersSection";
 
 type Props = {
   company: CompanyDetails;
+  shareholders: ShareholderRow[];
 };
 
-export function CompanySettingsContent({ company }: Props) {
+export function CompanySettingsContent({ company, shareholders }: Props) {
   const router = useRouter();
 
   return (
@@ -27,6 +30,10 @@ export function CompanySettingsContent({ company }: Props) {
           </section>
 
           <CompanyBankAccountsSection company={company} />
+
+          {company.id ? (
+            <CompanyPartnersSection companyId={company.id} shareholders={shareholders} />
+          ) : null}
         </>
       ) : null}
     </div>

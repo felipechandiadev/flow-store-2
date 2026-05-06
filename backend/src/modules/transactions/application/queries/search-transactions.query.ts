@@ -12,5 +12,9 @@ export class SearchTransactionsQuery {
     readonly dateFrom?: string,
     readonly dateTo?: string,
     readonly search?: string,
+    /** Movimientos / tesorería: filtra por cuenta bancaria de la empresa. */
+    readonly bankAccountKey?: string,
+    /** Movimientos asociados a un centro de acopio. */
+    readonly cashHubId?: string,
   ) {}
 }

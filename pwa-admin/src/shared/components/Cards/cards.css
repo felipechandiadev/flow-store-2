@@ -70,6 +70,13 @@
   flex-shrink: 0;
 }
 
+/** Pie de acciones integrado (p. ej. tesorería): sin separador superior, icono al inicio. */
+.fs-card__actions.fs-card__actions--embedded {
+  border-top: none;
+  justify-content: flex-start;
+  padding-top: 0.25rem;
+}
+
 /** Card que llena la celda de una grilla: el cuerpo crece y el pie de acciones queda abajo. */
 .fs-card.fs-card--fill-height {
   display: flex;
@@ -107,4 +114,23 @@
   line-height: 1rem;
   color: var(--color-muted);
   opacity: 0.9;
+}
+
+/** Métrica compacta (p. ej. fila de tesorería). */
+.fs-card.fs-card--legacy.fs-statistics-card--compact {
+  padding: 0.5rem 0.625rem;
+}
+.fs-statistics-card--compact .fs-statistics-card__label {
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+.fs-statistics-card--compact .fs-statistics-card__value {
+  font-size: 1.25rem;
+  line-height: 1.5rem;
+}
+.fs-statistics-card--compact .fs-statistics-card__hint {
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
 }

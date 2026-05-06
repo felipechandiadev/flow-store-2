@@ -32,6 +32,13 @@ export class Shareholder {
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
   ownershipPercentage?: number | null;
 
+  /** Tipo de socio (sistema): p. ej. FOUNDING_PARTNER, INVESTING_PARTNER. */
+  @Column({ type: 'varchar', length: 60, nullable: true })
+  partnerType?: string | null;
+
+  @Column({ type: 'date', nullable: true })
+  joinDate?: string | null;
+
   @Column({ type: 'text', nullable: true })
   notes?: string | null;
 

@@ -30,6 +30,10 @@ export class PointOfSale {
   @Column({ type: 'uuid', nullable: true })
   defaultPriceListId?: string;
 
+  /** Centro de acopio por defecto al consolidar efectivo al cerrar sesión (opcional). */
+  @Column({ type: 'uuid', nullable: true })
+  defaultCashHubId?: string | null;
+
   @Column({ type: 'varchar', length: 255 })
   name!: string;
 

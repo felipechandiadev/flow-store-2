@@ -140,8 +140,7 @@ export class CustomersService {
       await this.personRepository.save(person);
     }
 
-    const customer =
-      (await this.customersRepository.findByPersonId(person.id)) || ({} as any);
+    let customer = await this.customersRepository.findByPersonId(person.id);
     if (!customer || !customer.id) {
       const toSave: any = {
         personId: person.id,
@@ -151,7 +150,10 @@ export class CustomersService {
         isActive: true,
         notes: notes || undefined,
       };
-      await this.customersRepository.save(toSave);
+      customer = (await this.customersRepository.save(toSave)) as Customer;
+    }
+    if (!customer?.id) {
+      throw new ConflictException('No se pudo crear el registro de cliente.');
     }
 
     const displayName = this.buildDisplayName(person);

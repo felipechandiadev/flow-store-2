@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import type {
   ExpenseCategoryOption,
+  OperationalExpenseCreateLinkedTributaryDocument,
   OperationalExpenseGridRow,
   OperationalExpenseStatus,
   SupplierOption,
@@ -157,6 +158,9 @@ export class OperationalExpenseRequest {
     description?: string;
     status?: OperationalExpenseStatus;
     supplierId?: string;
+    metadata?: {
+      linkedTributaryDocument?: OperationalExpenseCreateLinkedTributaryDocument;
+    };
   }): Promise<{ success: true; id: string } | { success: false; error: string }> {
     const headers = await authHeaders();
     const payload: Record<string, unknown> = {
@@ -175,6 +179,11 @@ export class OperationalExpenseRequest {
     }
     if (body.supplierId?.trim()) {
       payload.supplierId = body.supplierId.trim();
+    }
+    if (body.metadata?.linkedTributaryDocument) {
+      payload.metadata = {
+        linkedTributaryDocument: body.metadata.linkedTributaryDocument,
+      };
     }
     try {
       const res = await fetch(apiUrl("operating-expenses"), {

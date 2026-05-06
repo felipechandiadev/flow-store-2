@@ -4,6 +4,17 @@ export type SupplierInvoiceLinkInfo = {
   stockInTransactionId?: string | null;
 };
 
+/** Plan de pagos guardado en `metadata.plannedPayments` de la transacción factura. */
+export type CreateSupplierInvoicePlannedPayment = {
+  /** Fecha de pago (YYYY-MM-DD). */
+  dueDate: string;
+  amount: number;
+  paymentMethod: "CASH" | "TRANSFER" | "CHECK";
+  companyBankAccountKey?: string | null;
+  supplierBankAccountKey?: string | null;
+  chequeNumber?: string | null;
+};
+
 export type SupplierInvoiceLine = {
   productId?: string;
   productVariantId?: string;
@@ -39,6 +50,8 @@ export type CreateSupplierInvoiceInput = {
   relatedTransactionId?: string | null;
   links?: SupplierInvoiceLinkInfo;
   lines: SupplierInvoiceLine[];
+  /** Se persiste en `metadata.plannedPayments` en el API. */
+  plannedPayments?: CreateSupplierInvoicePlannedPayment[];
 };
 
 export type SupplierInvoiceListItem = {
