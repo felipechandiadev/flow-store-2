@@ -8,6 +8,7 @@ import {
   DeleteDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
 import { User } from '@modules/users/domain/user.entity';
@@ -44,6 +45,10 @@ export enum CashSessionStatus {
 export class CashSession {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_cash_sessions_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid', nullable: true })
   pointOfSaleId?: string;

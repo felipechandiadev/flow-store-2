@@ -8,6 +8,7 @@ import {
   DeleteDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Category } from '@modules/categories/domain/category.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
@@ -58,6 +59,10 @@ export enum ProductType {
 export class Product {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_products_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid', nullable: true })
   categoryId?: string;

@@ -8,6 +8,7 @@ import {
   DeleteDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Person } from '@modules/persons/domain/person.entity';
 
@@ -15,6 +16,10 @@ import { Person } from '@modules/persons/domain/person.entity';
 export class Customer {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_customers_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid' })
   personId!: string;

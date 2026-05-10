@@ -19,13 +19,17 @@ const decimalTransformer = {
     value === null || value === undefined ? null : Number(value),
 };
 
-@Index('uq_units_symbol', ['symbol'], {
+@Index('uq_units_symbol_company', ['symbol', 'companyId'], {
   unique: true,
 })
 @Entity('units')
 export class Unit {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_units_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'varchar', length: 100 })
   name!: string;

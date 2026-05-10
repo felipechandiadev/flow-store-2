@@ -55,6 +55,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { InstallmentsModule } from './modules/installments/installments.module';
 import { MultimediaModule } from './modules/multimedia/multimedia.module';
 import { ObservabilityModule } from './shared/observability.module';
+import { TenantModule } from './common/tenant';
 import { SupplierInvoicesModule } from './modules/supplier-invoices/supplier-invoices.module';
 import { SupplierReceiptsModule } from './modules/supplier-receipts/supplier-receipts.module';
 import { SupplierHonorariumReceiptsModule } from './modules/supplier-honorarium-receipts/supplier-honorarium-receipts.module';
@@ -74,6 +75,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     EventEmitterModule.forRoot(),
     EventsModule,
     CacheModule,
+    TenantModule,
     HealthModule,
     PosModule,
     AuthModule,

@@ -59,9 +59,11 @@ import { AutomationAction } from '@modules/automation/domain/automation-action.e
 import { Recipe } from '@modules/recipes/domain/recipe.entity';
 import { RecipeLine } from '@modules/recipes/domain/recipe-line.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
+import { TenantSubscriber } from '../common/tenant/tenant.subscriber';
 import { AddTaxNonDeletable1740000000000 } from '../migrations/1740000000000-AddTaxNonDeletable';
 import { CashHubsAndSessionToHub1741000000000 } from '../migrations/1741000000000-CashHubsAndSessionToHub';
 import { AddCashSessionToHubTransferAccountingRuleEnum1741100000000 } from '../migrations/1741100000000-AddCashSessionToHubTransferAccountingRuleEnum';
+import { MultiCompanyInit1742000000000 } from '../migrations/1742000000000-MultiCompanyInit';
 
 /**
  * DataSource usado por `typeorm` CLI (`migration:run`, `schema:log`, …).
@@ -128,11 +130,12 @@ export const AppDataSource = new DataSource({
     MultimediaLink,
     CashHub,
   ],
-  subscribers: [AuditSubscriber],
+  subscribers: [AuditSubscriber, TenantSubscriber],
   migrations: [
     AddTaxNonDeletable1740000000000,
     CashHubsAndSessionToHub1741000000000,
     AddCashSessionToHubTransferAccountingRuleEnum1741100000000,
+    MultiCompanyInit1742000000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',

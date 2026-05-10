@@ -8,6 +8,7 @@ import {
   DeleteDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Branch } from '@modules/branches/domain/branch.entity';
 import { PriceList } from '@modules/price-lists/domain/price-list.entity';
@@ -16,6 +17,10 @@ import { PriceList } from '@modules/price-lists/domain/price-list.entity';
 export class PointOfSale {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_points_of_sale_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid', nullable: true })
   branchId?: string;

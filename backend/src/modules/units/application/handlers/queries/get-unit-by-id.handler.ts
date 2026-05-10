@@ -1,10 +1,11 @@
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
-import { Logger, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Logger } from '@nestjs/common';
 import { GetUnitByIdQuery } from '../../queries/get-unit-by-id.query';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UnitOrmEntity } from '@modules/units/infrastructure/orm-mappers/unit.orm-entity';
 import { Unit } from '@modules/units/domain/unit.entity';
+import { TenantContext } from '@common/tenant';
 
 @QueryHandler(GetUnitByIdQuery)
 export class GetUnitByIdQueryHandler implements IQueryHandler<
@@ -21,15 +22,21 @@ export class GetUnitByIdQueryHandler implements IQueryHandler<
   async execute(query: GetUnitByIdQuery): Promise<Unit | null> {
     this.logger.debug(`Fetching unit ${query.unitId}`);
 
+    const companyId = TenantContext.getCompanyId();
+    if (!companyId) {
+      throw new ForbiddenException(
+        'No hay empresa activa. Las unidades son por empresa.',
+      );
+    }
+
     const unit = await this.unitRepository.findOne({
-      where: { id: query.unitId },
+      where: { id: query.unitId, companyId },
     });
 
     if (!unit) {
       return null;
     }
 
-    // Convert ORM to Domain
     return this.ormToDomain(unit);
   }
 

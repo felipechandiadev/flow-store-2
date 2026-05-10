@@ -37,6 +37,7 @@ export class LoginResponseDto {
     userName: string;
     email: string;
     rol: string;
+    companyId: string | null;
     person?: {
       id: string;
       firstName: string;
@@ -45,6 +46,35 @@ export class LoginResponseDto {
       phone: string | null;
     } | null;
   };
+
+  @ApiPropertyOptional({
+    description:
+      'Empresa activa al iniciar sesión. OPERATOR = user.companyId. ADMIN = primera empresa activa o null.',
+    example: 'uuid-1234',
+    nullable: true,
+  })
+  activeCompanyId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Empresas disponibles (solo ADMIN). null para OPERATOR.',
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        razonSocial: { type: 'string' },
+        nombreFantasia: { type: 'string', nullable: true },
+      },
+    },
+    nullable: true,
+  })
+  companies?:
+    | Array<{
+        id: string;
+        razonSocial: string;
+        nombreFantasia: string | null;
+      }>
+    | null;
 
   @ApiPropertyOptional({
     description: 'Error message (only present on failed login)',

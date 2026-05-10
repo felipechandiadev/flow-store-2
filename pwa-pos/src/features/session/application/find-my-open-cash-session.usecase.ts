@@ -6,10 +6,19 @@ export type FindMyOpenCashSessionResult =
   | {
       success: true;
       cashSessionId: string;
+      pointOfSaleId: string;
       pointOfSaleName: string | null;
+      branchName: string | null;
       openedByFullName: string | null;
     }
-  | { success: true; cashSessionId: null; pointOfSaleName: null; openedByFullName: null }
+  | {
+      success: true;
+      cashSessionId: null;
+      pointOfSaleId: null;
+      pointOfSaleName: null;
+      branchName: null;
+      openedByFullName: null;
+    }
   | { success: false; message: string };
 
 export class FindMyOpenCashSessionUseCase {
@@ -29,10 +38,19 @@ export class FindMyOpenCashSessionUseCase {
       ? {
           success: true,
           cashSessionId: mine.id,
+          pointOfSaleId: mine.pointOfSaleId,
           pointOfSaleName: mine.pointOfSaleName ?? null,
+          branchName: mine.branchName ?? null,
           openedByFullName: mine.openedByFullName ?? null,
         }
-      : { success: true, cashSessionId: null, pointOfSaleName: null, openedByFullName: null };
+      : {
+          success: true,
+          cashSessionId: null,
+          pointOfSaleId: null,
+          pointOfSaleName: null,
+          branchName: null,
+          openedByFullName: null,
+        };
   }
 }
 

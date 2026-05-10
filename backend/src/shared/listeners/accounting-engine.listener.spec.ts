@@ -17,6 +17,7 @@ describe('AccountingEngineListener', () => {
 
   const mockTransaction: Transaction = {
     id: 'tx-1',
+    companyId: 'company-1',
     documentNumber: 'REM-000001',
     transactionType: TransactionType.PAYROLL,
     status: TransactionStatus.CONFIRMED,

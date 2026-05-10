@@ -9,6 +9,7 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Product } from '@modules/products/domain/product.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
@@ -30,15 +31,20 @@ export interface ProductVariantMediaAsset {
  * La variante NO tiene nombre propio - se identifica por el producto + sus atributos.
  * Ejemplo: "Camiseta Nike" + {Color: "Rojo", Talla: "M"} = "Camiseta Nike - Rojo, M"
  */
+@Index('uq_product_variants_sku_company', ['sku', 'companyId'], { unique: true })
 @Entity('product_variants')
 export class ProductVariant {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Index('idx_product_variants_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
+
   @Column({ type: 'uuid', nullable: true })
   productId?: string;
 
-  @Column({ type: 'varchar', length: 100, unique: true })
+  @Column({ type: 'varchar', length: 100 })
   sku!: string;
 
   @Column({ type: 'varchar', length: 50, nullable: true })

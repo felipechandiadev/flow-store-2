@@ -9,6 +9,7 @@ import {
   ManyToOne,
   JoinColumn,
   Unique,
+  Index,
 } from 'typeorm';
 import { PriceList } from '@modules/price-lists/domain/price-list.entity';
 import { Product } from '@modules/products/domain/product.entity';
@@ -19,6 +20,10 @@ import { ProductVariant } from '@modules/product-variants/domain/product-variant
 export class PriceListItem {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_price_list_items_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid', nullable: true })
   priceListId?: string;

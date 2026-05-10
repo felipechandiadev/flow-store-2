@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
 
@@ -17,6 +18,10 @@ import { Transaction } from '@modules/transactions/domain/transaction.entity';
 export class CapitalContribution {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_capital_contributions_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid' })
   transactionId!: string;

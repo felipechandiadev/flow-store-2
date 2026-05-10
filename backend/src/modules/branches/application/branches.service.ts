@@ -11,8 +11,10 @@ export class BranchesService {
     private readonly branchRepository: Repository<Branch>,
   ) {}
 
-  async getBranchById(id: string) {
-    const branch = await this.branchRepository.findOne({ where: { id } });
+  async getBranchById(id: string, companyId?: string) {
+    const where: any = { id };
+    if (companyId) where.companyId = companyId;
+    const branch = await this.branchRepository.findOne({ where });
     if (!branch) {
       return null;
     }
@@ -31,11 +33,13 @@ export class BranchesService {
     };
   }
 
-  async getAllBranches(includeInactive: boolean) {
-    const query = this.branchRepository.createQueryBuilder('branch');
+  async getAllBranches(companyId: string, includeInactive: boolean) {
+    const query = this.branchRepository
+      .createQueryBuilder('branch')
+      .where('branch.companyId = :companyId', { companyId });
 
     if (!includeInactive) {
-      query.where('branch.isActive = :isActive', { isActive: true });
+      query.andWhere('branch.isActive = :isActive', { isActive: true });
     }
 
     const branches = await query.orderBy('branch.name', 'ASC').getMany();
@@ -56,6 +60,7 @@ export class BranchesService {
 
   async updateBranch(
     id: string,
+    companyId: string,
     data: Partial<{
       name: string;
       address: string | null;
@@ -65,37 +70,39 @@ export class BranchesService {
       isHeadquarters: boolean;
     }>,
   ) {
-    // Check if branch exists
-    const branch = await this.branchRepository.findOne({ where: { id } });
+    const branch = await this.branchRepository.findOne({
+      where: { id, companyId },
+    });
     if (!branch) {
       return null;
     }
 
-    // If setting this branch as headquarters, remove headquarters flag from others
+    // If setting this branch as headquarters, remove headquarters flag from others (within same company)
     if (data.isHeadquarters === true) {
       await this.branchRepository.update(
-        { isHeadquarters: true },
+        { isHeadquarters: true, companyId },
         { isHeadquarters: false },
       );
     }
 
-    await this.branchRepository.update(id, data as any);
-    return this.getBranchById(id);
+    await this.branchRepository.update({ id, companyId }, data as any);
+    return this.getBranchById(id, companyId);
   }
 
   async createBranch(data: {
     name: string;
     address?: string | null;
     phone?: string | null;
-    companyId?: string | null;
+    companyId: string;
     location?: { lat: number; lng: number } | null;
     isActive?: boolean;
   }) {
     if (!data.name || !String(data.name).trim()) {
       return { success: false, error: 'El nombre es requerido' };
     }
-    const rawCompanyId = data.companyId && String(data.companyId).trim() ? String(data.companyId).trim() : null;
-    const companyId = rawCompanyId && isUUID(rawCompanyId) ? rawCompanyId : null;
+    if (!data.companyId || !isUUID(data.companyId)) {
+      return { success: false, error: 'companyId requerido' };
+    }
     const hasLocation =
       data.location != null &&
       typeof data.location.lat === 'number' &&
@@ -104,7 +111,7 @@ export class BranchesService {
       !Number.isNaN(data.location.lng);
     const toSave: DeepPartial<Branch> = {
       name: String(data.name).trim(),
-      companyId: companyId ?? null,
+      companyId: data.companyId,
       address: data.address && String(data.address).trim() ? String(data.address).trim() : null,
       phone: data.phone && String(data.phone).trim() ? String(data.phone).trim() : null,
       location: hasLocation
@@ -114,15 +121,18 @@ export class BranchesService {
       isHeadquarters: false,
     } as DeepPartial<Branch>;
     const saved = await this.branchRepository.save(toSave);
-    const out = await this.getBranchById(saved.id);
+    const out = await this.getBranchById(saved.id, data.companyId);
     if (!out) {
       return { success: false, error: 'No se pudo crear la sucursal' };
     }
     return { success: true, data: out };
   }
 
-  async deleteBranch(id: string): Promise<{ success: true } | { success: false; error: string }> {
-    const res = await this.branchRepository.softDelete(id);
+  async deleteBranch(
+    id: string,
+    companyId: string,
+  ): Promise<{ success: true } | { success: false; error: string }> {
+    const res = await this.branchRepository.softDelete({ id, companyId } as any);
     if (!res.affected) {
       return { success: false, error: 'Sucursal no encontrada' };
     }

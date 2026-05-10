@@ -20,9 +20,13 @@ import { ProductVariant } from '@modules/product-variants/domain/product-variant
 @Entity('reception_lines')
 @Index(['receptionId'])
 @Index(['productVariantId'])
+@Index('idx_reception_lines_company_id', ['companyId'])
 export class ReceptionLine {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid' })
   receptionId!: string;

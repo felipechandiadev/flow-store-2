@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { ImageOff, Image as ImageIcon } from 'lucide-react';
 import IconButton from '@/shared/components/IconButton';
 import { useImageWithPlaceholder } from '@/shared/hooks/useImageWithPlaceholder';
+import CompanySwitcher from '@/features/companies/components/CompanySwitcher';
 import SideBar, { SideBarMenuItem } from './SideBar';
 
 export type { SideBarMenuItem };
@@ -175,23 +176,13 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
                   ) : null}
                 </span>
               )}
-              {companyTradeName != null && companyTradeName.trim() !== '' ? (
-                <>
-                  {(personName || userName) ? (
-                    <span
-                      className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-secondary)]"
-                      aria-hidden
-                    />
-                  ) : null}
-                  <span
-                    className="min-w-0 max-w-[min(11rem,40vw)] truncate text-right text-sm font-semibold text-foreground sm:max-w-sm md:max-w-md"
-                    data-test-id="top-bar-company-trade-name"
-                    title={companyTradeName.trim()}
-                  >
-                    {companyTradeName.trim()}
-                  </span>
-                </>
+              {(personName || userName) ? (
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-secondary)]"
+                  aria-hidden
+                />
               ) : null}
+              <CompanySwitcher />
             </div>
 
             {/* Notification Bell - TODO: Implement when notifications feature is ready */}

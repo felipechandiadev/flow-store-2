@@ -39,7 +39,11 @@ export const authOptions: NextAuthOptions = {
             id: data.user.id,
             name: `${data.user.person?.firstName || ''} ${data.user.person?.lastName || ''}`.trim() || data.user.userName,
             email: data.user.email,
-            accessToken: data.user.id,  // Use user ID as token for now (adjust if backend provides JWT)
+            accessToken: data.user.id,
+            role: data.user.rol ?? null,
+            companyId: data.user.companyId ?? null,
+            activeCompanyId: data.activeCompanyId ?? data.user.companyId ?? null,
+            companies: Array.isArray(data.companies) ? data.companies : null,
           };
         }
         return null;
@@ -47,18 +51,34 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    jwt: async ({ token, user }) => {
-      if (user) token.accessToken = user.accessToken;
+    jwt: async ({ token, user, trigger, session }) => {
+      if (user) {
+        token.accessToken = user.accessToken;
+        token.role = (user as any).role ?? null;
+        token.companyId = (user as any).companyId ?? null;
+        token.activeCompanyId = (user as any).activeCompanyId ?? null;
+        token.companies = (user as any).companies ?? null;
+      }
+      // Permite actualizar la company activa via update() de next-auth.
+      if (trigger === 'update' && session?.activeCompanyId !== undefined) {
+        token.activeCompanyId = session.activeCompanyId ?? null;
+      }
+      if (trigger === 'update' && session?.companies !== undefined) {
+        token.companies = session.companies ?? null;
+      }
       return token;
     },
     session: async ({ session, token }) => {
-      // Canonical app user id (DB `users.id`). accessToken is set at login to the same value; keep id in sync so server actions don’t use a different `sub` from the JWT.
       const backendUserId = (token.accessToken as string | undefined) ||
         (token.sub as string | undefined);
       if (backendUserId) {
         session.user.id = backendUserId;
       }
       session.user.accessToken = token.accessToken;
+      session.user.role = token.role ?? null;
+      session.user.companyId = token.companyId ?? null;
+      session.user.activeCompanyId = token.activeCompanyId ?? null;
+      session.user.companies = token.companies ?? null;
       return session;
     },
   },

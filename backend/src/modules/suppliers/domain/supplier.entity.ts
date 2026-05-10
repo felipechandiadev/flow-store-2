@@ -8,6 +8,7 @@ import {
   DeleteDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Person } from '@modules/persons/domain/person.entity';
 
@@ -25,6 +26,10 @@ export enum SupplierType {
 export class Supplier {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_suppliers_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid' })
   personId!: string;

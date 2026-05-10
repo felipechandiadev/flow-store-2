@@ -6,6 +6,7 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
 import { Product } from '@modules/products/domain/product.entity';
@@ -24,6 +25,10 @@ import { Unit } from '@modules/units/domain/unit.entity';
 export class TransactionLine {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_transaction_lines_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid', nullable: true })
   transactionId?: string;

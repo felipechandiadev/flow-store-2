@@ -1,10 +1,11 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { Logger, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { UpdateUnitCommand } from '../../commands/update-unit.command';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UnitOrmEntity } from '@modules/units/infrastructure/orm-mappers/unit.orm-entity';
 import { Unit } from '@modules/units/domain/unit.entity';
+import { TenantContext } from '@common/tenant';
 
 @CommandHandler(UpdateUnitCommand)
 export class UpdateUnitCommandHandler implements ICommandHandler<
@@ -21,8 +22,15 @@ export class UpdateUnitCommandHandler implements ICommandHandler<
   async execute(command: UpdateUnitCommand): Promise<Unit> {
     this.logger.debug(`Updating unit ${command.unitId}`);
 
+    const companyId = TenantContext.getCompanyId();
+    if (!companyId) {
+      throw new ForbiddenException(
+        'No hay empresa activa. Las unidades son por empresa.',
+      );
+    }
+
     const unit = await this.unitRepository.findOne({
-      where: { id: command.unitId },
+      where: { id: command.unitId, companyId },
     });
     if (!unit) {
       throw new NotFoundException(`Unit ${command.unitId} not found`);

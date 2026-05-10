@@ -3,6 +3,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from '@modules/users/users.module';
 import { User } from '@modules/users/domain/user.entity';
+import { Company } from '@modules/companies/domain/company.entity';
 import { AuthController } from './presentation/auth.controller';
 import { AuthService } from './application/auth.service';
 import { AuthServiceAdapter } from './application/auth.service.adapter';
@@ -14,7 +15,7 @@ import { LoginCommandHandler } from './application/handlers/commands/login.handl
 import { LogoutCommandHandler } from './application/handlers/commands/logout.handler';
 
 @Module({
-  imports: [UsersModule, TypeOrmModule.forFeature([User]), CqrsModule],
+  imports: [UsersModule, TypeOrmModule.forFeature([User, Company]), CqrsModule],
   controllers: [AuthController],
   providers: [
     // Legacy service for backward compatibility

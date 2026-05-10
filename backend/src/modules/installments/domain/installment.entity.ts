@@ -63,9 +63,13 @@ export enum InstallmentSourceType {
 @Index(['payeeType', 'payeeId']) // Buscar obligaciones por beneficiario
 @Index(['dueDate']) // Reporte de morosidad
 @Index(['status']) // Filtro por estado
+@Index('idx_installments_company_id', ['companyId'])
 export class Installment {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   // ===== SOURCE: De dónde viene esta obligación =====
 

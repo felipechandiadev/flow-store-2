@@ -37,6 +37,7 @@ describe('VoidTransactionUseCase', () => {
   it('should create VOID_ADJUSTMENT for a valid transaction', async () => {
     const originalTransaction = {
       id: 'original-id',
+      companyId: 'company-1',
       transactionType: TransactionType.SALE,
       status: TransactionStatus.CONFIRMED,
       branchId: 'branch-1',

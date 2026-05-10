@@ -8,6 +8,7 @@ import {
   DeleteDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { ResultCenter } from '@modules/result-centers/domain/result-center.entity';
 
@@ -22,6 +23,10 @@ export interface CategoryMediaAsset {
 export class Category {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_categories_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid', nullable: true })
   parentId?: string;

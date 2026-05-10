@@ -3,13 +3,233 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sección 5 — Servicios</title>
+  <title>Servicios</title>
   <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
   <section class="chapter" id="sec05-servicios">
-    <h2>Sección 5 — Servicios</h2>
-    <p class="placeholder">Contenido pendiente. Se desarrollará según la guía del documento de trabajo.</p>
+    <h2>Servicios</h2>
+    <p>
+      Esta sección describe los servicios ofrecidos alrededor de FlowStore: qué incluye cada uno, su modalidad, vigencia y
+      exclusiones. El objetivo es que el alcance quede alineado con la cotización y que sea fácil distinguir qué se
+      está contratando.
+    </p>
+    <p class="fine-print">
+      Nota comercial: la <strong>licencia de uso</strong>, el <strong>servicio cloud</strong> y el <strong>despliegue</strong> son servicios
+      independientes. Pueden contratarse juntos, pero deben poder diferenciarse en el informe y en el contrato.
+    </p>
+
+    <h3 id="sec05-5-1">5.1 Licencia de uso del software FlowStore</h3>
+    <p>
+      Servicio independiente que otorga el derecho de <strong>uso</strong> de las aplicaciones provistas por el proveedor Felipe Chandía Castillo, con una
+      vigencia <strong>ilimitada</strong> (de por vida), sin límite de <strong>usuarios</strong> ni de <strong>operaciones</strong> asociadas al uso normal del
+      sistema.
+    </p>
+    <h4>Incluye</h4>
+    <ul>
+      <li><strong>FlowStore — Panel de administración</strong> (PWA Admin).</li>
+      <li><strong>FlowStore — POS / Punto de venta</strong> (PWA POS).</li>
+    </ul>
+    <h4>No incluye</h4>
+    <ul>
+      <li>Provisión u operación de infraestructura cloud (ver 5.2).</li>
+      <li>Mano de obra de puesta en producción o despliegue (ver 5.3).</li>
+    </ul>
+
+    <h3 id="sec05-5-2">5.2 Servicio cloud (operación en la nube)</h3>
+    <p>
+      Servicio independiente de operación del entorno productivo en el proveedor cloud acordado, con una vigencia asegurada de
+      <strong>2 años</strong>.
+    </p>
+    <h4>Incluye</h4>
+    <ul>
+      <li>
+        Servicio de backend (API) en producción: el “backend” es la capa del sistema que procesa la información y ejecuta las reglas de
+        negocio (por ejemplo ventas, stock y registros), conectando las aplicaciones con la base de datos.
+      </li>
+      <li>Servicio de base de datos gestionado para el proyecto.</li>
+      <li>Respaldos automáticos de datos.</li>
+      <li>
+        Dominio y certificados de seguridad (HTTPS): configuración de un dominio de acceso y certificados que habilitan una conexión
+        cifrada entre el navegador y el sistema, protegiendo la información en tránsito y evitando advertencias de seguridad.
+      </li>
+      <li>Publicación y disponibilidad de las PWA Panel de administración y POS sobre esa infraestructura.</li>
+    </ul>
+    <p class="fine-print">
+      En esta estructura, el backend y la base de datos forman parte del servicio cloud (5.2), no de la licencia (5.1).
+    </p>
+
+    <h3 id="sec05-5-3">5.3 Despliegue (puesta en producción)</h3>
+    <p>
+      Servicio independiente correspondiente al trabajo de despliegue inicial y puesta en marcha técnica. En esta etapa se implementan
+      todas las configuraciones necesarias en el servidor para que el entorno cloud quede operativo y FlowStore pueda ejecutarse en
+      producción desde cualquier dispositivo con conexión a internet. Incluye la preparación de entorno, despliegue de la solución (aplicación/backend y base de datos según arquitectura),
+      parametrización mínima de entorno, pruebas y verificación post-despliegue.
+    </p>
+
+    <h3 id="sec05-5-4">5.4 Soporte post-implementación</h3>
+    <p>
+      Soporte posterior a la puesta en marcha para asegurar continuidad operativa y resolver dudas de uso durante el periodo inicial.
+    </p>
+    <h4>Alcance</h4>
+    <ul>
+      <li><strong>4 meses de soporte gratuito</strong> desde puesta en marcha.</li>
+      <li><strong>Modalidad preferente:</strong> remoto (videollamada, acceso acordado y seguimiento por canal definido).</li>
+      <li>
+        <strong>Visitas en terreno:</strong> cuando el caso lo requiera, se coordina una visita según disponibilidad.
+      </li>
+    </ul>
+    <h4>Continuidad del servicio y valores de soporte</h4>
+    <p>
+      Finalizado el período de gratuidad, las situaciones que puedan resolverse de forma remota en un tiempo menor a
+      <strong>30 minutos</strong> (consultas o asistencias breves) continúan sin costo.
+    </p>
+    <ul>
+      <li>
+        <strong>Soporte remoto &gt; 30 minutos:</strong> <strong>0,3 UF por hora</strong>.
+      </li>
+      <li>
+        <strong>Visita en terreno:</strong> <strong>0,6 UF por hora</strong>, incluyendo costos de movilización.
+      </li>
+    </ul>
+
+    <h3 id="sec05-5-5">5.5 Puesta a punto de equipo para punto de venta (POS)</h3>
+    <p>
+      Servicio de habilitación del equipo que se utilizará en caja/POS, dejando el entorno listo para operar y minimizando
+      riesgos de configuración.
+    </p>
+    <h4>Incluye</h4>
+    <ul>
+      <li>Formateo del equipo.</li>
+      <li>Instalación del sistema operativo y configuración inicial (drivers básicos, actualizaciones críticas, perfiles de uso).</li>
+      <li>
+        Instalación y acceso a las PWA en el contexto operativo:
+        <ul>
+          <li>PWA POS en el equipo dedicado al punto de venta.</li>
+          <li>PWA Admin cuando corresponda (en el mismo equipo u otro definido con el cliente).</li>
+        </ul>
+      </li>
+    </ul>
+    <p class="fine-print">
+      El alcance exacto (número de equipos, marcas/modelos, periféricos, impresoras y redes) se define en la cotización.
+    </p>
+
+    <h3 id="sec05-5-6">5.6 Venta de equipo (CPU / PC)</h3>
+    <p>
+      Venta opcional de un equipo tipo CPU/PC (especificaciones a cotizar). Este ítem corresponde <strong>solo</strong> al equipo base y
+      <strong>no incluye</strong> periféricos (teclado, mouse), impresora POS ni escáner/lector de códigos de barras. Tras la compra,
+      puede configurarse con el servicio 5.5 según lo acordado.
+    </p>
+
+    <h3 id="sec05-5-7">5.7 Implementación y parametrización de FlowStore</h3>
+    <p>
+      Servicio independiente de adecuación de FlowStore a la operación real del cliente (alineado con la Sección&nbsp;4). Su objetivo
+      es dejar el sistema configurado para que el equipo pueda operar con reglas claras desde el primer día: empresa, sucursales,
+      usuarios y permisos, impuestos y módulos utilizados, además de reglas operativas básicas (venta, caja e inventario según
+      corresponda). Incluye el relevamiento de necesidades, la parametrización en el panel de administración, pruebas de configuración y
+      definición de criterios de aceptación para validar que el sistema quedó listo para iniciar la operación.
+    </p>
+    <p class="fine-print">
+      No confundir con despliegue (5.3) ni con servicio cloud (5.2).
+    </p>
+
+    <h3 id="sec05-5-8">5.8 Migración y carga inicial (catálogo, stock)</h3>
+    <p>
+      Servicio independiente de normalización, importación o carga inicial de catálogo (productos, precios, unidades, categorías, etc.)
+      y de existencias/stock según formatos y calidad de datos entregados por el cliente. Incluye validaciones en Admin/POS cuando
+      corresponda.
+    </p>
+
+    <h3 id="sec05-5-9">5.9 Capacitación a usuarios finales</h3>
+    <p>
+      Servicio independiente de sesiones orientadas a roles (caja, supervisión, administración) sobre los flujos contratados: uso de
+      POS, operaciones habituales en el panel de administración, buenas prácticas y checklist de dominio. Modalidad (remoto/presencial),
+      duración y número de sesiones según oferta.
+    </p>
+
+    <h3 id="sec05-5-10">5.10 Mantenimiento evolutivo y extensiones</h3>
+    <p>
+      Este servicio representa el compromiso de mantener FlowStore actualizado cuando existan mejoras o nuevos módulos disponibles por
+      parte del proveedor. El cliente no paga por el <strong>uso</strong> de nuevas funcionalidades o mejoras; en caso de requerirse
+      instalación, ajustes o puesta en marcha de una actualización, se cobra únicamente el <strong>trabajo de implementación</strong>
+      según horas efectivas dedicadas.
+    </p>
+
+    <h3 id="sec05-resumen">Tabla resumen de servicios</h3>
+    <div class="table-wrap">
+      <table class="data-table data-table--compact">
+        <thead>
+          <tr>
+            <th>Servicio</th>
+            <th>Vigencia / modalidad</th>
+            <th>Incluye</th>
+            <th>Entregables</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>5.1 Licencia de uso</td>
+            <td>Ilimitada (de por vida)</td>
+            <td>Uso PWA Admin + PWA POS (sin límite de usuarios ni operaciones)</td>
+            <td>Acceso a aplicaciones habilitado</td>
+          </tr>
+          <tr>
+            <td>5.2 Servicio cloud</td>
+            <td>Vigencia asegurada 2 años</td>
+            <td>Backend + base de datos + respaldos automáticos + publicación PWA</td>
+            <td>Entorno productivo operativo</td>
+          </tr>
+          <tr>
+            <td>5.3 Despliegue</td>
+            <td>Por evento (puesta en producción)</td>
+            <td>Preparación, despliegue, pruebas de humo, verificación</td>
+            <td>Go-live técnico verificado</td>
+          </tr>
+          <tr>
+            <td>5.4 Soporte post-implementación</td>
+            <td>4 meses gratis; continuidad por tarifas</td>
+            <td>Remoto &lt; 30 min sin costo; remoto &gt; 30 min: 0,3 UF/h; terreno: 0,6 UF/h</td>
+            <td>Canal de soporte y seguimiento</td>
+          </tr>
+          <tr>
+            <td>5.5 Puesta a punto equipo POS</td>
+            <td>Opcional; según cotización</td>
+            <td>Formateo, SO, accesos e instalación PWA</td>
+            <td>Equipo listo para operar POS</td>
+          </tr>
+          <tr>
+            <td>5.6 Venta de equipo</td>
+            <td>Opcional; compra única</td>
+            <td>Equipo CPU/PC según especificación</td>
+            <td>Equipo entregado</td>
+          </tr>
+          <tr>
+            <td>5.7 Implementación y parametrización</td>
+            <td>Proyecto (según alcance)</td>
+            <td>Parametrización y reglas; criterios de aceptación</td>
+            <td>Configuración operativa validada</td>
+          </tr>
+          <tr>
+            <td>5.8 Migración y carga inicial</td>
+            <td>Proyecto (según volumen)</td>
+            <td>Normalización e importación de catálogo/stock</td>
+            <td>Catálogo/stock inicial cargado</td>
+          </tr>
+          <tr>
+            <td>5.9 Capacitación</td>
+            <td>Sesiones; remoto/presencial</td>
+            <td>Capacitación por roles en POS y Admin</td>
+            <td>Checklist de dominio por rol</td>
+          </tr>
+          <tr>
+            <td>5.10 Mantenimiento evolutivo</td>
+            <td>Compromiso de actualización</td>
+            <td>Mejoras y nuevos módulos cuando existan (sin cobro por uso)</td>
+            <td>Actualización aplicada cuando corresponda</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 </body>
 </html>

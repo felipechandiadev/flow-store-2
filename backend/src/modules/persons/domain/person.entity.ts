@@ -65,6 +65,10 @@ export class Person {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Index('idx_persons_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
+
   @Column({ type: 'enum', enum: PersonType, default: PersonType.NATURAL })
   type!: PersonType;
 

@@ -17,6 +17,10 @@ export class MultimediaLink {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Index('idx_multimedia_links_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
+
   @Column({ type: 'uuid' })
   assetId!: string;
 

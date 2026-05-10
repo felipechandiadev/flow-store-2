@@ -3,7 +3,7 @@
  */
 .fs-button {
   display: inline-block;
-  font-weight: 300;
+  font-weight: 500;
   font-size: 0.875rem;
   line-height: 1.25rem;
   border-radius: 0.375rem;
@@ -99,7 +99,7 @@
 /* Pills: incluyen padding (ButtonPill no aplica clases de tamaño) */
 .fs-pill {
   display: inline-block;
-  font-weight: 300;
+  font-weight: 500;
   font-size: 0.875rem;
   line-height: 1.25rem;
   border-radius: 9999px;

@@ -30,9 +30,13 @@ function apiUrl(path: string): string {
 async function authHeaders(): Promise<HeadersInit> {
   const session = await getServerSession(authOptions);
   const token = session?.user?.accessToken;
+  const activeCompanyId = (session?.user as any)?.activeCompanyId as string | null | undefined;
   const h: Record<string, string> = { "Content-Type": "application/json" };
   if (token) {
     h.Authorization = `Bearer ${token}`;
+  }
+  if (activeCompanyId) {
+    h["X-Active-Company-Id"] = activeCompanyId;
   }
   return h;
 }

@@ -257,12 +257,13 @@ export default function PosTopBar({
               data-test-id="pos-topbar-cash-op-up"
             />
             <IconButton
-              icon="KeySquare"
+              icon="LockKeyhole"
               variant="basic"
               size="md"
-              ariaLabel="Movimientos de caja"
-              onClick={() => router.push("/cash/movements")}
-              data-test-id="pos-topbar-cash"
+              ariaLabel="Cerrar caja"
+              title="Cerrar caja"
+              onClick={() => router.push("/cash/closing")}
+              data-test-id="pos-topbar-cash-closing"
             />
             <IconButton
               icon="LogOut"

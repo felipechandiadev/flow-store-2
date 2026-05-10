@@ -6,6 +6,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  Index,
 } from 'typeorm';
 
 export enum PriceListType {
@@ -19,6 +20,10 @@ export enum PriceListType {
 export class PriceList {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_price_lists_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'varchar', length: 255 })
   name!: string;

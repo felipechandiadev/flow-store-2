@@ -26,6 +26,7 @@ describe('LedgerEntriesService - Payroll', () => {
 
   const mockPayrollTransaction: Transaction = {
     id: 'tx-payroll-1',
+    companyId: 'company-1',
     documentNumber: 'REM-000001',
     transactionType: TransactionType.PAYROLL,
     status: TransactionStatus.CONFIRMED,

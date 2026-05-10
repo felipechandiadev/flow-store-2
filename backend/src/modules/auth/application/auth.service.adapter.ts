@@ -14,8 +14,15 @@ export class AuthServiceAdapter {
     private readonly queryBus: QueryBus,
   ) {}
 
-  async login(loginDto: LoginDto): Promise<LoginResponseDto> {
-    const command = new LoginCommand(loginDto.userName, loginDto.password);
+  async login(
+    loginDto: LoginDto,
+    options?: { companyHint?: string | null },
+  ): Promise<LoginResponseDto> {
+    const command = new LoginCommand(
+      loginDto.userName,
+      loginDto.password,
+      options?.companyHint ?? null,
+    );
     const result = await this.commandBus.execute(command);
 
     if (!result.success) {
@@ -25,6 +32,8 @@ export class AuthServiceAdapter {
     return {
       success: result.success,
       user: result.user,
+      activeCompanyId: result.activeCompanyId ?? null,
+      companies: result.companies ?? null,
       message: 'Login successful',
     };
   }

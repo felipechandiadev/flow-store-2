@@ -5,6 +5,7 @@ import type { PosProductSearchItem } from "@/features/pos-products/types/pos-pro
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import { readCartClient, writeCartClient } from "./cart-storage";
+import type { PosSaleCustomer } from "@/features/customers/types/pos-customer.types";
 import type { PosPaymentLine } from "./pos-payment.types";
 
 type PosCartContextValue = {
@@ -15,6 +16,9 @@ type PosCartContextValue = {
   increment: (variantId: string) => void;
   decrement: (variantId: string) => void;
   clear: () => void;
+  /** Cliente de la venta (persistido con el carrito en localStorage). */
+  saleCustomer: PosSaleCustomer | null;
+  setSaleCustomer: React.Dispatch<React.SetStateAction<PosSaleCustomer | null>>;
   /** Líneas de pago (método, monto, ref.) compartidas entre `/pos` y `/pos/payment`. */
   payments: PosPaymentLine[];
   setPayments: React.Dispatch<React.SetStateAction<PosPaymentLine[]>>;
@@ -41,6 +45,7 @@ function cartScope(): { pointOfSaleId: string; priceListId: string } | null {
 export default function PosCartProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [lines, setLines] = useState<PosCartLine[]>([]);
+  const [saleCustomer, setSaleCustomer] = useState<PosSaleCustomer | null>(null);
   const [payments, setPayments] = useState<PosPaymentLine[]>([]);
   const [scope, setScope] = useState<{ pointOfSaleId: string; priceListId: string } | null>(null);
 
@@ -49,11 +54,14 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     setScope(s);
     if (!s) {
       setLines([]);
+      setSaleCustomer(null);
       setPayments([]);
       setReady(true);
       return;
     }
-    setLines(readCartClient(s));
+    const { lines: loadedLines, customer } = readCartClient(s);
+    setLines(loadedLines);
+    setSaleCustomer(customer);
     setPayments([]);
     setReady(true);
   }, []);
@@ -61,8 +69,8 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
   // Persist on change (only after initial load).
   useEffect(() => {
     if (!ready || !scope) return;
-    writeCartClient(scope, lines);
-  }, [lines, ready, scope]);
+    writeCartClient(scope, lines, saleCustomer);
+  }, [lines, saleCustomer, ready, scope]);
 
   // If POS context changes (e.g. price list changed in settings), reload cart scope.
   useEffect(() => {
@@ -73,10 +81,13 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       setScope(s);
       if (!s) {
         setLines([]);
+        setSaleCustomer(null);
         setPayments([]);
         return;
       }
-      setLines(readCartClient(s));
+      const { lines: nextLines, customer } = readCartClient(s);
+      setLines(nextLines);
+      setSaleCustomer(customer);
       setPayments([]);
     };
     window.addEventListener("storage", onStorage);
@@ -113,6 +124,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
   const clear = useCallback(() => {
     setLines([]);
     setPayments([]);
+    setSaleCustomer(null);
   }, []);
 
   const value: PosCartContextValue = useMemo(
@@ -124,10 +136,12 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       increment,
       decrement,
       clear,
+      saleCustomer,
+      setSaleCustomer,
       payments,
       setPayments,
     }),
-    [ready, lines, itemsCount, addItem, increment, decrement, clear, payments],
+    [ready, lines, itemsCount, addItem, increment, decrement, clear, saleCustomer, payments],
   );
 
   return <PosCartContext.Provider value={value}>{children}</PosCartContext.Provider>;

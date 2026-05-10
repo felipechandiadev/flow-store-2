@@ -23,9 +23,13 @@ import { Person } from '@modules/persons/domain/person.entity';
 @Index(['transactionId'])
 @Index(['accountId', 'entryDate'])
 @Index(['personId', 'entryDate']) // Para contabilidad auxiliar
+@Index('idx_ledger_entries_company_id', ['companyId'])
 export class LedgerEntry {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid' })
   transactionId!: string;

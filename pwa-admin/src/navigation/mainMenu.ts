@@ -116,7 +116,8 @@ export const mainMenuItems: SideBarMenuItem[] = [
     id: 'nav-settings',
     label: 'Configuración',
     children: [
-      { id: 'settings-company', label: 'Empresa', url: '/settings/company' },
+      { id: 'settings-companies', label: 'Empresas', url: '/settings/companies' },
+      { id: 'settings-company', label: 'Empresa actual', url: '/settings/company' },
       { id: 'settings-branches', label: 'Sucursales', url: '/settings/branches' },
       { id: 'settings-users', label: 'Usuarios', url: '/settings/users' },
       { id: 'settings-parameters', label: 'Parámetros del sistema', url: '/settings/parameters' },

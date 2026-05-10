@@ -190,9 +190,13 @@ export enum PaymentStatus {
 @Index(['transactionType', 'createdAt'])
 @Index(['branchId', 'createdAt'])
 @Index(['documentNumber'])
+@Index('idx_transactions_company_id', ['companyId'])
 export class Transaction {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   // Número de documento único por sucursal y tipo
   @Column({ type: 'varchar', length: 50 })

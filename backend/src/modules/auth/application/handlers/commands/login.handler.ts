@@ -1,5 +1,13 @@
 import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs';
-import { Inject, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { isUUID } from 'class-validator';
 import { LoginCommand } from '../../commands/login.command';
 import { LoginEvent } from '../../../domain/events/login.event';
 import { PasswordUpgradedEvent } from '../../../domain/events/password-upgraded.event';
@@ -9,6 +17,14 @@ import {
   AUTH_REPOSITORY,
   AuthRepositoryPort,
 } from '@modules/auth/application/ports/auth.repository.port';
+import { Company } from '@modules/companies/domain/company.entity';
+import { UserRole } from '@modules/users/domain/user.entity';
+
+export interface LoginCompanyOption {
+  id: string;
+  razonSocial: string;
+  nombreFantasia: string | null;
+}
 
 export interface LoginResult {
   success: boolean;
@@ -17,6 +33,8 @@ export interface LoginResult {
     userName: string;
     email: string;
     rol: string;
+    /** Empresa fija del operador. NULL para ADMIN. */
+    companyId: string | null;
     person?: {
       id: string;
       firstName: string;
@@ -25,6 +43,13 @@ export interface LoginResult {
       phone: string | null;
     };
   };
+  /** Empresa activa al iniciar sesión.
+   *  - OPERATOR: igual a user.companyId.
+   *  - ADMIN: la primera empresa activa (cliente puede cambiar via switch-company).
+   */
+  activeCompanyId?: string | null;
+  /** Solo para ADMIN: empresas disponibles para switchear. */
+  companies?: LoginCompanyOption[] | null;
 }
 
 @CommandHandler(LoginCommand)
@@ -38,6 +63,8 @@ export class LoginCommandHandler implements ICommandHandler<
     @Inject(AUTH_REPOSITORY)
     private readonly authRepository: AuthRepositoryPort,
     private readonly eventBus: EventBus,
+    @InjectRepository(Company)
+    private readonly companyRepository: Repository<Company>,
   ) {}
 
   async execute(command: LoginCommand): Promise<LoginResult> {
@@ -96,6 +123,44 @@ export class LoginCommandHandler implements ICommandHandler<
       this.eventBus.publish(upgradeEvent);
     }
 
+    // Resolve tenancy context for the response
+    let activeCompanyId: string | null = user.companyId ?? null;
+    let companies: LoginCompanyOption[] | null = null;
+    const hint =
+      command.companyHint && isUUID(String(command.companyHint))
+        ? String(command.companyHint)
+        : null;
+
+    if (user.rol === UserRole.OPERATOR) {
+      // Si el cliente (POS) declara una empresa, debe coincidir con la del operador.
+      if (hint && user.companyId && hint !== user.companyId) {
+        throw new ForbiddenException(
+          'Este usuario no pertenece a la empresa solicitada por este punto de venta',
+        );
+      }
+    } else if (user.rol === UserRole.ADMIN) {
+      const all = await this.companyRepository.find({
+        where: { isActive: true },
+        order: { createdAt: 'ASC' },
+      });
+      companies = all.map((c) => ({
+        id: c.id,
+        razonSocial: c.razonSocial,
+        nombreFantasia: c.nombreFantasia ?? null,
+      }));
+      if (hint) {
+        const match = companies.find((c) => c.id === hint);
+        if (!match) {
+          throw new ForbiddenException(
+            'La empresa solicitada por este cliente no está disponible',
+          );
+        }
+        activeCompanyId = match.id;
+      } else {
+        activeCompanyId = companies.length > 0 ? companies[0].id : null;
+      }
+    }
+
     // Build response
     return {
       success: true,
@@ -104,6 +169,7 @@ export class LoginCommandHandler implements ICommandHandler<
         userName: user.userName,
         email: user.mail,
         rol: user.rol,
+        companyId: user.companyId ?? null,
         person: user.person
           ? {
               id: user.person.id,
@@ -114,6 +180,8 @@ export class LoginCommandHandler implements ICommandHandler<
             }
           : undefined,
       },
+      activeCompanyId,
+      companies,
     };
   }
 }

@@ -1,10 +1,11 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { Logger } from '@nestjs/common';
+import { ForbiddenException, Logger } from '@nestjs/common';
 import { CreateUnitCommand } from '../../commands/create-unit.command';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UnitOrmEntity } from '@modules/units/infrastructure/orm-mappers/unit.orm-entity';
 import { Unit } from '@modules/units/domain/unit.entity';
+import { TenantContext } from '@common/tenant';
 
 @CommandHandler(CreateUnitCommand)
 export class CreateUnitCommandHandler implements ICommandHandler<
@@ -21,13 +22,21 @@ export class CreateUnitCommandHandler implements ICommandHandler<
   async execute(command: CreateUnitCommand): Promise<Unit> {
     this.logger.debug(`Creating unit: ${command.name} (${command.symbol})`);
 
+    const companyId = TenantContext.getCompanyId();
+    if (!companyId) {
+      throw new ForbiddenException(
+        'No hay empresa activa. Las unidades son por empresa.',
+      );
+    }
+
     const unit = this.unitRepository.create({
       name: command.name,
       symbol: command.symbol,
-      dimension: command.dimension as any, // Already validated as UnitDimension
+      dimension: command.dimension as any,
       conversionFactor: command.conversionFactor,
       allowDecimals: command.allowDecimals,
       isBase: command.isBase,
+      companyId,
     });
 
     const saved = await this.unitRepository.save(unit);

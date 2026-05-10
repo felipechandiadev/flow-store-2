@@ -1,9 +1,10 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { Logger, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { DeleteUnitCommand } from '../../commands/delete-unit.command';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UnitOrmEntity } from '@modules/units/infrastructure/orm-mappers/unit.orm-entity';
+import { TenantContext } from '@common/tenant';
 
 @CommandHandler(DeleteUnitCommand)
 export class DeleteUnitCommandHandler implements ICommandHandler<
@@ -20,8 +21,15 @@ export class DeleteUnitCommandHandler implements ICommandHandler<
   async execute(command: DeleteUnitCommand): Promise<void> {
     this.logger.debug(`Deleting unit ${command.unitId}`);
 
+    const companyId = TenantContext.getCompanyId();
+    if (!companyId) {
+      throw new ForbiddenException(
+        'No hay empresa activa. Las unidades son por empresa.',
+      );
+    }
+
     const unit = await this.unitRepository.findOne({
-      where: { id: command.unitId },
+      where: { id: command.unitId, companyId },
     });
     if (!unit) {
       throw new NotFoundException(`Unit ${command.unitId} not found`);

@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
 
@@ -17,6 +18,10 @@ import { Transaction } from '@modules/transactions/domain/transaction.entity';
 export class BankMovement {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_bank_movements_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid' })
   transactionId!: string;

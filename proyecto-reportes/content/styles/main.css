@@ -80,6 +80,11 @@ b {
   color: var(--text-body);
   padding-top: 22mm;
   padding-bottom: 16mm;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  /* En PDF/print, 100vh puede ser inconsistente: usar alto físico de página */
+  min-height: 297mm;
 }
 
 .cover .cover-logo {
@@ -111,38 +116,82 @@ b {
   color: var(--text-heading);
 }
 
-.cover .cover-meta {
-  margin-top: 22pt;
-  width: 100%;
-  display: grid;
-  gap: 8pt;
+/* Cliente (bajo el subtítulo) */
+.cover .cover-client {
+  margin-top: 12pt;
   text-align: center;
 }
 
-.cover .cover-meta .who {
+.cover .cover-client__label {
+  font-size: 9.5pt;
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cover .cover-client__name {
+  margin-top: 4pt;
+  font-size: 12pt;
+  font-weight: var(--fw-extrabold);
+  color: var(--text-heading);
+}
+
+.cover .cover-client__contact,
+.cover .cover-client__rut {
+  margin-top: 2pt;
+  font-size: 10pt;
+  font-weight: var(--fw-semibold);
+  color: #334155;
+}
+
+/* Firma (abajo a la izquierda) */
+.cover .cover-footer {
+  position: absolute;
+  left: 14mm;
+  bottom: 14mm;
+  text-align: left;
+}
+
+.cover .cover-footer .who {
   font-size: 11pt;
   font-weight: var(--fw-bold);
   color: var(--text-heading);
 }
 
-.cover .cover-meta .role {
+.cover .cover-footer .role {
   font-size: 10pt;
   font-weight: var(--fw-semibold);
   color: #334155;
 }
 
-.cover .cover-meta .client {
-  margin-top: 6pt;
-  font-size: 10pt;
-  font-weight: var(--fw-bold);
-  color: var(--text-heading);
-}
-
-.cover .cover-meta .client small {
-  display: block;
+.cover .cover-footer .id {
   margin-top: 2pt;
+  font-size: 10pt;
   font-weight: var(--fw-semibold);
   color: #334155;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* Contraportada — solo logo centrado                               */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.back-cover {
+  page-break-after: always;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 297mm;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0;
+}
+
+.back-cover__logo {
+  width: 110mm;
+  max-width: 75%;
+  height: auto;
+  display: block;
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
@@ -260,7 +309,7 @@ b {
 }
 
 .chapter h4 {
-  font-size: 12.25pt;
+  font-size: 14pt;
   font-weight: var(--fw-extrabold);
   line-height: 1.34;
   letter-spacing: -0.024em;
@@ -268,6 +317,19 @@ b {
   margin: 16pt 0 7pt;
   padding-left: 12px;
   border-left: 3px solid var(--border-heading-accent);
+  break-after: avoid;
+}
+
+/* Subtítulo (nivel menor que h4, sin competir con .screen-title) */
+.chapter h5 {
+  font-size: 11.25pt;
+  font-weight: var(--fw-extrabold);
+  line-height: 1.32;
+  letter-spacing: -0.022em;
+  color: var(--text-strong);
+  margin: 14pt 0 5pt;
+  padding-left: 10px;
+  border-left: 2px solid #cbd5e1;
   break-after: avoid;
 }
 

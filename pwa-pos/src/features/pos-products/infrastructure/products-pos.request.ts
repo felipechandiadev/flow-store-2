@@ -17,6 +17,7 @@ export class ProductsPosRequest {
 
     const session = await getServerSession(authOptions);
     const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as any)?.activeCompanyId as string | null | undefined;
     if (!token) {
       return { success: false, message: "No autenticado" };
     }
@@ -29,12 +30,14 @@ export class ProductsPosRequest {
     qs.set("pageSize", String(Math.max(1, input.pageSize)));
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+      if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
       const res = await fetch(`${base}/api/products/pos/search?${qs.toString()}`, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         cache: "no-store",
       });
 

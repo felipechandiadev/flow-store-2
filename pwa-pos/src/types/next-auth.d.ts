@@ -6,6 +6,8 @@ declare module "next-auth" {
       id: string;
       accessToken?: string;
       role?: string;
+      companyId?: string | null;
+      activeCompanyId?: string | null;
     };
   }
 }
@@ -14,6 +16,8 @@ declare module "next-auth/jwt" {
   interface JWT {
     accessToken?: string;
     role?: string;
+    companyId?: string | null;
+    activeCompanyId?: string | null;
   }
 }
 

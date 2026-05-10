@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { CurrentCompany } from '@common/tenant';
 import { BranchesService } from '../application/branches.service';
 
 @Controller('branches')
@@ -6,29 +7,35 @@ export class BranchesController {
   constructor(private readonly branchesService: BranchesService) {}
 
   @Get()
-  async getBranches(@Query('includeInactive') includeInactive?: string) {
+  async getBranches(
+    @CurrentCompany() companyId: string,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
     const include = includeInactive === 'true' || includeInactive === '1';
-    return this.branchesService.getAllBranches(include);
+    return this.branchesService.getAllBranches(companyId, include);
   }
 
   @Post()
   async createBranch(
+    @CurrentCompany() companyId: string,
     @Body()
     data: {
       name: string;
       address?: string | null;
       phone?: string | null;
-      companyId?: string | null;
       location?: { lat: number; lng: number } | null;
       isActive?: boolean;
     },
   ) {
-    return this.branchesService.createBranch(data);
+    // companyId se auto-setea via TenantSubscriber, pero pasamos explícito
+    // para que el service pueda validar/usar antes del INSERT.
+    return this.branchesService.createBranch({ ...data, companyId });
   }
 
   @Put(':id')
   async updateBranch(
     @Param('id') id: string,
+    @CurrentCompany() companyId: string,
     @Body()
     data: Partial<{
       name: string;
@@ -39,7 +46,7 @@ export class BranchesController {
       isHeadquarters: boolean;
     }>,
   ) {
-    const updated = await this.branchesService.updateBranch(id, data);
+    const updated = await this.branchesService.updateBranch(id, companyId, data);
     if (!updated) {
       return { success: false, error: 'Sucursal no encontrada' };
     }
@@ -47,7 +54,10 @@ export class BranchesController {
   }
 
   @Delete(':id')
-  async deleteBranch(@Param('id') id: string) {
-    return this.branchesService.deleteBranch(id);
+  async deleteBranch(
+    @Param('id') id: string,
+    @CurrentCompany() companyId: string,
+  ) {
+    return this.branchesService.deleteBranch(id, companyId);
   }
 }

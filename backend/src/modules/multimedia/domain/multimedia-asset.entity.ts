@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   OneToMany,
+  Index,
 } from 'typeorm';
 import { MultimediaLink } from './multimedia-link.entity';
 
@@ -18,6 +19,10 @@ export type MultimediaStatus = 'active' | 'deleted';
 export class MultimediaAsset {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_multimedia_assets_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'varchar', length: 255 })
   originalName!: string;

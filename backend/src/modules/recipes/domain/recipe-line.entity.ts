@@ -9,6 +9,10 @@ export class RecipeLine {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Index('idx_recipe_lines_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
+
   @Column({ type: 'uuid' })
   recipeId!: string;
 

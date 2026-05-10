@@ -25,6 +25,10 @@ export class StockLevel {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Index('idx_stock_levels_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
+
   @Column({ type: 'uuid' })
   productVariantId!: string;
 

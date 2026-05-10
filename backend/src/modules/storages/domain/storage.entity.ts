@@ -8,6 +8,7 @@ import {
   DeleteDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Branch } from '@modules/branches/domain/branch.entity';
 
@@ -28,6 +29,10 @@ export enum StorageCategory {
 export class Storage {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_storages_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid', nullable: true })
   branchId?: string | null;

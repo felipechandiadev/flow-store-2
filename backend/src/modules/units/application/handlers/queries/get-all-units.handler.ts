@@ -1,10 +1,11 @@
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
-import { Logger } from '@nestjs/common';
+import { ForbiddenException, Logger } from '@nestjs/common';
 import { GetAllUnitsQuery } from '../../queries/get-all-units.query';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UnitOrmEntity } from '@modules/units/infrastructure/orm-mappers/unit.orm-entity';
 import { Unit } from '@modules/units/domain/unit.entity';
+import { TenantContext } from '@common/tenant';
 
 @QueryHandler(GetAllUnitsQuery)
 export class GetAllUnitsQueryHandler implements IQueryHandler<
@@ -21,18 +22,25 @@ export class GetAllUnitsQueryHandler implements IQueryHandler<
   async execute(query: GetAllUnitsQuery): Promise<Unit[]> {
     this.logger.debug(`Fetching all units with status=${query.status}`);
 
-    const qb = this.unitRepository.createQueryBuilder('unit');
+    const companyId = TenantContext.getCompanyId();
+    if (!companyId) {
+      throw new ForbiddenException(
+        'No hay empresa activa. Las unidades son por empresa.',
+      );
+    }
 
-    // Filter by status if provided
+    const qb = this.unitRepository
+      .createQueryBuilder('unit')
+      .where('unit.company_id = :companyId', { companyId });
+
     if (query.status === 'active') {
-      qb.where('unit.active = :active', { active: true });
+      qb.andWhere('unit.active = :active', { active: true });
     } else if (query.status === 'inactive') {
-      qb.where('unit.active = :active', { active: false });
+      qb.andWhere('unit.active = :active', { active: false });
     }
 
     const units = await qb.orderBy('unit.symbol', 'ASC').getMany();
 
-    // Convert ORM to Domain
     return units.map((orm) => this.ormToDomain(orm));
   }
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Search } from "lucide-react";
 import {
   Alert,
   Button,
@@ -15,6 +16,15 @@ import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { makePaymentLineId } from "@/features/pos-cart/pos-payment.utils";
 import type { PosPaymentMethodId } from "@/features/pos-cart/pos-payment.types";
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
+import { searchPosCustomersAction } from "@/features/customers/actions/customers-pos.action";
+import type { PosCustomerSearchRow } from "@/features/customers/types/pos-customer.types";
+
+/**
+ * Alto de los paneles de la pantalla de cobro respecto al viewport (`vh`).
+ * Más bajo que el panel de POS porque encima hay un header propio de la
+ * pantalla (Venta en curso + Resumen del cobro + CTA) que consume altura.
+ */
+const POS_PAYMENT_PANEL_HEIGHT_VH = 76;
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(
@@ -29,12 +39,6 @@ const PAYMENT_TYPE_OPTIONS: { id: PosPaymentMethodId; label: string }[] = [
   { id: "TRANSFER", label: "Transferencia" },
   { id: "CHECK", label: "Cheque" },
 ];
-
-type GuestCustomer = {
-  name: string;
-  document: string;
-  phone: string;
-};
 
 /** Monto en pesos CLP (enteros). Acepta dígitos tal como los entrega `TextField` `type="currency"`. */
 function parseAmountCLP(raw: string): number | null {
@@ -84,7 +88,7 @@ function PaymentCartReadOnlyRow({ line }: { line: PosCartLine }) {
 export default function PosPaymentWorkspace() {
   const router = useRouter();
   const cart = usePosCart();
-  const { payments, setPayments } = cart;
+  const { payments, setPayments, saleCustomer: customer, setSaleCustomer: setCustomer } = cart;
   const saleTitleId = useId();
   const [addOpen, setAddOpen] = useState(false);
   const [customerOpen, setCustomerOpen] = useState(false);
@@ -96,8 +100,11 @@ export default function PosPaymentWorkspace() {
   const [draftReference, setDraftReference] = useState("");
   const [addAlert, setAddAlert] = useState("");
 
-  const [customer, setCustomer] = useState<GuestCustomer | null>(null);
-  const [draftCustomer, setDraftCustomer] = useState<GuestCustomer>({ name: "", document: "", phone: "" });
+  const [draftCustomer, setDraftCustomer] = useState({ name: "", document: "", phone: "" });
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+  const [customerSearchError, setCustomerSearchError] = useState("");
+  const [customerSearchResults, setCustomerSearchResults] = useState<PosCustomerSearchRow[]>([]);
 
   const [pageAlert, setPageAlert] = useState("");
   const paymentCashFocusDoneRef = useRef(false);
@@ -108,6 +115,53 @@ export default function PosPaymentWorkspace() {
       router.replace("/pos");
     }
   }, [cart.ready, cart.lines.length, router]);
+
+  useEffect(() => {
+    const q = customerSearch.trim();
+    if (q.length < 2) {
+      setCustomerSearchResults([]);
+      setCustomerSearchError("");
+      setCustomerSearchLoading(false);
+      return;
+    }
+    setCustomerSearchLoading(true);
+    setCustomerSearchError("");
+    const t = window.setTimeout(() => {
+      void (async () => {
+        const res = await searchPosCustomersAction({ query: q, page: 1, pageSize: 15 });
+        setCustomerSearchLoading(false);
+        if (res.success) {
+          setCustomerSearchResults(res.customers);
+        } else {
+          setCustomerSearchResults([]);
+          setCustomerSearchError(res.message);
+        }
+      })();
+    }, 350);
+    return () => {
+      clearTimeout(t);
+    };
+  }, [customerSearch]);
+
+  const pickSearchCustomer = useCallback((row: PosCustomerSearchRow) => {
+    if (!row.customerId) return;
+    setCustomer({
+      customerId: row.customerId,
+      name: row.displayName || "Cliente",
+      document: row.documentNumber?.trim() ?? "",
+      phone: row.phone?.trim() ?? "",
+    });
+    setCustomerSearch("");
+    setCustomerSearchResults([]);
+    setCustomerSearchError("");
+  }, [setCustomer]);
+
+  const clearSaleCustomer = useCallback(() => {
+    setCustomer(null);
+    setCustomerSearch("");
+    setCustomerSearchResults([]);
+    setCustomerSearchError("");
+  }, [setCustomer]);
 
   const totals = useMemo(() => {
     return cart.lines.reduce(
@@ -139,7 +193,12 @@ export default function PosPaymentWorkspace() {
   const remaining = Math.max(0, saleTotal - appliedTotal);
   const overpay = Math.max(0, appliedTotal - saleTotal);
 
-  const requiresRef = (t: PosPaymentMethodId) => t === "CREDIT_CARD" || t === "DEBIT_CARD" || t === "TRANSFER";
+  /**
+   * Métodos donde se muestra el campo "Referencia" como opcional (n.º operación,
+   * autorización, código de transferencia, etc.). Para `CASH` no se muestra
+   * porque no aplica. La referencia **nunca** es obligatoria.
+   */
+  const showsRefField = (t: PosPaymentMethodId) => t === "CREDIT_CARD" || t === "DEBIT_CARD" || t === "TRANSFER";
 
   const openAddPayment = useCallback(() => {
     setDraftType("CASH");
@@ -162,10 +221,6 @@ export default function PosPaymentWorkspace() {
       remaining > 0
     ) {
       setAddAlert("El monto no puede superar el saldo restante.");
-      return;
-    }
-    if (requiresRef(draftType) && !draftReference.trim()) {
-      setAddAlert("La referencia o autorización es obligatoria para este método.");
       return;
     }
     setPayments((prev) => [
@@ -219,33 +274,37 @@ export default function PosPaymentWorkspace() {
 
   const paymentStatusLabel = useMemo(() => {
     if (saleTotal <= 0) return "Sin total";
-    if (remaining <= 0.01 && payments.length > 0) return "Pago completo";
-    if (payments.length === 0) return "Pendiente";
-    return "Falta monto";
-  }, [saleTotal, remaining, payments.length]);
+    if (payments.length === 0) return "Sin pagos";
+    if (overpay > 0) return "Pago con vuelto";
+    if (remaining <= 0.01) return "Pago completo";
+    return "Monto insuficiente";
+  }, [saleTotal, remaining, overpay, payments.length]);
 
   const paymentStatusTone =
-    remaining <= 0.01 && payments.length > 0
+    payments.length > 0 && (overpay > 0 || remaining <= 0.01)
       ? "text-emerald-700 dark:text-emerald-400"
       : payments.length > 0
-        ? "text-amber-700 dark:text-amber-400"
+        ? "text-red-700 dark:text-red-400"
         : "text-muted-foreground";
+
+  const paymentStatusBoxTone =
+    payments.length > 0 && (overpay > 0 || remaining <= 0.01)
+      ? "bg-emerald-100/70 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100"
+      : payments.length > 0
+        ? "bg-red-100/70 text-red-900 dark:bg-red-900/30 dark:text-red-100"
+        : "bg-slate-100/80 text-slate-900 dark:bg-slate-800/40 dark:text-slate-100";
 
   const canConfirm =
     cart.lines.length > 0 &&
     saleTotal > 0 &&
     payments.length > 0 &&
-    remaining <= 0.01 &&
-    payments.every((p) => !requiresRef(p.type) || p.reference.trim());
+    remaining <= 0.01;
 
   const validateConfirm = (): string => {
     if (cart.lines.length === 0) return "El carrito está vacío.";
     if (saleTotal <= 0) return "El total debe ser mayor que cero.";
     if (payments.length === 0) return "Agrega al menos un método de pago.";
     if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar.";
-    for (const p of payments) {
-      if (requiresRef(p.type) && !p.reference.trim()) return "Completa referencia/autorización para tarjeta o transferencia.";
-    }
     return "";
   };
 
@@ -263,13 +322,11 @@ export default function PosPaymentWorkspace() {
   };
 
   const openCustomerDialog = useCallback(() => {
-    setDraftCustomer(
-      customer ?? {
-        name: "",
-        document: "",
-        phone: "",
-      },
-    );
+    setDraftCustomer({
+      name: customer?.name?.trim() ?? "",
+      document: customer?.document?.trim() ?? "",
+      phone: customer?.phone?.trim() ?? "",
+    });
     setCustomerOpen(true);
   }, [customer]);
 
@@ -277,12 +334,13 @@ export default function PosPaymentWorkspace() {
     const name = draftCustomer.name.trim();
     if (!name) return;
     setCustomer({
+      customerId: null,
       name,
       document: draftCustomer.document.trim(),
       phone: draftCustomer.phone.trim(),
     });
     setCustomerOpen(false);
-  }, [draftCustomer]);
+  }, [draftCustomer, setCustomer]);
 
   const customerLabel =
     customer?.name?.trim() ||
@@ -302,10 +360,10 @@ export default function PosPaymentWorkspace() {
     <div className="flex min-h-0 flex-col gap-4 pb-28 lg:pb-0">
       {/* Context bar (debajo del TopBar global) */}
       <header
-        className="flex flex-col gap-3 rounded-xl border border-border bg-background px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+        className="flex flex-col gap-4 rounded-xl border border-border bg-background px-4 py-3 shadow-sm lg:flex-row lg:items-center lg:gap-6"
         aria-labelledby={saleTitleId}
       >
-        <div className="flex min-w-0 flex-1 items-start gap-2 sm:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <IconButton
             icon="ChevronLeft"
             variant="outlined"
@@ -313,7 +371,7 @@ export default function PosPaymentWorkspace() {
             ariaLabel="Volver al POS"
             title="Volver al POS"
             onClick={() => router.push("/pos")}
-            className="mt-0.5 shrink-0 sm:mt-0"
+            className="shrink-0"
             data-test-id="pos-payment-back"
           />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -325,10 +383,62 @@ export default function PosPaymentWorkspace() {
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:ps-2">
-          <span className="rounded-full border border-border bg-muted/40 px-3 py-1 text-sm font-semibold tabular-nums text-foreground">
-            Total {formatMoney(saleTotal)}
-          </span>
+
+        <div
+          className="flex shrink-0 flex-wrap items-stretch gap-2 text-sm"
+          data-test-id="pos-payment-summary"
+        >
+          <div className="flex min-w-28 flex-col rounded-lg bg-slate-100/80 px-3 py-1.5 dark:bg-slate-800/40">
+            <span className="text-xs text-slate-600 dark:text-slate-300">Total a pagar</span>
+            <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+              {formatMoney(saleTotal)}
+            </span>
+          </div>
+          <div className="flex min-w-28 flex-col rounded-lg bg-sky-100/70 px-3 py-1.5 dark:bg-sky-900/30">
+            <span className="text-xs text-sky-700 dark:text-sky-300">Total recibido</span>
+            <span
+              className="font-semibold tabular-nums text-sky-900 dark:text-sky-100"
+              data-test-id="pos-payment-applied-total"
+            >
+              {formatMoney(appliedTotal)}
+            </span>
+          </div>
+          {remaining > 0 ? (
+            <div className="flex min-w-28 flex-col rounded-lg bg-amber-100/70 px-3 py-1.5 dark:bg-amber-900/30">
+              <span className="text-xs text-amber-800 dark:text-amber-300">Saldo restante</span>
+              <span className="font-semibold tabular-nums text-amber-900 dark:text-amber-100">
+                {formatMoney(remaining)}
+              </span>
+            </div>
+          ) : null}
+          {overpay > 0 ? (
+            <div className="flex min-w-28 flex-col rounded-lg bg-emerald-100/70 px-3 py-1.5 dark:bg-emerald-900/30">
+              <span className="text-xs text-emerald-700 dark:text-emerald-300">Vuelto</span>
+              <span className="font-semibold tabular-nums text-emerald-900 dark:text-emerald-100">
+                {formatMoney(overpay)}
+              </span>
+            </div>
+          ) : null}
+          <div
+            className={`flex min-w-28 flex-col rounded-lg px-3 py-1.5 ${paymentStatusBoxTone}`}
+          >
+            <span className="text-xs opacity-80">Estado del pago</span>
+            <span className="font-semibold">{paymentStatusLabel}</span>
+          </div>
+        </div>
+
+        <div className="hidden shrink-0 lg:block">
+          <Button
+            type="button"
+            variant="primary"
+            size="lg"
+            disabled={!canConfirm || confirmLoading}
+            loading={confirmLoading}
+            onClick={() => void handleConfirm()}
+            data-test-id="pos-payment-confirm-desktop"
+          >
+            Confirmar pago
+          </Button>
         </div>
       </header>
 
@@ -339,52 +449,119 @@ export default function PosPaymentWorkspace() {
         </Alert>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
-        {/* Columna izquierda — resumen */}
-        <div className="flex min-w-0 flex-col gap-4">
-          <section
-            className="rounded-xl border border-border bg-background p-4 shadow-sm"
-            aria-label="Resumen de carrito"
-            data-test-id="pos-payment-cart-summary"
+      <div className="grid gap-6 lg:grid-cols-3 lg:items-stretch">
+        {/* Columna 1 — Carrito */}
+        <section
+          className="flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-sm"
+          style={{ height: `${POS_PAYMENT_PANEL_HEIGHT_VH}vh` }}
+          aria-label="Resumen de carrito"
+          data-test-id="pos-payment-cart-summary"
+        >
+          <h2 className="shrink-0 text-sm font-semibold text-foreground">Resumen del carrito</h2>
+          <ul
+            className="min-h-0 flex-1 divide-y divide-border overflow-y-auto rounded-lg border border-border bg-muted/15 pr-1"
+            data-test-id="pos-payment-cart-lines-readonly"
           >
-            <h2 className="text-sm font-semibold text-foreground">Resumen del carrito</h2>
-            <ul
-              className="mt-4 max-h-[min(40vh,360px)] divide-y divide-border overflow-y-auto rounded-lg border border-border bg-muted/15 pr-1"
-              data-test-id="pos-payment-cart-lines-readonly"
-            >
-              {cart.lines.map((line) => (
-                <PaymentCartReadOnlyRow key={line.variantId} line={line} />
-              ))}
-            </ul>
-
-            <div className="mt-6 space-y-2 border-t border-border pt-4 text-sm">
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">Subtotal neto</span>
-                <span className="font-medium tabular-nums text-foreground">{formatMoney(totals.net)}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">Impuestos</span>
-                <span className="font-medium tabular-nums text-foreground">{formatMoney(taxes)}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">Descuentos</span>
-                <span className="font-medium tabular-nums text-foreground">{formatMoney(discounts)}</span>
-              </div>
-              <div className="flex justify-between gap-4 pt-1 text-base font-semibold">
-                <span className="text-foreground">Total</span>
-                <span className="tabular-nums text-foreground">{formatMoney(saleTotal)}</span>
-              </div>
+            {cart.lines.map((line) => (
+              <PaymentCartReadOnlyRow key={line.variantId} line={line} />
+            ))}
+          </ul>
+          <footer className="shrink-0 space-y-2 border-t border-border pt-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Subtotal neto</span>
+              <span className="font-medium tabular-nums text-foreground">{formatMoney(totals.net)}</span>
             </div>
-          </section>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Impuestos</span>
+              <span className="font-medium tabular-nums text-foreground">{formatMoney(taxes)}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Descuentos</span>
+              <span className="font-medium tabular-nums text-foreground">{formatMoney(discounts)}</span>
+            </div>
+            <div className="flex justify-between gap-4 pt-1 text-base font-semibold">
+              <span className="text-foreground">Total</span>
+              <span className="tabular-nums text-foreground">{formatMoney(saleTotal)}</span>
+            </div>
+          </footer>
+        </section>
 
-          <section
-            className="rounded-xl border border-border bg-background p-4 shadow-sm"
-            aria-label="Información del cliente"
-            data-test-id="pos-payment-customer"
+        {/* Columna 2 — Cliente */}
+        <section
+          className="flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-sm"
+          style={{ height: `${POS_PAYMENT_PANEL_HEIGHT_VH}vh` }}
+          aria-label="Información del cliente"
+          data-test-id="pos-payment-customer"
+        >
+          <h2 className="shrink-0 text-sm font-semibold text-foreground">Cliente</h2>
+          <div className="shrink-0">
+            <TextField
+              label="Buscar cliente"
+              name="pos-payment-customer-search"
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              placeholder="Nombre, RUT o teléfono…"
+              alwaysShowLabel
+              startAdornment={<Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />}
+              data-test-id="pos-payment-customer-search"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Búsqueda en tu empresa (mínimo 2 caracteres). También puedes crear datos de invitado abajo.
+            </p>
+          </div>
+          <div
+            className="min-h-0 flex-1 overflow-y-auto pr-1"
+            data-test-id="pos-payment-customer-content"
           >
-            <h2 className="text-sm font-semibold text-foreground">Información del cliente</h2>
+            {customerSearchLoading ? (
+              <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                <DotProgress />
+                <span>Buscando…</span>
+              </div>
+            ) : null}
+            {customerSearchError ? (
+              <Alert variant="error" className="mb-2 py-2 text-sm">
+                {customerSearchError}
+              </Alert>
+            ) : null}
+            {!customerSearchLoading && customerSearch.trim().length >= 2 && customerSearchResults.length > 0 ? (
+              <ul className="mb-3 space-y-1 rounded-lg border border-border bg-muted/20 p-1">
+                {customerSearchResults.map((row) => (
+                  <li key={row.customerId}>
+                    <button
+                      type="button"
+                      className="flex w-full flex-col items-start rounded-md px-2 py-2 text-left text-sm transition hover:bg-muted/80"
+                      onClick={() => pickSearchCustomer(row)}
+                      data-test-id={`pos-payment-customer-pick-${row.customerId}`}
+                    >
+                      <span className="font-medium text-foreground">{row.displayName}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {[row.documentNumber, row.phone].filter(Boolean).join(" · ") || "Sin documento / teléfono"}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {!customerSearchLoading &&
+            customerSearch.trim().length >= 2 &&
+            customerSearchResults.length === 0 &&
+            !customerSearchError ? (
+              <p className="mb-3 text-sm text-muted-foreground">Sin coincidencias. Prueba otro término o crea un cliente manual.</p>
+            ) : null}
             {customer ? (
-              <dl className="mt-3 grid gap-2 text-sm">
+              <dl className="grid gap-2 text-sm">
+                {customer.customerId ? (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Origen</dt>
+                    <dd className="text-foreground">Cliente registrado</dd>
+                  </div>
+                ) : (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Origen</dt>
+                    <dd className="text-foreground">Datos para comprobante (invitado)</dd>
+                  </div>
+                )}
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted-foreground">Nombre</dt>
                   <dd className="font-medium text-foreground">{customer.name}</dd>
@@ -403,122 +580,95 @@ export default function PosPaymentWorkspace() {
                 ) : null}
               </dl>
             ) : (
-              <p className="mt-3 text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Sin cliente asociado. Puedes continuar o registrar datos para el comprobante.
               </p>
             )}
-            <div className="mt-4">
-              <Button type="button" variant="outlined" size="sm" onClick={openCustomerDialog}>
-                {customer ? "Cambiar cliente" : "Seleccionar o crear cliente"}
+          </div>
+          <footer className="shrink-0 flex flex-wrap gap-2 border-t border-border pt-3">
+            <Button type="button" variant="outlined" size="sm" onClick={openCustomerDialog}>
+              {customer ? "Cambiar cliente" : "Seleccionar o crear cliente"}
+            </Button>
+            {customer ? (
+              <Button type="button" variant="outlined" size="sm" onClick={clearSaleCustomer}>
+                Quitar cliente
               </Button>
-            </div>
-          </section>
-        </div>
+            ) : null}
+          </footer>
+        </section>
 
-        {/* Columna derecha — cobro */}
-        <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
-          <section
-            className="rounded-xl border border-border bg-background p-4 shadow-sm"
-            data-test-id="pos-payment-methods"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-foreground">Métodos de pago</h2>
-              <IconButton
-                icon="Plus"
-                variant="ghost"
-                size="md"
-                ariaLabel="Agregar método de pago"
-                title="Agregar método de pago"
-                onClick={openAddPayment}
-                disabled={remaining <= 0.01}
-                data-test-id="pos-payment-add-method"
-              />
-            </div>
+        {/* Columna 3 — Métodos de pago */}
+        <section
+          className="flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-sm"
+          style={{ height: `${POS_PAYMENT_PANEL_HEIGHT_VH}vh` }}
+          data-test-id="pos-payment-methods"
+        >
+          <div className="flex shrink-0 items-center gap-2">
+            <IconButton
+              icon="Plus"
+              variant="basicSecondary"
+              size="md"
+              ariaLabel="Agregar método de pago"
+              title="Agregar método de pago"
+              onClick={openAddPayment}
+              disabled={remaining <= 0.01}
+              data-test-id="pos-payment-add-method"
+            />
+            <h2 className="text-sm font-semibold text-foreground">Métodos de pago</h2>
+          </div>
 
-            <ul className="mt-4 space-y-3">
-              {payments.map((p, index) => {
-                const label = PAYMENT_TYPE_OPTIONS.find((o) => o.id === p.type)?.label ?? p.type;
-                const amountValue = String(Math.max(0, Math.round(p.amount)));
-                return (
-                  <li
-                    key={p.id}
-                    className="rounded-lg border border-border bg-muted/20 p-3"
-                    data-test-id={`pos-payment-method-row-${p.id}`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-foreground">{label}</p>
-                      <IconButton
-                        icon="X"
-                        variant="ghost"
-                        size="sm"
-                        ariaLabel="Quitar método"
-                        onClick={() => removePayment(p.id)}
-                      />
-                    </div>
-                    <div className="mt-3 grid gap-3">
+          <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            {payments.map((p, index) => {
+              const label = PAYMENT_TYPE_OPTIONS.find((o) => o.id === p.type)?.label ?? p.type;
+              const amountValue = String(Math.max(0, Math.round(p.amount)));
+              return (
+                <li
+                  key={p.id}
+                  className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+                  data-test-id={`pos-payment-method-row-${p.id}`}
+                >
+                  <div className="grid grid-cols-[25%_1fr_auto] items-center gap-2">
+                    <p className="truncate text-sm font-medium text-foreground" title={label}>
+                      {label}
+                    </p>
+                    <TextField
+                      type="currency"
+                      label="Monto"
+                      name={`pos-payment-line-${index}`}
+                      value={amountValue}
+                      onChange={(e) => updatePaymentLineAmount(p.id, e.target.value)}
+                      currencySymbol="$"
+                      alwaysShowLabel
+                      data-test-id={
+                        index === 0 ? "pos-payment-default-cash-amount" : `pos-payment-line-amount-${p.id}`
+                      }
+                    />
+                    <IconButton
+                      icon="X"
+                      variant="basicSecondary"
+                      size="sm"
+                      ariaLabel="Quitar método"
+                      onClick={() => removePayment(p.id)}
+                    />
+                  </div>
+                  {showsRefField(p.type) ? (
+                    <div className="mt-2">
                       <TextField
-                        type="currency"
-                        label="Monto"
-                        name={`pos-payment-line-${index}`}
-                        value={amountValue}
-                        onChange={(e) => updatePaymentLineAmount(p.id, e.target.value)}
+                        label="Referencia"
+                        name={`pos-payment-ref-${p.id}`}
+                        value={p.reference}
+                        onChange={(e) => updatePaymentLineReference(p.id, e.target.value)}
+                        placeholder="Opcional"
                         alwaysShowLabel
-                        currencySymbol="$"
                         density="compact"
-                        data-test-id={
-                          index === 0 ? "pos-payment-default-cash-amount" : `pos-payment-line-amount-${p.id}`
-                        }
                       />
-                      {requiresRef(p.type) ? (
-                        <TextField
-                          label="Referencia o autorización"
-                          name={`pos-payment-ref-${p.id}`}
-                          value={p.reference}
-                          onChange={(e) => updatePaymentLineReference(p.id, e.target.value)}
-                          placeholder="Obligatorio para este método"
-                          alwaysShowLabel
-                          density="compact"
-                        />
-                      ) : null}
                     </div>
-                  </li>
-                );
-              })}
-            </ul>
-
-            <div className="mt-6 space-y-2 rounded-lg bg-muted/30 px-3 py-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">Saldo restante</span>
-                <span className="font-semibold tabular-nums text-foreground">{formatMoney(remaining)}</span>
-              </div>
-              {overpay > 0 ? (
-                <div className="flex justify-between gap-4 text-amber-800 dark:text-amber-300">
-                  <span>Monto aplicado sobre total</span>
-                  <span className="font-medium tabular-nums">{formatMoney(overpay)}</span>
-                </div>
-              ) : null}
-              <div className="flex items-center justify-between gap-2 pt-1">
-                <span className="text-muted-foreground">Estado</span>
-                <span className={`font-semibold ${paymentStatusTone}`}>{paymentStatusLabel}</span>
-              </div>
-            </div>
-
-            <div className="mt-6 hidden lg:block">
-              <Button
-                type="button"
-                variant="primary"
-                size="lg"
-                className="w-full"
-                disabled={!canConfirm || confirmLoading}
-                loading={confirmLoading}
-                onClick={() => void handleConfirm()}
-                data-test-id="pos-payment-confirm-desktop"
-              >
-                Confirmar pago
-              </Button>
-            </div>
-          </section>
-        </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       </div>
 
       {/* Móvil: CTA fijo */}
@@ -576,11 +726,11 @@ export default function PosPaymentWorkspace() {
             data-test-id="pos-payment-add-amount"
           />
           <TextField
-            label={requiresRef(draftType) ? "Referencia o autorización" : "Referencia (opcional)"}
+            label="Referencia"
             name="payment-ref"
             value={draftReference}
             onChange={(e) => setDraftReference(e.target.value)}
-            placeholder={requiresRef(draftType) ? "Obligatorio para este método" : "Opcional"}
+            placeholder="Opcional"
             alwaysShowLabel
           />
         </div>

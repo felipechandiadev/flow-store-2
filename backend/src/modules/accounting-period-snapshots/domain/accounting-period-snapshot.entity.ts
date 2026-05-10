@@ -20,9 +20,13 @@ import { AccountingAccount } from '@modules/accounting-accounts/domain/accountin
 @Entity('accounting_period_snapshots')
 @Unique(['periodId', 'accountId'])
 @Index(['periodId'])
+@Index('idx_accounting_period_snapshots_company_id', ['companyId'])
 export class AccountingPeriodSnapshot {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid' })
   periodId!: string;

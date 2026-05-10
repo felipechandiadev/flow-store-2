@@ -53,6 +53,7 @@ import { AutomationAction } from '@modules/automation/domain/automation-action.e
 import { Recipe } from '@modules/recipes/domain/recipe.entity';
 import { RecipeLine } from '@modules/recipes/domain/recipe-line.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
+import { TenantSubscriber } from '../common/tenant/tenant.subscriber';
 
 export const typeOrmConfig = (
   configService: AppConfigService,
@@ -119,7 +120,7 @@ export const typeOrmConfig = (
     ],
 
     // Register subscribers (TypeORM EventSubscribers)
-    subscribers: [AuditSubscriber],
+    subscribers: [AuditSubscriber, TenantSubscriber],
 
     synchronize: configService.database.synchronize,
     logging: configService.database.logging,

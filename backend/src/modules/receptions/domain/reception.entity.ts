@@ -33,9 +33,13 @@ import { User } from '@modules/users/domain/user.entity';
 @Index(['supplierId'])
 @Index(['branchId'])
 @Index(['createdAt'])
+@Index('idx_receptions_company_id', ['companyId'])
 export class Reception {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'varchar', length: 50, default: 'direct' })
   type!: string; // 'direct' | 'from-purchase-order'

@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import {
   Column,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
@@ -15,6 +16,10 @@ import {
 export class DocumentSequence {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_document_sequences_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid' })
   branchId!: string;

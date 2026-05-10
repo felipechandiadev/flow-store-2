@@ -25,9 +25,17 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         const url = `${process.env.BACKEND_API_URL}/api/auth/login`;
+        // Empresa fija de este deployment de POS. Si está definida, se envía
+        // como header para que el backend valide que el usuario pertenece (o
+        // —si es ADMIN— tenga acceso) a esa empresa específica.
+        const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || process.env.COMPANY_ID || null;
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (companyId) {
+          headers["X-Active-Company-Id"] = companyId;
+        }
         const res = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             userName: credentials?.userName,
             password: credentials?.password,
@@ -39,11 +47,20 @@ export const authOptions: NextAuthOptions = {
           console.warn("[POS][auth] Login failed", {
             url,
             status: res.status,
-            // backend suele responder { success, message } en algunos flows
             message: data?.message ?? data?.error ?? null,
           });
         }
         if (res.ok && data.user) {
+          // Validar que el operator pertenece a la company del deployment.
+          const userCompanyId = data.user.companyId ?? null;
+          const role = data.user.rol ?? null;
+          if (companyId && role === "OPERATOR" && userCompanyId !== companyId) {
+            console.warn("[POS][auth] Operator no pertenece a la empresa configurada", {
+              userCompanyId,
+              expected: companyId,
+            });
+            return null;
+          }
           return {
             id: data.user.id,
             name:
@@ -51,7 +68,11 @@ export const authOptions: NextAuthOptions = {
               data.user.userName,
             email: data.user.email,
             accessToken: data.user.id,
-            role: data.user.rol ?? null,
+            role,
+            companyId: userCompanyId,
+            // ADMIN: usar la company del deployment como activa.
+            // OPERATOR: usar su companyId.
+            activeCompanyId: role === "ADMIN" ? companyId : userCompanyId,
           };
         }
         return null;
@@ -63,6 +84,8 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.accessToken = (user as any).accessToken;
         token.role = (user as any).role ?? null;
+        token.companyId = (user as any).companyId ?? null;
+        token.activeCompanyId = (user as any).activeCompanyId ?? null;
       }
       return token;
     },
@@ -72,6 +95,8 @@ export const authOptions: NextAuthOptions = {
         if (backendUserId) session.user.id = backendUserId;
         (session.user as any).accessToken = token.accessToken;
         (session.user as any).role = token.role ?? undefined;
+        (session.user as any).companyId = token.companyId ?? null;
+        (session.user as any).activeCompanyId = token.activeCompanyId ?? null;
       }
       return session;
     },

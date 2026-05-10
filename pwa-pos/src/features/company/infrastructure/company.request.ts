@@ -22,17 +22,20 @@ export class CompanyRequest {
 
     const session = await getServerSession(authOptions);
     const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as any)?.activeCompanyId as string | null | undefined;
     if (!token) {
       return null;
     }
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+      if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
       const res = await fetch(`${base}/api/company`, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         cache: "no-store",
       });
       if (!res.ok) {

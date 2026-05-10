@@ -6,6 +6,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  Index,
 } from 'typeorm';
 import { MetalType } from '@modules/metal-prices/domain/metal.enum';
 
@@ -16,6 +17,10 @@ import { MetalType } from '@modules/metal-prices/domain/metal.enum';
 export class MetalPrice {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Index('idx_metal_prices_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({
     type: 'varchar',

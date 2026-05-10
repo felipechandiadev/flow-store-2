@@ -27,9 +27,13 @@ export enum AccountingRuleLineAmountMode {
 
 @Entity('accounting_rule_lines')
 @Index(['ruleId', 'sortOrder'], { unique: true })
+@Index('idx_accounting_rule_lines_company_id', ['companyId'])
 export class AccountingRuleLine {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid' })
   ruleId!: string;

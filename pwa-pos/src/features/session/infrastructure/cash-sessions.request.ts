@@ -11,16 +11,20 @@ export class CashSessionsRequest {
 
     const session = await getServerSession(authOptions);
     const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as any)?.activeCompanyId as string | null | undefined;
     if (!token) {
       return { success: false, message: "No autenticado" };
     }
 
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
     const res = await fetch(`${base}/api/cash-sessions?status=OPEN`, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       cache: "no-store",
     });
 
@@ -39,16 +43,20 @@ export class CashSessionsRequest {
     const session = await getServerSession(authOptions);
     const token = session?.user?.accessToken;
     const userId = session?.user?.id;
+    const activeCompanyId = (session?.user as any)?.activeCompanyId as string | null | undefined;
     if (!token || !userId) {
       return { success: false, message: "No autenticado" };
     }
 
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
     const res = await fetch(`${base}/api/cash-sessions`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       body: JSON.stringify({
         userId,
         pointOfSaleId: input.pointOfSaleId,

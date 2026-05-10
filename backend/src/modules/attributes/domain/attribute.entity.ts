@@ -6,6 +6,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  Index,
 } from 'typeorm';
 
 /**
@@ -17,15 +18,20 @@ import {
  *          ["S", "M", "L", "XL"] para Talla
  *          ["500ml", "1L", "2L"] para Capacidad
  */
+@Index('uq_attributes_name_company', ['name', 'companyId'], { unique: true })
 @Entity('attributes')
 export class Attribute {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Index('idx_attributes_company_id')
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
+
   /**
    * Nombre del atributo (ej: "Color", "Talla", "Peso")
    */
-  @Column({ type: 'varchar', length: 100, unique: true })
+  @Column({ type: 'varchar', length: 100 })
   name!: string;
 
   /**

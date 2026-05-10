@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { Unit } from '../domain/unit.entity';
 import { UnitDimension } from '../domain/unit-dimension.enum';
+import { TenantContext } from '@common/tenant';
 
 export type UnitListRow = {
   id: string;
@@ -42,6 +44,20 @@ export class UnitsService {
     @InjectRepository(Unit)
     private readonly unitRepository: Repository<Unit>,
   ) {}
+
+  /**
+   * Las unidades NO son globales: pertenecen a una empresa. Cada operación
+   * del service exige conocer la empresa activa desde el TenantContext.
+   */
+  private requireCompanyId(): string {
+    const companyId = TenantContext.getCompanyId();
+    if (!companyId) {
+      throw new ForbiddenException(
+        'No hay empresa activa. Selecciona una empresa antes de operar con unidades.',
+      );
+    }
+    return companyId;
+  }
 
   private toRow(
     unit: Unit,
@@ -80,10 +96,15 @@ export class UnitsService {
 
   async getAllUnits(status?: string): Promise<UnitListRow[]> {
     try {
-      const where: { deletedAt: ReturnType<typeof IsNull>; active?: boolean } =
-        {
-          deletedAt: IsNull(),
-        };
+      const companyId = this.requireCompanyId();
+      const where: {
+        deletedAt: ReturnType<typeof IsNull>;
+        active?: boolean;
+        companyId: string;
+      } = {
+        deletedAt: IsNull(),
+        companyId,
+      };
       if (status === 'active') {
         where.active = true;
       } else if (status === 'inactive') {
@@ -100,14 +121,15 @@ export class UnitsService {
       return units.map((u) => this.toRow(u, derivedMap));
     } catch (error) {
       console.error('Error fetching units:', error);
-      return [];
+      throw error;
     }
   }
 
   async getUnitById(id: string): Promise<UnitListRow | null> {
     try {
+      const companyId = this.requireCompanyId();
       const unit = await this.unitRepository.findOne({
-        where: { id, deletedAt: IsNull() },
+        where: { id, deletedAt: IsNull(), companyId },
         relations: ['baseUnit'],
       });
 
@@ -116,13 +138,13 @@ export class UnitsService {
       }
 
       const all = await this.unitRepository.find({
-        where: { deletedAt: IsNull() },
+        where: { deletedAt: IsNull(), companyId },
       });
       const derivedMap = this.buildDerivedCountMap(all);
       return this.toRow(unit, derivedMap);
     } catch (error) {
       console.error('Error fetching unit:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -155,6 +177,8 @@ export class UnitsService {
     const isBase = data.isBase === true;
     const allowDecimals = data.allowDecimals !== false;
 
+    const companyId = this.requireCompanyId();
+
     if (isBase) {
       if (factor !== 1) {
         throw new BadRequestException(
@@ -173,6 +197,7 @@ export class UnitsService {
           isBase: true,
           active: true,
           deletedAt: IsNull(),
+          companyId,
         },
       });
       if (otherBase) {
@@ -190,6 +215,7 @@ export class UnitsService {
         isBase: true,
         baseUnitId: null,
         active: true,
+        companyId,
       });
       const saved = await this.unitRepository.save(unit);
       const row = await this.getUnitById(saved.id);
@@ -207,7 +233,7 @@ export class UnitsService {
     }
 
     const base = await this.unitRepository.findOne({
-      where: { id: baseUnitId, deletedAt: IsNull() },
+      where: { id: baseUnitId, deletedAt: IsNull(), companyId },
     });
     if (!base) {
       throw new BadRequestException('Unidad base no encontrada');
@@ -237,6 +263,7 @@ export class UnitsService {
       isBase: false,
       baseUnitId,
       active: true,
+      companyId,
     });
     const saved = await this.unitRepository.save(unit);
     const row = await this.getUnitById(saved.id);
@@ -259,8 +286,9 @@ export class UnitsService {
       baseUnitId: string | null;
     }>,
   ): Promise<UnitListRow> {
+    const companyId = this.requireCompanyId();
     const unit = await this.unitRepository.findOne({
-      where: { id, deletedAt: IsNull() },
+      where: { id, deletedAt: IsNull(), companyId },
       relations: ['baseUnit'],
     });
     if (!unit) {
@@ -268,7 +296,7 @@ export class UnitsService {
     }
 
     const all = await this.unitRepository.find({
-      where: { deletedAt: IsNull() },
+      where: { deletedAt: IsNull(), companyId },
     });
     const derivedMap = this.buildDerivedCountMap(all);
     const activeDerived = derivedMap.get(unit.id) ?? 0;
@@ -326,6 +354,7 @@ export class UnitsService {
             active: true,
             deletedAt: IsNull(),
             id: Not(id),
+            companyId,
           },
         });
         if (otherBase) {
@@ -363,7 +392,7 @@ export class UnitsService {
         );
       }
       const base = await this.unitRepository.findOne({
-        where: { id: nextBaseId, deletedAt: IsNull() },
+        where: { id: nextBaseId, deletedAt: IsNull(), companyId },
       });
       if (!base) {
         throw new BadRequestException('Unidad base no encontrada');
@@ -394,7 +423,7 @@ export class UnitsService {
       }
       if (nextActive && !unit.isBase && nextBaseId) {
         const base = await this.unitRepository.findOne({
-          where: { id: nextBaseId, deletedAt: IsNull() },
+          where: { id: nextBaseId, deletedAt: IsNull(), companyId },
         });
         if (base && !base.active) {
           throw new BadRequestException(
@@ -413,6 +442,7 @@ export class UnitsService {
           active: true,
           deletedAt: IsNull(),
           id: Not(id),
+          companyId,
         },
       });
       if (otherBase) {
@@ -435,8 +465,9 @@ export class UnitsService {
   }
 
   async deleteUnit(id: string) {
+    const companyId = this.requireCompanyId();
     const unit = await this.unitRepository.findOne({
-      where: { id, deletedAt: IsNull() },
+      where: { id, deletedAt: IsNull(), companyId },
     });
     if (!unit) {
       throw new NotFoundException(`Unidad ${id} no encontrada`);
@@ -447,6 +478,7 @@ export class UnitsService {
           baseUnitId: id,
           active: true,
           deletedAt: IsNull(),
+          companyId,
         },
       });
       if (n > 0) {

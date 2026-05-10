@@ -3,13 +3,138 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sección 4 — Proceso de implementación</title>
+  <title>Proceso de implementación</title>
   <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
   <section class="chapter" id="sec04-implementacion">
-    <h2>Sección 4 — Proceso de implementación</h2>
-    <p class="placeholder">Contenido pendiente. Se desarrollará según la guía del documento de trabajo.</p>
+    <h2>Proceso de implementación</h2>
+    <p>
+      La implementación de FlowStore se estructura como un proceso guiado, orientado a alinear el sistema con la operación real del
+      comercio y a asegurar una puesta en marcha estable. A continuación se describe el flujo aplicado para la operación de
+      <strong>Parabrisas Don Walter</strong>.
+    </p>
+
+    <h3 id="sec04-4-1">4.1 Diagnóstico y configuración de reglas</h3>
+    <p>
+      Primera etapa de alineación del software con la operación diaria de <strong>Parabrisas Don Walter</strong>.
+      El objetivo es definir reglas y parámetros que eviten fricciones en caja y dejen claro qué puede hacer cada perfil dentro del
+      sistema.
+    </p>
+    <h4>Acciones</h4>
+    <ul>
+      <li>Levantamiento de la operación: sucursal(es), cajas/puntos de venta y flujo de atención en mostrador.</li>
+      <li>Definición de reglas de venta y caja: anulaciones/devoluciones, arqueos y cierres (según el proceso del local).</li>
+      <li>Configuración de métodos de pago y política de pagos mixtos; definición de reglas de crédito interno si aplica (cupos y autorizaciones).</li>
+      <li>Definición de listas de precios y criterios comerciales (si aplica), alineadas al tipo de cliente o punto de venta.</li>
+      <li>Configuración de inventario a nivel de reglas: almacenes/ubicaciones, stock visible para el POS y permisos para ajustes/traslados.</li>
+      <li>Definición de roles y permisos por perfil: quién puede ver costos/márgenes, editar precios, anular ventas, cerrar caja y exportar reportes.</li>
+    </ul>
+    <h4>Requerimientos</h4>
+    <ul>
+      <li>Lista de empleados y definición de sus funciones en el sistema.</li>
+    </ul>
+
+    <h3 id="sec04-4-2">4.2 Normalización y carga de catálogo</h3>
+    <p>
+      Organización de la base de datos para que el buscador del POS sea eficiente. Esta etapa ordena el catálogo y habilita una
+      operación fluida: búsqueda rápida, lectura por código de barras y precios consistentes.
+    </p>
+    <h4>Acciones</h4>
+    <ul>
+      <li>Limpieza y carga masiva de productos (SKU, descripción, marca y precios).</li>
+    </ul>
+    <h4>Requerimientos</h4>
+    <ul>
+      <li>
+        Entrega de listado de productos en Excel (o uso de la plantilla de carga). Si la información está en otro formato (CSV,
+        exportación de otro sistema o listado en papel), se coordina su digitalización y normalización para construir la base de carga.
+      </li>
+    </ul>
+
+    <h3 id="sec04-4-3">4.3 Despliegue cloud</h3>
+    <p>
+      Preparación de la “central de datos” del sistema. Se configura el entorno para operar con continuidad, con respaldo automático y
+      disponibilidad de información.
+    </p>
+    <h4>Acciones</h4>
+    <ul>
+      <li>Configuración del servidor en la nube para respaldos automáticos.</li>
+    </ul>
+
+    <h3 id="sec04-4-4">4.4 Integración de hardware y periféricos</h3>
+    <p>
+      Preparación y provisión de los dispositivos necesarios para operar el punto de venta con fluidez y emitir tickets con el formato
+      esperado.
+    </p>
+    <h4>Acciones</h4>
+    <ul>
+      <li><strong>PC del local:</strong> preparación del equipo, usuario de trabajo y verificación del entorno para operar el POS.</li>
+      <li><strong>Pistola lectora:</strong> calibración para lectura rápida de códigos de barras.</li>
+      <li><strong>Impresora POS:</strong> configuración del formato de ticket (logo, datos del local y ancho de papel).</li>
+    </ul>
+    <h4>Requerimientos</h4>
+    <ul>
+      <li>Contar con los dispositivos físicos disponibles para la operación (PC y periféricos).</li>
+    </ul>
+
+    <h3 id="sec04-4-5">4.5 Capacitación y modo pruebas</h3>
+    <p>
+      Entrenamiento práctico antes de empezar a operar “en serio”, cubriendo tanto la App POS como el Panel de administración.
+      La meta es que el equipo adquiera confianza, domine los flujos habituales y entienda cómo se conectan ventas, inventario,
+      compras y caja, sin arriesgar datos productivos durante el aprendizaje.
+    </p>
+    <h4>Acciones</h4>
+    <ul>
+      <li><strong>Talleres guiados con datos de prueba:</strong> simulación de jornadas típicas para practicar sin impacto en la operación real.</li>
+      <li>
+        <strong>App POS:</strong> apertura de sesión, búsqueda por nombre/SKU/código de barras, armado de carrito, descuentos según permiso,
+        cobro con distintos medios (incluyendo pagos mixtos cuando corresponda), impresión de ticket, arqueos y cierre.
+      </li>
+      <li>
+        <strong>Panel de administración:</strong> revisión de ventas y cierres, mantenimiento de clientes y productos, actualización de listas de
+        precios, lectura de existencias y movimientos, y revisión de reportes básicos para control diario.
+      </li>
+      <li>
+        <strong>Escenarios de control:</strong> simulación de anulaciones/devoluciones según política, diferencias de caja y correcciones operativas
+        permitidas, para que el equipo sepa qué hacer y quién debe autorizar cada caso.
+      </li>
+    </ul>
+    <h4>Objetivo</h4>
+    <p>
+      Que el equipo pierda el miedo al sistema y se familiarice con los flujos completos de operación, entendiendo qué se hace en POS y
+      qué se administra en el panel para sostener la continuidad del negocio.
+    </p>
+
+    <h3 id="sec04-4-6">4.6 Carga de inventario inicial</h3>
+    <p>
+      Sincronización final con la realidad del negocio. Una vez completadas las pruebas, el sistema se inicializa con existencias
+      reales para partir con stock exacto y trazabilidad consistente desde el primer día.
+    </p>
+    <h4>Acciones</h4>
+    <ul>
+      <li><strong>Soporte presencial</strong> en la última jornada de conteo, para resolver dudas operativas y asegurar consistencia del registro.</li>
+      <li><strong>Carga masiva</strong> de las existencias físicas reales, después de haber practicado en la etapa anterior.</li>
+    </ul>
+    <h4>Requerimientos</h4>
+    <ul>
+      <li>Realizar un conteo físico de los productos para que el sistema parta con stock exacto.</li>
+    </ul>
+
+    <h3 id="sec04-4-7">4.7 Puesta en marcha y acompañamiento</h3>
+    <p>
+      El sistema comienza a registrar ventas reales y oficiales en el local. El acompañamiento inicial reduce errores, acelera la
+      adopción y permite resolver dudas operativas en el momento.
+    </p>
+    <h4>Acciones</h4>
+    <ul>
+      <li>Soporte presencial o remoto durante el primer día de uso para resolver dudas rápidas del equipo.</li>
+    </ul>
+    <h4>Entregables</h4>
+    <ul>
+      <li>Acceso definitivo al canal de soporte técnico.</li>
+      <li>Manual de usuario rápido.</li>
+    </ul>
   </section>
 </body>
 </html>

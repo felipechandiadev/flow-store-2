@@ -16,6 +16,7 @@ export default {
     "content/09-seccion-7-conclusiones.html",
     "content/10-seccion-8-glosario.html",
     "content/11-anexos.html",
+    "content/12-contraportada.html",
   ],
   output: [
     "./output.pdf",

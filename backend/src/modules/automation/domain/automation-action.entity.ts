@@ -14,9 +14,13 @@ import { AutomationActionType } from './automation-action-type.enum';
 
 @Entity('automation_actions')
 @Index(['ruleId', 'sortOrder'], { unique: true })
+@Index('idx_automation_actions_company_id', ['companyId'])
 export class AutomationAction {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
+
+  @Column({ name: 'company_id', type: 'uuid' })
+  companyId!: string;
 
   @Column({ type: 'uuid' })
   ruleId!: string;
