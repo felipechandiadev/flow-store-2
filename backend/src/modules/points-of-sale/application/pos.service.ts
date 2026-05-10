@@ -1,13 +1,26 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeepPartial, Repository, IsNull } from 'typeorm';
 import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
+import { CompaniesService } from '@modules/companies/application/companies.service';
+import {
+  EffectivePaymentMethod,
+  PosPaymentMethodConfig,
+  buildDefaultPosList,
+  mergeCompanyAndPos,
+  validatePosPaymentMethods,
+} from '@modules/payment-methods-config';
 
 @Injectable()
 export class PosService {
   constructor(
     @InjectRepository(PointOfSale)
     private posRepository: Repository<PointOfSale>,
+    private readonly companiesService: CompaniesService,
   ) {}
 
   async findAll(includeInactive: boolean) {
@@ -139,9 +152,66 @@ export class PosService {
     return { success: true };
   }
 
+  /** Lee la lista cruda de POS (config local). Si no hay, devuelve default
+   * a partir del catálogo de empresa. */
+  async getPaymentMethods(posId: string): Promise<PosPaymentMethodConfig[]> {
+    const pos = await this.posRepository.findOne({
+      where: { id: posId, deletedAt: IsNull() },
+    });
+    if (!pos) throw new NotFoundException('Punto de venta no encontrado');
+    const catalog = await this.companiesService.getPaymentMethods(pos.companyId);
+    const raw = pos.settings?.paymentMethods;
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return buildDefaultPosList(catalog);
+    }
+    try {
+      return validatePosPaymentMethods(raw, catalog);
+    } catch {
+      return buildDefaultPosList(catalog);
+    }
+  }
+
+  async replacePaymentMethods(
+    posId: string,
+    list: unknown,
+  ): Promise<PosPaymentMethodConfig[]> {
+    const pos = await this.posRepository.findOne({
+      where: { id: posId, deletedAt: IsNull() },
+    });
+    if (!pos) throw new NotFoundException('Punto de venta no encontrado');
+    const catalog = await this.companiesService.getPaymentMethods(pos.companyId);
+    let validated: PosPaymentMethodConfig[];
+    try {
+      validated = validatePosPaymentMethods(list, catalog);
+    } catch (e) {
+      throw new BadRequestException(
+        e instanceof Error ? e.message : 'Configuración inválida',
+      );
+    }
+    pos.settings = { ...(pos.settings ?? {}), paymentMethods: validated };
+    await this.posRepository.save(pos);
+    return validated;
+  }
+
+  /**
+   * Devuelve la vista efectiva (merge company+POS) lista para pwa-pos.
+   */
+  async getEffectivePaymentMethods(
+    posId: string,
+  ): Promise<EffectivePaymentMethod[]> {
+    const pos = await this.posRepository.findOne({
+      where: { id: posId, deletedAt: IsNull() },
+    });
+    if (!pos) throw new NotFoundException('Punto de venta no encontrado');
+    const catalog = await this.companiesService.getPaymentMethods(pos.companyId);
+    const list = await this.getPaymentMethods(posId);
+    return mergeCompanyAndPos(catalog, list);
+  }
+
   private mapPointOfSale(pos: PointOfSale) {
     return {
       id: pos.id,
+      companyId: pos.companyId,
       name: pos.name,
       branchId: pos.branchId,
       branch: pos.branch

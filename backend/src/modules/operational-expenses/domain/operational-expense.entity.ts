@@ -38,7 +38,14 @@ export type OperationalExpenseLinkedPlannedPayment = {
   paymentMethod: 'CASH' | 'TRANSFER' | 'CHECK';
   companyBankAccountKey?: string | null;
   supplierBankAccountKey?: string | null;
+  /** Número del cheque (cuando `paymentMethod === 'CHECK'`). */
   chequeNumber?: string | null;
+  /** Banco emisor del cheque (la propia empresa). */
+  chequeBankName?: string | null;
+  /** Nombre del girador (responsable que firma). */
+  chequeDrawerName?: string | null;
+  /** "A fecha" para cheques postdatados. */
+  chequeDueDate?: string | null;
 };
 
 export type OperationalExpenseLinkedDteKind =

@@ -8,6 +8,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { AdminOnly, CurrentUser, CurrentUserPayload } from '@common/tenant';
 import { PosService } from '../application/pos.service';
 
 @Controller('points-of-sale')
@@ -18,6 +19,30 @@ export class PosController {
   async findAll(@Query('includeInactive') includeInactive?: string) {
     const include = includeInactive === 'true' || includeInactive === '1';
     return this.posService.findAll(include);
+  }
+
+  /**
+   * Devuelve los medios de pago efectivos para el POS del cajero actual.
+   *
+   * - Resuelve el POS desde `?pointOfSaleId=` (preferido) o, si no viene,
+   *   delega a la sesión de caja abierta (que pwa-pos ya resuelve antes).
+   * - Disponible para OPERATOR/ADMIN: `TenantGuard` ya valida tenant.
+   */
+  @Get('me/payment-methods')
+  async getEffectiveForMe(
+    @Query('pointOfSaleId') pointOfSaleId: string | undefined,
+    @CurrentUser() _user: CurrentUserPayload,
+  ) {
+    if (!pointOfSaleId || typeof pointOfSaleId !== 'string') {
+      return {
+        success: false,
+        message: 'pointOfSaleId es requerido',
+        paymentMethods: [],
+      };
+    }
+    const paymentMethods =
+      await this.posService.getEffectivePaymentMethods(pointOfSaleId);
+    return { success: true, paymentMethods };
   }
 
   @Get(':id')
@@ -67,6 +92,38 @@ export class PosController {
   @Get(':id/price-lists')
   async getPriceLists(@Param('id') id: string) {
     return this.posService.getPriceLists(id);
+  }
+
+  /**
+   * Lee la configuración local de medios de pago de un POS (admin).
+   */
+  @Get(':id/payment-methods')
+  @AdminOnly()
+  async getPaymentMethods(@Param('id') id: string) {
+    const paymentMethods = await this.posService.getPaymentMethods(id);
+    return { success: true, paymentMethods };
+  }
+
+  /**
+   * Reemplaza la configuración local de medios de pago de un POS.
+   * Body: `{ paymentMethods: PosPaymentMethodConfig[] }` o el array directo.
+   */
+  @Put(':id/payment-methods')
+  @AdminOnly()
+  async replacePaymentMethods(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const incoming = Array.isArray(body)
+      ? body
+      : Array.isArray((body as any)?.paymentMethods)
+        ? (body as any).paymentMethods
+        : [];
+    const paymentMethods = await this.posService.replacePaymentMethods(
+      id,
+      incoming,
+    );
+    return { success: true, paymentMethods };
   }
 
   @Delete(':id')

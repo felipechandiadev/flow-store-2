@@ -52,6 +52,11 @@ import {
   StorageCategory,
   StorageType,
 } from '@modules/storages/domain/storage.entity';
+import {
+  buildDefaultCompanyCatalog,
+  buildDefaultPosList,
+} from '@modules/payment-methods-config/domain/payment-method-config.helpers';
+import { TenantContext } from '@common/tenant/tenant.context';
 
 const SEED_IVA_DESCRIPTION =
   'Impuesto al Valor Agregado sobre ventas, servicios e importaciones.';
@@ -677,6 +682,86 @@ async function bootstrap() {
       `✅ Cuentas bancarias ejemplo sincronizadas (${seedBankRows.length}) companyId=${company.id}`,
     );
 
+    /**
+     * Catálogo de medios de pago a nivel empresa
+     * (`company.settings.paymentMethods`).
+     *
+     * Idempotente: si ya existe un catálogo no vacío, lo conserva
+     * (para no pisar configuraciones manuales hechas desde la UI).
+     * Excluye `MIXED`: el sistema lo infiere cuando una transacción
+     * tiene más de un detalle de pago.
+     */
+    const existingCompanySettings =
+      (company.settings && typeof company.settings === 'object'
+        ? (company.settings as Record<string, any>)
+        : {}) ?? {};
+    const existingCompanyPMs = Array.isArray(
+      existingCompanySettings.paymentMethods,
+    )
+      ? (existingCompanySettings.paymentMethods as Array<{ id?: string }>)
+      : [];
+    if (existingCompanyPMs.length === 0) {
+      const catalog = buildDefaultCompanyCatalog();
+      company.settings = {
+        ...existingCompanySettings,
+        paymentMethods: catalog,
+      };
+      await companyRepo.save(company);
+      console.log(
+        `✅ Medios de pago empresa creados (${catalog.length}): ${catalog
+          .map((c) => c.method)
+          .join(', ')}`,
+      );
+    } else {
+      console.log(
+        `✅ Medios de pago empresa ya existían (${existingCompanyPMs.length}); no se sobrescriben`,
+      );
+    }
+
+    /**
+     * Configuración de cheques a nivel empresa
+     * (`company.settings.checks`).
+     *
+     * Idempotente: solo crea el bloque si no existe; respeta cambios
+     * manuales hechos desde la UI.
+     */
+    const existingCompanySettingsAfterPM =
+      (company.settings && typeof company.settings === 'object'
+        ? (company.settings as Record<string, any>)
+        : {}) ?? {};
+    const existingChecks = existingCompanySettingsAfterPM.checks;
+    if (!existingChecks || typeof existingChecks !== 'object') {
+      company.settings = {
+        ...existingCompanySettingsAfterPM,
+        checks: {
+          enabled: true,
+          receiveChecks: true,
+          issueChecks: true,
+          allowPostdated: true,
+          defaultDepositBankAccountKey: null,
+          defaultIssueBankAccountKey: null,
+        },
+      };
+      await companyRepo.save(company);
+      console.log(`✅ Configuración de cheques creada (enabled=true)`);
+    } else {
+      console.log(`✅ Configuración de cheques ya existía; no se sobrescribe`);
+    }
+
+    /**
+     * A partir de aquí, todo el resto del seed se ejecuta dentro del
+     * `TenantContext` de la empresa creada. Esto activa el
+     * `TenantSubscriber` (registrado en typeorm.config.ts), que
+     * autopopula `companyId` en cualquier INSERT de entidades
+     * multi-empresa que no lo provean explícitamente. Sin esto, las
+     * tablas con `company_id NOT NULL` (storages, products,
+     * categories, units, attributes, persons, suppliers, etc.) fallan
+     * porque el seed corre fuera del request scope.
+     */
+    await TenantContext.run(
+      { activeCompanyId: company.id, userId: null, rol: null },
+      async () => {
+
     let ivaTax = await taxRepo.findOne({
       where: {
         companyId: company.id,
@@ -934,9 +1019,12 @@ async function bootstrap() {
       const savedRule = (await accountingRuleRepo.save(
         row as any,
       )) as unknown as AccountingRule;
-      // Crear líneas por defecto equivalentes al par débito/crédito
+      // Crear líneas por defecto equivalentes al par débito/crédito.
+      // Se setea `companyId` explícitamente porque la columna es NOT NULL
+      // en multi-empresa y la entity no tiene default.
       const lines = [
         {
+          companyId: company.id,
           ruleId: savedRule.id,
           side: AccountingRuleLineSide.DEBIT,
           accountId: (r.debitAccountId as string),
@@ -946,6 +1034,7 @@ async function bootstrap() {
           isActive: true,
         },
         {
+          companyId: company.id,
           ruleId: savedRule.id,
           side: AccountingRuleLineSide.CREDIT,
           accountId: (r.creditAccountId as string),
@@ -1005,6 +1094,7 @@ async function bootstrap() {
       for (const a of row.actions) {
         await automationActionRepo.save(
           automationActionRepo.create({
+            companyId: company.id,
             ruleId: saved.id,
             type: a.type,
             sortOrder: a.sortOrder ?? 0,
@@ -1799,6 +1889,54 @@ async function bootstrap() {
       `✅ Punto de venta ${caja.name} ${existingPos ? 'ya existía' : 'creado'}: id=${caja.id}`,
     );
 
+    /**
+     * Configuración de medios de pago a nivel POS
+     * (`points_of_sale.settings.paymentMethods`).
+     *
+     * Idempotente: solo se siembra si está vacío.
+     * Usa el catálogo recién persistido en `company.settings.paymentMethods`
+     * para que los `companyPaymentMethodId` referencien IDs válidos.
+     * `buildDefaultPosList` precarga `CASH` y lo deja como default-vuelto.
+     */
+    {
+      const reloadedCompany = await companyRepo.findOne({
+        where: { id: company.id },
+      });
+      const companyCatalog =
+        reloadedCompany?.settings &&
+        typeof reloadedCompany.settings === 'object' &&
+        Array.isArray((reloadedCompany.settings as any).paymentMethods)
+          ? ((reloadedCompany.settings as any).paymentMethods as Array<any>)
+          : [];
+
+      const existingPosSettings =
+        (caja.settings && typeof caja.settings === 'object'
+          ? (caja.settings as Record<string, any>)
+          : {}) ?? {};
+      const existingPosPMs = Array.isArray(existingPosSettings.paymentMethods)
+        ? (existingPosSettings.paymentMethods as Array<unknown>)
+        : [];
+      if (existingPosPMs.length === 0 && companyCatalog.length > 0) {
+        const posList = buildDefaultPosList(companyCatalog as any);
+        caja.settings = {
+          ...existingPosSettings,
+          paymentMethods: posList,
+        };
+        await posRepo.save(caja);
+        console.log(
+          `✅ Medios de pago POS «${caja.name}» creados (${posList.length}): default vuelto = CASH`,
+        );
+      } else if (existingPosPMs.length > 0) {
+        console.log(
+          `✅ Medios de pago POS «${caja.name}» ya existían (${existingPosPMs.length}); no se sobrescriben`,
+        );
+      } else {
+        console.log(
+          `⚠️  POS «${caja.name}»: catálogo de empresa vacío, no se siembran medios de pago en el POS`,
+        );
+      }
+    }
+
     // Centro de acopio demo: vinculado a sucursal seed y al POS «CAJA LOCAL».
     let seedCashHub = await cashHubRepo.findOne({
       where: { companyId: company.id, code: 'CENTRAL' },
@@ -1999,6 +2137,10 @@ async function bootstrap() {
         pass: await bcrypt.hash(password, 12),
         mail: email,
         rol: UserRole.ADMIN,
+        // ADMIN es global: la constraint `users_role_company_chk` exige
+        // companyId NULL para administradores. Explícitamente seteamos
+        // null para evitar el auto-fill del TenantSubscriber.
+        companyId: null,
         person: savedPerson,
       });
       await userRepo.save(user);
@@ -2036,6 +2178,8 @@ async function bootstrap() {
 
     console.log(
       `✅ Seed mínimo OK. Usuario actualizado: userName='${userName}' password='${password}'`,
+    );
+      },
     );
   } catch (error) {
     console.error('❌ Error ejecutando seed mínimo:', error);

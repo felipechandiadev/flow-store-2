@@ -38,6 +38,9 @@ export class PointOfSaleOrmEntity {
   @Column({ type: 'boolean', default: true })
   isActive!: boolean;
 
+  @Column({ type: 'jsonb', nullable: true })
+  settings?: Record<string, any> | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 

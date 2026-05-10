@@ -63,6 +63,7 @@ import { SupplierGuidesModule } from './modules/supplier-guides/supplier-guides.
 import { PurchasingSupplierDocumentsModule } from './modules/purchasing-supplier-documents/purchasing-supplier-documents.module';
 import { RecipesModule } from './modules/recipes/recipes.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { ChecksModule } from './modules/checks/checks.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     AttributesModule,
     BankMovementsModule,
     BankAccountsModule,
+    ChecksModule,
     CapitalContributionsModule,
     BankTransfersModule,
     BankWithdrawalsModule,

@@ -377,16 +377,24 @@ export class CashSessionsService {
       throw new BadRequestException('Debes enviar al menos una línea de venta');
     }
 
-    // Determinar método de pago final
+    // Determinar método de pago final.
+    // Cuando hay múltiples pagos, el sistema infiere "mixto" leyendo
+    // `metadata.paymentSnapshots.length > 1` (o `metadata.mixedPayments`),
+    // por lo que NO se asigna `paymentMethod = MIXED`. En la columna
+    // `paymentMethod` se guarda el medio del pago de mayor monto
+    // (o el primero si todos son iguales) para que reportes/asientos
+    // tengan un valor representativo.
     let finalPaymentMethod = paymentMethod;
     let paymentDetails = payments;
+    const isMixedPayment = !!(payments && payments.length > 1);
 
-    // Si se enviaron pagos detallados y hay más de uno, es pago mixto
     if (payments && payments.length > 1) {
-      finalPaymentMethod = 'MIXED';
+      const dominant = [...payments].sort(
+        (a, b) => Number(b.amount ?? 0) - Number(a.amount ?? 0),
+      )[0];
+      finalPaymentMethod = dominant?.paymentMethod ?? payments[0].paymentMethod;
       paymentDetails = payments;
     } else if (payments && payments.length === 1) {
-      // Si solo hay uno, usar ese método
       finalPaymentMethod = payments[0].paymentMethod;
       paymentDetails = payments;
     }
@@ -530,8 +538,8 @@ export class CashSessionsService {
         notes: notes || undefined,
         metadata: {
           ...(metadata || {}),
-          ...(paymentDetails && paymentMethodEnum === PaymentMethod.MIXED
-            ? { mixedPayments: paymentDetails }
+          ...(isMixedPayment && paymentDetails
+            ? { mixedPayments: paymentDetails, isMixedPayment: true }
             : {}),
         },
       };

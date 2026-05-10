@@ -1,0 +1,267 @@
+"use client";
+
+import { useCallback, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { BasicPageLayout } from "@/shared/components/layouts";
+import { Button } from "@/shared/components/Button";
+import { TextField } from "@/shared/components/TextField/TextField";
+import Switch from "@/shared/components/Switch/Switch";
+import Alert from "@/shared/components/Alert/Alert";
+import {
+  COMPANY_PAYMENT_METHOD_LABELS,
+  POS_VALID_METHOD_IDS,
+  type CompanyPaymentMethodConfig,
+} from "@/features/companies/types/company-payment-methods.types";
+import {
+  defaultPosEntryFor,
+  type PosPaymentMethodConfig,
+} from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
+import { replacePosPaymentMethodsAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
+
+type Props = {
+  posId: string;
+  posLabel: string;
+  initialCatalog: CompanyPaymentMethodConfig[];
+  initialPosList: PosPaymentMethodConfig[];
+  initialError: string | null;
+};
+
+type RowState = PosPaymentMethodConfig;
+
+export function PosPaymentMethodsEditor({
+  posId,
+  posLabel,
+  initialCatalog,
+  initialPosList,
+  initialError,
+}: Props) {
+  const [error, setError] = useState<string | null>(initialError);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  /**
+   * Catálogo filtrado: solo medios activos en empresa y aptos para POS
+   * (excluye MIXED/CREDIT/INTERNAL_CREDIT). Mantiene displayOrder.
+   */
+  const usableCatalog = useMemo(
+    () =>
+      initialCatalog
+        .filter(
+          (c) =>
+            c.isActive &&
+            (POS_VALID_METHOD_IDS as string[]).includes(c.method),
+        )
+        .slice()
+        .sort((a, b) => a.displayOrder - b.displayOrder),
+    [initialCatalog],
+  );
+
+  const initialMap = useMemo(() => {
+    const map = new Map<string, RowState>();
+    for (const item of initialPosList) {
+      map.set(item.companyPaymentMethodId, item);
+    }
+    return map;
+  }, [initialPosList]);
+
+  /** Estado: por cada entrada del catálogo, lo que el POS configura. */
+  const [byId, setById] = useState<Record<string, RowState>>(() => {
+    const out: Record<string, RowState> = {};
+    for (const c of usableCatalog) {
+      out[c.id] =
+        initialMap.get(c.id) ??
+        defaultPosEntryFor(c, c.method === "CASH");
+    }
+    return out;
+  });
+
+  const update = useCallback(
+    (id: string, patch: Partial<RowState>) => {
+      setById((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+    },
+    [],
+  );
+
+  const setUniqueDefault = useCallback((id: string, isDefault: boolean) => {
+    setById((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        next[k] = { ...next[k], isDefaultForChange: false };
+      }
+      if (isDefault) {
+        next[id] = { ...next[id], isDefaultForChange: true };
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSave = useCallback(() => {
+    setError(null);
+    setSuccess(null);
+    startTransition(() => {
+      void (async () => {
+        const payload: PosPaymentMethodConfig[] = usableCatalog.map((c) => ({
+          companyPaymentMethodId: c.id,
+          isEnabled: byId[c.id]?.isEnabled !== false,
+          preloadOnPaymentScreen:
+            byId[c.id]?.preloadOnPaymentScreen === true,
+          preloadOrder: byId[c.id]?.preloadOrder ?? null,
+          isDefaultForChange: byId[c.id]?.isDefaultForChange === true,
+          requireReference:
+            byId[c.id]?.requireReference == null
+              ? null
+              : byId[c.id]?.requireReference === true,
+        }));
+        const r = await replacePosPaymentMethodsAction(posId, payload);
+        if (r.success) {
+          setSuccess("Cambios guardados.");
+        } else {
+          setError(r.error || "No se pudo guardar");
+        }
+      })();
+    });
+  }, [byId, posId, usableCatalog]);
+
+  return (
+    <BasicPageLayout
+      title="Medios de pago del POS"
+      subtitle={`Configuración local para ${posLabel}.`}
+      data-test-id="pos-payment-methods-page"
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-2">
+          <Link
+            href="/sales/points-of-sale"
+            className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
+            data-test-id="pos-payment-methods-back"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Volver a puntos de venta
+          </Link>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={handleSave}
+            disabled={isPending}
+            loading={isPending}
+            data-test-id="pos-payment-methods-save"
+          >
+            Guardar cambios
+          </Button>
+        </div>
+
+        {error ? (
+          <Alert variant="error" data-test-id="pos-payment-methods-error">
+            {error}
+          </Alert>
+        ) : null}
+        {success ? (
+          <Alert variant="success" data-test-id="pos-payment-methods-success">
+            {success}
+          </Alert>
+        ) : null}
+
+        <p className="text-sm text-muted">
+          Habilita los medios de la empresa que estarán disponibles en este POS y
+          marca cuáles aparecen precargados en la pantalla de cobro. El medio
+          “Default para vuelto” se autocompleta con el saldo restante.
+        </p>
+
+        {usableCatalog.length === 0 ? (
+          <Alert variant="warning">
+            La empresa aún no tiene medios de pago aptos para POS. Defínelos en
+            Ajustes → Empresas → (empresa) → Medios de pago.
+          </Alert>
+        ) : (
+          <ul
+            className="flex flex-col gap-3"
+            data-test-id="pos-payment-methods-list"
+          >
+            {usableCatalog.map((c) => {
+              const r = byId[c.id];
+              return (
+                <li
+                  key={c.id}
+                  className="rounded-xl border border-border bg-background p-3 shadow-sm"
+                  data-test-id={`pos-payment-method-row-${c.id}`}
+                >
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto_auto] lg:items-end">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium text-foreground">
+                        {c.alias?.trim() || COMPANY_PAYMENT_METHOD_LABELS[c.method]}
+                      </span>
+                      <span className="text-xs text-muted">
+                        {COMPANY_PAYMENT_METHOD_LABELS[c.method]}
+                        {c.bankAccountKey ? ` · ${c.bankAccountKey}` : ""}
+                      </span>
+                    </div>
+
+                    <Switch
+                      checked={r?.isEnabled !== false}
+                      onChange={(v) => update(c.id, { isEnabled: v })}
+                      label="Habilitado"
+                      labelPosition="right"
+                      data-test-id={`pos-pm-enabled-${c.id}`}
+                    />
+                    <Switch
+                      checked={r?.preloadOnPaymentScreen === true}
+                      onChange={(v) =>
+                        update(c.id, {
+                          preloadOnPaymentScreen: v,
+                          preloadOrder: v ? r?.preloadOrder ?? 0 : null,
+                        })
+                      }
+                      label="Precargar"
+                      labelPosition="right"
+                      data-test-id={`pos-pm-preload-${c.id}`}
+                    />
+                    <div className="w-24">
+                      <TextField
+                        label="Orden"
+                        name={`pos-pm-order-${c.id}`}
+                        value={
+                          r?.preloadOrder == null
+                            ? ""
+                            : String(r.preloadOrder)
+                        }
+                        onChange={(e) => {
+                          const raw = e.target.value.trim();
+                          if (raw === "") {
+                            update(c.id, { preloadOrder: null });
+                            return;
+                          }
+                          const n = Number(raw);
+                          if (!Number.isFinite(n)) return;
+                          update(c.id, { preloadOrder: Math.trunc(n) });
+                        }}
+                        placeholder="0"
+                        data-test-id={`pos-pm-order-input-${c.id}`}
+                        disabled={!r?.preloadOnPaymentScreen}
+                      />
+                    </div>
+                    <Switch
+                      checked={r?.requireReference === true}
+                      onChange={(v) => update(c.id, { requireReference: v })}
+                      label="Pide referencia"
+                      labelPosition="right"
+                      data-test-id={`pos-pm-require-ref-${c.id}`}
+                    />
+                    <Switch
+                      checked={r?.isDefaultForChange === true}
+                      onChange={(v) => setUniqueDefault(c.id, v)}
+                      label="Default vuelto"
+                      labelPosition="right"
+                      data-test-id={`pos-pm-default-${c.id}`}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </BasicPageLayout>
+  );
+}

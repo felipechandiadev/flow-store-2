@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
-import { ImageOff, Image as ImageIcon, Store, User } from "lucide-react";
+import { BadgeCheck, Building2, ImageOff, Image as ImageIcon, Store, User } from "lucide-react";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 
@@ -144,85 +144,99 @@ export default function PosTopBar({
             {showContextColumn || showUserColumn ? (
               <div className="flex min-w-0 items-center gap-6" data-test-id="pos-topbar-right-columns">
                 {showContextColumn ? (
-                  <div className="flex min-w-0 items-center gap-3" data-test-id="pos-topbar-context-wrap">
-                    <Store
-                      className="h-10 w-10 shrink-0 text-primary"
-                      strokeWidth={1.5}
-                      aria-hidden
-                      data-test-id="pos-topbar-store-icon"
-                    />
-                    <div
-                      className="flex min-w-0 flex-col gap-0 py-0.5 leading-none"
-                      data-test-id="pos-topbar-context"
-                      suppressHydrationWarning
-                    >
-                      {/* Misma tipografía que FlowStore + Punto de venta: título (bold lg) / subtítulo (11px muted) */}
-                      {effectiveCompany ? (
-                        <span
-                          className="block min-w-0 truncate text-lg font-bold leading-tight tracking-tight"
-                          style={{ color: "var(--color-foreground)" }}
-                          data-test-id="pos-topbar-company-trade-name"
-                          title={effectiveCompany}
-                        >
-                          {effectiveCompany}
-                        </span>
-                      ) : null}
-                      {effectivePosName ? (
-                        <span
-                          className={
-                            effectiveCompany
-                              ? "-mt-px block min-w-0 truncate text-[11px] font-normal leading-tight sm:text-xs"
-                              : "block min-w-0 truncate text-lg font-bold leading-tight tracking-tight"
-                          }
-                          style={{
-                            color: effectiveCompany ? "var(--color-muted)" : "var(--color-foreground)",
-                          }}
-                          data-test-id="pos-topbar-pos-name"
-                          title={effectivePosName}
-                        >
-                          {effectivePosName}
-                        </span>
-                      ) : null}
-                    </div>
+                  <div
+                    className="flex min-w-0 flex-col gap-0 py-0.5 leading-none"
+                    data-test-id="pos-topbar-context"
+                    suppressHydrationWarning
+                  >
+                    {/* Línea empresa: ícono Building2 al lado del nombre de fantasía */}
+                    {effectiveCompany ? (
+                      <span
+                        className="flex min-w-0 items-center gap-1.5 text-lg font-bold leading-tight tracking-tight"
+                        style={{ color: "var(--color-foreground)" }}
+                        data-test-id="pos-topbar-company-trade-name"
+                        title={effectiveCompany}
+                      >
+                        <Building2
+                          className="h-4 w-4 shrink-0"
+                          strokeWidth={2}
+                          aria-hidden
+                          data-test-id="pos-topbar-company-icon"
+                        />
+                        <span className="min-w-0 truncate">{effectiveCompany}</span>
+                      </span>
+                    ) : null}
+                    {/* Línea punto de venta: ícono Store al lado del nombre del PV */}
+                    {effectivePosName ? (
+                      <span
+                        className={
+                          effectiveCompany
+                            ? "-mt-px flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs"
+                            : "flex min-w-0 items-center gap-1.5 text-lg font-bold leading-tight tracking-tight"
+                        }
+                        style={{
+                          color: effectiveCompany ? "var(--color-muted)" : "var(--color-foreground)",
+                        }}
+                        data-test-id="pos-topbar-pos-name"
+                        title={effectivePosName}
+                      >
+                        <Store
+                          className={effectiveCompany ? "h-3 w-3 shrink-0" : "h-4 w-4 shrink-0"}
+                          strokeWidth={2}
+                          aria-hidden
+                          data-test-id="pos-topbar-store-icon"
+                        />
+                        <span className="min-w-0 truncate">{effectivePosName}</span>
+                      </span>
+                    ) : null}
                   </div>
                 ) : null}
 
                 {showUserColumn ? (
-                  <div className="flex min-w-0 items-center gap-3" data-test-id="pos-topbar-user-wrap">
-                    <User
-                      className="h-10 w-10 shrink-0 text-primary"
-                      strokeWidth={1.5}
-                      aria-hidden
-                      data-test-id="pos-topbar-user-icon"
-                    />
-                    <div className="flex min-w-0 flex-col gap-0 py-0.5 leading-none" data-test-id="pos-topbar-user">
-                      {effectivePerson ? (
-                        <span
-                          className="block min-w-0 truncate text-lg font-bold leading-tight tracking-tight"
-                          style={{ color: "var(--color-foreground)" }}
-                          data-test-id="pos-topbar-person-name"
-                          title={effectivePerson}
-                        >
-                          {effectivePerson}
-                        </span>
-                      ) : null}
-                      {effectiveRole ? (
-                        <span
-                          className={
-                            effectivePerson
-                              ? "-mt-px block min-w-0 truncate text-[11px] font-normal leading-tight sm:text-xs"
-                              : "block min-w-0 truncate text-lg font-bold leading-tight tracking-tight"
-                          }
-                          style={{
-                            color: effectivePerson ? "var(--color-muted)" : "var(--color-foreground)",
-                          }}
-                          data-test-id="pos-topbar-user-role"
-                          title={effectiveRole}
-                        >
-                          {effectiveRole}
-                        </span>
-                      ) : null}
-                    </div>
+                  <div
+                    className="flex min-w-0 flex-col gap-0 py-0.5 leading-none"
+                    data-test-id="pos-topbar-user"
+                  >
+                    {/* Línea usuario: ícono User al lado del nombre */}
+                    {effectivePerson ? (
+                      <span
+                        className="flex min-w-0 items-center gap-1.5 text-lg font-bold leading-tight tracking-tight"
+                        style={{ color: "var(--color-foreground)" }}
+                        data-test-id="pos-topbar-person-name"
+                        title={effectivePerson}
+                      >
+                        <User
+                          className="h-4 w-4 shrink-0"
+                          strokeWidth={2}
+                          aria-hidden
+                          data-test-id="pos-topbar-user-icon"
+                        />
+                        <span className="min-w-0 truncate">{effectivePerson}</span>
+                      </span>
+                    ) : null}
+                    {/* Línea rol: ícono BadgeCheck representando el rol del usuario */}
+                    {effectiveRole ? (
+                      <span
+                        className={
+                          effectivePerson
+                            ? "-mt-px flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs"
+                            : "flex min-w-0 items-center gap-1.5 text-lg font-bold leading-tight tracking-tight"
+                        }
+                        style={{
+                          color: effectivePerson ? "var(--color-muted)" : "var(--color-foreground)",
+                        }}
+                        data-test-id="pos-topbar-user-role"
+                        title={effectiveRole}
+                      >
+                        <BadgeCheck
+                          className={effectivePerson ? "h-3 w-3 shrink-0" : "h-4 w-4 shrink-0"}
+                          strokeWidth={2}
+                          aria-hidden
+                          data-test-id="pos-topbar-user-role-icon"
+                        />
+                        <span className="min-w-0 truncate">{effectiveRole}</span>
+                      </span>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

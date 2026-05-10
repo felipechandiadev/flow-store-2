@@ -13,6 +13,9 @@ export type CreateSupplierInvoicePlannedPayment = {
   companyBankAccountKey?: string | null;
   supplierBankAccountKey?: string | null;
   chequeNumber?: string | null;
+  chequeBankName?: string | null;
+  chequeDrawerName?: string | null;
+  chequeDueDate?: string | null;
 };
 
 export type SupplierInvoiceLine = {

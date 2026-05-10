@@ -20,6 +20,7 @@ import { Product } from '@modules/products/domain/product.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 import { CashHubsModule } from '@modules/cash-hubs/cash-hubs.module';
+import { CompaniesModule } from '@modules/companies/companies.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { CashHubsModule } from '@modules/cash-hubs/cash-hubs.module';
     ]),
     TransactionsModule, // <-- NEW: For delegation of transaction creation
     CashHubsModule,
+    CompaniesModule,
     CqrsModule,
   ],
   controllers: [CashSessionsController],

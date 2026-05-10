@@ -52,6 +52,9 @@ import { AutomationRule } from '@modules/automation/domain/automation-rule.entit
 import { AutomationAction } from '@modules/automation/domain/automation-action.entity';
 import { Recipe } from '@modules/recipes/domain/recipe.entity';
 import { RecipeLine } from '@modules/recipes/domain/recipe-line.entity';
+import { Check } from '@modules/checks/domain/check.entity';
+import { CheckTransactionLink } from '@modules/checks/domain/check-transaction-link.entity';
+import { CheckEvent } from '@modules/checks/domain/check-event.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
 import { TenantSubscriber } from '../common/tenant/tenant.subscriber';
 
@@ -117,6 +120,9 @@ export const typeOrmConfig = (
       Installment,
       MultimediaAsset,
       MultimediaLink,
+      Check,
+      CheckTransactionLink,
+      CheckEvent,
     ],
 
     // Register subscribers (TypeORM EventSubscribers)

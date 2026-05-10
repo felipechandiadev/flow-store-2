@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { PersonBankAccountDto } from '@modules/persons/application/dto/person-bank-account.dto';
@@ -123,5 +124,74 @@ export class CompaniesController {
     @CurrentCompany() activeCompanyId: string,
   ) {
     return this.companiesService.addBankAccount(activeCompanyId, body);
+  }
+
+  /**
+   * Catálogo de medios de pago de una empresa (solo ADMIN).
+   * Si la empresa aún no lo tiene definido, devuelve el set por defecto.
+   */
+  @Get('companies/:id/payment-methods')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async getCompanyPaymentMethods(@Param('id') id: string) {
+    const paymentMethods = await this.companiesService.getPaymentMethods(id);
+    return { success: true, paymentMethods };
+  }
+
+  /**
+   * Reemplaza el catálogo completo de medios de pago de una empresa.
+   * Body: `{ paymentMethods: CompanyPaymentMethodConfig[] }` o el array directo.
+   */
+  @Put('companies/:id/payment-methods')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async replaceCompanyPaymentMethods(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const incoming = Array.isArray(body)
+      ? body
+      : Array.isArray((body as any)?.paymentMethods)
+        ? (body as any).paymentMethods
+        : [];
+    const paymentMethods = await this.companiesService.replacePaymentMethods(
+      id,
+      incoming,
+    );
+    return { success: true, paymentMethods };
+  }
+
+  /**
+   * Configuración de cheques de una empresa (solo ADMIN). Si la empresa
+   * aún no la tiene definida, devuelve un default todo-desactivado.
+   */
+  @Get('companies/:id/check-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async getCompanyCheckSettings(@Param('id') id: string) {
+    const checkSettings = await this.companiesService.getCheckSettings(id);
+    return { success: true, checkSettings };
+  }
+
+  /**
+   * Reemplaza la configuración de cheques de una empresa.
+   * Body: `{ checkSettings: CompanyCheckSettings }` o el objeto directo.
+   */
+  @Put('companies/:id/check-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async replaceCompanyCheckSettings(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const incoming =
+      body && typeof body === 'object' && 'checkSettings' in (body as any)
+        ? (body as any).checkSettings
+        : body;
+    const checkSettings = await this.companiesService.replaceCheckSettings(
+      id,
+      incoming,
+    );
+    return { success: true, checkSettings };
   }
 }

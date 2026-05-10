@@ -58,12 +58,17 @@ import { AutomationRule } from '@modules/automation/domain/automation-rule.entit
 import { AutomationAction } from '@modules/automation/domain/automation-action.entity';
 import { Recipe } from '@modules/recipes/domain/recipe.entity';
 import { RecipeLine } from '@modules/recipes/domain/recipe-line.entity';
+import { Check } from '@modules/checks/domain/check.entity';
+import { CheckTransactionLink } from '@modules/checks/domain/check-transaction-link.entity';
+import { CheckEvent } from '@modules/checks/domain/check-event.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
 import { TenantSubscriber } from '../common/tenant/tenant.subscriber';
 import { AddTaxNonDeletable1740000000000 } from '../migrations/1740000000000-AddTaxNonDeletable';
 import { CashHubsAndSessionToHub1741000000000 } from '../migrations/1741000000000-CashHubsAndSessionToHub';
 import { AddCashSessionToHubTransferAccountingRuleEnum1741100000000 } from '../migrations/1741100000000-AddCashSessionToHubTransferAccountingRuleEnum';
 import { MultiCompanyInit1742000000000 } from '../migrations/1742000000000-MultiCompanyInit';
+import { PosSettingsJson1743000000000 } from '../migrations/1743000000000-PosSettingsJson';
+import { Checks1744000000000 } from '../migrations/1744000000000-Checks';
 
 /**
  * DataSource usado por `typeorm` CLI (`migration:run`, `schema:log`, …).
@@ -129,6 +134,9 @@ export const AppDataSource = new DataSource({
     MultimediaAsset,
     MultimediaLink,
     CashHub,
+    Check,
+    CheckTransactionLink,
+    CheckEvent,
   ],
   subscribers: [AuditSubscriber, TenantSubscriber],
   migrations: [
@@ -136,6 +144,8 @@ export const AppDataSource = new DataSource({
     CashHubsAndSessionToHub1741000000000,
     AddCashSessionToHubTransferAccountingRuleEnum1741100000000,
     MultiCompanyInit1742000000000,
+    PosSettingsJson1743000000000,
+    Checks1744000000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',

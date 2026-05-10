@@ -170,6 +170,14 @@ export function PointOfSaleCard({
         content={content}
         actions={[
           {
+            id: "payment-methods",
+            icon: "CreditCard",
+            ariaLabel: "Medios de pago",
+            onClick: () =>
+              router.push(`/sales/points-of-sale/${point.id}/payment-methods`),
+            "data-test-id": "pos-card-payment-methods",
+          },
+          {
             id: "update",
             icon: "Pencil",
             ariaLabel: "Actualizar punto de venta",

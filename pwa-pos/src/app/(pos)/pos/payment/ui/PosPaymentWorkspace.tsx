@@ -14,10 +14,16 @@ import {
 } from "@/shared/admin-shared";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { makePaymentLineId } from "@/features/pos-cart/pos-payment.utils";
-import type { PosPaymentMethodId } from "@/features/pos-cart/pos-payment.types";
+import type {
+  PosPaymentLine,
+  PosPaymentMethodId,
+} from "@/features/pos-cart/pos-payment.types";
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
 import { searchPosCustomersAction } from "@/features/customers/actions/customers-pos.action";
 import type { PosCustomerSearchRow } from "@/features/customers/types/pos-customer.types";
+import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
+import type { EffectivePaymentMethod } from "@/features/pos-payment-methods/types/effective-payment-method.types";
+import { getEffectivePosPaymentMethodsAction } from "@/features/pos-payment-methods/actions/payment-methods-pos.action";
 
 /**
  * Alto de los paneles de la pantalla de cobro respecto al viewport (`vh`).
@@ -32,7 +38,11 @@ function formatMoney(n: number) {
   );
 }
 
-const PAYMENT_TYPE_OPTIONS: { id: PosPaymentMethodId; label: string }[] = [
+/**
+ * Fallback estático cuando aún no llega la respuesta efectiva del backend.
+ * Mantiene la UX previa (línea CASH precargada) mientras carga.
+ */
+const FALLBACK_PAYMENT_OPTIONS: { id: PosPaymentMethodId; label: string }[] = [
   { id: "CASH", label: "Efectivo" },
   { id: "CREDIT_CARD", label: "Tarjeta crédito" },
   { id: "DEBIT_CARD", label: "Tarjeta débito" },
@@ -95,7 +105,12 @@ export default function PosPaymentWorkspace() {
   const [successOpen, setSuccessOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
-  const [draftType, setDraftType] = useState<PosPaymentMethodId>("CASH");
+  /**
+   * Identificador de la opción seleccionada en el dialog "Agregar método".
+   * Cuando hay catálogo efectivo es un `companyPaymentMethodId`; en fallback,
+   * un `PosPaymentMethodId` (enum).
+   */
+  const [draftOptionId, setDraftOptionId] = useState<string>("");
   const [draftAmount, setDraftAmount] = useState("");
   const [draftReference, setDraftReference] = useState("");
   const [addAlert, setAddAlert] = useState("");
@@ -108,6 +123,58 @@ export default function PosPaymentWorkspace() {
 
   const [pageAlert, setPageAlert] = useState("");
   const paymentCashFocusDoneRef = useRef(false);
+
+  // ───── Medios de pago efectivos (merge company+POS) ────────────────────────
+  const [effectiveMethods, setEffectiveMethods] = useState<EffectivePaymentMethod[]>([]);
+  const [effectiveLoaded, setEffectiveLoaded] = useState(false);
+  const [effectiveError, setEffectiveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const ctx = readPosContextClient();
+      const posId = ctx?.pointOfSaleId?.trim();
+      if (!posId) {
+        if (!cancelled) {
+          setEffectiveLoaded(true);
+        }
+        return;
+      }
+      const res = await getEffectivePosPaymentMethodsAction({
+        pointOfSaleId: posId,
+      });
+      if (cancelled) return;
+      if (res.success) {
+        setEffectiveMethods(res.paymentMethods);
+        setEffectiveError(null);
+      } else {
+        setEffectiveMethods([]);
+        setEffectiveError(res.message);
+      }
+      setEffectiveLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** Index por `companyPaymentMethodId` para hidratar metadata por línea. */
+  const methodsById = useMemo(() => {
+    const map = new Map<string, EffectivePaymentMethod>();
+    for (const m of effectiveMethods) map.set(m.companyPaymentMethodId, m);
+    return map;
+  }, [effectiveMethods]);
+
+  /** Opciones del Select del dialog "Agregar método". */
+  const paymentTypeOptions = useMemo(() => {
+    if (effectiveMethods.length > 0) {
+      return effectiveMethods.map((m) => ({
+        id: m.companyPaymentMethodId,
+        label: m.label,
+      }));
+    }
+    return FALLBACK_PAYMENT_OPTIONS.map((o) => ({ id: o.id, label: o.label }));
+  }, [effectiveMethods]);
 
   useEffect(() => {
     if (!cart.ready) return;
@@ -183,30 +250,73 @@ export default function PosPaymentWorkspace() {
 
   useEffect(() => {
     if (!cart.ready || saleTotal <= 0) return;
+    if (!effectiveLoaded) return;
     setPayments((prev) => {
       if (prev.length > 0) return prev;
-      return [{ id: makePaymentLineId(), type: "CASH", amount: 0, reference: "" }];
+      // Catálogo efectivo: precargar líneas marcadas como `preloadOnPaymentScreen`,
+      // ordenadas por `preloadOrder` (el backend ya las devuelve ordenadas).
+      const preload = effectiveMethods.filter((m) => m.preloadOnPaymentScreen);
+      if (preload.length > 0) {
+        return preload.map((m) => ({
+          id: makePaymentLineId(),
+          type: m.method as PosPaymentMethodId,
+          amount: 0,
+          reference: "",
+          companyPaymentMethodId: m.companyPaymentMethodId,
+        }));
+      }
+      // Fallback: comportamiento previo (línea CASH precargada).
+      return [
+        {
+          id: makePaymentLineId(),
+          type: "CASH",
+          amount: 0,
+          reference: "",
+          companyPaymentMethodId: null,
+        },
+      ];
     });
-  }, [cart.ready, saleTotal, payments.length, setPayments]);
+  }, [cart.ready, saleTotal, payments.length, setPayments, effectiveLoaded, effectiveMethods]);
 
   const appliedTotal = useMemo(() => payments.reduce((a, p) => a + p.amount, 0), [payments]);
   const remaining = Math.max(0, saleTotal - appliedTotal);
   const overpay = Math.max(0, appliedTotal - saleTotal);
 
   /**
-   * Métodos donde se muestra el campo "Referencia" como opcional (n.º operación,
-   * autorización, código de transferencia, etc.). Para `CASH` no se muestra
-   * porque no aplica. La referencia **nunca** es obligatoria.
+   * Decide si una línea debe mostrar el campo "Referencia".
+   * - Si hay catálogo efectivo: se respeta `requireReference` por config; además,
+   *   métodos con tarjeta/transferencia siempre lo muestran como opcional.
+   * - Fallback (sin catálogo): comportamiento previo basado en el enum.
+   * La referencia **nunca** es obligatoria a nivel UI; lo controla la cuenta.
    */
-  const showsRefField = (t: PosPaymentMethodId) => t === "CREDIT_CARD" || t === "DEBIT_CARD" || t === "TRANSFER";
+  const showsRefField = useCallback(
+    (line: { type: PosPaymentMethodId; companyPaymentMethodId?: string | null }) => {
+      const cfg = line.companyPaymentMethodId ? methodsById.get(line.companyPaymentMethodId) : null;
+      if (cfg) {
+        if (cfg.requireReference) return true;
+      }
+      return (
+        line.type === "CREDIT_CARD" ||
+        line.type === "DEBIT_CARD" ||
+        line.type === "TRANSFER"
+      );
+    },
+    [methodsById],
+  );
 
   const openAddPayment = useCallback(() => {
-    setDraftType("CASH");
+    // Si hay catálogo, draftOptionId es un `companyPaymentMethodId`.
+    // Si no hay, es el enum (compat).
+    const initialOptionId =
+      effectiveMethods.length > 0
+        ? effectiveMethods[0]?.companyPaymentMethodId ?? ""
+        : "CASH";
+    setDraftOptionId(initialOptionId);
     setDraftAmount(remaining > 0 ? String(Math.round(remaining)) : "");
     setDraftReference("");
     setAddAlert("");
     setAddOpen(true);
-  }, [remaining]);
+  }, [remaining, effectiveMethods]);
 
   const addPayment = useCallback(() => {
     setAddAlert("");
@@ -215,8 +325,13 @@ export default function PosPaymentWorkspace() {
       setAddAlert("Ingresa un monto válido mayor a cero.");
       return;
     }
+    // Resolver type + companyPaymentMethodId a partir de la opción elegida.
+    const cfg = methodsById.get(draftOptionId);
+    const enumType: PosPaymentMethodId = cfg
+      ? (cfg.method as PosPaymentMethodId)
+      : (draftOptionId as PosPaymentMethodId) || "CASH";
     if (
-      draftType !== "CASH" &&
+      enumType !== "CASH" &&
       amt > remaining + 0.01 &&
       remaining > 0
     ) {
@@ -227,13 +342,14 @@ export default function PosPaymentWorkspace() {
       ...prev,
       {
         id: makePaymentLineId(),
-        type: draftType,
+        type: enumType,
         amount: amt,
         reference: draftReference.trim(),
+        companyPaymentMethodId: cfg?.companyPaymentMethodId ?? null,
       },
     ]);
     setAddOpen(false);
-  }, [draftAmount, draftReference, draftType, remaining, setPayments]);
+  }, [draftAmount, draftOptionId, draftReference, methodsById, remaining, setPayments]);
 
   const removePayment = useCallback(
     (id: string) => {
@@ -253,6 +369,30 @@ export default function PosPaymentWorkspace() {
   const updatePaymentLineReference = useCallback(
     (id: string, reference: string) => {
       setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, reference } : p)));
+    },
+    [setPayments],
+  );
+
+  const updatePaymentLineCheckField = useCallback(
+    (id: string, field: keyof NonNullable<PosPaymentLine["checkData"]>, value: string) => {
+      setPayments((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                checkData: {
+                  checkNumber: p.checkData?.checkNumber ?? "",
+                  bankName: p.checkData?.bankName ?? "",
+                  drawerName: p.checkData?.drawerName,
+                  drawerDocument: p.checkData?.drawerDocument,
+                  issueDate: p.checkData?.issueDate,
+                  dueDate: p.checkData?.dueDate,
+                  [field]: value,
+                },
+              }
+            : p,
+        ),
+      );
     },
     [setPayments],
   );
@@ -305,6 +445,14 @@ export default function PosPaymentWorkspace() {
     if (saleTotal <= 0) return "El total debe ser mayor que cero.";
     if (payments.length === 0) return "Agrega al menos un método de pago.";
     if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar.";
+    for (const p of payments) {
+      if (p.type === "CHECK") {
+        const cd = p.checkData;
+        if (!cd?.checkNumber?.trim() || !cd?.bankName?.trim()) {
+          return "Completa N° de cheque y banco para los pagos con cheque.";
+        }
+      }
+    }
     return "";
   };
 
@@ -617,9 +765,19 @@ export default function PosPaymentWorkspace() {
             <h2 className="text-sm font-semibold text-foreground">Métodos de pago</h2>
           </div>
 
+          {effectiveError ? (
+            <Alert variant="warning" className="text-xs">
+              {effectiveError} (usando catálogo por defecto)
+            </Alert>
+          ) : null}
           <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
             {payments.map((p, index) => {
-              const label = PAYMENT_TYPE_OPTIONS.find((o) => o.id === p.type)?.label ?? p.type;
+              const cfg = p.companyPaymentMethodId
+                ? methodsById.get(p.companyPaymentMethodId)
+                : null;
+              const fallbackLabel =
+                FALLBACK_PAYMENT_OPTIONS.find((o) => o.id === p.type)?.label ?? p.type;
+              const label = cfg?.label ?? fallbackLabel;
               const amountValue = String(Math.max(0, Math.round(p.amount)));
               return (
                 <li
@@ -651,7 +809,7 @@ export default function PosPaymentWorkspace() {
                       onClick={() => removePayment(p.id)}
                     />
                   </div>
-                  {showsRefField(p.type) ? (
+                  {showsRefField(p) ? (
                     <div className="mt-2">
                       <TextField
                         label="Referencia"
@@ -661,6 +819,74 @@ export default function PosPaymentWorkspace() {
                         placeholder="Opcional"
                         alwaysShowLabel
                         density="compact"
+                      />
+                    </div>
+                  ) : null}
+                  {p.type === "CHECK" ? (
+                    <div className="mt-2 grid grid-cols-1 gap-2 rounded-lg border border-dashed border-zinc-300 p-2 dark:border-zinc-700 sm:grid-cols-2">
+                      <TextField
+                        label="N° de cheque"
+                        name={`pos-payment-check-number-${p.id}`}
+                        value={p.checkData?.checkNumber ?? ""}
+                        onChange={(e) =>
+                          updatePaymentLineCheckField(p.id, "checkNumber", e.target.value)
+                        }
+                        alwaysShowLabel
+                        density="compact"
+                        required
+                        data-test-id={`pos-payment-check-number-${p.id}`}
+                      />
+                      <TextField
+                        label="Banco emisor"
+                        name={`pos-payment-check-bank-${p.id}`}
+                        value={p.checkData?.bankName ?? ""}
+                        onChange={(e) =>
+                          updatePaymentLineCheckField(p.id, "bankName", e.target.value)
+                        }
+                        alwaysShowLabel
+                        density="compact"
+                        required
+                        data-test-id={`pos-payment-check-bank-${p.id}`}
+                      />
+                      <TextField
+                        label="Girador"
+                        name={`pos-payment-check-drawer-${p.id}`}
+                        value={p.checkData?.drawerName ?? ""}
+                        onChange={(e) =>
+                          updatePaymentLineCheckField(p.id, "drawerName", e.target.value)
+                        }
+                        alwaysShowLabel
+                        density="compact"
+                        placeholder="Nombre del firmante"
+                        data-test-id={`pos-payment-check-drawer-${p.id}`}
+                      />
+                      <TextField
+                        label="RUT girador"
+                        name={`pos-payment-check-drawer-doc-${p.id}`}
+                        value={p.checkData?.drawerDocument ?? ""}
+                        onChange={(e) =>
+                          updatePaymentLineCheckField(
+                            p.id,
+                            "drawerDocument",
+                            e.target.value,
+                          )
+                        }
+                        alwaysShowLabel
+                        density="compact"
+                        placeholder="Opcional"
+                        data-test-id={`pos-payment-check-drawer-doc-${p.id}`}
+                      />
+                      <TextField
+                        label="A fecha"
+                        name={`pos-payment-check-due-${p.id}`}
+                        value={p.checkData?.dueDate ?? ""}
+                        onChange={(e) =>
+                          updatePaymentLineCheckField(p.id, "dueDate", e.target.value)
+                        }
+                        alwaysShowLabel
+                        density="compact"
+                        placeholder="YYYY-MM-DD (opcional)"
+                        data-test-id={`pos-payment-check-due-${p.id}`}
                       />
                     </div>
                   ) : null}
@@ -709,9 +935,9 @@ export default function PosPaymentWorkspace() {
           <Select
             label="Tipo de pago"
             alwaysShowLabel
-            value={draftType}
-            onChange={(id) => setDraftType((id as PosPaymentMethodId) ?? "CASH")}
-            options={[...PAYMENT_TYPE_OPTIONS]}
+            value={draftOptionId}
+            onChange={(id) => setDraftOptionId(id != null ? String(id) : "")}
+            options={paymentTypeOptions}
           />
           <TextField
             type="currency"

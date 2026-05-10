@@ -17,6 +17,12 @@ export type InvoicePlannedPaymentLineState = {
   companyBankAccountKey: string | null;
   supplierBankAccountKey: string | null;
   chequeNumber: string;
+  /** Banco emisor del cheque (la propia empresa). */
+  chequeBankName?: string;
+  /** Nombre del girador (responsable que firma). */
+  chequeDrawerName?: string;
+  /** Cheque "a fecha" (postdated). */
+  chequeDueDate?: string;
 };
 
 const METHOD_OPTIONS = [
@@ -186,6 +192,39 @@ export function InvoicePlannedPaymentLines({
                       label="Número de cheque"
                       value={line.chequeNumber}
                       onChange={(e) => onPatchLine(line.id, { chequeNumber: e.target.value })}
+                      disabled={disabled}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <TextField
+                      label="Banco emisor"
+                      value={line.chequeBankName ?? ""}
+                      onChange={(e) =>
+                        onPatchLine(line.id, { chequeBankName: e.target.value })
+                      }
+                      disabled={disabled}
+                      placeholder="Nombre del banco"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <TextField
+                      label="Girador"
+                      value={line.chequeDrawerName ?? ""}
+                      onChange={(e) =>
+                        onPatchLine(line.id, { chequeDrawerName: e.target.value })
+                      }
+                      disabled={disabled}
+                      placeholder="Responsable que firma"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <TextField
+                      label="A fecha (opcional)"
+                      type="date"
+                      value={line.chequeDueDate ?? ""}
+                      onChange={(e) =>
+                        onPatchLine(line.id, { chequeDueDate: e.target.value })
+                      }
                       disabled={disabled}
                     />
                   </div>

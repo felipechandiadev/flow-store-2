@@ -30,7 +30,11 @@ export class TenantSubscriber implements EntitySubscriberInterface {
     );
     if (!hasCompanyIdColumn) return;
 
-    if ((entity as any).companyId) return; // ya viene seteado
+    // Si el caller seteó la propiedad explícitamente (incluso `null`),
+    // respetar su intención: NO sobrescribir. Esto permite crear
+    // entidades globales (p. ej. usuarios ADMIN sin empresa) o saltar
+    // el auto-fill puntualmente.
+    if ('companyId' in entity) return;
 
     const fromCtx = TenantContext.getCompanyId();
     if (fromCtx) {

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -6,7 +7,18 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PersonBankAccountDto } from '@modules/persons/application/dto/person-bank-account.dto';
+import {
+  CompanyPaymentMethodConfig,
+  buildDefaultCompanyCatalog,
+  validateCompanyPaymentMethods,
+} from '@modules/payment-methods-config';
 import { Company, type CompanyBankAccount } from '../domain/company.entity';
+import {
+  CompanyCheckSettings,
+  buildDefaultCompanyCheckSettings,
+  sanitizeCompanyCheckSettings,
+} from '../domain/company-checks.types';
+import { PaymentMethod } from '@modules/transactions/domain/transaction.entity';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 
@@ -157,6 +169,111 @@ export class CompaniesService {
       throw new NotFoundException('Empresa no encontrada');
     }
     return this.updateCompanyById(company.id, data);
+  }
+
+  /**
+   * Lee el catálogo de medios de pago de una empresa.
+   * Si no existe en `settings.paymentMethods`, devuelve un set por defecto
+   * (no se persiste hasta que el admin guarde explícitamente).
+   */
+  async getPaymentMethods(
+    companyId: string,
+  ): Promise<CompanyPaymentMethodConfig[]> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    const raw = company.settings?.paymentMethods;
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return buildDefaultCompanyCatalog();
+    }
+    try {
+      return validateCompanyPaymentMethods(raw);
+    } catch {
+      // Si lo persistido es inválido, no rompemos el GET; devolvemos default.
+      return buildDefaultCompanyCatalog();
+    }
+  }
+
+  /**
+   * Reemplaza el catálogo de medios de pago de una empresa.
+   * Hace bulk-replace con validación de unicidad (alias por método, ids).
+   */
+  async replacePaymentMethods(
+    companyId: string,
+    list: unknown,
+  ): Promise<CompanyPaymentMethodConfig[]> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    let validated: CompanyPaymentMethodConfig[];
+    try {
+      validated = validateCompanyPaymentMethods(list);
+    } catch (e) {
+      throw new BadRequestException(
+        e instanceof Error ? e.message : 'Configuración inválida',
+      );
+    }
+    company.settings = { ...(company.settings ?? {}), paymentMethods: validated };
+    await this.companyRepository.save(company);
+    return validated;
+  }
+
+  /**
+   * Lee la configuración de cheques de una empresa.
+   * Si no existe en `settings.checks`, devuelve el default sin persistir.
+   */
+  async getCheckSettings(companyId: string): Promise<CompanyCheckSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    const raw = company.settings?.checks;
+    if (!raw || typeof raw !== 'object') {
+      return buildDefaultCompanyCheckSettings();
+    }
+    return sanitizeCompanyCheckSettings(raw);
+  }
+
+  /**
+   * Reemplaza la configuración de cheques de una empresa.
+   * Sincroniza la entrada `CHECK` del catálogo `paymentMethods`: si
+   * `receiveChecks=false`, la entrada se marca `isActive=false`; si
+   * `receiveChecks=true` y existía la entrada, se reactiva.
+   */
+  async replaceCheckSettings(
+    companyId: string,
+    raw: unknown,
+  ): Promise<CompanyCheckSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+
+    const validated = sanitizeCompanyCheckSettings(raw);
+
+    const settings = { ...(company.settings ?? {}) };
+    settings.checks = validated;
+
+    if (Array.isArray(settings.paymentMethods)) {
+      try {
+        const list = validateCompanyPaymentMethods(settings.paymentMethods);
+        const next = list.map((m) =>
+          m.method === PaymentMethod.CHECK
+            ? { ...m, isActive: validated.receiveChecks ? true : false }
+            : m,
+        );
+        settings.paymentMethods = next;
+      } catch {
+        // Si el catálogo es inválido no rompemos la actualización de
+        // settings.checks; queda como estaba.
+      }
+    }
+
+    company.settings = settings;
+    await this.companyRepository.save(company);
+    return validated;
   }
 
   async addBankAccount(

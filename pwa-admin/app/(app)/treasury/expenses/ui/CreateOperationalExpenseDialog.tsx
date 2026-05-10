@@ -498,6 +498,18 @@ export function CreateOperationalExpenseDialog({
             l.paymentMethod === "TRANSFER" || l.paymentMethod === "CHECK" ? l.companyBankAccountKey : null,
           supplierBankAccountKey: l.paymentMethod === "TRANSFER" ? l.supplierBankAccountKey : null,
           chequeNumber: l.paymentMethod === "CHECK" ? String(l.chequeNumber).trim() : null,
+          chequeBankName:
+            l.paymentMethod === "CHECK"
+              ? (l.chequeBankName ?? "").trim() || null
+              : null,
+          chequeDrawerName:
+            l.paymentMethod === "CHECK"
+              ? (l.chequeDrawerName ?? "").trim() || null
+              : null,
+          chequeDueDate:
+            l.paymentMethod === "CHECK"
+              ? (l.chequeDueDate ?? "").trim() || null
+              : null,
         }));
 
         const r = await createOperationalExpenseAction({

@@ -6,6 +6,7 @@ import {
   ValidateNested,
   Min,
   Max,
+  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -46,6 +47,47 @@ export class SaleLineDto {
   unitCost?: number;
 }
 
+/**
+ * Datos específicos de un cheque que acompañan a un `PaymentDetailDto`
+ * cuando `paymentMethod === 'CHECK'`. Permite materializar un registro
+ * `Check` independiente del ciclo de vida de la transacción.
+ */
+export class CheckPaymentDataDto {
+  @IsString()
+  checkNumber: string;
+
+  @IsString()
+  bankName: string;
+
+  @IsOptional()
+  @IsString()
+  bankAccountKey?: string | null;
+
+  @IsOptional()
+  @IsString()
+  drawerName?: string | null;
+
+  @IsOptional()
+  @IsString()
+  drawerDocument?: string | null;
+
+  @IsOptional()
+  @IsString()
+  payeeName?: string | null;
+
+  @IsOptional()
+  @IsString()
+  payeeId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  issueDate?: string | null;
+
+  @IsOptional()
+  @IsString()
+  dueDate?: string | null;
+}
+
 export class PaymentDetailDto {
   @IsString()
   paymentMethod: string;
@@ -56,6 +98,31 @@ export class PaymentDetailDto {
   @IsOptional()
   @IsString()
   bankAccountId?: string;
+
+  /**
+   * Id estable del medio de pago configurado a nivel empresa
+   * (`companies.settings.paymentMethods[].id`). Se usa para hidratar
+   * el snapshot del medio en `transactions.metadata.paymentSnapshot(s)`.
+   */
+  @IsOptional()
+  @IsString()
+  companyPaymentMethodId?: string;
+
+  /** Referencia opcional (n.º operación, autorización, etc.). */
+  @IsOptional()
+  @IsString()
+  reference?: string;
+
+  /**
+   * Datos del cheque cuando `paymentMethod === 'CHECK'`. Se persiste en
+   * `metadata.paymentSnapshots[].checkData` y se usa para crear un
+   * `Check INCOMING` ligado a la transacción.
+   */
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => CheckPaymentDataDto)
+  checkData?: CheckPaymentDataDto;
 }
 
 export class CreateSaleDto {

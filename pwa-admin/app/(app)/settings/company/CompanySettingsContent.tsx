@@ -6,6 +6,8 @@ import type { ShareholderRow } from "@/features/settings-shareholders/types/shar
 import { CompanyGeneralSection } from "./CompanyGeneralSection";
 import { CompanyLogoSection } from "./CompanyLogoSection";
 import { CompanyBankAccountsSection } from "./CompanyBankAccountsSection";
+import { CompanyPaymentMethodsSection } from "./CompanyPaymentMethodsSection";
+import { CompanyChecksSection } from "./CompanyChecksSection";
 import { CompanyPartnersSection } from "./CompanyPartnersSection";
 
 type Props = {
@@ -30,6 +32,10 @@ export function CompanySettingsContent({ company, shareholders }: Props) {
           </section>
 
           <CompanyBankAccountsSection company={company} />
+
+          <CompanyPaymentMethodsSection companyId={company.id} />
+
+          <CompanyChecksSection company={company} />
 
           {company.id ? (
             <CompanyPartnersSection companyId={company.id} shareholders={shareholders} />

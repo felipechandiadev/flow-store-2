@@ -48,6 +48,13 @@ export class PointOfSale {
   @Column({ type: 'boolean', default: true })
   isActive!: boolean;
 
+  /**
+   * Configuración por POS (medios de pago habilitados/precargados, etc.).
+   * Estructura libre para ajustes locales. Validada a nivel servicio.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  settings?: Record<string, any> | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 

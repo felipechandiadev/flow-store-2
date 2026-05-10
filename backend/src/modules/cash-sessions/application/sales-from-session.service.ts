@@ -26,6 +26,7 @@ import {
   CreateTransactionDto,
   CreateTransactionLineDto,
 } from '@modules/transactions/application/dto/create-transaction.dto';
+import { CompaniesService } from '@modules/companies/application/companies.service';
 
 /**
  * SalesFromSessionService - Single Responsibility: Sale Transaction Creation
@@ -64,6 +65,7 @@ export class SalesFromSessionService {
     private readonly productVariantRepository: Repository<ProductVariant>,
     private readonly dataSource: DataSource,
     private readonly transactionsService: TransactionsService,
+    private readonly companiesService: CompaniesService,
   ) {}
 
   /**
@@ -176,10 +178,19 @@ export class SalesFromSessionService {
       throw new BadRequestException('Debes enviar al menos una línea de venta');
     }
 
-    // Determinar método de pago final
+    // Determinar método de pago final.
+    // Si hay múltiples pagos, NO se marca como `MIXED`: el sistema
+    // infiere "mixto" leyendo `metadata.paymentSnapshots.length > 1`.
+    // Para `paymentMethod` se usa el medio del pago de mayor monto
+    // (fallback al primero) para que reportes/asientos sigan teniendo
+    // un valor representativo.
     let finalPaymentMethod = paymentMethod;
+    const isMixedPayment = !!(payments && payments.length > 1);
     if (payments && payments.length > 1) {
-      finalPaymentMethod = PaymentMethod.MIXED;
+      const dominant = [...payments].sort(
+        (a, b) => Number(b.amount ?? 0) - Number(a.amount ?? 0),
+      )[0];
+      finalPaymentMethod = dominant?.paymentMethod ?? payments[0].paymentMethod;
     } else if (payments && payments.length === 1) {
       finalPaymentMethod = payments[0].paymentMethod;
     }
@@ -276,6 +287,54 @@ export class SalesFromSessionService {
 
       const total = subtotal - discountAmount + taxAmount;
 
+      // Construir snapshots inmutables de medios de pago (trazabilidad).
+      // Si una entrada incluye `companyPaymentMethodId`, hidratamos alias,
+      // bankAccountKey y método desde el catálogo vivo de la empresa.
+      let paymentSnapshots: Array<{
+        companyPaymentMethodId: string | null;
+        method: string;
+        alias: string | null;
+        bankAccountKey: string | null;
+        amount: number;
+        reference: string | null;
+        capturedAt: string;
+        checkData?: Record<string, any> | null;
+      }> = [];
+      if (Array.isArray(payments) && payments.length > 0) {
+        const companyId = pointOfSale.companyId;
+        let catalog: Awaited<
+          ReturnType<CompaniesService['getPaymentMethods']>
+        > = [];
+        try {
+          if (companyId) {
+            catalog = await this.companiesService.getPaymentMethods(companyId);
+          }
+        } catch {
+          catalog = [];
+        }
+        const now = new Date().toISOString();
+        paymentSnapshots = payments.map((p) => {
+          const cmpId = (p as any).companyPaymentMethodId as string | undefined;
+          const cmp = cmpId ? catalog.find((c) => c.id === cmpId) : undefined;
+          const rawCheckData = (p as any).checkData as
+            | Record<string, any>
+            | undefined;
+          return {
+            companyPaymentMethodId: cmp?.id ?? null,
+            method: cmp?.method ?? p.paymentMethod,
+            alias: cmp?.alias ?? null,
+            bankAccountKey: cmp?.bankAccountKey ?? p.bankAccountId ?? null,
+            amount: Number(p.amount) || 0,
+            reference: ((p as any).reference as string | undefined) ?? null,
+            capturedAt: now,
+            checkData:
+              rawCheckData && typeof rawCheckData === 'object'
+                ? rawCheckData
+                : null,
+          };
+        });
+      }
+
       // ✅ DELEGAR: Usar TransactionsService.createTransaction() para generar asientos
       // Esto asegura:
       // 1. documentNumber único generado
@@ -304,6 +363,16 @@ export class SalesFromSessionService {
         metadata: {
           ...metadata,
           paymentDetails: payments,
+          paymentSnapshots:
+            paymentSnapshots.length > 0 ? paymentSnapshots : undefined,
+          paymentSnapshot:
+            paymentSnapshots.length === 1 ? paymentSnapshots[0] : undefined,
+          /**
+           * Flag explícito para reportes/UI. También se puede inferir
+           * con `paymentSnapshots.length > 1`. Existe porque ya no
+           * marcamos `paymentMethod = MIXED`.
+           */
+          isMixedPayment,
           storageId: storageId || undefined,
         },
       });
@@ -319,17 +388,26 @@ export class SalesFromSessionService {
       const finalTransaction =
         await this.transactionsService.createTransaction(dto);
 
-      // ✅ ACTUALIZAR: expectedAmount en la sesión de caja
-      // Si el pago fue en CASH, el monto debe sumarse a expectedAmount
-      if (
-        finalPaymentMethod === PaymentMethod.CASH ||
-        finalPaymentMethod === PaymentMethod.MIXED
-      ) {
-        const cashAmount = amountPaid || total;
+      // Actualizar `expectedAmount` de la sesión solo con el efectivo
+      // realmente recibido. Antes se sumaba el `amountPaid` total cuando
+      // el método era `CASH` o `MIXED`, lo cual sobre-contaba en pagos
+      // mixtos (sumaba también la parte tarjeta/transferencia). Ahora
+      // se suma exactamente la porción `CASH` declarada en `payments`.
+      const cashPortion = (() => {
+        if (payments && payments.length > 0) {
+          return payments
+            .filter((p) => p.paymentMethod === PaymentMethod.CASH)
+            .reduce((acc, p) => acc + Number(p.amount ?? 0), 0);
+        }
+        if (finalPaymentMethod === PaymentMethod.CASH) {
+          return Number(amountPaid || total) || 0;
+        }
+        return 0;
+      })();
+      if (cashPortion > 0) {
         const previousExpected =
           cashSession.expectedAmount || cashSession.openingAmount || 0;
-        cashSession.expectedAmount =
-          Number(previousExpected) + Number(cashAmount);
+        cashSession.expectedAmount = Number(previousExpected) + cashPortion;
         await manager.getRepository(CashSession).save(cashSession);
       }
 

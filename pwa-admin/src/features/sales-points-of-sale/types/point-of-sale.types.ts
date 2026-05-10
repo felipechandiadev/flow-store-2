@@ -3,6 +3,7 @@
  */
 export type PointOfSaleListItem = {
   id: string;
+  companyId?: string;
   name: string;
   branchId?: string | null;
   branch?: { id: string; name: string } | null;
