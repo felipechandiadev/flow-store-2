@@ -70,6 +70,10 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
             name: String((c as PosSaleCustomer).name),
             document: String((c as PosSaleCustomer).document),
             phone: String((c as PosSaleCustomer).phone),
+            email:
+              (c as PosSaleCustomer).email != null && String((c as PosSaleCustomer).email).trim() !== ""
+                ? String((c as PosSaleCustomer).email)
+                : null,
           }
         : null;
 

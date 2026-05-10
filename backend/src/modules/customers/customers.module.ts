@@ -32,6 +32,7 @@ import {
   CustomersRepositoryPort,
   CUSTOMERS_REPOSITORY,
 } from './application/ports/customers.repository.port';
+import { CustomersSearchBootstrap } from './infrastructure/customers-search.bootstrap';
 
 @Module({
   imports: [
@@ -70,6 +71,10 @@ import {
     GetCustomerListQueryHandler,
     GetCustomerDetailQueryHandler,
     SearchCustomersQueryHandler,
+
+    // Bootstrap: idempotently ensure PG `unaccent` extension exists so
+    // accent-insensitive customer search works out of the box.
+    CustomersSearchBootstrap,
   ],
   exports: [CustomersServiceAdapter, CustomersService], // Export both for compatibility
 })

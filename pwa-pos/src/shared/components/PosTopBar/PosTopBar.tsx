@@ -132,7 +132,7 @@ export default function PosTopBar({
               {subtitle.trim() ? (
                 <span
                   className="-mt-px block text-[11px] font-normal leading-tight sm:text-xs"
-                  style={{ color: "var(--color-muted)" }}
+                  style={{ color: "var(--color-foreground)" }}
                   data-test-id="top-bar-subtitle"
                 >
                   {subtitle}
@@ -140,7 +140,11 @@ export default function PosTopBar({
               ) : null}
             </div>
 
-            {/* A la derecha del bloque FlowStore / Punto de venta: empresa/PV + usuario/rol */}
+            {/* A la derecha del bloque FlowStore / Punto de venta: empresa/PV + usuario/rol.
+                Los cuatro elementos comparten exactamente la misma tipografía y
+                tamaño de ícono (estilo "detalle" del rol y PV); la jerarquía
+                visual entre "ancla" (empresa / persona) y "subtítulo" (PV /
+                rol) se preserva sólo a través del color. */}
             {showContextColumn || showUserColumn ? (
               <div className="flex min-w-0 items-center gap-6" data-test-id="pos-topbar-right-columns">
                 {showContextColumn ? (
@@ -149,16 +153,15 @@ export default function PosTopBar({
                     data-test-id="pos-topbar-context"
                     suppressHydrationWarning
                   >
-                    {/* Línea empresa: ícono Building2 al lado del nombre de fantasía */}
                     {effectiveCompany ? (
                       <span
-                        className="flex min-w-0 items-center gap-1.5 text-lg font-bold leading-tight tracking-tight"
+                        className="flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs"
                         style={{ color: "var(--color-foreground)" }}
                         data-test-id="pos-topbar-company-trade-name"
                         title={effectiveCompany}
                       >
                         <Building2
-                          className="h-4 w-4 shrink-0"
+                          className="h-3 w-3 shrink-0"
                           strokeWidth={2}
                           aria-hidden
                           data-test-id="pos-topbar-company-icon"
@@ -166,22 +169,15 @@ export default function PosTopBar({
                         <span className="min-w-0 truncate">{effectiveCompany}</span>
                       </span>
                     ) : null}
-                    {/* Línea punto de venta: ícono Store al lado del nombre del PV */}
                     {effectivePosName ? (
                       <span
-                        className={
-                          effectiveCompany
-                            ? "-mt-px flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs"
-                            : "flex min-w-0 items-center gap-1.5 text-lg font-bold leading-tight tracking-tight"
-                        }
-                        style={{
-                          color: effectiveCompany ? "var(--color-muted)" : "var(--color-foreground)",
-                        }}
+                        className="flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs"
+                        style={{ color: "var(--color-foreground)" }}
                         data-test-id="pos-topbar-pos-name"
                         title={effectivePosName}
                       >
                         <Store
-                          className={effectiveCompany ? "h-3 w-3 shrink-0" : "h-4 w-4 shrink-0"}
+                          className="h-3 w-3 shrink-0"
                           strokeWidth={2}
                           aria-hidden
                           data-test-id="pos-topbar-store-icon"
@@ -197,16 +193,15 @@ export default function PosTopBar({
                     className="flex min-w-0 flex-col gap-0 py-0.5 leading-none"
                     data-test-id="pos-topbar-user"
                   >
-                    {/* Línea usuario: ícono User al lado del nombre */}
                     {effectivePerson ? (
                       <span
-                        className="flex min-w-0 items-center gap-1.5 text-lg font-bold leading-tight tracking-tight"
+                        className="flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs"
                         style={{ color: "var(--color-foreground)" }}
                         data-test-id="pos-topbar-person-name"
                         title={effectivePerson}
                       >
                         <User
-                          className="h-4 w-4 shrink-0"
+                          className="h-3 w-3 shrink-0"
                           strokeWidth={2}
                           aria-hidden
                           data-test-id="pos-topbar-user-icon"
@@ -214,22 +209,15 @@ export default function PosTopBar({
                         <span className="min-w-0 truncate">{effectivePerson}</span>
                       </span>
                     ) : null}
-                    {/* Línea rol: ícono BadgeCheck representando el rol del usuario */}
                     {effectiveRole ? (
                       <span
-                        className={
-                          effectivePerson
-                            ? "-mt-px flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs"
-                            : "flex min-w-0 items-center gap-1.5 text-lg font-bold leading-tight tracking-tight"
-                        }
-                        style={{
-                          color: effectivePerson ? "var(--color-muted)" : "var(--color-foreground)",
-                        }}
+                        className="flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs"
+                        style={{ color: "var(--color-foreground)" }}
                         data-test-id="pos-topbar-user-role"
                         title={effectiveRole}
                       >
                         <BadgeCheck
-                          className={effectivePerson ? "h-3 w-3 shrink-0" : "h-4 w-4 shrink-0"}
+                          className="h-3 w-3 shrink-0"
                           strokeWidth={2}
                           aria-hidden
                           data-test-id="pos-topbar-user-role-icon"

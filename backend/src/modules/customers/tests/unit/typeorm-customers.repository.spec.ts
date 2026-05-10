@@ -76,7 +76,9 @@ describe('TypeOrmCustomersRepository', () => {
     expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('c.person', 'person');
     expect(queryBuilder.where).toHaveBeenCalledWith('1=1');
     expect(queryBuilder.andWhere).toHaveBeenCalledWith(
-      '(person.firstName LIKE :q OR person.lastName LIKE :q OR person.businessName LIKE :q OR person.documentNumber LIKE :q)',
+      expect.stringContaining(
+        "unaccent(COALESCE(person.firstName, '')) ILIKE unaccent(:q)",
+      ),
       { q: '%Ana%' },
     );
     expect(queryBuilder.orderBy).toHaveBeenCalledWith('c.createdAt', 'DESC');

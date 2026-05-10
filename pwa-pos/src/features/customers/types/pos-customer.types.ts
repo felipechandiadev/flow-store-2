@@ -16,10 +16,15 @@ export type PosCustomerSearchResponse =
     }
   | { success: false; message: string };
 
-/** Cliente de la venta en curso: puede ser de catálogo o invitado (sin id). */
+/** Cliente de la venta en curso: puede ser de catálogo o invitado (sin id).
+ *
+ * Mantenemos `name`, `document` y `phone` como strings vacíos en lugar de
+ * `null` para no romper compatibilidad con escrituras previas en
+ * localStorage. `email` se introdujo después y se mantiene opcional. */
 export type PosSaleCustomer = {
   customerId: string | null;
   name: string;
   document: string;
   phone: string;
+  email?: string | null;
 };

@@ -68,9 +68,18 @@ export class CustomersRepository implements CustomersRepositoryPort {
       .where('1=1');
 
     if (searchQuery && searchQuery.trim().length > 0) {
+      // Búsqueda insensible a mayúsculas (ILIKE) y a tildes (unaccent).
+      // La extensión `unaccent` se asegura en CustomersSearchBootstrap.
       const q = `%${searchQuery.trim()}%`;
       qb.andWhere(
-        '(person.firstName LIKE :q OR person.lastName LIKE :q OR person.businessName LIKE :q OR person.documentNumber LIKE :q)',
+        `(
+          unaccent(COALESCE(person.firstName, '')) ILIKE unaccent(:q)
+          OR unaccent(COALESCE(person.lastName, '')) ILIKE unaccent(:q)
+          OR unaccent(COALESCE(person.businessName, '')) ILIKE unaccent(:q)
+          OR unaccent(COALESCE(person.documentNumber, '')) ILIKE unaccent(:q)
+          OR unaccent(COALESCE(person.email, '')) ILIKE unaccent(:q)
+          OR unaccent(COALESCE(person.phone, '')) ILIKE unaccent(:q)
+        )`,
         { q },
       );
     }

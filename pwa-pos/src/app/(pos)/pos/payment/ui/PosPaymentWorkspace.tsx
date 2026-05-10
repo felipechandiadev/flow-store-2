@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
 import {
   Alert,
   Button,
@@ -19,8 +18,10 @@ import type {
   PosPaymentMethodId,
 } from "@/features/pos-cart/pos-payment.types";
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
-import { searchPosCustomersAction } from "@/features/customers/actions/customers-pos.action";
 import type { PosCustomerSearchRow } from "@/features/customers/types/pos-customer.types";
+import PosCustomerSearchPanel, {
+  type PosCustomerSearchInitial,
+} from "@/features/customers/ui/PosCustomerSearchPanel";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import type { EffectivePaymentMethod } from "@/features/pos-payment-methods/types/effective-payment-method.types";
 import { getEffectivePosPaymentMethodsAction } from "@/features/pos-payment-methods/actions/payment-methods-pos.action";
@@ -76,14 +77,12 @@ function PaymentCartReadOnlyRow({ line }: { line: PosCartLine }) {
   const nameWithAttrs = [line.productName, ...attrBits].filter(Boolean).join(" · ");
   const unit = line.unitSymbol?.trim() ? ` ${line.unitSymbol.trim()}` : "";
   const qtyPrice = `${q} × ${formatMoney(line.unitPriceWithTax)}${unit}`;
-  const titleFull = `${nameWithAttrs} · ${qtyPrice} · ${formatMoney(lineGross)}`;
   return (
     <li
-      className="flex items-center gap-2 px-3 py-1.5 text-sm"
-      title={titleFull}
+      className="flex items-start gap-2 px-3 py-2 text-sm"
       data-test-id={`pos-payment-cart-line-${line.variantId}`}
     >
-      <p className="min-w-0 flex-1 truncate text-foreground">
+      <p className="min-w-0 flex-1 wrap-break-word text-foreground">
         <span className="font-medium">{nameWithAttrs}</span>
         <span className="font-normal text-muted-foreground">
           {" "}
@@ -95,13 +94,16 @@ function PaymentCartReadOnlyRow({ line }: { line: PosCartLine }) {
   );
 }
 
-export default function PosPaymentWorkspace() {
+type Props = {
+  initialCustomerSearch: PosCustomerSearchInitial;
+};
+
+export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const router = useRouter();
   const cart = usePosCart();
   const { payments, setPayments, saleCustomer: customer, setSaleCustomer: setCustomer } = cart;
   const saleTitleId = useId();
   const [addOpen, setAddOpen] = useState(false);
-  const [customerOpen, setCustomerOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
@@ -114,12 +116,6 @@ export default function PosPaymentWorkspace() {
   const [draftAmount, setDraftAmount] = useState("");
   const [draftReference, setDraftReference] = useState("");
   const [addAlert, setAddAlert] = useState("");
-
-  const [draftCustomer, setDraftCustomer] = useState({ name: "", document: "", phone: "" });
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
-  const [customerSearchError, setCustomerSearchError] = useState("");
-  const [customerSearchResults, setCustomerSearchResults] = useState<PosCustomerSearchRow[]>([]);
 
   const [pageAlert, setPageAlert] = useState("");
   const paymentCashFocusDoneRef = useRef(false);
@@ -183,51 +179,22 @@ export default function PosPaymentWorkspace() {
     }
   }, [cart.ready, cart.lines.length, router]);
 
-  useEffect(() => {
-    const q = customerSearch.trim();
-    if (q.length < 2) {
-      setCustomerSearchResults([]);
-      setCustomerSearchError("");
-      setCustomerSearchLoading(false);
-      return;
-    }
-    setCustomerSearchLoading(true);
-    setCustomerSearchError("");
-    const t = window.setTimeout(() => {
-      void (async () => {
-        const res = await searchPosCustomersAction({ query: q, page: 1, pageSize: 15 });
-        setCustomerSearchLoading(false);
-        if (res.success) {
-          setCustomerSearchResults(res.customers);
-        } else {
-          setCustomerSearchResults([]);
-          setCustomerSearchError(res.message);
-        }
-      })();
-    }, 350);
-    return () => {
-      clearTimeout(t);
-    };
-  }, [customerSearch]);
-
-  const pickSearchCustomer = useCallback((row: PosCustomerSearchRow) => {
-    if (!row.customerId) return;
-    setCustomer({
-      customerId: row.customerId,
-      name: row.displayName || "Cliente",
-      document: row.documentNumber?.trim() ?? "",
-      phone: row.phone?.trim() ?? "",
-    });
-    setCustomerSearch("");
-    setCustomerSearchResults([]);
-    setCustomerSearchError("");
-  }, [setCustomer]);
+  const pickSearchCustomer = useCallback(
+    (row: PosCustomerSearchRow) => {
+      if (!row.customerId) return;
+      setCustomer({
+        customerId: row.customerId,
+        name: row.displayName || "Cliente",
+        document: row.documentNumber?.trim() ?? "",
+        phone: row.phone?.trim() ?? "",
+        email: row.email?.trim() || null,
+      });
+    },
+    [setCustomer],
+  );
 
   const clearSaleCustomer = useCallback(() => {
     setCustomer(null);
-    setCustomerSearch("");
-    setCustomerSearchResults([]);
-    setCustomerSearchError("");
   }, [setCustomer]);
 
   const totals = useMemo(() => {
@@ -469,31 +436,10 @@ export default function PosPaymentWorkspace() {
     setSuccessOpen(true);
   };
 
-  const openCustomerDialog = useCallback(() => {
-    setDraftCustomer({
-      name: customer?.name?.trim() ?? "",
-      document: customer?.document?.trim() ?? "",
-      phone: customer?.phone?.trim() ?? "",
-    });
-    setCustomerOpen(true);
-  }, [customer]);
-
-  const saveCustomer = useCallback(() => {
-    const name = draftCustomer.name.trim();
-    if (!name) return;
-    setCustomer({
-      customerId: null,
-      name,
-      document: draftCustomer.document.trim(),
-      phone: draftCustomer.phone.trim(),
-    });
-    setCustomerOpen(false);
-  }, [draftCustomer, setCustomer]);
-
   const customerLabel =
     customer?.name?.trim() ||
     (customer?.document?.trim() ? `Doc. ${customer.document.trim()}` : null) ||
-    "Cliente no seleccionado";
+    "no seleccionado";
 
   if (!cart.ready || cart.lines.length === 0) {
     return (
@@ -605,9 +551,9 @@ export default function PosPaymentWorkspace() {
           aria-label="Resumen de carrito"
           data-test-id="pos-payment-cart-summary"
         >
-          <h2 className="shrink-0 text-sm font-semibold text-foreground">Resumen del carrito</h2>
+          <h2 className="shrink-0 text-sm font-semibold text-foreground">Resumen de venta</h2>
           <ul
-            className="min-h-0 flex-1 divide-y divide-border overflow-y-auto rounded-lg border border-border bg-muted/15 pr-1"
+            className="min-h-0 flex-1 divide-y divide-border overflow-y-auto rounded-lg border border-border bg-background pr-1"
             data-test-id="pos-payment-cart-lines-readonly"
           >
             {cart.lines.map((line) => (
@@ -634,116 +580,14 @@ export default function PosPaymentWorkspace() {
           </footer>
         </section>
 
-        {/* Columna 2 — Cliente */}
-        <section
-          className="flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-sm"
-          style={{ height: `${POS_PAYMENT_PANEL_HEIGHT_VH}vh` }}
-          aria-label="Información del cliente"
-          data-test-id="pos-payment-customer"
-        >
-          <h2 className="shrink-0 text-sm font-semibold text-foreground">Cliente</h2>
-          <div className="shrink-0">
-            <TextField
-              label="Buscar cliente"
-              name="pos-payment-customer-search"
-              value={customerSearch}
-              onChange={(e) => setCustomerSearch(e.target.value)}
-              placeholder="Nombre, RUT o teléfono…"
-              alwaysShowLabel
-              startAdornment={<Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />}
-              data-test-id="pos-payment-customer-search"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Búsqueda en tu empresa (mínimo 2 caracteres). También puedes crear datos de invitado abajo.
-            </p>
-          </div>
-          <div
-            className="min-h-0 flex-1 overflow-y-auto pr-1"
-            data-test-id="pos-payment-customer-content"
-          >
-            {customerSearchLoading ? (
-              <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-                <DotProgress />
-                <span>Buscando…</span>
-              </div>
-            ) : null}
-            {customerSearchError ? (
-              <Alert variant="error" className="mb-2 py-2 text-sm">
-                {customerSearchError}
-              </Alert>
-            ) : null}
-            {!customerSearchLoading && customerSearch.trim().length >= 2 && customerSearchResults.length > 0 ? (
-              <ul className="mb-3 space-y-1 rounded-lg border border-border bg-muted/20 p-1">
-                {customerSearchResults.map((row) => (
-                  <li key={row.customerId}>
-                    <button
-                      type="button"
-                      className="flex w-full flex-col items-start rounded-md px-2 py-2 text-left text-sm transition hover:bg-muted/80"
-                      onClick={() => pickSearchCustomer(row)}
-                      data-test-id={`pos-payment-customer-pick-${row.customerId}`}
-                    >
-                      <span className="font-medium text-foreground">{row.displayName}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {[row.documentNumber, row.phone].filter(Boolean).join(" · ") || "Sin documento / teléfono"}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            {!customerSearchLoading &&
-            customerSearch.trim().length >= 2 &&
-            customerSearchResults.length === 0 &&
-            !customerSearchError ? (
-              <p className="mb-3 text-sm text-muted-foreground">Sin coincidencias. Prueba otro término o crea un cliente manual.</p>
-            ) : null}
-            {customer ? (
-              <dl className="grid gap-2 text-sm">
-                {customer.customerId ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-muted-foreground">Origen</dt>
-                    <dd className="text-foreground">Cliente registrado</dd>
-                  </div>
-                ) : (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-muted-foreground">Origen</dt>
-                    <dd className="text-foreground">Datos para comprobante (invitado)</dd>
-                  </div>
-                )}
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Nombre</dt>
-                  <dd className="font-medium text-foreground">{customer.name}</dd>
-                </div>
-                {customer.document ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-muted-foreground">Documento</dt>
-                    <dd className="font-mono text-foreground">{customer.document}</dd>
-                  </div>
-                ) : null}
-                {customer.phone ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-muted-foreground">Teléfono</dt>
-                    <dd className="text-foreground">{customer.phone}</dd>
-                  </div>
-                ) : null}
-              </dl>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Sin cliente asociado. Puedes continuar o registrar datos para el comprobante.
-              </p>
-            )}
-          </div>
-          <footer className="shrink-0 flex flex-wrap gap-2 border-t border-border pt-3">
-            <Button type="button" variant="outlined" size="sm" onClick={openCustomerDialog}>
-              {customer ? "Cambiar cliente" : "Seleccionar o crear cliente"}
-            </Button>
-            {customer ? (
-              <Button type="button" variant="outlined" size="sm" onClick={clearSaleCustomer}>
-                Quitar cliente
-              </Button>
-            ) : null}
-          </footer>
-        </section>
+        {/* Columna 2 — Cliente (panel independiente, URL-driven). */}
+        <PosCustomerSearchPanel
+          initial={initialCustomerSearch}
+          selectedCustomer={customer}
+          onPick={pickSearchCustomer}
+          onClearSelected={clearSaleCustomer}
+          heightVh={POS_PAYMENT_PANEL_HEIGHT_VH}
+        />
 
         {/* Columna 3 — Métodos de pago */}
         <section
@@ -957,52 +801,6 @@ export default function PosPaymentWorkspace() {
             value={draftReference}
             onChange={(e) => setDraftReference(e.target.value)}
             placeholder="Opcional"
-            alwaysShowLabel
-          />
-        </div>
-      </Dialog>
-
-      <Dialog
-        open={customerOpen}
-        onClose={() => setCustomerOpen(false)}
-        title={customer ? "Cambiar cliente" : "Cliente"}
-        size="sm"
-        actions={
-          <>
-            <Button type="button" variant="outlined" onClick={() => setCustomerOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="button" variant="primary" onClick={saveCustomer} disabled={!draftCustomer.name.trim()}>
-              Guardar
-            </Button>
-          </>
-        }
-        data-test-id="pos-payment-customer-dialog"
-      >
-        <div className="grid gap-4">
-          <TextField
-            label="Nombre completo"
-            name="cust-name"
-            value={draftCustomer.name}
-            onChange={(e) => setDraftCustomer((c) => ({ ...c, name: e.target.value }))}
-            placeholder="Nombre completo"
-            alwaysShowLabel
-            required
-          />
-          <TextField
-            label="Documento"
-            name="cust-doc"
-            value={draftCustomer.document}
-            onChange={(e) => setDraftCustomer((c) => ({ ...c, document: e.target.value }))}
-            placeholder="RUT / documento"
-            alwaysShowLabel
-          />
-          <TextField
-            label="Teléfono"
-            name="cust-phone"
-            value={draftCustomer.phone}
-            onChange={(e) => setDraftCustomer((c) => ({ ...c, phone: e.target.value }))}
-            placeholder="Teléfono"
             alwaysShowLabel
           />
         </div>
