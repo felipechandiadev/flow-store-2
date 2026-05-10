@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, IsNull, Not } from 'typeorm';
-import { CustomerOrmEntity } from './orm-mappers/customer.orm-entity';
+import { Repository, Not } from 'typeorm';
 import { Customer } from '@modules/customers/domain/customer.entity';
 import { Person } from '@modules/persons/domain/person.entity';
 import {
@@ -11,73 +10,47 @@ import {
 } from '@modules/transactions/domain/transaction.entity';
 import { CustomersRepositoryPort } from '@modules/customers/application/ports/customers.repository.port';
 
+/**
+ * Nota: usamos la entidad de dominio `Customer` (registrada en
+ * `typeorm.config.ts`) directamente; el mapper `CustomerOrmEntity` no
+ * está registrado como entidad TypeORM y produce errores de
+ * "No metadata found".
+ */
 @Injectable()
 export class CustomersRepository implements CustomersRepositoryPort {
   constructor(
-    @InjectRepository(CustomerOrmEntity)
-    private readonly repo: Repository<CustomerOrmEntity>,
+    @InjectRepository(Customer)
+    private readonly repo: Repository<Customer>,
     @InjectRepository(Person)
     private readonly personRepository: Repository<Person>,
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
   ) {}
 
-  private toDomain(e: CustomerOrmEntity): Customer {
-    return Object.assign(new Customer(), {
-      id: e.id,
-      personId: e.personId,
-      creditLimit: Number(e.creditLimit),
-      currentBalance: Number(e.currentBalance),
-      paymentDayOfMonth: e.paymentDayOfMonth,
-      isActive: e.isActive,
-      notes: e.notes,
-      createdAt: e.createdAt,
-      updatedAt: e.updatedAt,
-      deletedAt: e.deletedAt,
-      person: e.person as any,
-    });
-  }
-
-  private toOrm(d: Customer): CustomerOrmEntity {
-    const e = new CustomerOrmEntity();
-    e.id = d.id;
-    e.personId = d.personId;
-    e.creditLimit = d.creditLimit as any;
-    e.currentBalance = d.currentBalance as any;
-    e.paymentDayOfMonth = d.paymentDayOfMonth;
-    e.isActive = d.isActive;
-    e.notes = d.notes;
-    return e;
-  }
-
   async save(customer: Customer): Promise<Customer> {
-    const orm = this.toOrm(customer);
-    const saved = await this.repo.save(orm as any);
-    return this.toDomain(saved);
+    return this.repo.save(customer);
   }
 
   async findById(id: string): Promise<Customer | null> {
-    const found = await this.repo.findOne({
+    return this.repo.findOne({
       where: { id },
       relations: ['person'],
     });
-    return found ? this.toDomain(found) : null;
   }
 
   async findByIdWithPerson(id: string): Promise<Customer | null> {
-    return this.findById(id); // Already includes person relation
+    return this.findById(id);
   }
 
   async findAll(filter?: Record<string, any>): Promise<Customer[]> {
     const where: any = {};
     if (filter?.isActive !== undefined) where.isActive = filter.isActive;
 
-    const found = await this.repo.find({
+    return this.repo.find({
       where,
       relations: ['person'],
       order: { createdAt: 'DESC' },
     });
-    return found.map((f) => this.toDomain(f));
   }
 
   async findAllWithPagination(
@@ -108,15 +81,14 @@ export class CustomersRepository implements CustomersRepositoryPort {
 
     const [customers, total] = await qb.getManyAndCount();
 
-    return { customers: customers.map((c) => this.toDomain(c)), total };
+    return { customers, total };
   }
 
   async findByPersonId(personId: string): Promise<Customer | null> {
-    const found = await this.repo.findOne({
+    return this.repo.findOne({
       where: { personId },
       withDeleted: true,
     });
-    return found ? this.toDomain(found) : null;
   }
 
   async findByDocumentNumber(documentNumber: string): Promise<Customer | null> {
@@ -136,7 +108,7 @@ export class CustomersRepository implements CustomersRepositoryPort {
       where: { id },
     });
     if (!updated) throw new Error('Customer not found after update');
-    return this.toDomain(updated);
+    return updated;
   }
 
   async softDelete(id: string): Promise<void> {

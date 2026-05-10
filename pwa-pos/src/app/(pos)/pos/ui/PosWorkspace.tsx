@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readPosContextClient, type PosContextV1 } from "@/features/session/lib/pos-context-storage";
-import { IconButton } from "@/shared/admin-shared";
+import { Button, IconButton } from "@/shared/admin-shared";
 import PosProductSearchPanel, { POS_PRODUCT_SEARCH_PANEL_HEIGHT_VH } from "./PosProductSearchPanel";
 import PosCartLineCard from "./PosCartLineCard";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
+import { SaveAsQuotationDialog } from "./SaveAsQuotationDialog";
+import { LoadQuotationDialog } from "./LoadQuotationDialog";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(
@@ -19,6 +21,8 @@ export default function PosWorkspace() {
   const [ctx, setCtx] = useState<PosContextV1 | null>(null);
   const [priceListId, setPriceListId] = useState("");
   const cart = usePosCart();
+  const [saveQuotationOpen, setSaveQuotationOpen] = useState(false);
+  const [loadQuotationOpen, setLoadQuotationOpen] = useState(false);
 
   useEffect(() => {
     const c = readPosContextClient();
@@ -76,7 +80,31 @@ export default function PosWorkspace() {
         style={{ height: `${POS_PRODUCT_SEARCH_PANEL_HEIGHT_VH}vh` }}
         data-test-id="pos-cart-panel"
       >
-        <div className="flex shrink-0 items-start justify-end">
+        <div className="flex shrink-0 items-start justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outlined"
+              size="sm"
+              onClick={() => setLoadQuotationOpen(true)}
+              data-test-id="pos-load-quotation-btn"
+            >
+              Cargar cotización
+            </Button>
+            <Button
+              variant="outlined"
+              size="sm"
+              onClick={() => setSaveQuotationOpen(true)}
+              disabled={cart.lines.length === 0}
+              data-test-id="pos-save-quotation-btn"
+              title={
+                cart.lines.length === 0
+                  ? "Agregue ítems al carrito"
+                  : "Guardar este carrito como cotización"
+              }
+            >
+              Guardar como cotización
+            </Button>
+          </div>
           <div className="flex items-center gap-2">
             <p className="text-xs text-zinc-500" data-test-id="pos-cart-items-count">
               {cart.itemsCount} ítems
@@ -90,6 +118,33 @@ export default function PosWorkspace() {
             />
           </div>
         </div>
+
+        {cart.loadedQuotation ? (
+          <div
+            className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-xs"
+            data-test-id="pos-cart-quotation-banner"
+          >
+            <div>
+              <span className="text-muted-foreground">Cotización cargada:</span>{" "}
+              <span className="font-mono font-semibold">
+                {cart.loadedQuotation.documentNumber}
+              </span>
+              {cart.loadedQuotation.expired ? (
+                <span className="ml-2 rounded bg-warning/20 px-1.5 py-0.5 text-warning">
+                  Vencida
+                </span>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => cart.setLoadedQuotation(null)}
+              data-test-id="pos-cart-quotation-detach"
+            >
+              Desvincular
+            </button>
+          </div>
+        ) : null}
         <div
           className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
           data-test-id="pos-cart-lines-scroll"
@@ -138,6 +193,16 @@ export default function PosWorkspace() {
           </div>
         </footer>
       </aside>
+
+      <SaveAsQuotationDialog
+        open={saveQuotationOpen}
+        onClose={() => setSaveQuotationOpen(false)}
+      />
+
+      <LoadQuotationDialog
+        open={loadQuotationOpen}
+        onClose={() => setLoadQuotationOpen(false)}
+      />
     </div>
   );
 }

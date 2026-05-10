@@ -44,6 +44,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
     label: 'Ventas',
     children: [
       { id: 'sales-transactions', label: 'Transacciones', url: '/sales/transactions' },
+      { id: 'sales-quotations', label: 'Cotizaciones', url: '/sales/quotations' },
       { id: 'sales-customers', label: 'Clientes', url: '/sales/customers' },
       { id: 'sales-pos', label: 'Puntos de venta', url: '/sales/points-of-sale' },
       { id: 'sales-payments', label: 'Pagos recibidos', url: '/sales/payments' },

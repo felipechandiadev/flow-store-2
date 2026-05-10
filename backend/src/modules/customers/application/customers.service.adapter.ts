@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { CustomersService } from './customers.service';
 import { UpdateCustomerCommand } from './commands/update-customer.command';
@@ -7,16 +7,22 @@ import { GetCustomerPaymentsQuery } from './queries/get-customer-payments.query'
 import { GetCustomerPendingPaymentsQuery } from './queries/get-customer-pending-payments.query';
 import { GetCustomerPurchasesQuery } from './queries/get-customer-purchases.query';
 
+/**
+ * Nota: NO debe extender `CustomersService`. Ambas clases comparten el
+ * mismo nombre/identificador en metadata (`design:paramtypes`) y, cuando
+ * el adapter también inyecta una instancia de `CustomersService`, la
+ * resolución de Nest falla y deja `customersCore` apuntando a la propia
+ * subclase, perdiendo los métodos del padre (e.g. `search`).
+ */
 @Injectable()
-export class CustomersServiceAdapter extends CustomersService {
+export class CustomersServiceAdapter {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
     /** Servicio legacy con creación y persona persistidas (el bus CQRS usa handlers incompletos). */
+    @Inject(CustomersService)
     private readonly customersCore: CustomersService,
-  ) {
-    super(null as any, null as any, null as any); // We won't use the legacy dependencies
-  }
+  ) {}
 
   async create(createCustomerDto: any) {
     return this.customersCore.create(createCustomerDto);

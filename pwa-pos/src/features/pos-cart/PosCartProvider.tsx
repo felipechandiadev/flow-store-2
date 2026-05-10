@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import type { PosProductSearchItem } from "@/features/pos-products/types/pos-product.types";
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
-import { readCartClient, writeCartClient } from "./cart-storage";
+import { readCartClient, writeCartClient, type LoadedQuotationMeta } from "./cart-storage";
 import type { PosSaleCustomer } from "@/features/customers/types/pos-customer.types";
 import type { PosPaymentLine } from "./pos-payment.types";
 
@@ -15,6 +15,8 @@ type PosCartContextValue = {
   addItem: (item: PosProductSearchItem, quantity?: number) => void;
   increment: (variantId: string) => void;
   decrement: (variantId: string) => void;
+  /** Reemplaza completamente las líneas (p.ej., cargar cotización). */
+  replaceLines: (lines: PosCartLine[]) => void;
   clear: () => void;
   /** Cliente de la venta (persistido con el carrito en localStorage). */
   saleCustomer: PosSaleCustomer | null;
@@ -22,6 +24,11 @@ type PosCartContextValue = {
   /** Líneas de pago (método, monto, ref.) compartidas entre `/pos` y `/pos/payment`. */
   payments: PosPaymentLine[];
   setPayments: React.Dispatch<React.SetStateAction<PosPaymentLine[]>>;
+  /** Cotización origen del carrito (cuando se cargó vía folio). */
+  loadedQuotation: LoadedQuotationMeta | null;
+  setLoadedQuotation: React.Dispatch<
+    React.SetStateAction<LoadedQuotationMeta | null>
+  >;
 };
 
 const PosCartContext = createContext<PosCartContextValue | null>(null);
@@ -47,6 +54,8 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
   const [lines, setLines] = useState<PosCartLine[]>([]);
   const [saleCustomer, setSaleCustomer] = useState<PosSaleCustomer | null>(null);
   const [payments, setPayments] = useState<PosPaymentLine[]>([]);
+  const [loadedQuotation, setLoadedQuotation] =
+    useState<LoadedQuotationMeta | null>(null);
   const [scope, setScope] = useState<{ pointOfSaleId: string; priceListId: string } | null>(null);
 
   useEffect(() => {
@@ -56,21 +65,23 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       setLines([]);
       setSaleCustomer(null);
       setPayments([]);
+      setLoadedQuotation(null);
       setReady(true);
       return;
     }
-    const { lines: loadedLines, customer } = readCartClient(s);
+    const { lines: loadedLines, customer, quotation } = readCartClient(s);
     setLines(loadedLines);
     setSaleCustomer(customer);
     setPayments([]);
+    setLoadedQuotation(quotation);
     setReady(true);
   }, []);
 
   // Persist on change (only after initial load).
   useEffect(() => {
     if (!ready || !scope) return;
-    writeCartClient(scope, lines, saleCustomer);
-  }, [lines, saleCustomer, ready, scope]);
+    writeCartClient(scope, lines, saleCustomer, loadedQuotation);
+  }, [lines, saleCustomer, loadedQuotation, ready, scope]);
 
   // If POS context changes (e.g. price list changed in settings), reload cart scope.
   useEffect(() => {
@@ -83,12 +94,14 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
         setLines([]);
         setSaleCustomer(null);
         setPayments([]);
+        setLoadedQuotation(null);
         return;
       }
-      const { lines: nextLines, customer } = readCartClient(s);
+      const { lines: nextLines, customer, quotation } = readCartClient(s);
       setLines(nextLines);
       setSaleCustomer(customer);
       setPayments([]);
+      setLoadedQuotation(quotation);
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -121,10 +134,15 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     );
   }, []);
 
+  const replaceLines = useCallback((next: PosCartLine[]) => {
+    setLines(next);
+  }, []);
+
   const clear = useCallback(() => {
     setLines([]);
     setPayments([]);
     setSaleCustomer(null);
+    setLoadedQuotation(null);
   }, []);
 
   const value: PosCartContextValue = useMemo(
@@ -135,13 +153,28 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       addItem,
       increment,
       decrement,
+      replaceLines,
       clear,
       saleCustomer,
       setSaleCustomer,
       payments,
       setPayments,
+      loadedQuotation,
+      setLoadedQuotation,
     }),
-    [ready, lines, itemsCount, addItem, increment, decrement, clear, saleCustomer, payments],
+    [
+      ready,
+      lines,
+      itemsCount,
+      addItem,
+      increment,
+      decrement,
+      replaceLines,
+      clear,
+      saleCustomer,
+      payments,
+      loadedQuotation,
+    ],
   );
 
   return <PosCartContext.Provider value={value}>{children}</PosCartContext.Provider>;

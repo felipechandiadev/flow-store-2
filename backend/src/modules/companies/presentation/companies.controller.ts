@@ -194,4 +194,37 @@ export class CompaniesController {
     );
     return { success: true, checkSettings };
   }
+
+  /**
+   * Configuración de cotizaciones de una empresa (solo ADMIN). Si la
+   * empresa aún no la tiene definida, devuelve los defaults.
+   */
+  @Get('companies/:id/quotation-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async getCompanyQuotationSettings(@Param('id') id: string) {
+    const quotationSettings =
+      await this.companiesService.getQuotationSettings(id);
+    return { success: true, quotationSettings };
+  }
+
+  /**
+   * Reemplaza la configuración de cotizaciones de una empresa.
+   * Body: `{ quotationSettings: CompanyQuotationSettings }` o el objeto directo.
+   */
+  @Put('companies/:id/quotation-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async replaceCompanyQuotationSettings(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const incoming =
+      body && typeof body === 'object' && 'quotationSettings' in (body as any)
+        ? (body as any).quotationSettings
+        : body;
+    const quotationSettings =
+      await this.companiesService.replaceQuotationSettings(id, incoming);
+    return { success: true, quotationSettings };
+  }
 }

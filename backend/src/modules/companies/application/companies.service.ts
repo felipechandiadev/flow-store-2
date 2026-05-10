@@ -18,6 +18,11 @@ import {
   buildDefaultCompanyCheckSettings,
   sanitizeCompanyCheckSettings,
 } from '../domain/company-checks.types';
+import {
+  CompanyQuotationSettings,
+  buildDefaultCompanyQuotationSettings,
+  sanitizeCompanyQuotationSettings,
+} from '../domain/company-quotations.types';
 import { PaymentMethod } from '@modules/transactions/domain/transaction.entity';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
@@ -271,6 +276,47 @@ export class CompaniesService {
       }
     }
 
+    company.settings = settings;
+    await this.companyRepository.save(company);
+    return validated;
+  }
+
+  /**
+   * Lee la configuración de cotizaciones de una empresa.
+   * Si no existe en `settings.quotations`, devuelve los defaults sin
+   * persistir.
+   */
+  async getQuotationSettings(
+    companyId: string,
+  ): Promise<CompanyQuotationSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    const raw = company.settings?.quotations;
+    if (!raw || typeof raw !== 'object') {
+      return buildDefaultCompanyQuotationSettings();
+    }
+    return sanitizeCompanyQuotationSettings(raw);
+  }
+
+  /**
+   * Reemplaza la configuración de cotizaciones de una empresa.
+   * Aplica `sanitizeCompanyQuotationSettings` para garantizar invariantes
+   * (rangos de días, default <= max, etc.).
+   */
+  async replaceQuotationSettings(
+    companyId: string,
+    raw: unknown,
+  ): Promise<CompanyQuotationSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+
+    const validated = sanitizeCompanyQuotationSettings(raw);
+    const settings = { ...(company.settings ?? {}) };
+    settings.quotations = validated;
     company.settings = settings;
     await this.companyRepository.save(company);
     return validated;

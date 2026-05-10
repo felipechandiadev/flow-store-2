@@ -89,6 +89,13 @@ export const TRANSACTION_TYPE_OPTIONS: TransactionTypeOption[] = [
       "Pedido/reserva comercial. Por sí solo no mueve inventario; prepara ejecución (venta, picking, etc.) según el flujo.",
   },
   {
+    id: "QUOTATION",
+    label: "Cotización",
+    category: "Pedidos",
+    description:
+      "Cotización a cliente. Estructura de carrito sin efecto contable ni stock. Tiene vigencia configurable y, al convertirse, respeta los precios cotizados.",
+  },
+  {
     id: "SERVICE_ORDER",
     label: "Orden de servicio",
     category: "Pedidos",

@@ -64,6 +64,7 @@ import { PurchasingSupplierDocumentsModule } from './modules/purchasing-supplier
 import { RecipesModule } from './modules/recipes/recipes.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { ChecksModule } from './modules/checks/checks.module';
+import { QuotationsModule } from './modules/quotations/quotations.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { ChecksModule } from './modules/checks/checks.module';
     BankMovementsModule,
     BankAccountsModule,
     ChecksModule,
+    QuotationsModule,
     CapitalContributionsModule,
     BankTransfersModule,
     BankWithdrawalsModule,

@@ -47,6 +47,7 @@ import { GetMovementsForSessionQueryHandler } from './application/queries/get-mo
 import { FindTransactionQueryHandler } from './application/queries/find-transaction.query';
 import { TransactionsServiceAdapter } from './application/transactions.service.adapter';
 import { DocumentNumberService } from './application/document-number.service';
+import { DocumentSequencesBootstrap } from './application/document-sequences.bootstrap';
 
 // Inventory CQRS
 import { inventoryCommandHandlers } from './application/commands/inventory';
@@ -88,6 +89,7 @@ import { EventStoreModule } from './infrastructure/event-store/event-store.modul
     InventoryController,
   ],
   providers: [
+    DocumentSequencesBootstrap,
     DocumentNumberService,
     PurchaseOrdersService,
     TransactionsService, // Adapter for backward compatibility

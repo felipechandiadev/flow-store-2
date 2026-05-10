@@ -18,6 +18,7 @@ import { User } from '@modules/users/domain/user.entity';
 import { Person } from '@modules/persons/domain/person.entity';
 import { CashSession } from '@modules/cash-sessions/domain/cash-session.entity';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
+import { DocumentSequence } from '@modules/transactions/domain/document-sequence.entity';
 import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
 import { Product } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
@@ -69,6 +70,8 @@ import { AddCashSessionToHubTransferAccountingRuleEnum1741100000000 } from '../m
 import { MultiCompanyInit1742000000000 } from '../migrations/1742000000000-MultiCompanyInit';
 import { PosSettingsJson1743000000000 } from '../migrations/1743000000000-PosSettingsJson';
 import { Checks1744000000000 } from '../migrations/1744000000000-Checks';
+import { Quotations1745000000000 } from '../migrations/1745000000000-Quotations';
+import { EnsureDocumentSequences1746000000000 } from '../migrations/1746000000000-EnsureDocumentSequences';
 
 /**
  * DataSource usado por `typeorm` CLI (`migration:run`, `schema:log`, …).
@@ -94,6 +97,7 @@ export const AppDataSource = new DataSource({
     Person,
     CashSession,
     Transaction,
+    DocumentSequence,
     TransactionLine,
     Product,
     ProductVariant,
@@ -146,6 +150,8 @@ export const AppDataSource = new DataSource({
     MultiCompanyInit1742000000000,
     PosSettingsJson1743000000000,
     Checks1744000000000,
+    Quotations1745000000000,
+    EnsureDocumentSequences1746000000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',

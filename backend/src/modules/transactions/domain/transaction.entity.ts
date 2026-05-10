@@ -105,6 +105,8 @@ export enum TransactionType {
   CUSTOMER_ORDER = 'CUSTOMER_ORDER',
   SERVICE_ORDER = 'SERVICE_ORDER',
   PRODUCTION_BATCH = 'PRODUCTION_BATCH',
+  /** Cotización: estructura de carrito sin efecto contable ni stock. */
+  QUOTATION = 'QUOTATION',
 
   // Movimientos de Inventario
   TRANSFER_OUT = 'TRANSFER_OUT',
@@ -157,6 +159,12 @@ export enum TransactionStatus {
   COMPLETED = 'COMPLETED',
   VOIDED = 'VOIDED',
   PENDING = 'PENDING',
+  /**
+   * Estado materializable para cotizaciones cuya `validUntil` ya pasó.
+   * El sistema también lo deriva al vuelo en queries (`effectiveStatus`)
+   * cuando `status=CONFIRMED` y `metadata.quotation.validUntil < now()`.
+   */
+  EXPIRED = 'EXPIRED',
 }
 
 export enum PaymentMethod {

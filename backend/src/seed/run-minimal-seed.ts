@@ -27,6 +27,7 @@ import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity
 import { CashHub } from '@modules/cash-hubs/domain/cash-hub.entity';
 import { ExpenseCategory } from '@modules/expense-categories/domain/expense-category.entity';
 import { Supplier, SupplierType } from '@modules/suppliers/domain/supplier.entity';
+import { Customer } from '@modules/customers/domain/customer.entity';
 import { Shareholder } from '@modules/shareholders/domain/shareholder.entity';
 import { AccountingAccount, AccountType } from '@modules/accounting-accounts/domain/accounting-account.entity';
 import { AccountingRule, RuleScope } from '@modules/accounting-rules/domain/accounting-rule.entity';
@@ -492,6 +493,208 @@ const SEED_SUPPLIERS: readonly {
   },
 ] as const;
 
+/**
+ * Catálogo de clientes demo. Cubre personas naturales y empresas, con
+ * distintos días de pago programado y límites de crédito (incluyendo
+ * crédito en 0 para pruebas), un cliente inactivo, RUTs y RUN/PASS.
+ */
+const SEED_CUSTOMERS: readonly {
+  person: {
+    type: PersonType;
+    firstName: string;
+    lastName?: string;
+    businessName?: string;
+    documentType?: DocumentType;
+    documentNumber: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+  };
+  customer: {
+    creditLimit: number;
+    paymentDayOfMonth: 5 | 10 | 15 | 20 | 25 | 30;
+    isActive: boolean;
+    notes?: string;
+  };
+}[] = [
+  {
+    person: {
+      type: PersonType.NATURAL,
+      firstName: 'Sebastián',
+      lastName: 'Fuentes Vargas',
+      documentType: DocumentType.RUN,
+      documentNumber: '16.345.789-2',
+      email: 'sebastian.fuentes@gmail.com',
+      phone: '+56 9 8123 4567',
+      address: 'Calle Los Olivos 234, Parral',
+    },
+    customer: {
+      creditLimit: 0,
+      paymentDayOfMonth: 5,
+      isActive: true,
+      notes: 'Cliente contado (sin crédito).',
+    },
+  },
+  {
+    person: {
+      type: PersonType.NATURAL,
+      firstName: 'Camila',
+      lastName: 'Ríos Soto',
+      documentType: DocumentType.RUN,
+      documentNumber: '18.999.111-K',
+      email: 'camila.rios@hotmail.com',
+      phone: '+56 9 7456 1234',
+      address: 'Pasaje El Sauce 78, Linares',
+    },
+    customer: {
+      creditLimit: 150000,
+      paymentDayOfMonth: 10,
+      isActive: true,
+      notes: 'Crédito acotado para compras recurrentes.',
+    },
+  },
+  {
+    person: {
+      type: PersonType.COMPANY,
+      firstName: 'Restaurante Costanera SpA',
+      businessName: 'Restaurante Costanera SpA',
+      documentType: DocumentType.RUT,
+      documentNumber: '76.555.222-K',
+      email: 'compras@costaneraresto.cl',
+      phone: '+56 73 222 5566',
+      address: 'Av. Costanera 1500, Constitución',
+    },
+    customer: {
+      creditLimit: 800000,
+      paymentDayOfMonth: 15,
+      isActive: true,
+      notes: 'Cliente B2B con crédito y pago a 30 días.',
+    },
+  },
+  {
+    person: {
+      type: PersonType.COMPANY,
+      firstName: 'Distribuidora Andes Norte Ltda',
+      businessName: 'Distribuidora Andes Norte Ltda',
+      documentType: DocumentType.RUT,
+      documentNumber: '77.888.123-4',
+      email: 'pagos@andesnorte.cl',
+      phone: '+56 55 245 7700',
+      address: 'Av. Argentina 2200, Antofagasta',
+    },
+    customer: {
+      creditLimit: 1500000,
+      paymentDayOfMonth: 20,
+      isActive: true,
+      notes: 'Mayorista regional zona norte.',
+    },
+  },
+  {
+    person: {
+      type: PersonType.NATURAL,
+      firstName: 'Patricia',
+      lastName: 'Núñez Carrasco',
+      documentType: DocumentType.RUN,
+      documentNumber: '14.555.222-7',
+      email: 'patricia.nunez@correo.cl',
+      phone: '+56 9 6321 9988',
+      address: 'Los Aromos 220, Talca',
+    },
+    customer: {
+      creditLimit: 300000,
+      paymentDayOfMonth: 25,
+      isActive: true,
+      notes: 'Cliente frecuente con crédito mediano.',
+    },
+  },
+  {
+    person: {
+      type: PersonType.COMPANY,
+      firstName: 'Café del Valle SPA',
+      businessName: 'Café del Valle SPA',
+      documentType: DocumentType.RUT,
+      documentNumber: '76.111.789-6',
+      email: 'admin@cafedelvalle.cl',
+      address: 'Av. Bernardo O\'Higgins 980, Curicó',
+    },
+    customer: {
+      creditLimit: 500000,
+      paymentDayOfMonth: 30,
+      isActive: true,
+      notes: 'Reventa de café; pago fin de mes.',
+    },
+  },
+  {
+    person: {
+      type: PersonType.NATURAL,
+      firstName: 'Diego',
+      lastName: 'Pérez Lagos',
+      documentType: DocumentType.RUN,
+      documentNumber: '19.876.543-2',
+      email: 'diego.perez@protonmail.com',
+      phone: '+56 9 5555 3322',
+    },
+    customer: {
+      creditLimit: 0,
+      paymentDayOfMonth: 5,
+      isActive: true,
+      notes: 'Cliente contado sin domicilio cargado (campos opcionales).',
+    },
+  },
+  {
+    person: {
+      type: PersonType.NATURAL,
+      firstName: 'Mark',
+      lastName: 'Johnson',
+      documentType: DocumentType.PASSPORT,
+      documentNumber: 'P12345678',
+      email: 'mark.johnson@global.com',
+      phone: '+1 415 555 0199',
+      address: '1 Market St, San Francisco',
+    },
+    customer: {
+      creditLimit: 0,
+      paymentDayOfMonth: 10,
+      isActive: true,
+      notes: 'Cliente con pasaporte para validar tipo de documento.',
+    },
+  },
+  {
+    person: {
+      type: PersonType.COMPANY,
+      firstName: 'Almacenes El Roble EIRL',
+      businessName: 'Almacenes El Roble EIRL',
+      documentType: DocumentType.RUT,
+      documentNumber: '76.444.999-1',
+      email: 'contacto@elroble.cl',
+      phone: '+56 71 244 0099',
+      address: 'Avenida 21 de Mayo 450, Cauquenes',
+    },
+    customer: {
+      creditLimit: 250000,
+      paymentDayOfMonth: 15,
+      isActive: false,
+      notes: 'Cliente inactivo para pruebas de filtro.',
+    },
+  },
+  {
+    person: {
+      type: PersonType.NATURAL,
+      firstName: 'Valentina',
+      lastName: 'Sánchez',
+      documentType: DocumentType.OTHER,
+      documentNumber: 'CUST-VS-001',
+      phone: '+56 9 4444 1212',
+    },
+    customer: {
+      creditLimit: 100000,
+      paymentDayOfMonth: 20,
+      isActive: true,
+      notes: 'Documento OTHER (validar campo opcional documentType).',
+    },
+  },
+] as const;
+
 /** Tablas en `public` que no deben truncarse (extensiones PostGIS u otras). */
 const TRUNCATE_EXCLUDE_TABLES = new Set([
   'spatial_ref_sys',
@@ -620,6 +823,7 @@ async function bootstrap() {
     const cashHubRepo = dataSource.getRepository(CashHub);
     const expenseCategoryRepo = dataSource.getRepository(ExpenseCategory);
     const supplierRepo = dataSource.getRepository(Supplier);
+    const customerRepo = dataSource.getRepository(Customer);
     const shareholderRepo = dataSource.getRepository(Shareholder);
     const accountingAccountRepo = dataSource.getRepository(AccountingAccount);
     const accountingRuleRepo = dataSource.getRepository(AccountingRule);
@@ -746,6 +950,38 @@ async function bootstrap() {
       console.log(`✅ Configuración de cheques creada (enabled=true)`);
     } else {
       console.log(`✅ Configuración de cheques ya existía; no se sobrescribe`);
+    }
+
+    /**
+     * Configuración de cotizaciones a nivel empresa
+     * (`company.settings.quotations`).
+     *
+     * Defaults: módulo habilitado con 15 días de vigencia y máximo 60.
+     * Conversión de cotizaciones vencidas permitida con override
+     * explícito; los precios cotizados se respetan al convertir.
+     */
+    const existingCompanySettingsAfterChecks =
+      (company.settings && typeof company.settings === 'object'
+        ? (company.settings as Record<string, any>)
+        : {}) ?? {};
+    const existingQuotations = existingCompanySettingsAfterChecks.quotations;
+    if (!existingQuotations || typeof existingQuotations !== 'object') {
+      company.settings = {
+        ...existingCompanySettingsAfterChecks,
+        quotations: {
+          enabled: true,
+          defaultValidityDays: 15,
+          maxValidityDays: 60,
+          allowCustomValidity: true,
+          defaultTerms: null,
+          allowExpiredConversion: true,
+          reExpiredPricesOnConversion: false,
+        },
+      };
+      await companyRepo.save(company);
+      console.log(`✅ Configuración de cotizaciones creada (enabled=true, vigencia 15 días)`);
+    } else {
+      console.log(`✅ Configuración de cotizaciones ya existía; no se sobrescribe`);
     }
 
     /**
@@ -2049,6 +2285,71 @@ async function bootstrap() {
       supplier = await supplierRepo.save(supplier);
       console.log(
         `✅ Proveedor ${supplier.alias ?? person.businessName ?? `${person.firstName} ${person.lastName ?? ''}`.trim()} sincronizado: id=${supplier.id} tipo=${supplier.supplierType}`,
+      );
+    }
+
+    // Customers (ejemplos): combinaciones de persona/empresa, distintos
+    // límites de crédito y días de pago. Cada customer queda vinculado a
+    // un `Person` (FK) y a la `Company` seed vía `companyId` (NOT NULL).
+    for (const item of SEED_CUSTOMERS) {
+      let person = await personRepo.findOne({
+        where: { documentNumber: item.person.documentNumber, deletedAt: null as never },
+      });
+      if (!person) {
+        person = personRepo.create({
+          type: item.person.type,
+          firstName: item.person.firstName,
+          lastName: item.person.lastName,
+          businessName: item.person.businessName,
+          documentType: item.person.documentType,
+          documentNumber: item.person.documentNumber,
+          email: item.person.email,
+          phone: item.person.phone,
+          address: item.person.address,
+        });
+      } else {
+        person.type = item.person.type;
+        person.firstName = item.person.firstName;
+        person.lastName = item.person.lastName;
+        person.businessName = item.person.businessName;
+        person.documentType = item.person.documentType;
+        person.email = item.person.email;
+        person.phone = item.person.phone;
+        person.address = item.person.address;
+      }
+      person = await personRepo.save(person);
+
+      let customer = await customerRepo.findOne({
+        where: { companyId: company.id, personId: person.id },
+        withDeleted: true,
+      });
+      if (!customer) {
+        customer = customerRepo.create({
+          companyId: company.id,
+          personId: person.id,
+          creditLimit: item.customer.creditLimit,
+          currentBalance: 0,
+          paymentDayOfMonth: item.customer.paymentDayOfMonth,
+          isActive: item.customer.isActive,
+          notes: item.customer.notes,
+        });
+      } else {
+        if (customer.deletedAt) {
+          customer = await customerRepo.recover(customer);
+        }
+        customer.companyId = company.id;
+        customer.personId = person.id;
+        customer.creditLimit = item.customer.creditLimit;
+        customer.paymentDayOfMonth = item.customer.paymentDayOfMonth;
+        customer.isActive = item.customer.isActive;
+        customer.notes = item.customer.notes;
+      }
+      customer = await customerRepo.save(customer);
+      const displayName =
+        person.businessName ??
+        `${person.firstName} ${person.lastName ?? ''}`.trim();
+      console.log(
+        `✅ Cliente «${displayName}» sincronizado: id=${customer.id} companyId=${customer.companyId} crédito=${customer.creditLimit} día=${customer.paymentDayOfMonth} activo=${customer.isActive}`,
       );
     }
 

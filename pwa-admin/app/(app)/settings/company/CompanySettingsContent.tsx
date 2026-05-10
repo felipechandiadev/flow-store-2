@@ -8,6 +8,7 @@ import { CompanyLogoSection } from "./CompanyLogoSection";
 import { CompanyBankAccountsSection } from "./CompanyBankAccountsSection";
 import { CompanyPaymentMethodsSection } from "./CompanyPaymentMethodsSection";
 import { CompanyChecksSection } from "./CompanyChecksSection";
+import { CompanyQuotationsSection } from "./CompanyQuotationsSection";
 import { CompanyPartnersSection } from "./CompanyPartnersSection";
 
 type Props = {
@@ -36,6 +37,8 @@ export function CompanySettingsContent({ company, shareholders }: Props) {
           <CompanyPaymentMethodsSection companyId={company.id} />
 
           <CompanyChecksSection company={company} />
+
+          <CompanyQuotationsSection company={company} />
 
           {company.id ? (
             <CompanyPartnersSection companyId={company.id} shareholders={shareholders} />
