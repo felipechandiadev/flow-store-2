@@ -6,9 +6,15 @@ import AuthProvider from "@/providers/AuthProvider";
 /** Sin `next/font/google`: el build no debe hacer fetch a Google Fonts (CI/sin red). Ver `:root` en `globals.css`. */
 
 export const metadata: Metadata = {
-  title: "FlowStore POS",
+  title: {
+    default: "FlowStore | POS",
+    template: "%s | POS",
+  },
   description: "PWA POS para Flow Store 2",
   manifest: "/manifest.json",
+  icons: {
+    icon: [{ url: "/logo.png", type: "image/png" }],
+  },
 };
 
 /** Solo en build/SSR; no usar `process` dentro del string del `<script>` (en el browser no existe). */

@@ -27,6 +27,11 @@ import {
   CreateTransactionLineDto,
 } from '@modules/transactions/application/dto/create-transaction.dto';
 import { CompaniesService } from '@modules/companies/application/companies.service';
+import { PromotionsService } from '@modules/promotions/application/promotions.service';
+import { applyPromotions } from '@modules/promotions/application/discount-engine';
+import type { AppliedSnapshot } from '@modules/promotions/application/discount-engine.types';
+import { Promotion } from '@modules/promotions/domain/promotion.entity';
+import { PromotionRedemption } from '@modules/promotions/domain/promotion-redemption.entity';
 
 /**
  * SalesFromSessionService - Single Responsibility: Sale Transaction Creation
@@ -66,6 +71,7 @@ export class SalesFromSessionService {
     private readonly dataSource: DataSource,
     private readonly transactionsService: TransactionsService,
     private readonly companiesService: CompaniesService,
+    private readonly promotionsService: PromotionsService,
   ) {}
 
   /**
@@ -171,6 +177,7 @@ export class SalesFromSessionService {
       storageId,
       bankAccountKey,
       metadata,
+      promotionSnapshot,
     } = createSaleDto;
 
     // Validaciones básicas
@@ -236,8 +243,20 @@ export class SalesFromSessionService {
       let discountAmount = 0;
 
       const transactionLines: Partial<TransactionLine>[] = [];
+      // Paralelo a `transactionLines`: el contexto que el motor necesita
+      // (lineId estable, categoryId, etc.). Usamos un lineId determinista
+      // basado en el índice para correlacionar de vuelta los resolvedLines.
+      const engineCartLines: Array<{
+        lineId: string;
+        variantId: string;
+        productId: string;
+        categoryId: string | null;
+        unitPrice: number;
+        quantity: number;
+      }> = [];
 
-      for (const line of lines) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         // Verificar variante existe
         const variant = await manager.getRepository(ProductVariant).findOne({
           where: { id: line.productVariantId },
@@ -283,9 +302,189 @@ export class SalesFromSessionService {
           total: lineTotal,
           notes: line.notes || undefined,
         });
+
+        engineCartLines.push({
+          lineId: `srv-${i}`,
+          variantId: line.productVariantId,
+          productId: variant.productId ?? '',
+          categoryId: (variant.product as any).categoryId ?? null,
+          unitPrice: Number(line.unitPrice) || 0,
+          quantity: Number(line.quantity) || 0,
+        });
       }
 
-      const total = subtotal - discountAmount + taxAmount;
+      let total = subtotal - discountAmount + taxAmount;
+
+      // ============================================================
+      // RE-VALIDACIÓN DE PROMOCIONES (PR 5)
+      // ------------------------------------------------------------
+      // Si el cliente envió `promotionSnapshot`, re-ejecutamos el
+      // motor canónico con datos del servidor. Comparamos por promoción
+      // con tolerancia (epsilon = 1 unidad monetaria) y, si hay
+      // divergencia material, abortamos. Al pasar la validación,
+      // sobreescribimos `discountAmount` y los descuentos por línea con
+      // los valores autoritativos del servidor; el snapshot inmutable
+      // queda en `metadata.promotionSnapshot`.
+      // ============================================================
+      const clientSnapshot = Array.isArray(promotionSnapshot)
+        ? promotionSnapshot
+        : [];
+      const companyId = pointOfSale.companyId!;
+
+      let serverAppliedPromotions: AppliedSnapshot[] = [];
+      let reservedPromotionIds: string[] = [];
+
+      if (clientSnapshot.length > 0) {
+        const effective = await this.promotionsService.findEffective(
+          companyId,
+          pointOfSale.branchId!,
+          pointOfSale.id,
+          true,
+        );
+
+        const paymentMethodIds: string[] = (payments ?? [])
+          .map((p) => (p as any).companyPaymentMethodId as string | undefined)
+          .filter((x): x is string => !!x);
+
+        const manualSelections = clientSnapshot
+          .filter(
+            (s) => s.activation === 'MANUAL' || s.activation === 'CODE_ENTRY',
+          )
+          .map((s) => ({ promotionId: s.promotionId }));
+
+        let customerHistory: {
+          promotionId: string;
+          usesByThisCustomer: number;
+        }[] = [];
+        if (customerId) {
+          const histRows = await manager.query<
+            { promotion_id: string; cnt: string }[]
+          >(
+            `SELECT promotion_id, COUNT(*) AS cnt
+               FROM promotion_redemptions
+              WHERE customer_id = $1 AND amount_discounted > 0
+              GROUP BY promotion_id`,
+            [customerId],
+          );
+          customerHistory = (histRows ?? []).map((r) => ({
+            promotionId: r.promotion_id,
+            usesByThisCustomer: Number(r.cnt) || 0,
+          }));
+        }
+
+        const serverResult = applyPromotions({
+          cart: {
+            lines: engineCartLines,
+            customerId: customerId ?? null,
+            paymentMethodIds,
+          },
+          ctx: {
+            companyId,
+            branchId: pointOfSale.branchId!,
+            pointOfSaleId: pointOfSale.id,
+            now: new Date(),
+          },
+          promotions: effective,
+          manualSelections,
+          customerHistory,
+        });
+
+        // Validación: comparar por promoción y total contra el snapshot.
+        const epsilon = 1;
+        const clientById = new Map<string, number>();
+        for (const s of clientSnapshot) {
+          clientById.set(
+            s.promotionId,
+            (clientById.get(s.promotionId) ?? 0) +
+              (Number(s.amountDiscounted) || 0),
+          );
+        }
+        const serverById = new Map<string, number>();
+        for (const ap of serverResult.appliedPromotions) {
+          serverById.set(
+            ap.promotionId,
+            (serverById.get(ap.promotionId) ?? 0) +
+              (Number(ap.amountDiscounted) || 0),
+          );
+        }
+        const allIds = new Set<string>([
+          ...clientById.keys(),
+          ...serverById.keys(),
+        ]);
+        for (const id of allIds) {
+          const c = clientById.get(id) ?? 0;
+          const s = serverById.get(id) ?? 0;
+          if (Math.abs(c - s) > epsilon) {
+            throw new BadRequestException(
+              `El descuento de la promoción ${id} no coincide con el cálculo del servidor (${c} vs ${s}). La venta no se procesará.`,
+            );
+          }
+        }
+
+        // Aplicar resultado canónico a líneas y totales.
+        let recomputedSubtotal = 0;
+        let recomputedLineDiscount = 0;
+        let recomputedTax = 0;
+        for (let i = 0; i < transactionLines.length; i++) {
+          const tl = transactionLines[i];
+          const resolved = serverResult.resolvedLines.find(
+            (r) => r.lineId === `srv-${i}`,
+          );
+          const lineQty = Number(tl.quantity) || 0;
+          const lineUnit = Number(tl.unitPrice) || 0;
+          const lineSubtotal = lineQty * lineUnit;
+          const lineTax = Number(tl.taxAmount) || 0;
+          const ld = resolved?.discount?.discountAmount ?? 0;
+          const lp = resolved?.discount?.discountPercentage ?? 0;
+          tl.discountAmount = ld;
+          tl.discountPercentage = lp;
+          tl.subtotal = lineSubtotal - ld;
+          tl.total = lineSubtotal - ld + lineTax;
+          recomputedSubtotal += lineSubtotal;
+          recomputedLineDiscount += ld;
+          recomputedTax += lineTax;
+        }
+        subtotal = recomputedSubtotal;
+        taxAmount = recomputedTax;
+        discountAmount =
+          recomputedLineDiscount +
+          (Number(serverResult.orderDiscountAmount) || 0);
+        total = subtotal - discountAmount + taxAmount;
+
+        // Reserva atómica de `uses_count` ANTES de crear la transacción.
+        // Si alguna promoción se agotó entre el cálculo y el cierre, el
+        // UPDATE no devolverá filas y abortamos antes de persistir nada.
+        for (const ap of serverResult.appliedPromotions) {
+          const updated = await manager.query<{ id: string }[]>(
+            `UPDATE promotions
+                SET uses_count = uses_count + 1,
+                    updated_at = now()
+              WHERE id = $1
+                AND deleted_at IS NULL
+                AND (max_uses_total IS NULL OR uses_count < max_uses_total)
+              RETURNING id`,
+            [ap.promotionId],
+          );
+          if (!updated || updated.length === 0) {
+            // Compensar reservas previas dentro del mismo cierre.
+            for (const pid of reservedPromotionIds) {
+              try {
+                await manager.query(
+                  `UPDATE promotions SET uses_count = GREATEST(uses_count - 1, 0), updated_at = now() WHERE id = $1`,
+                  [pid],
+                );
+              } catch {
+                /* swallow compensation errors */
+              }
+            }
+            throw new ConflictException(
+              `La promoción '${ap.promotionCode}' alcanzó su límite total de usos.`,
+            );
+          }
+          reservedPromotionIds.push(ap.promotionId);
+        }
+        serverAppliedPromotions = serverResult.appliedPromotions;
+      }
 
       // Construir snapshots inmutables de medios de pago (trazabilidad).
       // Si una entrada incluye `companyPaymentMethodId`, hidratamos alias,
@@ -374,6 +573,10 @@ export class SalesFromSessionService {
            */
           isMixedPayment,
           storageId: storageId || undefined,
+          promotionSnapshot:
+            serverAppliedPromotions.length > 0
+              ? serverAppliedPromotions
+              : undefined,
         },
       });
 
@@ -384,9 +587,44 @@ export class SalesFromSessionService {
         return lineDto;
       });
 
-      // Delegar a TransactionsService para obtener transacción con asientos generados
-      const finalTransaction =
-        await this.transactionsService.createTransaction(dto);
+      // Delegar a TransactionsService para obtener transacción con asientos generados.
+      // Si esto falla, devolvemos `uses_count` a su valor previo para no
+      // dejar reservas huérfanas.
+      let finalTransaction: Awaited<
+        ReturnType<TransactionsService['createTransaction']>
+      >;
+      try {
+        finalTransaction =
+          await this.transactionsService.createTransaction(dto);
+      } catch (err) {
+        for (const pid of reservedPromotionIds) {
+          try {
+            await manager.query(
+              `UPDATE promotions SET uses_count = GREATEST(uses_count - 1, 0), updated_at = now() WHERE id = $1`,
+              [pid],
+            );
+          } catch {
+            /* swallow compensation errors */
+          }
+        }
+        throw err;
+      }
+
+      // Persistir redenciones inmutables vinculadas a la transacción
+      // recién creada. El snapshot inmutable de cada promoción sobrevive
+      // a ediciones futuras de la regla.
+      if (serverAppliedPromotions.length > 0) {
+        for (const ap of serverAppliedPromotions) {
+          await manager.getRepository(PromotionRedemption).insert({
+            companyId,
+            promotionId: ap.promotionId,
+            transactionId: finalTransaction.id,
+            customerId: customerId ?? null,
+            amountDiscounted: Number(ap.amountDiscounted) || 0,
+            snapshot: ap as unknown as Record<string, any>,
+          });
+        }
+      }
 
       // Actualizar `expectedAmount` de la sesión solo con el efectivo
       // realmente recibido. Antes se sumaba el `amountPaid` total cuando

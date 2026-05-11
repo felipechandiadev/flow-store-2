@@ -3,68 +3,93 @@
 import { signIn } from 'next-auth/react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Button, TextField } from '@/shared/components';
 
 export default function LoginPage() {
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSubmitting(true);
 
-    const result = await signIn('credentials', {
-      userName,
-      password,
-      redirect: false,
-    });
+    try {
+      const result = await signIn('credentials', {
+        userName,
+        password,
+        redirect: false,
+      });
 
-    if (result?.error) {
-      setError('Credenciales inválidas');
-    } else {
+      if (result?.error) {
+        setError('Credenciales inválidas');
+        return;
+      }
+
       router.push('/dashboard');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-6">Iniciar Sesión</h1>
+        <div className="flex flex-col items-center text-center mb-6">
+          <img
+            src="/logo.png"
+            alt="FlowStore"
+            className="h-20 w-20 object-contain"
+          />
+          <div className="mt-3 flex flex-col gap-0 leading-none">
+            <span className="block text-2xl font-bold leading-tight tracking-tight text-foreground">
+              FlowStore
+            </span>
+            <span className="-mt-px block text-xs font-normal leading-tight text-muted">
+              Panel de administración
+            </span>
+          </div>
+        </div>
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label htmlFor="userName" className="block text-sm font-medium text-gray-700">
-              Usuario
-            </label>
-            <input
+            <TextField
+              label="Usuario"
+              name="userName"
               type="text"
-              id="userName"
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Usuario"
               required
+              disabled={submitting}
+              autoComplete="username"
+              className="w-full"
             />
           </div>
           <div className="mb-6">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Contraseña
-            </label>
-            <input
+            <TextField
+              label="Contraseña"
+              name="password"
               type="password"
-              id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Contraseña"
               required
+              disabled={submitting}
+              autoComplete="current-password"
+              className="w-full"
             />
           </div>
           {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-          <button
+          <Button
             type="submit"
-            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            className="w-full"
+            loading={submitting}
           >
             Iniciar Sesión
-          </button>
+          </Button>
         </form>
       </div>
     </div>

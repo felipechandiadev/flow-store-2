@@ -138,7 +138,10 @@ export function sanitizePosPaymentMethod(
     isEnabled: r.isEnabled !== false,
     preloadOnPaymentScreen: r.preloadOnPaymentScreen === true,
     preloadOrder,
-    isDefaultForChange: r.isDefaultForChange === true,
+    // Solo efectivo permite "default para vuelto".
+    isDefaultForChange:
+      exists.method === PaymentMethod.CASH && r.isDefaultForChange === true,
+    bankAccountKey: trimOrNull(r.bankAccountKey),
     requireReference,
   };
 }
@@ -204,7 +207,7 @@ export function mergeCompanyAndPos(
       method: cmp.method,
       label: cmp.alias?.trim() || PAYMENT_METHOD_LABELS[cmp.method] || cmp.method,
       alias: cmp.alias ?? null,
-      bankAccountKey: cmp.bankAccountKey ?? null,
+      bankAccountKey: pos.bankAccountKey ?? cmp.bankAccountKey ?? null,
       requireReference:
         pos.requireReference == null ? cmp.requireReference : pos.requireReference,
       preloadOnPaymentScreen: pos.preloadOnPaymentScreen,
@@ -214,14 +217,12 @@ export function mergeCompanyAndPos(
     });
   }
   out.sort((a, b) => {
-    const aP = a.preloadOnPaymentScreen ? 0 : 1;
-    const bP = b.preloadOnPaymentScreen ? 0 : 1;
-    if (aP !== bP) return aP - bP;
-    if (a.preloadOnPaymentScreen && b.preloadOnPaymentScreen) {
-      const ao = a.preloadOrder ?? 999;
-      const bo = b.preloadOrder ?? 999;
-      if (ao !== bo) return ao - bo;
-    }
+    // Orden único global configurado por POS:
+    // usamos `preloadOrder` como índice general (aunque el nombre histórico
+    // venga de "precarga"). Si falta, caemos a displayOrder de empresa.
+    const ao = a.preloadOrder ?? 999;
+    const bo = b.preloadOrder ?? 999;
+    if (ao !== bo) return ao - bo;
     return a.displayOrder - b.displayOrder;
   });
   return out;

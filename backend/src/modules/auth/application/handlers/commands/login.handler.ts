@@ -33,7 +33,7 @@ export interface LoginResult {
     userName: string;
     email: string;
     rol: string;
-    /** Empresa fija del operador. NULL para ADMIN. */
+    /** Empresa fija (ADMIN/OPERATOR). NULL para SUPER_ADMIN. */
     companyId: string | null;
     person?: {
       id: string;
@@ -44,11 +44,15 @@ export interface LoginResult {
     };
   };
   /** Empresa activa al iniciar sesión.
-   *  - OPERATOR: igual a user.companyId.
-   *  - ADMIN: la primera empresa activa (cliente puede cambiar via switch-company).
+   *  - ADMIN/OPERATOR: igual a user.companyId.
+   *  - SUPER_ADMIN: la primera empresa activa (cliente puede cambiar via switch-company).
    */
   activeCompanyId?: string | null;
-  /** Solo para ADMIN: empresas disponibles para switchear. */
+  /**
+   * Empresas en contexto para el cliente.
+   * - SUPER_ADMIN: todas las activas (switcher).
+   * - ADMIN / OPERATOR: la empresa fija del usuario (una entrada), para mostrar nombre en UI sin otro round-trip.
+   */
   companies?: LoginCompanyOption[] | null;
 }
 
@@ -131,14 +135,7 @@ export class LoginCommandHandler implements ICommandHandler<
         ? String(command.companyHint)
         : null;
 
-    if (user.rol === UserRole.OPERATOR) {
-      // Si el cliente (POS) declara una empresa, debe coincidir con la del operador.
-      if (hint && user.companyId && hint !== user.companyId) {
-        throw new ForbiddenException(
-          'Este usuario no pertenece a la empresa solicitada por este punto de venta',
-        );
-      }
-    } else if (user.rol === UserRole.ADMIN) {
+    if (user.rol === UserRole.SUPER_ADMIN) {
       const all = await this.companyRepository.find({
         where: { isActive: true },
         order: { createdAt: 'ASC' },
@@ -158,6 +155,27 @@ export class LoginCommandHandler implements ICommandHandler<
         activeCompanyId = match.id;
       } else {
         activeCompanyId = companies.length > 0 ? companies[0].id : null;
+      }
+    } else {
+      // ADMIN/OPERATOR: si el cliente declara una empresa, debe coincidir.
+      if (hint && user.companyId && hint !== user.companyId) {
+        throw new ForbiddenException(
+          'Este usuario no pertenece a la empresa solicitada por este punto de venta',
+        );
+      }
+      if (user.companyId) {
+        const tenantCompany = await this.companyRepository.findOne({
+          where: { id: user.companyId },
+        });
+        if (tenantCompany) {
+          companies = [
+            {
+              id: tenantCompany.id,
+              razonSocial: tenantCompany.razonSocial,
+              nombreFantasia: tenantCompany.nombreFantasia ?? null,
+            },
+          ];
+        }
       }
     }
 

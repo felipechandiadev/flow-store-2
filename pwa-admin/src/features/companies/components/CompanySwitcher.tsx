@@ -10,10 +10,16 @@ import type { CompanyOption } from "../types/company.types";
 interface CompanySwitcherProps {
   /** Si se quiere forzar el listado (para testing). Si no, se toma de la session. */
   fallbackCompanies?: CompanyOption[];
+  /**
+   * ADMIN: si la sesión aún no trae `companies` pero el layout resolvió la empresa (RSC),
+   * mostrar este nombre hasta el próximo login con payload completo.
+   */
+  fallbackCompanyLabel?: string | null;
 }
 
 const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
   fallbackCompanies,
+  fallbackCompanyLabel,
 }) => {
   const { data: session, update } = useSession();
   const router = useRouter();
@@ -22,15 +28,9 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
   const [pending, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement | null>(null);
 
-  const role = (session?.user as any)?.role as string | null | undefined;
-  const activeCompanyId = (session?.user as any)?.activeCompanyId as
-    | string
-    | null
-    | undefined;
-  const sessionCompanies = (session?.user as any)?.companies as
-    | CompanyOption[]
-    | null
-    | undefined;
+  const role = (session?.user as { role?: string | null })?.role ?? null;
+  const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+  const sessionCompanies = (session?.user as { companies?: CompanyOption[] | null })?.companies;
 
   const companies = useMemo<CompanyOption[]>(() => {
     if (Array.isArray(sessionCompanies) && sessionCompanies.length > 0) {
@@ -39,10 +39,34 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
     return Array.isArray(fallbackCompanies) ? fallbackCompanies : [];
   }, [sessionCompanies, fallbackCompanies]);
 
+  const isSuperAdmin = role === "SUPER_ADMIN";
+
+  const resolvedCompanies = useMemo<CompanyOption[]>(() => {
+    if (companies.length > 0) {
+      return companies;
+    }
+    if (isSuperAdmin) {
+      return [];
+    }
+    const fb = typeof fallbackCompanyLabel === "string" ? fallbackCompanyLabel.trim() : "";
+    if (!fb || !session?.user) {
+      return [];
+    }
+    const cid =
+      (typeof activeCompanyId === "string" && activeCompanyId.trim() !== ""
+        ? activeCompanyId
+        : null) ??
+      (session.user as { companyId?: string | null }).companyId ??
+      "";
+    return [{ id: cid, razonSocial: fb, nombreFantasia: null }];
+  }, [companies, isSuperAdmin, fallbackCompanyLabel, session, activeCompanyId]);
+
   const activeCompany = useMemo<CompanyOption | null>(() => {
-    if (!activeCompanyId) return null;
-    return companies.find((c) => c.id === activeCompanyId) ?? null;
-  }, [companies, activeCompanyId]);
+    if (!activeCompanyId) {
+      return null;
+    }
+    return resolvedCompanies.find((c) => c.id === activeCompanyId) ?? null;
+  }, [resolvedCompanies, activeCompanyId]);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -58,19 +82,17 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
     return undefined;
   }, [open]);
 
-  // Solo ADMIN ve el switcher con dropdown.
-  // Operador: ver el nombre de su empresa fija sin acción.
-  const isAdmin = role === "ADMIN";
-
   if (!session?.user) return null;
-  if (companies.length === 0) return null;
+  if (resolvedCompanies.length === 0) return null;
 
   const label =
     activeCompany?.nombreFantasia?.trim() ||
     activeCompany?.razonSocial?.trim() ||
     "Sin empresa";
 
-  if (!isAdmin) {
+  // Solo SUPER_ADMIN ve el switcher (puede operar varias empresas).
+  // ADMIN/OPERATOR están fijos a una empresa: solo muestran el nombre.
+  if (!isSuperAdmin) {
     return (
       <div className="flex items-center gap-1.5 text-sm text-foreground">
         <Building2 size={14} className="text-muted" aria-hidden />
@@ -89,7 +111,6 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
     startTransition(async () => {
       const res = await switchCompanyAction(companyId);
       if (res.success) {
-        // Actualizar el JWT/session de next-auth con el nuevo activeCompanyId.
         await update({ activeCompanyId: res.activeCompanyId });
         setOpen(false);
         router.refresh();
@@ -124,10 +145,9 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
             Cambiar empresa
           </div>
           <ul className="max-h-72 overflow-y-auto py-1">
-            {companies.map((c) => {
+            {resolvedCompanies.map((c) => {
               const isActive = c.id === activeCompanyId;
-              const optionLabel =
-                c.nombreFantasia?.trim() || c.razonSocial.trim();
+              const optionLabel = c.nombreFantasia?.trim() || c.razonSocial.trim();
               return (
                 <li key={c.id}>
                   <button

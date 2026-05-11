@@ -266,6 +266,13 @@ export default function PosProductSearchPanel({
                         <span className="text-muted-foreground">{item.unitSymbol}</span>
                       </>
                     ) : null}
+                    <InlineSepDot />
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      Stock sucursal:{" "}
+                      <span className="font-semibold text-foreground">
+                        {item.availableStock == null ? "—" : String(item.availableStock)}
+                      </span>
+                    </span>
                   </p>
                 </div>
                 <IconButton

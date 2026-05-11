@@ -11,6 +11,7 @@ import {
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { SearchPosProductsDto } from './dto/search-pos-products.dto';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
+import { AttributeOrmEntity } from '@modules/attributes/infrastructure/orm-mappers/attribute.orm-entity';
 
 export type PosProductSearchResult = {
   productId: string;
@@ -22,6 +23,7 @@ export type PosProductSearchResult = {
   barcode: string | null;
   unitSymbol: string | null;
   unitId: string | null;
+  unitAllowDecimals: boolean;
   unitPrice: number;
   unitTaxRate: number;
   unitTaxAmount: number;
@@ -85,8 +87,18 @@ export class ProductsPosService {
 
     // Filtrar por búsqueda de texto (nombre, SKU, barcode)
     if (query && query.trim()) {
+      // Búsqueda case-insensitive y accent-insensitive (sin depender de extensiones DB).
+      // Nota: cubre diacríticos latinos comunes usados en ES/CL. Para collation/unaccent
+      // completa podría usarse una extensión (p. ej. Postgres `unaccent`), pero esto
+      // entrega el comportamiento esperado en la UI del POS.
+      const accentFrom = 'ÁÀÂÄÃáàâäãÉÈÊËéèêëÍÌÎÏíìîïÓÒÔÖÕóòôöõÚÙÛÜúùûüÑñ';
+      const accentTo = 'AAAAAaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuNn';
       qb.andWhere(
-        '(product.name LIKE :q OR v.sku LIKE :q OR v.barcode LIKE :q)',
+        `(
+          LOWER(TRANSLATE(product.name, '${accentFrom}', '${accentTo}')) LIKE LOWER(TRANSLATE(:q, '${accentFrom}', '${accentTo}'))
+          OR LOWER(TRANSLATE(COALESCE(v.sku, ''), '${accentFrom}', '${accentTo}')) LIKE LOWER(TRANSLATE(:q, '${accentFrom}', '${accentTo}'))
+          OR LOWER(TRANSLATE(COALESCE(v.barcode, ''), '${accentFrom}', '${accentTo}')) LIKE LOWER(TRANSLATE(:q, '${accentFrom}', '${accentTo}'))
+        )`,
         { q: `%${query.trim()}%` },
       );
     }
@@ -104,6 +116,7 @@ export class ProductsPosService {
       'product.description',
       'unit.id',
       'unit.symbol',
+      'unit.allowDecimals',
       'priceListItem.id',
       'priceListItem.netPrice',
       'priceListItem.grossPrice',
@@ -137,8 +150,18 @@ export class ProductsPosService {
     const productIds = Array.from(
       new Set(variants.map((variant) => variant.productId).filter(Boolean)),
     ) as string[];
+    const attributeIds = Array.from(
+      new Set(
+        variants.flatMap((variant) =>
+          variant?.attributeValues && typeof variant.attributeValues === 'object'
+            ? Object.keys(variant.attributeValues as Record<string, string>)
+            : [],
+        ),
+      ),
+    ).filter(Boolean) as string[];
     let stockByVariant: Record<string, number> = {};
     const multimediaByProduct: Record<string, string | null> = {};
+    const attributeNameById: Record<string, string> = {};
 
     if (branchId) {
       const stockLevels = await this.stockLevelRepository
@@ -167,6 +190,23 @@ export class ProductsPosService {
         multimediaByProduct[productId] = assets[0]?.publicUrl ?? null;
       }),
     );
+
+    if (attributeIds.length > 0) {
+      try {
+        const rows = await this.dataSource
+          .getRepository(AttributeOrmEntity)
+          .createQueryBuilder('a')
+          .where('a.id IN (:...ids)', { ids: attributeIds })
+          .andWhere('a.deletedAt IS NULL')
+          .select(['a.id', 'a.name'])
+          .getMany();
+        for (const a of rows) {
+          attributeNameById[a.id] = a.name;
+        }
+      } catch {
+        // ignore, fallback to empty names below
+      }
+    }
 
     // Mapear resultados al formato esperado por el POS
     const products: PosProductSearchResult[] = variants
@@ -207,23 +247,23 @@ export class ProductsPosService {
           netPrice > 0 ? (taxAmount / netPrice) * 100 : 0;
         const taxRate = Math.max(0, Math.min(100, calculatedTaxRate));
 
-        // Parsear atributos
-        let attributes: Array<{
+        // Atributos: `product_variants.attributeValues` es JSON objeto `{ [attributeId]: value }`.
+        // El POS necesita una lista con nombre+valor para mostrar "Producto · Talla · Color".
+        const attributes: Array<{
           attributeId: string;
           attributeName: string;
           attributeValue: string;
         }> = [];
-        if (variant.attributeValues) {
-          try {
-            const parsed =
-              typeof variant.attributeValues === 'string'
-                ? JSON.parse(variant.attributeValues)
-                : variant.attributeValues;
-            if (Array.isArray(parsed)) {
-              attributes = parsed;
-            }
-          } catch (e) {
-            // Ignorar error de parsing
+        if (variant.attributeValues && typeof variant.attributeValues === 'object') {
+          const dict = variant.attributeValues as Record<string, unknown>;
+          for (const [attributeId, rawValue] of Object.entries(dict)) {
+            const attributeValue = rawValue != null ? String(rawValue).trim() : '';
+            if (!attributeId || !attributeValue) continue;
+            attributes.push({
+              attributeId,
+              attributeName: attributeNameById[attributeId] ?? '',
+              attributeValue,
+            });
           }
         }
 
@@ -237,6 +277,7 @@ export class ProductsPosService {
           barcode: variant.barcode || null,
           unitSymbol: variant.unit?.symbol || null,
           unitId: variant.unit?.id || null,
+          unitAllowDecimals: variant.unit?.allowDecimals === true,
           unitPrice: netPrice,
           unitTaxRate: taxRate,
           unitTaxAmount: taxAmount,

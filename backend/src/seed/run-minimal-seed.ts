@@ -2417,69 +2417,129 @@ async function bootstrap() {
       );
     }
 
-    let user = await userRepo.findOne({
-      where: { userName, deletedAt: null as never },
-      relations: ['person'],
-    });
-
-    if (!user) {
-      const person = personRepo.create({
-        type: PersonType.NATURAL,
-        firstName: 'Administrador',
-        lastName: 'Sistema',
-        documentType: DocumentType.RUT,
-        documentNumber: '11111111-1',
-        email,
+    // Helper idempotente: asegura un usuario seed con su persona asociada.
+    // Si existe, actualiza rol/companyId/nonDeletable/email para que el
+    // estado seed siempre coincida con el modelo declarado.
+    const ensureSeedUser = async (params: {
+      userName: string;
+      password: string;
+      rol: UserRole;
+      companyId: string | null;
+      nonDeletable: boolean;
+      firstName: string;
+      lastName: string;
+      email: string;
+      documentNumber: string;
+    }) => {
+      let u = await userRepo.findOne({
+        where: { userName: params.userName, deletedAt: null as never },
+        relations: ['person'],
       });
-      const savedPerson = await personRepo.save(person);
 
-      user = userRepo.create({
-        userName,
-        pass: await bcrypt.hash(password, 12),
-        mail: email,
-        rol: UserRole.ADMIN,
-        // ADMIN es global: la constraint `users_role_company_chk` exige
-        // companyId NULL para administradores. Explícitamente seteamos
-        // null para evitar el auto-fill del TenantSubscriber.
-        companyId: null,
-        person: savedPerson,
-      });
-      await userRepo.save(user);
+      if (!u) {
+        const personEntity = personRepo.create({
+          type: PersonType.NATURAL,
+          firstName: params.firstName,
+          lastName: params.lastName,
+          documentType: DocumentType.RUT,
+          documentNumber: params.documentNumber,
+          email: params.email,
+        });
+        const savedPerson = await personRepo.save(personEntity);
+
+        u = userRepo.create({
+          userName: params.userName,
+          pass: await bcrypt.hash(params.password, 12),
+          mail: params.email,
+          rol: params.rol,
+          companyId: params.companyId,
+          nonDeletable: params.nonDeletable,
+          person: savedPerson,
+        });
+        await userRepo.save(u);
+
+        console.log(
+          `✅ Usuario seed creado: rol=${params.rol} userName='${params.userName}' password='${params.password}'`,
+        );
+        return;
+      }
+
+      const needsBcrypt = !u.pass?.startsWith('$2');
+      if (needsBcrypt) {
+        u.pass = await bcrypt.hash(params.password, 12);
+      }
+      u.mail = params.email;
+      u.rol = params.rol;
+      u.companyId = params.companyId;
+      u.nonDeletable = params.nonDeletable;
+
+      if (!u.person) {
+        const personEntity = personRepo.create({
+          type: PersonType.NATURAL,
+          firstName: params.firstName,
+          lastName: params.lastName,
+          documentType: DocumentType.RUT,
+          documentNumber: params.documentNumber,
+          email: params.email,
+        });
+        u.person = await personRepo.save(personEntity);
+      } else {
+        u.person.firstName = params.firstName;
+        u.person.lastName = params.lastName;
+        u.person.documentNumber = params.documentNumber;
+        u.person.email = params.email;
+        await personRepo.save(u.person);
+      }
+
+      await userRepo.save(u);
 
       console.log(
-        `✅ Seed mínimo OK. Usuario creado: userName='${userName}' password='${password}'`,
+        `✅ Usuario seed actualizado: rol=${params.rol} userName='${params.userName}' password='${params.password}'`,
       );
-      return;
-    }
+    };
 
-    // If user exists, ensure it's loginable (password hashed, email/role set)
-    const needsBcrypt = !user.pass?.startsWith('$2');
-    if (needsBcrypt) {
-      user.pass = await bcrypt.hash(password, 12);
-    }
-    user.mail = email;
-    user.rol = UserRole.ADMIN;
+    const seedPassword = password;
 
-    if (!user.person) {
-      const person = personRepo.create({
-        type: PersonType.NATURAL,
-        firstName: 'Administrador',
-        lastName: 'Sistema',
-        documentType: DocumentType.RUT,
-        documentNumber: '11111111-1',
-        email,
-      });
-      user.person = await personRepo.save(person);
-    } else if (!user.person.email) {
-      user.person.email = email;
-      await personRepo.save(user.person);
-    }
+    await ensureSeedUser({
+      userName: 'superadmin',
+      password: seedPassword,
+      rol: UserRole.SUPER_ADMIN,
+      companyId: null,
+      nonDeletable: true,
+      firstName: 'Administrador',
+      lastName: 'de Sistema',
+      email: 'superadmin@flowstore.local',
+      documentNumber: '11111111-1',
+    });
 
-    await userRepo.save(user);
+    await ensureSeedUser({
+      userName: userName, // 'admin' por defecto, configurable via SEED_ADMIN_USERNAME
+      password: seedPassword,
+      rol: UserRole.ADMIN,
+      companyId: company.id,
+      nonDeletable: false,
+      firstName: 'Administrador',
+      lastName: 'de empresa',
+      email,
+      documentNumber: '22222222-2',
+    });
 
-    console.log(
-      `✅ Seed mínimo OK. Usuario actualizado: userName='${userName}' password='${password}'`,
-    );
+    await ensureSeedUser({
+      userName: 'operador',
+      password: seedPassword,
+      rol: UserRole.OPERATOR,
+      companyId: company.id,
+      nonDeletable: false,
+      firstName: 'Operador',
+      lastName: 'POS',
+      email: 'operador@flowstore.local',
+      documentNumber: '33333333-3',
+    });
+
+    console.log('✅ Seed mínimo OK. Tres usuarios listos:');
+    console.log(`   • superadmin / ${seedPassword}   (SUPER_ADMIN, protegido)`);
+    console.log(`   • ${userName} / ${seedPassword}        (ADMIN de la empresa)`);
+    console.log(`   • operador / ${seedPassword}    (OPERATOR de la empresa)`);
       },
     );
   } catch (error) {

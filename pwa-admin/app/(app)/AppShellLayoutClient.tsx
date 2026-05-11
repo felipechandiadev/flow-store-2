@@ -9,7 +9,7 @@ import { mainMenuItems } from "@/navigation/mainMenu";
 import { useCompany } from "@/providers/CompanyProvider";
 
 export default function AppShellLayoutClient({ children }: { children: React.ReactNode }) {
-  const { status } = useSession();
+  const { status, data: session } = useSession();
   const router = useRouter();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { company } = useCompany();
@@ -17,6 +17,14 @@ export default function AppShellLayoutClient({ children }: { children: React.Rea
   const companyTradeName =
     company?.nombreFantasia != null && String(company.nombreFantasia).trim() !== ""
       ? String(company.nombreFantasia).trim()
+      : null;
+
+  const adminCompanySwitcherFallback =
+    session?.user?.role === "ADMIN" && company
+      ? companyTradeName ||
+        (company.razonSocial != null && String(company.razonSocial).trim() !== ""
+          ? String(company.razonSocial).trim()
+          : null)
       : null;
 
   useEffect(() => {
@@ -34,6 +42,7 @@ export default function AppShellLayoutClient({ children }: { children: React.Rea
       <TopBar
         title="FlowStore"
         companyTradeName={companyTradeName}
+        companySwitcherFallbackLabel={adminCompanySwitcherFallback}
         subtitle="Panel de administración"
         logoSrc="/logo.png"
         menuItems={mainMenuItems}

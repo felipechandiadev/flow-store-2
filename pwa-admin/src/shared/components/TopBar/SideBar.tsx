@@ -13,6 +13,12 @@ export interface SideBarMenuItem {
   label: string;
   url?: string;
   children?: SideBarMenuItem[];
+  /**
+   * Si está presente, el item solo se renderiza cuando el rol del usuario
+   * coincide. Para items con `children`, además se filtra recursivamente
+   * el árbol y si todos los hijos se ocultan, el padre también desaparece.
+   */
+  requiresRole?: 'SUPER_ADMIN' | 'ADMIN' | 'OPERATOR';
 }
 
 interface SideBarProps {
@@ -27,11 +33,34 @@ interface SideBarProps {
 }
 
 const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'Super-administrador',
   admin: 'Administrador',
   operator: 'Operador',
   inspector: 'Inspector',
   director: 'Director',
 };
+
+/**
+ * Filtra recursivamente el árbol de menú según el rol del usuario.
+ * Si un item declara `requiresRole`, solo se conserva cuando coincide.
+ * Si un padre se queda sin hijos visibles, también se elimina.
+ */
+function filterMenuByRole(
+  items: SideBarMenuItem[],
+  role: string | null | undefined,
+): SideBarMenuItem[] {
+  return items.flatMap((item) => {
+    if (item.requiresRole && item.requiresRole !== role) {
+      return [];
+    }
+    if (Array.isArray(item.children) && item.children.length > 0) {
+      const visibleChildren = filterMenuByRole(item.children, role);
+      if (visibleChildren.length === 0) return [];
+      return [{ ...item, children: visibleChildren }];
+    }
+    return [item];
+  });
+}
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'FlowStore';
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.1.0';
@@ -228,7 +257,10 @@ const SideBar: React.FC<SideBarProps> = ({
 
       <nav className="w-full px-3 flex-1 mt-1.5 overflow-y-auto">
         <ul className="flex w-full flex-col gap-1">
-          {menuItems.map((item, idx) => renderMenuItem(item, idx))}
+          {filterMenuByRole(
+            menuItems,
+            (session?.user?.role as string | undefined) ?? null,
+          ).map((item, idx) => renderMenuItem(item, idx))}
         </ul>
       </nav>
 

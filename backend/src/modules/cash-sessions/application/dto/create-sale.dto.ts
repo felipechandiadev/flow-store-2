@@ -125,6 +125,45 @@ export class PaymentDetailDto {
   checkData?: CheckPaymentDataDto;
 }
 
+/**
+ * Snapshot mínimo de una promoción aplicada en cliente, enviado para
+ * que el server lo re-valide en el cierre transaccional. Estructura
+ * coincidente con `AppliedSnapshot` del motor.
+ */
+export class PromotionSnapshotDto {
+  @IsString()
+  promotionId: string;
+
+  @IsString()
+  promotionCode: string;
+
+  @IsString()
+  promotionName: string;
+
+  @IsString()
+  type: string;
+
+  @IsString()
+  activation: string;
+
+  @IsString()
+  authorization: string;
+
+  @IsNumber()
+  amountDiscounted: number;
+
+  @IsArray()
+  @IsString({ each: true })
+  affectedLineIds: string[];
+
+  @IsOptional()
+  isOrderLevel?: boolean;
+
+  @IsOptional()
+  @IsString()
+  accountingTag?: string | null;
+}
+
 export class CreateSaleDto {
   @IsString()
   userName: string;
@@ -183,4 +222,15 @@ export class CreateSaleDto {
 
   @IsOptional()
   metadata?: any;
+
+  /**
+   * Snapshot de promociones aplicadas en el cliente. El backend lo usa
+   * para re-validar contra el motor canónico, registrar redenciones y
+   * controlar atomicidad de `maxUsesTotal`.
+   */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PromotionSnapshotDto)
+  promotionSnapshot?: PromotionSnapshotDto[];
 }

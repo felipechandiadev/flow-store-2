@@ -13,6 +13,7 @@ import { UpdateUserCommandHandler } from './application/handlers/commands/update
 import { RemoveUserCommandHandler } from './application/handlers/commands/remove-user.handler';
 import { ChangeUserPasswordCommandHandler } from './application/handlers/commands/change-user-password.handler';
 import { TypeOrmUserRepository } from './infrastructure/repositories/typeorm-user.repository';
+import { UsersSchemaBootstrap } from './infrastructure/users-schema.bootstrap';
 
 import { GetAllUsersQueryHandler } from './application/handlers/queries/get-all-users.handler';
 import { GetUserQueryHandler } from './application/handlers/queries/get-user.handler';
@@ -33,6 +34,7 @@ import { GetUserQueryHandler } from './application/handlers/queries/get-user.han
     // CQRS Query Handlers
     GetAllUsersQueryHandler,
     GetUserQueryHandler,
+    UsersSchemaBootstrap,
     {
       provide: 'UserRepositoryPort',
       useClass: TypeOrmUserRepository,

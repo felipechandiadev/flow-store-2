@@ -225,12 +225,13 @@ function NewSessionForm({
   const [openingAmount, setOpeningAmount] = useState<string>("0");
   const [error, setError] = useState<string>(initialError);
 
+  const openingAmountNum = Number(openingAmount);
   const canSubmitOpening =
     !isPending &&
     pointOfSaleId.trim() !== "" &&
     openingAmount.trim() !== "" &&
-    Number.isFinite(Number(openingAmount)) &&
-    Number(openingAmount) >= 0;
+    Number.isFinite(openingAmountNum) &&
+    openingAmountNum >= 0;
 
   const handleConfirmOpen = () => {
     setError("");
@@ -322,7 +323,7 @@ function NewSessionForm({
           </div>
         ) : null}
 
-        {error ? <Alert variant="error">{error}</Alert> : null}
+        {error && !isOpenAmountDialog ? <Alert variant="error">{error}</Alert> : null}
 
         {selectedPos ? (
           hasOpenSessionForPos ? (
@@ -356,13 +357,12 @@ function NewSessionForm({
         }}
         title="Abrir sesión de caja"
         size="sm"
-        showCloseButton
-        actionsJustify="end"
+        actionsJustify="between"
         actions={
-          <div className="flex gap-2">
+          <>
             <Button
               type="button"
-              variant="secondary"
+              variant="outlined"
               onClick={() => setIsOpenAmountDialog(false)}
               disabled={isPending}
             >
@@ -370,15 +370,16 @@ function NewSessionForm({
             </Button>
             <Button
               type="button"
+              variant="primary"
               onClick={handleConfirmOpen}
               disabled={!canSubmitOpening}
               loading={isPending}
             >
               Abrir sesión de caja
             </Button>
-          </div>
+          </>
         }
-        alertArea={error ? <Alert variant="error">{error}</Alert> : null}
+        alertArea={error && isOpenAmountDialog ? <Alert variant="error">{error}</Alert> : null}
       >
         <div className="grid gap-3">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -387,10 +388,13 @@ function NewSessionForm({
           </p>
           <TextField
             label="Monto de apertura"
-            placeholder="0"
+            type="currency"
+            placeholder="Monto de apertura"
             value={openingAmount}
             onChange={(e) => setOpeningAmount(e.target.value)}
-            inputMode="decimal"
+            required
+            disabled={isPending}
+            className="w-full"
           />
         </div>
       </Dialog>

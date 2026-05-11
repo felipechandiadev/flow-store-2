@@ -21,6 +21,7 @@ import { Storage } from '@modules/storages/domain/storage.entity';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 import { CashHubsModule } from '@modules/cash-hubs/cash-hubs.module';
 import { CompaniesModule } from '@modules/companies/companies.module';
+import { PromotionsModule } from '@modules/promotions/promotions.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { CompaniesModule } from '@modules/companies/companies.module';
     TransactionsModule, // <-- NEW: For delegation of transaction creation
     CashHubsModule,
     CompaniesModule,
+    PromotionsModule,
     CqrsModule,
   ],
   controllers: [CashSessionsController],

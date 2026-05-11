@@ -15,6 +15,7 @@ import {
   ADMIN_ONLY_KEY,
   ALLOW_ADMIN_WITHOUT_COMPANY_KEY,
   SKIP_TENANT_KEY,
+  SUPER_ADMIN_ONLY_KEY,
 } from './tenant.decorators';
 import type { CurrentUserPayload } from './current-user.decorator';
 
@@ -25,8 +26,8 @@ const ACTIVE_COMPANY_HEADER = 'x-active-company-id';
  * - Lee Authorization: Bearer <userId> (compatibilidad con el esquema actual de NextAuth → backend).
  * - Carga el usuario.
  * - Determina la activeCompanyId:
- *     OPERATOR  → user.companyId (obligatorio).
- *     ADMIN     → header X-Active-Company-Id (validado contra companies).
+ *     ADMIN/OPERATOR → user.companyId (obligatorio, fijo).
+ *     SUPER_ADMIN    → header X-Active-Company-Id (validado contra companies).
  * - Inyecta `req.currentUser` y `req.activeCompanyId`.
  *
  * Skips: rutas con @SkipTenant() (p. ej. /auth/login, /health).
@@ -74,11 +75,25 @@ export class TenantGuard implements CanActivate {
     };
     req.currentUser = currentUser;
 
+    const superAdminOnly = this.reflector.getAllAndOverride<boolean>(
+      SUPER_ADMIN_ONLY_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (superAdminOnly && user.rol !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException(
+        'Acceso restringido a super-administradores',
+      );
+    }
+
     const adminOnly = this.reflector.getAllAndOverride<boolean>(
       ADMIN_ONLY_KEY,
       [context.getHandler(), context.getClass()],
     );
-    if (adminOnly && user.rol !== UserRole.ADMIN) {
+    if (
+      adminOnly &&
+      user.rol !== UserRole.ADMIN &&
+      user.rol !== UserRole.SUPER_ADMIN
+    ) {
       throw new ForbiddenException('Acceso restringido a administradores');
     }
 
@@ -90,14 +105,7 @@ export class TenantGuard implements CanActivate {
 
     let activeCompanyId: string | null = null;
 
-    if (user.rol === UserRole.OPERATOR) {
-      if (!user.companyId) {
-        throw new ForbiddenException(
-          'Usuario operador sin empresa asignada. Contacte al administrador.',
-        );
-      }
-      activeCompanyId = user.companyId;
-    } else if (user.rol === UserRole.ADMIN) {
+    if (user.rol === UserRole.SUPER_ADMIN) {
       const headerVal = req.headers?.[ACTIVE_COMPANY_HEADER];
       const headerCompanyId =
         typeof headerVal === 'string'
@@ -127,6 +135,14 @@ export class TenantGuard implements CanActivate {
         });
         if (fallback) activeCompanyId = fallback.id;
       }
+    } else {
+      // ADMIN y OPERATOR: empresa fija, tomada del usuario.
+      if (!user.companyId) {
+        throw new ForbiddenException(
+          'Usuario sin empresa asignada. Contacte al administrador.',
+        );
+      }
+      activeCompanyId = user.companyId;
     }
 
     if (!activeCompanyId && !allowAdminWithoutCompany) {

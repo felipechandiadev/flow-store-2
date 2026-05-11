@@ -9,6 +9,7 @@ import {
 import { PersonOrmEntity as Person } from '@modules/persons/infrastructure/orm-mappers/person.orm-entity';
 
 export enum UserRole {
+  SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
   OPERATOR = 'OPERATOR',
 }
@@ -33,6 +34,9 @@ export class UserOrmEntity {
   @ManyToOne(() => Person, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn()
   person?: Person;
+
+  @Column({ type: 'boolean', default: false })
+  nonDeletable!: boolean;
 
   @DeleteDateColumn()
   deletedAt?: Date;

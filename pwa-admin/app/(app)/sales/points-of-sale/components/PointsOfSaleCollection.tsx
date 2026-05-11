@@ -13,6 +13,7 @@ type PointsOfSaleCollectionProps = {
   initialPointsOfSale: PointOfSaleListItem[];
   branches: BranchListItem[];
   priceListCatalog: PriceListListItem[];
+  activeCompanyId: string | null;
 };
 
 /**
@@ -23,6 +24,7 @@ export function PointsOfSaleCollection({
   initialPointsOfSale,
   branches,
   priceListCatalog,
+  activeCompanyId,
 }: PointsOfSaleCollectionProps) {
   const searchParams = useSearchParams();
   const q = (searchParams.get("search") ?? "").trim().toLowerCase();
@@ -43,7 +45,11 @@ export function PointsOfSaleCollection({
     <CollectionPageLayout
       title="Puntos de venta"
       addAction={
-        <PointsOfSaleCollectionAddAction branches={branches} priceListCatalog={priceListCatalog} />
+        <PointsOfSaleCollectionAddAction
+          branches={branches}
+          priceListCatalog={priceListCatalog}
+          activeCompanyId={activeCompanyId}
+        />
       }
       showSearch
       searchParamName="search"
@@ -58,6 +64,7 @@ export function PointsOfSaleCollection({
                 point={p}
                 branches={branches}
                 priceListCatalog={priceListCatalog}
+                activeCompanyId={activeCompanyId}
                 data-test-id={`pos-card-${p.id}`}
               />
             ))

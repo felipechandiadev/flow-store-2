@@ -25,6 +25,10 @@ import PosCustomerSearchPanel, {
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import type { EffectivePaymentMethod } from "@/features/pos-payment-methods/types/effective-payment-method.types";
 import { getEffectivePosPaymentMethodsAction } from "@/features/pos-payment-methods/actions/payment-methods-pos.action";
+import { PosPromotionsPanel } from "@/features/promotions/ui/PosPromotionsPanel";
+import { getCompanyDetailsAction } from "@/features/company/actions/company.action";
+import { SaveAsQuotationDialog } from "@/app/(pos)/pos/ui/SaveAsQuotationDialog";
+import { Save } from "lucide-react";
 
 /**
  * Alto de los paneles de la pantalla de cobro respecto al viewport (`vh`).
@@ -32,6 +36,9 @@ import { getEffectivePosPaymentMethodsAction } from "@/features/pos-payment-meth
  * pantalla (Venta en curso + Resumen del cobro + CTA) que consume altura.
  */
 const POS_PAYMENT_PANEL_HEIGHT_VH = 76;
+const NON_CASH_LIMIT_MSG =
+  "La suma de los medios de pago que no son efectivo no puede superar el total a pagar.";
+const QUOTATION_CUSTOMER_REQUIRED_MSG = "Selecciona un cliente antes de guardar la cotización.";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(
@@ -104,6 +111,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const { payments, setPayments, saleCustomer: customer, setSaleCustomer: setCustomer } = cart;
   const saleTitleId = useId();
   const [addOpen, setAddOpen] = useState(false);
+  const [saveQuotationOpen, setSaveQuotationOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
@@ -115,15 +123,22 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const [draftOptionId, setDraftOptionId] = useState<string>("");
   const [draftAmount, setDraftAmount] = useState("");
   const [draftReference, setDraftReference] = useState("");
+  const [draftBankAccountKey, setDraftBankAccountKey] = useState<string>("");
   const [addAlert, setAddAlert] = useState("");
 
   const [pageAlert, setPageAlert] = useState("");
+  const [paymentMethodsAlert, setPaymentMethodsAlert] = useState("");
+  const [saleSummaryAlert, setSaleSummaryAlert] = useState("");
   const paymentCashFocusDoneRef = useRef(false);
 
   // ───── Medios de pago efectivos (merge company+POS) ────────────────────────
   const [effectiveMethods, setEffectiveMethods] = useState<EffectivePaymentMethod[]>([]);
   const [effectiveLoaded, setEffectiveLoaded] = useState(false);
   const [effectiveError, setEffectiveError] = useState<string | null>(null);
+
+  const [bankAccountOptions, setBankAccountOptions] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,6 +169,33 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const details = await getCompanyDetailsAction();
+        if (cancelled) return;
+        const opts =
+          details?.bankAccounts?.length
+            ? details.bankAccounts
+                .map((a) => {
+                  const key = a.accountKey?.trim() || "";
+                  if (!key) return null;
+                  const label = `${a.bankName} · ${a.accountType} · ${a.accountNumber}`;
+                  return { id: key, label };
+                })
+                .filter((x): x is { id: string; label: string } => x != null)
+            : [];
+        setBankAccountOptions(opts);
+      } catch {
+        if (!cancelled) setBankAccountOptions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /** Index por `companyPaymentMethodId` para hidratar metadata por línea. */
   const methodsById = useMemo(() => {
     const map = new Map<string, EffectivePaymentMethod>();
@@ -171,6 +213,20 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     }
     return FALLBACK_PAYMENT_OPTIONS.map((o) => ({ id: o.id, label: o.label }));
   }, [effectiveMethods]);
+
+  // Si el medio seleccionado es transferencia y el POS configuró una cuenta destino preferente,
+  // precárgala en el diálogo (pero sin pisar una selección manual).
+  useEffect(() => {
+    const cfg = methodsById.get(draftOptionId);
+    const enumType: PosPaymentMethodId = cfg
+      ? (cfg.method as PosPaymentMethodId)
+      : ((draftOptionId as PosPaymentMethodId) || "CASH");
+    if (enumType === "TRANSFER") {
+      setDraftBankAccountKey((prev) => prev || cfg?.bankAccountKey?.trim() || "");
+    } else {
+      setDraftBankAccountKey("");
+    }
+  }, [draftOptionId, methodsById]);
 
   useEffect(() => {
     if (!cart.ready) return;
@@ -212,8 +268,13 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   }, [cart.lines]);
 
   const taxes = Math.max(0, totals.gross - totals.net);
-  const discounts = 0;
-  const saleTotal = totals.gross;
+  const lineDiscountsTotal = useMemo(
+    () =>
+      cart.lines.reduce((acc, l) => acc + (l.discount?.discountAmount ?? 0), 0),
+    [cart.lines],
+  );
+  const discounts = lineDiscountsTotal + (cart.orderDiscount ?? 0);
+  const saleTotal = Math.max(0, totals.gross - discounts);
 
   useEffect(() => {
     if (!cart.ready || saleTotal <= 0) return;
@@ -246,6 +307,10 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   }, [cart.ready, saleTotal, payments.length, setPayments, effectiveLoaded, effectiveMethods]);
 
   const appliedTotal = useMemo(() => payments.reduce((a, p) => a + p.amount, 0), [payments]);
+  const nonCashTotal = useMemo(
+    () => payments.filter((p) => p.type !== "CASH").reduce((a, p) => a + p.amount, 0),
+    [payments],
+  );
   const remaining = Math.max(0, saleTotal - appliedTotal);
   const overpay = Math.max(0, appliedTotal - saleTotal);
 
@@ -281,12 +346,14 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     setDraftOptionId(initialOptionId);
     setDraftAmount(remaining > 0 ? String(Math.round(remaining)) : "");
     setDraftReference("");
+    setDraftBankAccountKey("");
     setAddAlert("");
     setAddOpen(true);
   }, [remaining, effectiveMethods]);
 
   const addPayment = useCallback(() => {
     setAddAlert("");
+    setPaymentMethodsAlert("");
     const amt = parseAmountCLP(draftAmount);
     if (amt == null) {
       setAddAlert("Ingresa un monto válido mayor a cero.");
@@ -297,6 +364,20 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     const enumType: PosPaymentMethodId = cfg
       ? (cfg.method as PosPaymentMethodId)
       : (draftOptionId as PosPaymentMethodId) || "CASH";
+    const bankKey =
+      enumType === "TRANSFER"
+        ? (draftBankAccountKey.trim() ||
+          cfg?.bankAccountKey?.trim() ||
+          "")
+        : "";
+    if (enumType === "TRANSFER" && bankAccountOptions.length > 0 && !bankKey) {
+      setAddAlert("Selecciona la cuenta bancaria destino para la transferencia.");
+      return;
+    }
+    if (enumType !== "CASH" && nonCashTotal + amt > saleTotal + 0.01) {
+      setAddAlert(NON_CASH_LIMIT_MSG);
+      return;
+    }
     if (
       enumType !== "CASH" &&
       amt > remaining + 0.01 &&
@@ -313,10 +394,22 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         amount: amt,
         reference: draftReference.trim(),
         companyPaymentMethodId: cfg?.companyPaymentMethodId ?? null,
+        bankAccountKey: enumType === "TRANSFER" ? (bankKey || null) : null,
       },
     ]);
     setAddOpen(false);
-  }, [draftAmount, draftOptionId, draftReference, methodsById, remaining, setPayments]);
+  }, [
+    draftAmount,
+    draftOptionId,
+    draftReference,
+    draftBankAccountKey,
+    methodsById,
+    remaining,
+    setPayments,
+    bankAccountOptions.length,
+    nonCashTotal,
+    saleTotal,
+  ]);
 
   const removePayment = useCallback(
     (id: string) => {
@@ -328,14 +421,42 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const updatePaymentLineAmount = useCallback(
     (id: string, raw: string) => {
       const next = parseAmountCLPInput(raw);
-      setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, amount: next } : p)));
+      setPageAlert("");
+      setPaymentMethodsAlert("");
+      setPayments((prev) => {
+        const row = prev.find((p) => p.id === id);
+        if (!row) return prev;
+        if (row.type === "CASH") {
+          return prev.map((p) => (p.id === id ? { ...p, amount: next } : p));
+        }
+        const others = prev
+          .filter((p) => p.id !== id && p.type !== "CASH")
+          .reduce((a, p) => a + p.amount, 0);
+        const maxAllowed = Math.max(0, Math.round(saleTotal - others));
+        const clamped = Math.min(next, maxAllowed);
+        if (next > maxAllowed + 0.01) {
+          setPaymentMethodsAlert(NON_CASH_LIMIT_MSG);
+        }
+        return prev.map((p) => (p.id === id ? { ...p, amount: clamped } : p));
+      });
     },
-    [setPayments],
+    [saleTotal, setPayments],
   );
 
   const updatePaymentLineReference = useCallback(
     (id: string, reference: string) => {
       setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, reference } : p)));
+    },
+    [setPayments],
+  );
+
+  const updatePaymentLineBankAccountKey = useCallback(
+    (id: string, bankAccountKey: string) => {
+      setPayments((prev) =>
+        prev.map((p) =>
+          p.id === id ? { ...p, bankAccountKey } : p,
+        ),
+      );
     },
     [setPayments],
   );
@@ -411,12 +532,20 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     if (cart.lines.length === 0) return "El carrito está vacío.";
     if (saleTotal <= 0) return "El total debe ser mayor que cero.";
     if (payments.length === 0) return "Agrega al menos un método de pago.";
+    if (nonCashTotal > saleTotal + 0.01) {
+      return NON_CASH_LIMIT_MSG;
+    }
     if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar.";
     for (const p of payments) {
       if (p.type === "CHECK") {
         const cd = p.checkData;
         if (!cd?.checkNumber?.trim() || !cd?.bankName?.trim()) {
           return "Completa N° de cheque y banco para los pagos con cheque.";
+        }
+      }
+      if (p.type === "TRANSFER" && bankAccountOptions.length > 0) {
+        if (!p.bankAccountKey?.trim()) {
+          return "Selecciona la cuenta bancaria destino para la transferencia.";
         }
       }
     }
@@ -426,8 +555,13 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const handleConfirm = async () => {
     const err = validateConfirm();
     setPageAlert("");
+    setPaymentMethodsAlert("");
     if (err) {
-      setPageAlert(err);
+      if (err === NON_CASH_LIMIT_MSG) {
+        setPaymentMethodsAlert(err);
+      } else {
+        setPageAlert(err);
+      }
       return;
     }
     setConfirmLoading(true);
@@ -440,6 +574,21 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     customer?.name?.trim() ||
     (customer?.document?.trim() ? `Doc. ${customer.document.trim()}` : null) ||
     "no seleccionado";
+
+  useEffect(() => {
+    if (customer?.customerId?.trim()) {
+      setSaleSummaryAlert("");
+    }
+  }, [customer?.customerId]);
+
+  const openSaveQuotation = useCallback(() => {
+    if (!customer?.customerId?.trim()) {
+      setSaleSummaryAlert(QUOTATION_CUSTOMER_REQUIRED_MSG);
+      return;
+    }
+    setSaleSummaryAlert("");
+    setSaveQuotationOpen(true);
+  }, [customer?.customerId]);
 
   if (!cart.ready || cart.lines.length === 0) {
     return (
@@ -551,7 +700,27 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           aria-label="Resumen de carrito"
           data-test-id="pos-payment-cart-summary"
         >
-          <h2 className="shrink-0 text-sm font-semibold text-foreground">Resumen de venta</h2>
+          <div className="flex shrink-0 items-center justify-between gap-3">
+            <h2 className="min-w-0 text-sm font-semibold text-foreground">Resumen de venta</h2>
+            <Button
+              type="button"
+              variant="outlined"
+              size="sm"
+              onClick={openSaveQuotation}
+              disabled={cart.lines.length === 0}
+              title={cart.lines.length === 0 ? "Agregue ítems al carrito" : "Guardar como cotización"}
+              data-test-id="pos-payment-save-quotation-btn"
+              className="shrink-0"
+            >
+              <Save size={14} className="shrink-0" aria-hidden />
+              <span>Cotización</span>
+            </Button>
+          </div>
+          {saleSummaryAlert ? (
+            <Alert variant="error" className="text-xs">
+              {saleSummaryAlert}
+            </Alert>
+          ) : null}
           <ul
             className="min-h-0 flex-1 divide-y divide-border overflow-y-auto rounded-lg border border-border bg-background pr-1"
             data-test-id="pos-payment-cart-lines-readonly"
@@ -560,6 +729,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               <PaymentCartReadOnlyRow key={line.variantId} line={line} />
             ))}
           </ul>
+          <PosPromotionsPanel />
           <footer className="shrink-0 space-y-2 border-t border-border pt-3 text-sm">
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Subtotal neto</span>
@@ -609,6 +779,12 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
             <h2 className="text-sm font-semibold text-foreground">Métodos de pago</h2>
           </div>
 
+          {paymentMethodsAlert ? (
+            <Alert variant="error" className="text-xs">
+              {paymentMethodsAlert}
+            </Alert>
+          ) : null}
+
           {effectiveError ? (
             <Alert variant="warning" className="text-xs">
               {effectiveError} (usando catálogo por defecto)
@@ -629,7 +805,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                   className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
                   data-test-id={`pos-payment-method-row-${p.id}`}
                 >
-                  <div className="grid grid-cols-[25%_1fr_auto] items-center gap-2">
+                  <div className="grid grid-cols-[minmax(11rem,1fr)_minmax(10rem,13rem)_auto] items-center gap-3">
                     <p className="truncate text-sm font-medium text-foreground" title={label}>
                       {label}
                     </p>
@@ -641,6 +817,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                       onChange={(e) => updatePaymentLineAmount(p.id, e.target.value)}
                       currencySymbol="$"
                       alwaysShowLabel
+                      className="w-full"
                       data-test-id={
                         index === 0 ? "pos-payment-default-cash-amount" : `pos-payment-line-amount-${p.id}`
                       }
@@ -649,10 +826,26 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                       icon="X"
                       variant="basicSecondary"
                       size="sm"
+                      className="ml-1"
                       ariaLabel="Quitar método"
                       onClick={() => removePayment(p.id)}
                     />
                   </div>
+                  {p.type === "TRANSFER" && bankAccountOptions.length > 0 ? (
+                    <div className="mt-2">
+                      <Select
+                        label="Cuenta bancaria destino"
+                        placeholder="Cuenta bancaria destino"
+                        value={p.bankAccountKey?.trim() ? p.bankAccountKey.trim() : null}
+                        onChange={(id) =>
+                          updatePaymentLineBankAccountKey(p.id, id ? String(id) : "")
+                        }
+                        options={bankAccountOptions}
+                        alwaysShowLabel
+                        data-test-id={`pos-payment-transfer-account-${p.id}`}
+                      />
+                    </div>
+                  ) : null}
                   {showsRefField(p) ? (
                     <div className="mt-2">
                       <TextField
@@ -795,6 +988,24 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
             required
             data-test-id="pos-payment-add-amount"
           />
+          {(() => {
+            const cfg = methodsById.get(draftOptionId);
+            const enumType: PosPaymentMethodId =
+              cfg ? (cfg.method as PosPaymentMethodId) : (draftOptionId as PosPaymentMethodId);
+            if (enumType !== "TRANSFER") return null;
+            if (bankAccountOptions.length === 0) return null;
+            return (
+              <Select
+                label="Cuenta bancaria destino"
+                placeholder="Cuenta bancaria destino"
+                value={draftBankAccountKey || cfg?.bankAccountKey || null}
+                onChange={(id) => setDraftBankAccountKey(id != null ? String(id) : "")}
+                options={bankAccountOptions}
+                alwaysShowLabel
+                data-test-id="pos-payment-add-transfer-account"
+              />
+            );
+          })()}
           <TextField
             label="Referencia"
             name="payment-ref"
@@ -837,6 +1048,12 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           siguiente iteración.
         </p>
       </Dialog>
+
+      <SaveAsQuotationDialog
+        open={saveQuotationOpen}
+        onClose={() => setSaveQuotationOpen(false)}
+        onSaved={() => router.push("/pos")}
+      />
     </div>
   );
 }

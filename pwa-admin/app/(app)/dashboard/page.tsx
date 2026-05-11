@@ -1,11 +1,5 @@
-import type { Metadata } from "next";
 import { BasicPageLayout } from "@/shared/components/layouts/BasicPageLayout";
 import { DashboardPanel } from "./ui/DashboardPanel";
-
-export const metadata: Metadata = {
-  title: "Panel | Flow Store",
-  description: "Resumen operativo, KPIs y accesos rápidos",
-};
 
 export default function DashboardPage() {
   return (

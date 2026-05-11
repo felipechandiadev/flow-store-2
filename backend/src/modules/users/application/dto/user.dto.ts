@@ -36,12 +36,22 @@ export class CreateUserDto {
 
   @ApiPropertyOptional({
     description: 'User role',
-    example: 'USER',
-    enum: ['ADMIN', 'USER', 'MANAGER'],
+    example: 'OPERATOR',
+    enum: ['SUPER_ADMIN', 'ADMIN', 'OPERATOR'],
   })
   @IsOptional()
   @IsString()
   rol?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Empresa a la que pertenece (solo ADMIN/OPERATOR). Si se omite, ' +
+      'se toma la empresa activa del contexto.',
+    example: 'uuid-empresa',
+  })
+  @IsOptional()
+  @IsString()
+  companyId?: string | null;
 
   @ApiPropertyOptional({
     description: 'Existing person ID to link',

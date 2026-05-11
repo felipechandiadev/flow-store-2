@@ -55,6 +55,15 @@ import { RecipeLine } from '@modules/recipes/domain/recipe-line.entity';
 import { Check } from '@modules/checks/domain/check.entity';
 import { CheckTransactionLink } from '@modules/checks/domain/check-transaction-link.entity';
 import { CheckEvent } from '@modules/checks/domain/check-event.entity';
+import { Promotion } from '@modules/promotions/domain/promotion.entity';
+import { PromotionScopeBranch } from '@modules/promotions/domain/promotion-scope-branch.entity';
+import { PromotionScopePos } from '@modules/promotions/domain/promotion-scope-pos.entity';
+import { PromotionScopeProduct } from '@modules/promotions/domain/promotion-scope-product.entity';
+import { PromotionScopeVariant } from '@modules/promotions/domain/promotion-scope-variant.entity';
+import { PromotionScopeCategory } from '@modules/promotions/domain/promotion-scope-category.entity';
+import { PromotionScopeCustomer } from '@modules/promotions/domain/promotion-scope-customer.entity';
+import { PromotionScopePaymentMethod } from '@modules/promotions/domain/promotion-scope-payment-method.entity';
+import { PromotionRedemption } from '@modules/promotions/domain/promotion-redemption.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
 import { TenantSubscriber } from '../common/tenant/tenant.subscriber';
 
@@ -123,6 +132,15 @@ export const typeOrmConfig = (
       Check,
       CheckTransactionLink,
       CheckEvent,
+      Promotion,
+      PromotionScopeBranch,
+      PromotionScopePos,
+      PromotionScopeProduct,
+      PromotionScopeVariant,
+      PromotionScopeCategory,
+      PromotionScopeCustomer,
+      PromotionScopePaymentMethod,
+      PromotionRedemption,
     ],
 
     // Register subscribers (TypeORM EventSubscribers)

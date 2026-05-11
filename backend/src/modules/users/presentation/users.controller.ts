@@ -17,7 +17,15 @@ import {
   ApiBody,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { UsersServiceAdapter } from '../application/users.service.adapter';
+import {
+  AdminOnly,
+  AllowAdminWithoutCompany,
+  CurrentUser,
+  CurrentUserPayload,
+  OptionalCurrentCompany,
+  SuperAdminOnly,
+} from '@common/tenant';
+import { UsersService } from '../application/users.service';
 import {
   CreateUserDto,
   UpdateUserDto,
@@ -29,88 +37,43 @@ import {
 @ApiBearerAuth('JWT-auth')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersServiceAdapter) {}
+  constructor(private readonly usersService: UsersService) {}
 
+  /**
+   * Lista los usuarios visibles según el contexto:
+   * - Por defecto se filtra a la empresa activa (ADMIN/OPERATOR no ven
+   *   usuarios de otras empresas; SUPER_ADMIN ve los de la empresa
+   *   activa seleccionada).
+   * - Excluye SUPER_ADMINs (se gestionan en su propio endpoint).
+   */
   @Get()
-  @ApiOperation({
-    summary: 'Get all users',
-    description: 'Retrieve a list of all users with optional search filter',
-  })
-  @ApiQuery({
-    name: 'search',
-    required: false,
-    type: String,
-    description: 'Search term to filter users by name, username, or email',
-    example: 'john',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Users retrieved successfully',
-    schema: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          userName: { type: 'string' },
-          mail: { type: 'string' },
-          rol: { type: 'string' },
-          isActive: { type: 'boolean' },
-          person: {
-            type: 'object',
-            properties: {
-              id: { type: 'string' },
-              firstName: { type: 'string' },
-              lastName: { type: 'string' },
-              email: { type: 'string' },
-              phone: { type: 'string' },
-            },
-          },
-        },
-      },
-    },
-  })
-  async getUsers(@Query('search') search?: string) {
-    return this.usersService.getAllUsers(search);
+  @AdminOnly()
+  @ApiOperation({ summary: 'Get all users for the active company' })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  async getUsers(
+    @Query('search') search?: string,
+    @OptionalCurrentCompany() activeCompanyId?: string | null,
+  ) {
+    return this.usersService.getAllUsers(search, activeCompanyId);
+  }
+
+  /**
+   * Lista a todos los super-administradores del deploy (rol SUPER_ADMIN).
+   * No requiere empresa activa: son globales.
+   */
+  @Get('super-admins')
+  @SuperAdminOnly()
+  @AllowAdminWithoutCompany()
+  @ApiOperation({ summary: 'List global super-admins (SUPER_ADMIN only)' })
+  async getSuperAdmins() {
+    const items = await this.usersService.listSuperAdmins();
+    return { success: true, items };
   }
 
   @Get(':id')
-  @ApiOperation({
-    summary: 'Get user by ID',
-    description: 'Retrieve detailed information about a specific user',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'User ID',
-    example: 'uuid-1234-5678-9012',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'User details retrieved successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string' },
-        userName: { type: 'string' },
-        mail: { type: 'string' },
-        rol: { type: 'string' },
-        isActive: { type: 'boolean' },
-        person: { type: 'object' },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User not found',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: false },
-        message: { type: 'string', example: 'User not found' },
-        statusCode: { type: 'number', example: 404 },
-      },
-    },
-  })
+  @AdminOnly()
+  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiParam({ name: 'id', description: 'User ID' })
   async getUserById(@Param('id') id: string) {
     const user = await this.usersService.getUserById(id);
     if (!user) {
@@ -120,117 +83,64 @@ export class UsersController {
   }
 
   @Post()
-  @ApiOperation({
-    summary: 'Create new user',
-    description: 'Create a new user account with optional person information',
-  })
-  @ApiBody({
-    type: CreateUserDto,
-    description: 'User creation data',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'User created successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string' },
-        userName: { type: 'string' },
-        mail: { type: 'string' },
-        rol: { type: 'string' },
-        person: { type: 'object' },
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  @ApiOperation({ summary: 'Create new user' })
+  @ApiBody({ type: CreateUserDto })
+  async createUser(
+    @Body() data: CreateUserDto,
+    @OptionalCurrentCompany() activeCompanyId?: string | null,
+  ) {
+    return this.usersService.createUser(
+      {
+        userName: data.userName,
+        mail: data.mail,
+        password: data.password,
+        rol: data.rol,
+        companyId: data.companyId ?? null,
+        personId: data.personId,
+        person: data.person,
       },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Validation error or user already exists',
-  })
-  async createUser(@Body() data: CreateUserDto) {
-    return this.usersService.createUser(data);
+      activeCompanyId,
+    );
   }
 
   @Put(':id')
-  @ApiOperation({
-    summary: 'Update user',
-    description: 'Update user information',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'User ID to update',
-    example: 'uuid-1234-5678-9012',
-  })
-  @ApiBody({
-    type: UpdateUserDto,
-    description: 'User update data',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'User updated successfully',
-  })
-  @ApiResponse({ status: 404, description: 'User not found' })
+  @AdminOnly()
+  @ApiOperation({ summary: 'Update user' })
+  @ApiParam({ name: 'id', description: 'User ID to update' })
+  @ApiBody({ type: UpdateUserDto })
   async updateUser(@Param('id') id: string, @Body() data: UpdateUserDto) {
     return this.usersService.updateUser(id, data);
   }
 
   @Delete(':id')
-  @ApiOperation({
-    summary: 'Delete user',
-    description: 'Soft delete a user account',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'User ID to delete',
-    example: 'uuid-1234-5678-9012',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'User deleted successfully',
-  })
-  @ApiResponse({ status: 404, description: 'User not found' })
-  async deleteUser(@Param('id') id: string) {
-    return this.usersService.removeUser(id);
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  @ApiOperation({ summary: 'Delete user' })
+  @ApiParam({ name: 'id', description: 'User ID to delete' })
+  async deleteUser(
+    @Param('id') id: string,
+    @CurrentUser() currentUser: CurrentUserPayload,
+  ) {
+    return this.usersService.deleteUser(id, currentUser);
   }
 
   @Put(':id/password')
-  @ApiOperation({
-    summary: 'Change user password',
-    description: 'Change password for a specific user (admin operation)',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'User ID',
-    example: 'uuid-1234-5678-9012',
-  })
-  @ApiBody({
-    type: ChangePasswordDto,
-    description: 'New password data',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Password changed successfully',
-  })
-  @ApiResponse({ status: 404, description: 'User not found' })
+  @AdminOnly()
+  @ApiOperation({ summary: 'Change user password' })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiBody({ type: ChangePasswordDto })
   async changePassword(
     @Param('id') id: string,
     @Body() data: ChangePasswordDto,
   ) {
-    return this.usersService.changePassword(id, data);
+    return this.usersService.changePassword(id, data.password);
   }
 
   @Put('password')
-  @ApiOperation({
-    summary: 'Change own password',
-    description: 'Change the current authenticated user password',
-  })
-  @ApiBody({
-    type: ChangeOwnPasswordDto,
-    description: 'Current user ID and new password',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Password changed successfully',
-  })
+  @ApiOperation({ summary: 'Change own password' })
+  @ApiBody({ type: ChangeOwnPasswordDto })
   async changeOwnPassword(@Body() data: ChangeOwnPasswordDto) {
     return this.usersService.changeOwnPassword(data);
   }

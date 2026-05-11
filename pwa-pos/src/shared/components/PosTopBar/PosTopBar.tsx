@@ -161,8 +161,8 @@ export default function PosTopBar({
                         title={effectiveCompany}
                       >
                         <Building2
-                          className="h-3 w-3 shrink-0"
-                          strokeWidth={2}
+                          size={14}
+                          className="shrink-0 text-muted"
                           aria-hidden
                           data-test-id="pos-topbar-company-icon"
                         />
@@ -177,8 +177,8 @@ export default function PosTopBar({
                         title={effectivePosName}
                       >
                         <Store
-                          className="h-3 w-3 shrink-0"
-                          strokeWidth={2}
+                          size={14}
+                          className="shrink-0 text-muted"
                           aria-hidden
                           data-test-id="pos-topbar-store-icon"
                         />
@@ -201,8 +201,8 @@ export default function PosTopBar({
                         title={effectivePerson}
                       >
                         <User
-                          className="h-3 w-3 shrink-0"
-                          strokeWidth={2}
+                          size={14}
+                          className="shrink-0 text-muted"
                           aria-hidden
                           data-test-id="pos-topbar-user-icon"
                         />
@@ -217,8 +217,8 @@ export default function PosTopBar({
                         title={effectiveRole}
                       >
                         <BadgeCheck
-                          className="h-3 w-3 shrink-0"
-                          strokeWidth={2}
+                          size={14}
+                          className="shrink-0 text-muted"
                           aria-hidden
                           data-test-id="pos-topbar-user-role-icon"
                         />

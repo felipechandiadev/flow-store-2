@@ -62,6 +62,15 @@ import { RecipeLine } from '@modules/recipes/domain/recipe-line.entity';
 import { Check } from '@modules/checks/domain/check.entity';
 import { CheckTransactionLink } from '@modules/checks/domain/check-transaction-link.entity';
 import { CheckEvent } from '@modules/checks/domain/check-event.entity';
+import { Promotion } from '@modules/promotions/domain/promotion.entity';
+import { PromotionScopeBranch } from '@modules/promotions/domain/promotion-scope-branch.entity';
+import { PromotionScopePos } from '@modules/promotions/domain/promotion-scope-pos.entity';
+import { PromotionScopeProduct } from '@modules/promotions/domain/promotion-scope-product.entity';
+import { PromotionScopeVariant } from '@modules/promotions/domain/promotion-scope-variant.entity';
+import { PromotionScopeCategory } from '@modules/promotions/domain/promotion-scope-category.entity';
+import { PromotionScopeCustomer } from '@modules/promotions/domain/promotion-scope-customer.entity';
+import { PromotionScopePaymentMethod } from '@modules/promotions/domain/promotion-scope-payment-method.entity';
+import { PromotionRedemption } from '@modules/promotions/domain/promotion-redemption.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
 import { TenantSubscriber } from '../common/tenant/tenant.subscriber';
 import { AddTaxNonDeletable1740000000000 } from '../migrations/1740000000000-AddTaxNonDeletable';
@@ -72,6 +81,8 @@ import { PosSettingsJson1743000000000 } from '../migrations/1743000000000-PosSet
 import { Checks1744000000000 } from '../migrations/1744000000000-Checks';
 import { Quotations1745000000000 } from '../migrations/1745000000000-Quotations';
 import { EnsureDocumentSequences1746000000000 } from '../migrations/1746000000000-EnsureDocumentSequences';
+import { Promotions1748000000000 } from '../migrations/1748000000000-Promotions';
+import { SuperAdminRoleAndUserNonDeletable1749000000000 } from '../migrations/1749000000000-SuperAdminRoleAndUserNonDeletable';
 
 /**
  * DataSource usado por `typeorm` CLI (`migration:run`, `schema:log`, …).
@@ -141,6 +152,15 @@ export const AppDataSource = new DataSource({
     Check,
     CheckTransactionLink,
     CheckEvent,
+    Promotion,
+    PromotionScopeBranch,
+    PromotionScopePos,
+    PromotionScopeProduct,
+    PromotionScopeVariant,
+    PromotionScopeCategory,
+    PromotionScopeCustomer,
+    PromotionScopePaymentMethod,
+    PromotionRedemption,
   ],
   subscribers: [AuditSubscriber, TenantSubscriber],
   migrations: [
@@ -152,6 +172,8 @@ export const AppDataSource = new DataSource({
     Checks1744000000000,
     Quotations1745000000000,
     EnsureDocumentSequences1746000000000,
+    Promotions1748000000000,
+    SuperAdminRoleAndUserNonDeletable1749000000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',

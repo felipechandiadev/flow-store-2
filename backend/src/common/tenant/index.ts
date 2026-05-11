@@ -14,6 +14,7 @@ export {
 } from './current-company.decorator';
 export {
   SkipTenant,
+  SuperAdminOnly,
   AdminOnly,
   AllowAdminWithoutCompany,
 } from './tenant.decorators';

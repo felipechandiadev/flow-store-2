@@ -11,6 +11,12 @@ import type { PointOfSaleListItem } from "@/features/sales-points-of-sale/types/
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
 import { updatePointOfSaleAction } from "@/features/sales-points-of-sale/actions/point-of-sale.action";
+import { getCompanyPaymentMethodsAction } from "@/features/companies/actions/companies-payment-methods.action";
+import { getPosPaymentMethodsAction, replacePosPaymentMethodsAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
+import type { CompanyPaymentMethodConfig } from "@/features/companies/types/company-payment-methods.types";
+import type { PosPaymentMethodConfig } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
+import { getCompanyDetailsAction } from "@/features/settings-company/actions/company.action";
+import { PosPaymentMethodsCardsEditor } from "./PosPaymentMethodsCardsEditor";
 
 export type UpdatePointOfSaleDialogProps = {
   open: boolean;
@@ -19,6 +25,7 @@ export type UpdatePointOfSaleDialogProps = {
   onSuccess?: () => void | Promise<void>;
   branches: BranchListItem[];
   priceListCatalog: PriceListListItem[];
+  companyId: string | null | undefined;
 };
 
 export function UpdatePointOfSaleDialog({
@@ -28,6 +35,7 @@ export function UpdatePointOfSaleDialog({
   onSuccess,
   branches,
   priceListCatalog,
+  companyId,
 }: UpdatePointOfSaleDialogProps) {
   const [name, setName] = useState("");
   const [branchId, setBranchId] = useState<string>("");
@@ -37,6 +45,13 @@ export function UpdatePointOfSaleDialog({
   const [defaultListId, setDefaultListId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const [paymentCatalog, setPaymentCatalog] = useState<CompanyPaymentMethodConfig[]>([]);
+  const [posPaymentDraft, setPosPaymentDraft] = useState<PosPaymentMethodConfig[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [bankAccountOptions, setBankAccountOptions] = useState<Array<{ id: string; label: string }>>(
+    [],
+  );
 
   const branchOptions = useMemo(
     () => branches.map((b) => ({ id: b.id, label: b.name })),
@@ -77,7 +92,43 @@ export function UpdatePointOfSaleDialog({
         : null,
     );
     setError(null);
-  }, [open, point, branches]);
+
+    setPaymentCatalog([]);
+    setPosPaymentDraft([]);
+    if (companyId) {
+      setLoadingPayments(true);
+      void (async () => {
+        const [catalogRes, posRes, details] = await Promise.all([
+          getCompanyPaymentMethodsAction(companyId),
+          getPosPaymentMethodsAction(point.id),
+          getCompanyDetailsAction(),
+        ]);
+        if (catalogRes.success) {
+          setPaymentCatalog(catalogRes.paymentMethods);
+        }
+        if (posRes.success) {
+          setPosPaymentDraft(posRes.paymentMethods);
+        }
+        if (details?.bankAccounts?.length) {
+          setBankAccountOptions(
+            details.bankAccounts
+              .map((a) => {
+                const key =
+                  a.accountKey != null && String(a.accountKey).trim()
+                    ? String(a.accountKey)
+                    : null;
+                if (!key) return null;
+                return { id: key, label: `${a.bankName} · ${a.accountNumber}` };
+              })
+              .filter((x): x is { id: string; label: string } => Boolean(x)),
+          );
+        } else {
+          setBankAccountOptions([]);
+        }
+        setLoadingPayments(false);
+      })();
+    }
+  }, [open, point, branches, companyId]);
 
   useEffect(() => {
     if (selectedListIds.length === 0) {
@@ -128,12 +179,22 @@ export function UpdatePointOfSaleDialog({
           priceLists,
           defaultPriceListId: defaultListId,
         });
-        if (r.success) {
-          await onSuccess?.();
-          handleClose();
-        } else {
+        if (!r.success) {
           setError(r.error);
+          return;
         }
+
+        // Persist POS payment methods (if loaded/edited).
+        if (posPaymentDraft.length > 0) {
+          const pr = await replacePosPaymentMethodsAction(point.id, posPaymentDraft);
+          if (!pr.success) {
+            setError(pr.error || "No se pudieron guardar los medios de pago del POS.");
+            return;
+          }
+        }
+
+        await onSuccess?.();
+        handleClose();
       })();
     });
   };
@@ -264,6 +325,25 @@ export function UpdatePointOfSaleDialog({
             data-test-id="pos-update-default-list"
           />
         )}
+
+        <div className="space-y-2 pt-2">
+          <p className="text-sm font-medium text-foreground">Medios de pago del POS</p>
+          <p className="text-xs text-muted-foreground">
+            Configura qué medios están habilitados en este punto de venta, cuáles se precargan y el orden (arrastrando).
+          </p>
+          {loadingPayments ? (
+            <p className="text-sm text-muted-foreground">Cargando medios de pago…</p>
+          ) : (
+            <PosPaymentMethodsCardsEditor
+              catalog={paymentCatalog}
+              value={posPaymentDraft}
+              onChange={setPosPaymentDraft}
+              bankAccountOptions={bankAccountOptions}
+              disabled={isPending || !companyId}
+              data-test-id="pos-update-payment-methods"
+            />
+          )}
+        </div>
       </div>
     </Dialog>
   );

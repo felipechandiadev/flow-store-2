@@ -42,6 +42,8 @@ export type PosPaymentLine = {
   /** Id estable del medio configurado a nivel empresa. Opcional por compat;
    * cuando viene definido, el backend persistirá un snapshot trazable. */
   companyPaymentMethodId?: string | null;
+  /** Solo TRANSFER: cuenta bancaria destino (de la empresa). */
+  bankAccountKey?: string | null;
   /** Datos del cheque cuando `type === "CHECK"`. */
   checkData?: PosCheckPaymentData;
 };

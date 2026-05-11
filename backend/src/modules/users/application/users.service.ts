@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeepPartial, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -8,6 +12,7 @@ import {
   DocumentType,
   PersonType,
 } from '@modules/persons/domain/person.entity';
+import type { CurrentUserPayload } from '@common/tenant';
 
 @Injectable()
 export class UsersService {
@@ -18,10 +23,25 @@ export class UsersService {
     private readonly personRepository: Repository<Person>,
   ) {}
 
-  async getAllUsers(search?: string) {
+  /**
+   * Lista los usuarios visibles para la empresa activa.
+   * - Excluye SUPER_ADMIN (gestionados en sección aparte).
+   * - Si se pasa `activeCompanyId`, filtra por esa empresa.
+   * - Si NO se pasa (SUPER_ADMIN sin empresa activa), retorna todos los
+   *   no-SUPER_ADMIN. Es responsabilidad del controller decidir si pasar
+   *   la empresa o no.
+   */
+  async getAllUsers(search?: string, activeCompanyId?: string | null) {
     const query = this.userRepository
       .createQueryBuilder('user')
-      .leftJoinAndSelect('user.person', 'person');
+      .leftJoinAndSelect('user.person', 'person')
+      .where('user.rol != :superRole', { superRole: UserRole.SUPER_ADMIN });
+
+    if (activeCompanyId) {
+      query.andWhere('user.companyId = :companyId', {
+        companyId: activeCompanyId,
+      });
+    }
 
     if (search && search.trim().length > 0) {
       const q = `%${search.trim().toLowerCase()}%`;
@@ -42,6 +62,19 @@ export class UsersService {
     return users.map((user) => this.mapUser(user));
   }
 
+  /**
+   * Lista exclusivamente a los super-administradores del deploy.
+   * No depende de empresa activa (son globales).
+   */
+  async listSuperAdmins(): Promise<ReturnType<UsersService['mapUser']>[]> {
+    const users = await this.userRepository.find({
+      where: { rol: UserRole.SUPER_ADMIN },
+      relations: ['person'],
+      order: { userName: 'ASC' },
+    });
+    return users.map((user) => this.mapUser(user));
+  }
+
   async getUserById(id: string) {
     const user = await this.userRepository.findOne({
       where: { id },
@@ -55,24 +88,29 @@ export class UsersService {
     return this.mapUser(user);
   }
 
-  async createUser(data: {
-    userName: string;
-    mail: string;
-    password: string;
-    rol?: UserRole | string;
-    personId?: string;
-    person?: {
-      type?: PersonType | string;
-      firstName: string;
-      lastName?: string;
-      businessName?: string;
-      documentType?: DocumentType | string;
-      documentNumber?: string;
-      email?: string;
-      phone?: string;
-      address?: string;
-    };
-  }) {
+  async createUser(
+    data: {
+      userName: string;
+      mail: string;
+      password: string;
+      rol?: UserRole | string;
+      companyId?: string | null;
+      nonDeletable?: boolean;
+      personId?: string;
+      person?: {
+        type?: PersonType | string;
+        firstName: string;
+        lastName?: string;
+        businessName?: string;
+        documentType?: DocumentType | string;
+        documentNumber?: string;
+        email?: string;
+        phone?: string;
+        address?: string;
+      };
+    },
+    activeCompanyId?: string | null,
+  ) {
     let person: Person | null = null;
 
     if (data.personId) {
@@ -94,11 +132,27 @@ export class UsersService {
       person = await this.personRepository.save(createdPerson);
     }
 
+    const rol = (data.rol as UserRole) ?? UserRole.OPERATOR;
+    let companyId: string | null;
+    if (rol === UserRole.SUPER_ADMIN) {
+      companyId = null;
+    } else {
+      const resolved = data.companyId ?? activeCompanyId ?? null;
+      if (!resolved) {
+        throw new ForbiddenException(
+          `Para crear un usuario ${rol} se requiere una empresa activa`,
+        );
+      }
+      companyId = resolved;
+    }
+
     const user = this.userRepository.create({
       userName: data.userName,
       mail: data.mail,
       pass: this.hashPassword(data.password),
-      rol: (data.rol as UserRole) ?? UserRole.OPERATOR,
+      rol,
+      companyId,
+      nonDeletable: rol === UserRole.SUPER_ADMIN ? !!data.nonDeletable : false,
       person: person ?? undefined,
     } as DeepPartial<User>);
 
@@ -162,7 +216,35 @@ export class UsersService {
     return { success: true, user: updated };
   }
 
-  async deleteUser(id: string) {
+  /**
+   * Soft-delete con protecciones:
+   * - No permite auto-eliminarse.
+   * - No permite eliminar usuarios `nonDeletable` (el SUPER_ADMIN del seed).
+   * - Solo un SUPER_ADMIN puede eliminar a otro SUPER_ADMIN.
+   */
+  async deleteUser(id: string, currentUser?: CurrentUserPayload | null) {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      return { success: false, message: 'User not found', statusCode: 404 };
+    }
+
+    if (currentUser?.id === user.id) {
+      throw new ForbiddenException('No puedes eliminar tu propia cuenta');
+    }
+    if (user.nonDeletable) {
+      throw new ForbiddenException(
+        'Este usuario es protegido y no puede eliminarse',
+      );
+    }
+    if (
+      user.rol === UserRole.SUPER_ADMIN &&
+      currentUser?.rol !== UserRole.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Solo un super-administrador puede eliminar a otro super-administrador',
+      );
+    }
+
     const result = await this.userRepository.softDelete(id);
     if (!result.affected) {
       return { success: false, message: 'User not found', statusCode: 404 };
@@ -200,9 +282,14 @@ export class UsersService {
       userName: user.userName,
       mail: user.mail,
       rol: user.rol,
+      companyId: user.companyId ?? null,
+      nonDeletable: !!user.nonDeletable,
       person: user.person
         ? {
             name: this.buildPersonName(user.person),
+            firstName: user.person.firstName,
+            lastName: user.person.lastName ?? undefined,
+            email: user.person.email ?? undefined,
             dni: user.person.documentNumber ?? undefined,
             phone: user.person.phone ?? undefined,
           }

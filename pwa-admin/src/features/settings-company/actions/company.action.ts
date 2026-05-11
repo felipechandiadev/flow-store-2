@@ -4,8 +4,13 @@ import { revalidatePath } from "next/cache";
 import {
   CompanyRequest,
   type AddCompanyBankAccountInput,
+  type CompanyDetails,
   type UpdateCompanyGeneralInput,
 } from "@/features/settings-branches/infrastructure/company.request";
+
+export async function getCompanyDetailsAction(): Promise<CompanyDetails | null> {
+  return CompanyRequest.getDetails();
+}
 
 export async function updateCompanyGeneralAction(input: UpdateCompanyGeneralInput): Promise<
   { success: true } | { success: false; error: string }

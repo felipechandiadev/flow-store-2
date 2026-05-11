@@ -1,4 +1,6 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Optional } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { TransactionRepositoryPort } from '../ports/transaction.repository.port';
 import {
   Transaction,
@@ -30,6 +32,9 @@ export class VoidTransactionUseCase {
   constructor(
     private readonly transactionRepository: TransactionRepositoryPort,
     private readonly cacheService: CacheService,
+    @Optional()
+    @InjectDataSource()
+    private readonly dataSource?: DataSource,
   ) {}
 
   async execute(command: VoidTransactionCommand): Promise<Transaction> {
@@ -116,10 +121,88 @@ export class VoidTransactionUseCase {
     await this.transactionRepository.save(voidTransaction);
     await this.transactionRepository.save(originalTransaction);
 
+    // Revertir redenciones de promociones (PR 5):
+    //   - Decrementar `uses_count` de cada promoción consumida.
+    //   - Insertar redención negativa para auditoría (mantiene historial
+    //     inmutable y permite reportes "ventas anuladas").
+    await this.revertPromotionRedemptions(
+      originalTransaction.id,
+      voidTransaction.id,
+      command.reason,
+    );
+
     // Invalidar caché relacionado con la transacción
     await this.invalidateRelatedCache(originalTransaction);
 
     return voidTransaction;
+  }
+
+  /**
+   * Compensación de promociones aplicadas en la venta anulada:
+   *   - Para cada `promotion_redemption` positivo de la transacción
+   *     original: insertar un registro espejo con `amount_discounted`
+   *     negativo y referencia a la transacción VOID.
+   *   - `UPDATE promotions SET uses_count = GREATEST(uses_count - 1, 0)`
+   *     por cada redención, sin tocar `max_uses_total`.
+   *
+   * Se ejecuta best-effort: si la BD no expone aún las tablas, el void
+   * no falla.
+   */
+  private async revertPromotionRedemptions(
+    originalTransactionId: string,
+    voidTransactionId: string,
+    reason: string,
+  ): Promise<void> {
+    if (!this.dataSource) return;
+    try {
+      const redemptions = await this.dataSource.query<
+        {
+          id: string;
+          company_id: string;
+          promotion_id: string;
+          customer_id: string | null;
+          amount_discounted: string;
+          snapshot: Record<string, any>;
+        }[]
+      >(
+        `SELECT id, company_id, promotion_id, customer_id, amount_discounted, snapshot
+           FROM promotion_redemptions
+          WHERE transaction_id = $1
+            AND amount_discounted > 0`,
+        [originalTransactionId],
+      );
+      for (const r of redemptions ?? []) {
+        const amount = Number(r.amount_discounted) || 0;
+        await this.dataSource.query(
+          `INSERT INTO promotion_redemptions
+             (company_id, promotion_id, transaction_id, customer_id,
+              amount_discounted, snapshot, applied_at)
+           VALUES ($1, $2, $3, $4, $5, $6, now())`,
+          [
+            r.company_id,
+            r.promotion_id,
+            voidTransactionId,
+            r.customer_id,
+            -amount,
+            {
+              ...(r.snapshot ?? {}),
+              reversal: true,
+              reversalOf: r.id,
+              reversalReason: reason,
+            },
+          ],
+        );
+        await this.dataSource.query(
+          `UPDATE promotions
+              SET uses_count = GREATEST(uses_count - 1, 0),
+                  updated_at = now()
+            WHERE id = $1`,
+          [r.promotion_id],
+        );
+      }
+    } catch {
+      // Tablas de promociones aún no creadas (entornos legacy) → ignorar.
+    }
   }
 
   private async generateVoidDocumentNumber(

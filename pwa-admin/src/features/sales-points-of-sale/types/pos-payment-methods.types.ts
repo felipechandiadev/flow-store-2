@@ -10,6 +10,7 @@ export interface PosPaymentMethodConfig {
   preloadOnPaymentScreen: boolean;
   preloadOrder?: number | null;
   isDefaultForChange: boolean;
+  bankAccountKey?: string | null;
   /**
    * Override por POS de "pide referencia". `null` = heredar del catálogo
    * de empresa al resolver el efectivo en pwa-pos.
@@ -42,6 +43,7 @@ export function defaultPosEntryFor(
     preloadOnPaymentScreen: isCash,
     preloadOrder: isCash ? 0 : null,
     isDefaultForChange: isCash,
+    bankAccountKey: cmp.bankAccountKey ?? null,
     requireReference: cmp.requireReference ?? false,
   };
 }

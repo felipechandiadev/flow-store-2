@@ -9,6 +9,7 @@ import { createQuotationPosAction } from "@/features/quotations/actions/quotatio
 type Props = {
   open: boolean;
   onClose: () => void;
+  onSaved?: () => void;
 };
 
 function formatMoney(n: number) {
@@ -19,7 +20,7 @@ function formatMoney(n: number) {
   }).format(Math.round(n));
 }
 
-export function SaveAsQuotationDialog({ open, onClose }: Props) {
+export function SaveAsQuotationDialog({ open, onClose, onSaved }: Props) {
   const cart = usePosCart();
   const [validityDays, setValidityDays] = useState("15");
   const [notes, setNotes] = useState("");
@@ -56,6 +57,10 @@ export function SaveAsQuotationDialog({ open, onClose }: Props) {
     setError(null);
     if (cart.lines.length === 0) {
       setError("El carrito está vacío.");
+      return;
+    }
+    if (!cart.saleCustomer?.customerId?.trim()) {
+      setError("Selecciona un cliente antes de guardar la cotización.");
       return;
     }
     const ctx = readPosContextClient();
@@ -124,6 +129,7 @@ export function SaveAsQuotationDialog({ open, onClose }: Props) {
   function closeAndClear() {
     if (created) {
       cart.clear();
+      onSaved?.();
     }
     onClose();
   }
@@ -138,7 +144,7 @@ export function SaveAsQuotationDialog({ open, onClose }: Props) {
       actions={
         created ? (
           <Button type="button" variant="primary" onClick={closeAndClear}>
-            Listo
+            Volver al POS
           </Button>
         ) : (
           <>
@@ -162,13 +168,13 @@ export function SaveAsQuotationDialog({ open, onClose }: Props) {
           </>
         )
       }
-      actionsJustify="end"
+      actionsJustify={created ? "end" : "between"}
       data-test-id="pos-save-quotation-dialog"
     >
       {created ? (
         <div className="grid gap-3 text-sm">
           <p>La cotización se generó correctamente.</p>
-          <div className="rounded-lg bg-muted/40 p-3">
+          <div className="rounded-lg border border-border bg-background p-3">
             <div className="text-xs uppercase text-muted-foreground">Folio</div>
             <div className="font-mono text-base font-semibold">
               {created.documentNumber}
@@ -182,13 +188,13 @@ export function SaveAsQuotationDialog({ open, onClose }: Props) {
           </div>
           <p className="text-xs text-muted-foreground">
             Los precios cotizados serán respetados al convertir esta cotización
-            en venta, incluso si las listas de precios cambian durante la
-            vigencia.
+            en venta, durante el período de vigencia, incluso si las listas de
+            precios cambian.
           </p>
         </div>
       ) : (
         <div className="grid gap-3">
-          <div className="rounded-lg bg-muted/30 p-3 text-sm">
+          <div className="rounded-lg border border-border bg-background p-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Ítems</span>
               <span className="font-medium">{cart.itemsCount}</span>
@@ -221,10 +227,12 @@ export function SaveAsQuotationDialog({ open, onClose }: Props) {
           />
           <TextField
             label="Notas (opcional)"
+            type="textarea"
+            rows={4}
             value={notes}
             onChange={(e) =>
               setNotes(
-                (e as React.ChangeEvent<HTMLInputElement>).target.value,
+                (e as React.ChangeEvent<HTMLTextAreaElement>).target.value,
               )
             }
             data-test-id="pos-save-quotation-notes"

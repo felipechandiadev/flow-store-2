@@ -78,23 +78,40 @@ export function PosPaymentMethodsEditor({
 
   const update = useCallback(
     (id: string, patch: Partial<RowState>) => {
-      setById((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+      setById((prev) => {
+        const isDisabling = patch.isEnabled === false;
+        return {
+          ...prev,
+          [id]: {
+            ...prev[id],
+            ...patch,
+            ...(isDisabling ? { isDefaultForChange: false } : null),
+          },
+        };
+      });
     },
     [],
   );
 
-  const setUniqueDefault = useCallback((id: string, isDefault: boolean) => {
-    setById((prev) => {
-      const next = { ...prev };
-      for (const k of Object.keys(next)) {
-        next[k] = { ...next[k], isDefaultForChange: false };
+  const setUniqueDefault = useCallback(
+    (id: string, isDefault: boolean) => {
+      const cmp = usableCatalog.find((x) => x.id === id);
+      if (!cmp || cmp.method !== "CASH") {
+        return;
       }
-      if (isDefault) {
-        next[id] = { ...next[id], isDefaultForChange: true };
-      }
-      return next;
-    });
-  }, []);
+      setById((prev) => {
+        const next = { ...prev };
+        for (const k of Object.keys(next)) {
+          next[k] = { ...next[k], isDefaultForChange: false };
+        }
+        if (isDefault) {
+          next[id] = { ...next[id], isDefaultForChange: true };
+        }
+        return next;
+      });
+    },
+    [usableCatalog],
+  );
 
   const handleSave = useCallback(() => {
     setError(null);
@@ -108,6 +125,7 @@ export function PosPaymentMethodsEditor({
             byId[c.id]?.preloadOnPaymentScreen === true,
           preloadOrder: byId[c.id]?.preloadOrder ?? null,
           isDefaultForChange: byId[c.id]?.isDefaultForChange === true,
+          bankAccountKey: byId[c.id]?.bankAccountKey ?? null,
           requireReference:
             byId[c.id]?.requireReference == null
               ? null
@@ -253,6 +271,7 @@ export function PosPaymentMethodsEditor({
                       onChange={(v) => setUniqueDefault(c.id, v)}
                       label="Default vuelto"
                       labelPosition="right"
+                      disabled={c.method !== "CASH"}
                       data-test-id={`pos-pm-default-${c.id}`}
                     />
                   </div>

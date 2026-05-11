@@ -49,14 +49,15 @@ export class LoginResponseDto {
 
   @ApiPropertyOptional({
     description:
-      'Empresa activa al iniciar sesión. OPERATOR = user.companyId. ADMIN = primera empresa activa o null.',
+      'Empresa activa al iniciar sesión. ADMIN/OPERATOR: `user.companyId`. SUPER_ADMIN: empresa elegida o la primera activa.',
     example: 'uuid-1234',
     nullable: true,
   })
   activeCompanyId?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Empresas disponibles (solo ADMIN). null para OPERATOR.',
+    description:
+      'Empresas en contexto: SUPER_ADMIN listado para cambiar de empresa; ADMIN/OPERATOR un único ítem con la empresa del usuario.',
     type: 'array',
     items: {
       type: 'object',

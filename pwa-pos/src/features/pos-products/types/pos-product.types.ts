@@ -14,6 +14,7 @@ export type PosProductSearchItem = {
   barcode: string | null;
   unitSymbol: string | null;
   unitId: string | null;
+  unitAllowDecimals: boolean;
   unitPrice: number;
   unitTaxRate: number;
   unitTaxAmount: number;

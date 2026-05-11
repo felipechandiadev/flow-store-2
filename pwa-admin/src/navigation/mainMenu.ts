@@ -45,6 +45,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
     children: [
       { id: 'sales-transactions', label: 'Transacciones', url: '/sales/transactions' },
       { id: 'sales-quotations', label: 'Cotizaciones', url: '/sales/quotations' },
+      { id: 'sales-promotions', label: 'Promociones', url: '/sales/promotions' },
       { id: 'sales-customers', label: 'Clientes', url: '/sales/customers' },
       { id: 'sales-pos', label: 'Puntos de venta', url: '/sales/points-of-sale' },
       { id: 'sales-payments', label: 'Pagos recibidos', url: '/sales/payments' },
@@ -118,8 +119,30 @@ export const mainMenuItems: SideBarMenuItem[] = [
     id: 'nav-settings',
     label: 'Configuración',
     children: [
-      { id: 'settings-companies', label: 'Empresas', url: '/settings/companies' },
-      { id: 'settings-company', label: 'Empresa actual', url: '/settings/company' },
+      {
+        id: 'settings-companies',
+        label: 'Empresas',
+        url: '/settings/companies',
+        requiresRole: 'SUPER_ADMIN',
+      },
+      {
+        id: 'settings-company-super',
+        label: 'Empresa actual',
+        url: '/settings/company',
+        requiresRole: 'SUPER_ADMIN',
+      },
+      {
+        id: 'settings-company-admin',
+        label: 'Empresa',
+        url: '/settings/company',
+        requiresRole: 'ADMIN',
+      },
+      {
+        id: 'settings-company-operator',
+        label: 'Empresa',
+        url: '/settings/company',
+        requiresRole: 'OPERATOR',
+      },
       { id: 'settings-branches', label: 'Sucursales', url: '/settings/branches' },
       { id: 'settings-users', label: 'Usuarios', url: '/settings/users' },
       { id: 'settings-parameters', label: 'Parámetros del sistema', url: '/settings/parameters' },

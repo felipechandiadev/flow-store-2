@@ -27,6 +27,7 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
     qb.leftJoinAndSelect('tx.user', 'user');
     qb.leftJoinAndSelect('user.person', 'person');
     qb.leftJoinAndSelect('tx.customer', 'customer');
+    qb.leftJoinAndSelect('customer.person', 'customerPerson');
     qb.leftJoinAndSelect('tx.supplier', 'supplier');
     qb.leftJoinAndSelect('supplier.person', 'supplierPerson');
     qb.leftJoinAndSelect('tx.shareholder', 'shareholder');

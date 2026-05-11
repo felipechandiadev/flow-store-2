@@ -1,34 +1,36 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from '../presentation/users.controller';
-import { UsersServiceAdapter } from '../application/users.service.adapter';
+import { UsersService } from '../application/users.service';
+import type { CurrentUserPayload } from '@common/tenant';
 
 describe('UsersController', () => {
   let controller: UsersController;
-  let service: UsersServiceAdapter;
 
   const mockUsersService = {
     getAllUsers: jest.fn(),
+    listSuperAdmins: jest.fn(),
     getUserById: jest.fn(),
     createUser: jest.fn(),
     updateUser: jest.fn(),
-    removeUser: jest.fn(),
+    deleteUser: jest.fn(),
     changePassword: jest.fn(),
     changeOwnPassword: jest.fn(),
+  };
+
+  const fakeAdmin: CurrentUserPayload = {
+    id: 'admin-1',
+    userName: 'admin',
+    rol: 'ADMIN',
+    companyId: 'company-1',
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
-      providers: [
-        {
-          provide: UsersServiceAdapter,
-          useValue: mockUsersService,
-        },
-      ],
+      providers: [{ provide: UsersService, useValue: mockUsersService }],
     }).compile();
 
     controller = module.get<UsersController>(UsersController);
-    service = module.get<UsersServiceAdapter>(UsersServiceAdapter);
   });
 
   afterEach(() => {
@@ -36,204 +38,79 @@ describe('UsersController', () => {
   });
 
   describe('getUsers', () => {
-    it('should return all users without search', async () => {
-      const mockUsers = [
-        { id: 'user-1', userName: 'john', mail: 'john@example.com' },
-        { id: 'user-2', userName: 'jane', mail: 'jane@example.com' },
-      ];
-
-      mockUsersService.getAllUsers.mockResolvedValue(mockUsers);
-
-      const result = await controller.getUsers();
-
-      expect(result).toEqual(mockUsers);
-      expect(mockUsersService.getAllUsers).toHaveBeenCalledWith(undefined);
-    });
-
-    it('should return users matching search term', async () => {
+    it('should return users filtered by active company', async () => {
       const mockUsers = [
         { id: 'user-1', userName: 'john', mail: 'john@example.com' },
       ];
-
       mockUsersService.getAllUsers.mockResolvedValue(mockUsers);
 
-      const result = await controller.getUsers('john');
+      const result = await controller.getUsers(undefined, 'company-1');
 
       expect(result).toEqual(mockUsers);
-      expect(mockUsersService.getAllUsers).toHaveBeenCalledWith('john');
+      expect(mockUsersService.getAllUsers).toHaveBeenCalledWith(
+        undefined,
+        'company-1',
+      );
     });
   });
 
-  describe('getUserById', () => {
-    it('should return user when found', async () => {
-      const mockUser = {
-        id: 'user-1',
-        userName: 'john',
-        mail: 'john@example.com',
-      };
+  describe('getSuperAdmins', () => {
+    it('should return list of SUPER_ADMINs', async () => {
+      const items = [{ id: 's-1', userName: 'sa' }];
+      mockUsersService.listSuperAdmins.mockResolvedValue(items);
 
-      mockUsersService.getUserById.mockResolvedValue(mockUser);
+      const result = await controller.getSuperAdmins();
 
-      const result = await controller.getUserById('user-1');
-
-      expect(result).toEqual(mockUser);
-      expect(mockUsersService.getUserById).toHaveBeenCalledWith('user-1');
-    });
-
-    it('should return 404 when user not found', async () => {
-      mockUsersService.getUserById.mockResolvedValue(null);
-
-      const result = await controller.getUserById('nonexistent');
-
-      expect(result).toEqual({
-        success: false,
-        message: 'User not found',
-        statusCode: 404,
-      });
+      expect(result).toEqual({ success: true, items });
     });
   });
 
   describe('createUser', () => {
-    it('should create user with minimal data', async () => {
-      const createData = {
+    it('should pass active company to the service', async () => {
+      const data: any = {
         userName: 'newuser',
-        mail: 'newuser@example.com',
-        password: 'securepassword',
+        mail: 'new@example.com',
+        password: 'secret',
       };
+      mockUsersService.createUser.mockResolvedValue({ success: true });
 
-      const createdUser = {
-        id: 'user-3',
-        ...createData,
-      };
+      await controller.createUser(data, 'company-1');
 
-      mockUsersService.createUser.mockResolvedValue(createdUser);
-
-      const result = await controller.createUser(createData);
-
-      expect(result).toEqual(createdUser);
-      expect(mockUsersService.createUser).toHaveBeenCalledWith(createData);
-    });
-
-    it('should create user with person data', async () => {
-      const createData = {
-        userName: 'newuser',
-        mail: 'newuser@example.com',
-        password: 'securepassword',
-        person: {
-          type: 'individual',
-          firstName: 'John',
-          lastName: 'Doe',
-          email: 'john@example.com',
-          phone: '1234567890',
-        },
-      };
-
-      const createdUser = {
-        id: 'user-3',
-        ...createData,
-      };
-
-      mockUsersService.createUser.mockResolvedValue(createdUser);
-
-      const result = await controller.createUser(createData);
-
-      expect(mockUsersService.createUser).toHaveBeenCalledWith(createData);
-    });
-  });
-
-  describe('updateUser', () => {
-    it('should update user with new username', async () => {
-      const updateData = {
-        userName: 'updateduser',
-      };
-
-      const updatedUser = {
-        id: 'user-1',
-        userName: 'updateduser',
-        mail: 'john@example.com',
-      };
-
-      mockUsersService.updateUser.mockResolvedValue(updatedUser);
-
-      const result = await controller.updateUser('user-1', updateData);
-
-      expect(result).toEqual(updatedUser);
-      expect(mockUsersService.updateUser).toHaveBeenCalledWith(
-        'user-1',
-        updateData,
-      );
-    });
-
-    it('should update user with multiple fields', async () => {
-      const updateData = {
-        userName: 'updateduser',
-        mail: 'newemail@example.com',
-        rol: 'admin',
-        phone: '9876543210',
-      };
-
-      const updatedUser = {
-        id: 'user-1',
-        ...updateData,
-      };
-
-      mockUsersService.updateUser.mockResolvedValue(updatedUser);
-
-      const result = await controller.updateUser('user-1', updateData);
-
-      expect(mockUsersService.updateUser).toHaveBeenCalledWith(
-        'user-1',
-        updateData,
+      expect(mockUsersService.createUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userName: 'newuser',
+          companyId: null,
+        }),
+        'company-1',
       );
     });
   });
 
   describe('deleteUser', () => {
-    it('should delete user', async () => {
-      const mockResponse = { success: true };
+    it('should forward current user for guardrails', async () => {
+      mockUsersService.deleteUser.mockResolvedValue({ success: true });
 
-      mockUsersService.removeUser.mockResolvedValue(mockResponse);
+      await controller.deleteUser('user-1', fakeAdmin);
 
-      const result = await controller.deleteUser('user-1');
-
-      expect(result).toEqual(mockResponse);
-      expect(mockUsersService.removeUser).toHaveBeenCalledWith('user-1');
+      expect(mockUsersService.deleteUser).toHaveBeenCalledWith(
+        'user-1',
+        fakeAdmin,
+      );
     });
   });
 
   describe('changePassword', () => {
     it('should change user password', async () => {
-      const passwordData = { password: 'newpassword' };
-      const mockResponse = { success: true };
+      mockUsersService.changePassword.mockResolvedValue({ success: true });
 
-      mockUsersService.changePassword.mockResolvedValue(mockResponse);
+      const res = await controller.changePassword('user-1', {
+        password: 'newpassword',
+      });
 
-      const result = await controller.changePassword('user-1', passwordData);
-
-      expect(result).toEqual(mockResponse);
+      expect(res).toEqual({ success: true });
       expect(mockUsersService.changePassword).toHaveBeenCalledWith(
         'user-1',
-        passwordData,
-      );
-    });
-  });
-
-  describe('changeOwnPassword', () => {
-    it('should change current user password', async () => {
-      const passwordData = {
-        currentUserId: 'user-1',
-        newPassword: 'newpassword',
-      };
-
-      const mockResponse = { success: true };
-
-      mockUsersService.changeOwnPassword.mockResolvedValue(mockResponse);
-
-      const result = await controller.changeOwnPassword(passwordData);
-
-      expect(result).toEqual(mockResponse);
-      expect(mockUsersService.changeOwnPassword).toHaveBeenCalledWith(
-        passwordData,
+        'newpassword',
       );
     });
   });

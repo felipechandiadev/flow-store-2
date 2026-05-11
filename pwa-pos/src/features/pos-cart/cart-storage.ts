@@ -1,5 +1,6 @@
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
 import type { PosSaleCustomer } from "@/features/customers/types/pos-customer.types";
+import type { ResolvedLineDiscount } from "@/features/promotions/lib/discount-engine.types";
 
 const CART_STORAGE_VERSION = 1;
 const CART_KEY_PREFIX = "flowstore.pos.cart.v";
@@ -20,13 +21,39 @@ type StoredCart = {
   lines: Array<{
     variantId: string;
     quantity: number;
-    item: Omit<PosCartLine, "quantity">;
+    /** Descuento aplicado por el motor de promociones, persistido para
+     * sobrevivir refresh y re-cálculo idempotente al cargar. */
+    discount?: ResolvedLineDiscount | null;
+    item: Omit<PosCartLine, "quantity" | "discount">;
   }>;
-  /** Cliente de la venta (misma sesión que el carrito). */
   customer?: PosSaleCustomer | null;
-  /** Cotización origen si el carrito proviene de cargar una cotización. */
   quotation?: LoadedQuotationMeta | null;
 };
+
+function parseDiscount(value: unknown): ResolvedLineDiscount | null {
+  if (!value || typeof value !== "object") return null;
+  const d = value as Partial<ResolvedLineDiscount>;
+  if (
+    typeof d.promotionId !== "string" ||
+    typeof d.promotionCode !== "string" ||
+    typeof d.discountAmount !== "number"
+  ) {
+    return null;
+  }
+  return {
+    promotionId: d.promotionId,
+    promotionCode: d.promotionCode,
+    promotionName: typeof d.promotionName === "string" ? d.promotionName : "",
+    discountPercentage:
+      typeof d.discountPercentage === "number" ? d.discountPercentage : 0,
+    discountAmount: d.discountAmount,
+    appliedQuantity:
+      typeof d.appliedQuantity === "number" ? d.appliedQuantity : 0,
+    overridesUnitPrice: !!d.overridesUnitPrice,
+    newUnitPrice:
+      typeof d.newUnitPrice === "number" ? d.newUnitPrice : undefined,
+  };
+}
 
 function keyFor(input: { pointOfSaleId: string; priceListId: string }) {
   return `${CART_KEY_PREFIX}${CART_STORAGE_VERSION}.${input.pointOfSaleId}.${input.priceListId}`;
@@ -51,7 +78,12 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
         if (!l?.item || !l.variantId) return null;
         const qty = Number(l.quantity) || 0;
         if (qty <= 0) return null;
-        return { ...(l.item as any), quantity: qty } as PosCartLine;
+        const discount = parseDiscount((l as { discount?: unknown }).discount);
+        return {
+          ...(l.item as any),
+          quantity: qty,
+          discount,
+        } as PosCartLine;
       })
       .filter(Boolean) as PosCartLine[];
 
@@ -111,7 +143,8 @@ export function writeCartClient(
       lines: lines.map((l) => ({
         variantId: l.variantId,
         quantity: l.quantity,
-        item: (({ quantity, ...rest }) => rest)(l),
+        discount: l.discount ?? null,
+        item: (({ quantity, discount, ...rest }) => rest)(l),
       })),
       customer: customer ?? null,
       quotation: quotation ?? null,

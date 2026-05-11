@@ -22,13 +22,24 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         userName: { label: "Usuario", type: "text" },
         password: { label: "Contraseña", type: "password" },
+        companyId: { label: "Company", type: "text" },
       },
       async authorize(credentials) {
         const url = `${process.env.BACKEND_API_URL}/api/auth/login`;
-        // Empresa fija de este deployment de POS. Si está definida, se envía
-        // como header para que el backend valide que el usuario pertenece (o
-        // —si es ADMIN— tenga acceso) a esa empresa específica.
-        const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || process.env.COMPANY_ID || null;
+        // La empresa se resuelve por prioridad:
+        //   1. credentials.companyId  → enviado por LoginPage desde localStorage
+        //      (configurado por el operario en /setup).
+        //   2. NEXT_PUBLIC_COMPANY_ID → fallback legacy por env (deploy
+        //      single-tenant atado a una empresa).
+        //   3. COMPANY_ID             → mismo, server-side.
+        // Si ninguna está presente, el backend devolverá la primera empresa
+        // activa como activa por defecto.
+        const companyId =
+          (typeof credentials?.companyId === "string" && credentials.companyId.trim())
+            ? credentials.companyId.trim()
+            : process.env.NEXT_PUBLIC_COMPANY_ID ||
+              process.env.COMPANY_ID ||
+              null;
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (companyId) {
           headers["X-Active-Company-Id"] = companyId;
@@ -51,14 +62,15 @@ export const authOptions: NextAuthOptions = {
           });
         }
         if (res.ok && data.user) {
-          // Validar que el operator pertenece a la company del deployment.
+          // Validar pertenencia: cualquier usuario que no sea SUPER_ADMIN
+          // debe pertenecer a la empresa configurada del deployment.
           const userCompanyId = data.user.companyId ?? null;
           const role = data.user.rol ?? null;
-          if (companyId && role === "OPERATOR" && userCompanyId !== companyId) {
-            console.warn("[POS][auth] Operator no pertenece a la empresa configurada", {
-              userCompanyId,
-              expected: companyId,
-            });
+          if (companyId && role !== "SUPER_ADMIN" && userCompanyId !== companyId) {
+            console.warn(
+              "[POS][auth] Usuario no pertenece a la empresa configurada",
+              { role, userCompanyId, expected: companyId },
+            );
             return null;
           }
           return {
@@ -70,9 +82,9 @@ export const authOptions: NextAuthOptions = {
             accessToken: data.user.id,
             role,
             companyId: userCompanyId,
-            // ADMIN: usar la company del deployment como activa.
-            // OPERATOR: usar su companyId.
-            activeCompanyId: role === "ADMIN" ? companyId : userCompanyId,
+            // SUPER_ADMIN: usar la company del deployment como activa.
+            // ADMIN/OPERATOR: usar su propia companyId.
+            activeCompanyId: role === "SUPER_ADMIN" ? companyId : userCompanyId,
           };
         }
         return null;

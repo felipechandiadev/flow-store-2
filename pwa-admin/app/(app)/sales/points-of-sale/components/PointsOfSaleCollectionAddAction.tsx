@@ -10,6 +10,7 @@ import { CreatePointOfSaleDialog } from "./CreatePointOfSaleDialog";
 type PointsOfSaleCollectionAddActionProps = {
   branches: BranchListItem[];
   priceListCatalog: PriceListListItem[];
+  activeCompanyId: string | null;
 };
 
 /**
@@ -18,6 +19,7 @@ type PointsOfSaleCollectionAddActionProps = {
 export function PointsOfSaleCollectionAddAction({
   branches,
   priceListCatalog,
+  activeCompanyId,
 }: PointsOfSaleCollectionAddActionProps) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -35,6 +37,7 @@ export function PointsOfSaleCollectionAddAction({
       <CreatePointOfSaleDialog
         open={open}
         onClose={() => setOpen(false)}
+        companyId={activeCompanyId}
         branches={branches}
         priceListCatalog={priceListCatalog}
         onSuccess={async () => {

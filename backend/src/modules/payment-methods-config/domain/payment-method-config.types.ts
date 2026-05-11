@@ -34,6 +34,11 @@ export interface PosPaymentMethodConfig {
   preloadOrder?: number | null;
   isDefaultForChange: boolean;
   /**
+   * Preferencia por POS para transferencias: cuenta bancaria destino (empresa).
+   * Si no se define, se puede heredar desde el catálogo de empresa.
+   */
+  bankAccountKey?: string | null;
+  /**
    * Override por POS de "pide referencia". Si es `null`/`undefined`,
    * se hereda del catálogo de empresa al resolver el efectivo.
    * Permite que un mismo medio pida o no referencia según el POS.

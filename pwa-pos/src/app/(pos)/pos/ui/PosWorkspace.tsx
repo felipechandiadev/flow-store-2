@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readPosContextClient, type PosContextV1 } from "@/features/session/lib/pos-context-storage";
 import { Button, IconButton } from "@/shared/admin-shared";
+import { FileUp } from "lucide-react";
 import PosProductSearchPanel, { POS_PRODUCT_SEARCH_PANEL_HEIGHT_VH } from "./PosProductSearchPanel";
 import PosCartLineCard from "./PosCartLineCard";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
-import { SaveAsQuotationDialog } from "./SaveAsQuotationDialog";
 import { LoadQuotationDialog } from "./LoadQuotationDialog";
 
 function formatMoney(n: number) {
@@ -21,7 +21,6 @@ export default function PosWorkspace() {
   const [ctx, setCtx] = useState<PosContextV1 | null>(null);
   const [priceListId, setPriceListId] = useState("");
   const cart = usePosCart();
-  const [saveQuotationOpen, setSaveQuotationOpen] = useState(false);
   const [loadQuotationOpen, setLoadQuotationOpen] = useState(false);
 
   useEffect(() => {
@@ -88,21 +87,8 @@ export default function PosWorkspace() {
               onClick={() => setLoadQuotationOpen(true)}
               data-test-id="pos-load-quotation-btn"
             >
-              Cargar cotización
-            </Button>
-            <Button
-              variant="outlined"
-              size="sm"
-              onClick={() => setSaveQuotationOpen(true)}
-              disabled={cart.lines.length === 0}
-              data-test-id="pos-save-quotation-btn"
-              title={
-                cart.lines.length === 0
-                  ? "Agregue ítems al carrito"
-                  : "Guardar este carrito como cotización"
-              }
-            >
-              Guardar como cotización
+              <FileUp size={14} className="shrink-0" aria-hidden />
+              <span>Cotización</span>
             </Button>
           </div>
           <div className="flex items-center gap-2">
@@ -158,6 +144,8 @@ export default function PosWorkspace() {
                 line={line}
                 onIncrement={() => cart.increment(line.variantId)}
                 onDecrement={() => cart.decrement(line.variantId)}
+                onRemove={() => cart.remove(line.variantId)}
+                onSetQuantity={(q) => cart.setQuantity(line.variantId, q)}
               />
             ))
           )}
@@ -193,11 +181,6 @@ export default function PosWorkspace() {
           </div>
         </footer>
       </aside>
-
-      <SaveAsQuotationDialog
-        open={saveQuotationOpen}
-        onClose={() => setSaveQuotationOpen(false)}
-      />
 
       <LoadQuotationDialog
         open={loadQuotationOpen}

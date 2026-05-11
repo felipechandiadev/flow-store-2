@@ -1,6 +1,37 @@
-import { ErpPlaceholderPage } from '@/shared/components/ErpPlaceholderPage';
+import { Suspense } from "react";
+import { listSalesPaymentsAction } from "@/features/sales-payments/actions/sales-payments.action";
+import SalesPaymentsDataGrid from "./ui/SalesPaymentsDataGrid";
 
-export default function Page() {
-  return <ErpPlaceholderPage title="Pagos recibidos" />;
+export const dynamic = "force-dynamic";
+
+export default async function Page() {
+  const res = await listSalesPaymentsAction({ page: 1, limit: 50 });
+
+  const rows = res.success ? res.data.rows : [];
+  const total = res.success ? res.data.total : 0;
+
+  return (
+    <div className="min-h-0 p-0" data-test-id="sales-payments-page-root">
+      <Suspense
+        fallback={
+          <div
+            className="text-sm text-muted-foreground"
+            data-test-id="sales-payments-page-skeleton"
+          >
+            Cargando…
+          </div>
+        }
+      >
+        <SalesPaymentsDataGrid rows={rows} total={total} />
+      </Suspense>
+      {!res.success ? (
+        <p
+          className="p-4 text-sm text-error"
+          data-test-id="sales-payments-page-error"
+        >
+          {res.error}
+        </p>
+      ) : null}
+    </div>
+  );
 }
-

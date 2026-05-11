@@ -17,6 +17,7 @@ type PointOfSaleCardProps = {
   point: PointOfSaleListItem;
   branches: BranchListItem[];
   priceListCatalog: PriceListListItem[];
+  activeCompanyId: string | null;
   "data-test-id"?: string;
 };
 
@@ -39,6 +40,7 @@ export function PointOfSaleCard({
   point,
   branches,
   priceListCatalog,
+  activeCompanyId,
   "data-test-id": dataTestId,
 }: PointOfSaleCardProps) {
   const router = useRouter();
@@ -170,14 +172,6 @@ export function PointOfSaleCard({
         content={content}
         actions={[
           {
-            id: "payment-methods",
-            icon: "CreditCard",
-            ariaLabel: "Medios de pago",
-            onClick: () =>
-              router.push(`/sales/points-of-sale/${point.id}/payment-methods`),
-            "data-test-id": "pos-card-payment-methods",
-          },
-          {
             id: "update",
             icon: "Pencil",
             ariaLabel: "Actualizar punto de venta",
@@ -205,6 +199,7 @@ export function PointOfSaleCard({
         point={point}
         branches={branches}
         priceListCatalog={priceListCatalog}
+        companyId={point.companyId ?? activeCompanyId}
         onSuccess={async () => {
           await router.refresh();
         }}

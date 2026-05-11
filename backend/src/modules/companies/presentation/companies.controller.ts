@@ -17,6 +17,8 @@ import {
   CurrentUser,
   CurrentUserPayload,
   OptionalCurrentCompany,
+  SkipTenant,
+  SuperAdminOnly,
 } from '@common/tenant';
 import { UpdateCompanyDto } from '../application/dto/update-company.dto';
 import { CreateCompanyDto } from '../application/dto/create-company.dto';
@@ -28,8 +30,8 @@ export class CompaniesController {
 
   /**
    * Compat. con clientes single-company: devuelve la empresa "activa".
-   * - OPERATOR: su company.
-   * - ADMIN: la company seleccionada via X-Active-Company-Id, o la primera activa.
+   * - ADMIN/OPERATOR: su company.
+   * - SUPER_ADMIN: la company seleccionada via X-Active-Company-Id, o la primera activa.
    */
   @Get('company')
   async getCompany(@OptionalCurrentCompany() activeCompanyId: string | null) {
@@ -40,11 +42,32 @@ export class CompaniesController {
   }
 
   /**
-   * Lista todas las empresas (solo ADMIN).
-   * Operadores no tienen acceso al listado.
+   * Listado público de empresas activas (sin auth ni tenant).
+   * Pensado para la pantalla de setup del POS donde el operario
+   * elige a qué empresa se conecta antes de iniciar sesión.
+   * Devuelve solo campos mínimos para identificarlas en UI.
+   */
+  @Get('companies/public/list')
+  @SkipTenant()
+  async listPublicCompanies() {
+    const companies = await this.companiesService.listCompanies(false);
+    return {
+      success: true,
+      companies: companies.map((c) => ({
+        id: c.id,
+        razonSocial: c.razonSocial,
+        nombreFantasia: c.nombreFantasia,
+        rut: c.rut ?? null,
+      })),
+    };
+  }
+
+  /**
+   * Lista todas las empresas (solo SUPER_ADMIN).
+   * ADMIN/OPERATOR no acceden al listado global.
    */
   @Get('companies')
-  @AdminOnly()
+  @SuperAdminOnly()
   @AllowAdminWithoutCompany()
   async listCompanies(
     @Query('includeInactive') includeInactive?: string,
@@ -56,10 +79,10 @@ export class CompaniesController {
   }
 
   /**
-   * Detalle de una empresa por id (solo ADMIN).
+   * Detalle de una empresa por id (solo SUPER_ADMIN).
    */
   @Get('companies/:id')
-  @AdminOnly()
+  @SuperAdminOnly()
   @AllowAdminWithoutCompany()
   async getById(@Param('id') id: string) {
     const company = await this.companiesService.getCompanyById(id);
@@ -67,10 +90,10 @@ export class CompaniesController {
   }
 
   /**
-   * Crear una nueva empresa (solo ADMIN).
+   * Crear una nueva empresa (solo SUPER_ADMIN).
    */
   @Post('companies')
-  @AdminOnly()
+  @SuperAdminOnly()
   @AllowAdminWithoutCompany()
   async create(@Body() body: CreateCompanyDto) {
     const company = await this.companiesService.createCompany(body);
@@ -78,10 +101,10 @@ export class CompaniesController {
   }
 
   /**
-   * Actualizar empresa por id (solo ADMIN).
+   * Actualizar empresa por id (solo SUPER_ADMIN).
    */
   @Patch('companies/:id')
-  @AdminOnly()
+  @SuperAdminOnly()
   @AllowAdminWithoutCompany()
   async updateById(
     @Param('id') id: string,
@@ -92,10 +115,10 @@ export class CompaniesController {
   }
 
   /**
-   * Soft delete (desactivar) empresa.
+   * Soft delete (desactivar) empresa (solo SUPER_ADMIN).
    */
   @Delete('companies/:id')
-  @AdminOnly()
+  @SuperAdminOnly()
   @AllowAdminWithoutCompany()
   async remove(@Param('id') id: string) {
     return this.companiesService.softDeleteCompany(id);

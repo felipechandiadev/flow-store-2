@@ -19,6 +19,8 @@ interface TopBarProps {
   title: string;
   /** Nombre de fantasía: a la derecha del nombre de usuario, separado por un punto (color secondary). */
   companyTradeName?: string | null;
+  /** ADMIN: etiqueta de empresa si la sesión aún no incluye `companies` (ver `CompanySwitcher`). */
+  companySwitcherFallbackLabel?: string | null;
   /** Línea secundaria bajo el título: tipografía más pequeña y color suave (ej. «Panel de administración»). */
   subtitle?: string;
   logoSrc: string;
@@ -53,6 +55,7 @@ export function useSideBar() {
 const TopBar: React.FC<TopBarProps & { className?: string }> = ({
   title,
   companyTradeName,
+  companySwitcherFallbackLabel,
   subtitle,
   logoSrc,
   menuItems = [],
@@ -182,7 +185,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
                   aria-hidden
                 />
               ) : null}
-              <CompanySwitcher />
+              <CompanySwitcher fallbackCompanyLabel={companySwitcherFallbackLabel} />
             </div>
 
             {/* Notification Bell - TODO: Implement when notifications feature is ready */}

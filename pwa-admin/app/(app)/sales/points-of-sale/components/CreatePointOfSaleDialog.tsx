@@ -10,12 +10,19 @@ import Switch from "@/shared/components/Switch/Switch";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
 import { createPointOfSaleAction } from "@/features/sales-points-of-sale/actions/point-of-sale.action";
+import { getCompanyPaymentMethodsAction } from "@/features/companies/actions/companies-payment-methods.action";
+import { replacePosPaymentMethodsAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
+import type { CompanyPaymentMethodConfig } from "@/features/companies/types/company-payment-methods.types";
+import type { PosPaymentMethodConfig } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
+import { getCompanyDetailsAction } from "@/features/settings-company/actions/company.action";
+import { PosPaymentMethodsCardsEditor } from "./PosPaymentMethodsCardsEditor";
 
 export type CreatePointOfSaleDialogProps = {
   open: boolean;
   onClose: () => void;
   /** Tras crear correctamente: revalidación y `router.refresh()` desde la página. */
   onSuccess?: () => void | Promise<void>;
+  companyId: string | null;
   branches: BranchListItem[];
   priceListCatalog: PriceListListItem[];
 };
@@ -27,6 +34,7 @@ export function CreatePointOfSaleDialog({
   open,
   onClose,
   onSuccess,
+  companyId,
   branches,
   priceListCatalog,
 }: CreatePointOfSaleDialogProps) {
@@ -38,6 +46,13 @@ export function CreatePointOfSaleDialog({
   const [defaultListId, setDefaultListId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const [paymentCatalog, setPaymentCatalog] = useState<CompanyPaymentMethodConfig[]>([]);
+  const [posPaymentDraft, setPosPaymentDraft] = useState<PosPaymentMethodConfig[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [bankAccountOptions, setBankAccountOptions] = useState<Array<{ id: string; label: string }>>(
+    [],
+  );
 
   const branchOptions = useMemo(
     () => branches.map((b) => ({ id: b.id, label: b.name })),
@@ -65,7 +80,36 @@ export function CreatePointOfSaleDialog({
     setDefaultListId(null);
     setError(null);
     setBranchId(branches[0]?.id ?? "");
-  }, [open, branches]);
+
+    setPaymentCatalog([]);
+    setPosPaymentDraft([]);
+    setBankAccountOptions([]);
+    if (companyId) {
+      setLoadingPayments(true);
+      void (async () => {
+        const [res, details] = await Promise.all([
+          getCompanyPaymentMethodsAction(companyId),
+          getCompanyDetailsAction(),
+        ]);
+        if (res.success) setPaymentCatalog(res.paymentMethods);
+        if (details?.bankAccounts?.length) {
+          setBankAccountOptions(
+            details.bankAccounts
+              .map((a) => {
+                const key =
+                  a.accountKey != null && String(a.accountKey).trim()
+                    ? String(a.accountKey)
+                    : null;
+                if (!key) return null;
+                return { id: key, label: `${a.bankName} · ${a.accountNumber}` };
+              })
+              .filter((x): x is { id: string; label: string } => Boolean(x)),
+          );
+        }
+        setLoadingPayments(false);
+      })();
+    }
+  }, [open, branches, companyId]);
 
   /** Sin opción "automática": al cambiar asignación, fija la preferente en una lista concreta (la primera de la selección). */
   useEffect(() => {
@@ -122,12 +166,23 @@ export function CreatePointOfSaleDialog({
           priceLists,
           defaultPriceListId: defaultListId,
         });
-        if (r.success) {
-          await onSuccess?.();
-          handleClose();
-        } else {
+        if (!r.success) {
           setError(r.error);
+          return;
         }
+
+        // Persist payment methods config after creating the POS (optional).
+        if (posPaymentDraft.length > 0) {
+          const posId = r.pointOfSale.id;
+          const pr = await replacePosPaymentMethodsAction(posId, posPaymentDraft);
+          if (!pr.success) {
+            setError(pr.error || "El POS fue creado, pero no se pudieron guardar los medios de pago.");
+            return;
+          }
+        }
+
+        await onSuccess?.();
+        handleClose();
       })();
     });
   };
@@ -258,6 +313,25 @@ export function CreatePointOfSaleDialog({
             data-test-id="pos-create-default-list"
           />
         )}
+
+        <div className="space-y-2 pt-2">
+          <p className="text-sm font-medium text-foreground">Medios de pago del POS</p>
+          <p className="text-xs text-muted-foreground">
+            Configura qué medios están habilitados en este punto de venta, cuáles se precargan y el orden (arrastrando).
+          </p>
+          {loadingPayments ? (
+            <p className="text-sm text-muted-foreground">Cargando medios de pago…</p>
+          ) : (
+            <PosPaymentMethodsCardsEditor
+              catalog={paymentCatalog}
+              value={posPaymentDraft}
+              onChange={setPosPaymentDraft}
+              bankAccountOptions={bankAccountOptions}
+              disabled={isPending}
+              data-test-id="pos-create-payment-methods"
+            />
+          )}
+        </div>
       </div>
     </Dialog>
   );

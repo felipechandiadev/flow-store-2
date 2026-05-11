@@ -65,6 +65,7 @@ import { RecipesModule } from './modules/recipes/recipes.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { ChecksModule } from './modules/checks/checks.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
+import { PromotionsModule } from './modules/promotions/promotions.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { QuotationsModule } from './modules/quotations/quotations.module';
     BankAccountsModule,
     ChecksModule,
     QuotationsModule,
+    PromotionsModule,
     CapitalContributionsModule,
     BankTransfersModule,
     BankWithdrawalsModule,
