@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CqrsModule } from '@nestjs/cqrs';
 import { Company } from './domain/company.entity';
+import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
 import { CompaniesService } from './application/companies.service';
 import { CompaniesController } from './presentation/companies.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Company]), CqrsModule],
+  imports: [TypeOrmModule.forFeature([Company, PointOfSale]), CqrsModule],
   controllers: [CompaniesController],
   providers: [CompaniesService],
   exports: [CompaniesService],

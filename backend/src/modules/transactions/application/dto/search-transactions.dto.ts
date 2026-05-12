@@ -57,6 +57,15 @@ export class SearchTransactionsDto {
   type?: TransactionType;
 
   @ApiPropertyOptional({
+    description:
+      'Lista de tipos separados por coma (ej. SALE,SALE_RETURN). Si se envía, filtra con IN y tiene prioridad sobre `type`.',
+    example: 'SALE,SALE_RETURN',
+  })
+  @IsOptional()
+  @IsString()
+  types?: string;
+
+  @ApiPropertyOptional({
     description: 'Transaction status filter',
     enum: TransactionStatus,
     example: 'COMPLETED',

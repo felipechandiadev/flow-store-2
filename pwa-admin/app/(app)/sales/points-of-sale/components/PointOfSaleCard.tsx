@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CalendarClock, Cpu, Tags } from "lucide-react";
+import { Building2, CreditCard, Cpu, Tags } from "lucide-react";
 import { CashRegisterIcon } from "./CashRegisterIcon";
 import { Card } from "@/shared/components/Cards";
 import { DeleteDialog } from "@/shared/components/Dialog/DeleteDialog";
@@ -11,7 +11,9 @@ import type { PointOfSaleListItem } from "@/features/sales-points-of-sale/types/
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
 import { deletePointOfSaleAction } from "@/features/sales-points-of-sale/actions/point-of-sale.action";
+import { getEffectivePaymentMethodsForPosAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
 import { UpdatePointOfSaleDialog } from "./UpdatePointOfSaleDialog";
+import type { EffectivePaymentMethod } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
 
 type PointOfSaleCardProps = {
   point: PointOfSaleListItem;
@@ -21,19 +23,10 @@ type PointOfSaleCardProps = {
   "data-test-id"?: string;
 };
 
-function formatShortDate(value?: string) {
-  if (value == null || value === "") {
-    return null;
-  }
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) {
-    return null;
-  }
-  return d.toLocaleDateString("es-CL", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+function maskDeviceId(value: string): string {
+  const v = value.trim();
+  if (v.length <= 10) return v;
+  return `${v.slice(0, 4)}…${v.slice(-4)}`;
 }
 
 export function PointOfSaleCard({
@@ -51,8 +44,40 @@ export function PointOfSaleCard({
 
   const listCount = point.priceLists?.length ?? 0;
 
-  const createdLabel = formatShortDate(point.createdAt);
-  const updatedLabel = formatShortDate(point.updatedAt);
+  const [pmLoading, setPmLoading] = useState(false);
+  const [pmError, setPmError] = useState<string | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<EffectivePaymentMethod[]>(
+    [],
+  );
+
+  const reloadPaymentMethods = useCallback(async () => {
+    setPmLoading(true);
+    setPmError(null);
+    try {
+      const res = await getEffectivePaymentMethodsForPosAction(point.id);
+      if (res.success) {
+        setPaymentMethods(
+          Array.isArray(res.paymentMethods) ? res.paymentMethods : [],
+        );
+      } else {
+        setPaymentMethods([]);
+        setPmError(res.error || "No se pudieron cargar los medios de pago");
+      }
+    } finally {
+      setPmLoading(false);
+    }
+  }, [point.id]);
+
+  useEffect(() => {
+    void reloadPaymentMethods();
+  }, [point.id, point.updatedAt, reloadPaymentMethods]);
+
+  const enabledPaymentMethods = useMemo(() => {
+    // El endpoint "effective" YA viene filtrado a habilitados del POS,
+    // y ordenado (preloadOrder, luego displayOrder). Respetamos ese orden.
+    // Solo hacemos un guard mínimo por si llega data inesperada.
+    return paymentMethods.filter((m) => m != null && (m as any).method);
+  }, [paymentMethods]);
 
   const headerEnd = (
     <span data-test-id="pos-card-active-label" className="shrink-0">
@@ -96,17 +121,87 @@ export function PointOfSaleCard({
       <div className="rounded-lg border border-border/60 px-3 py-2.5">
         <p className="mb-1 flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground">
           <Cpu className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
-          ID de dispositivo
+          Dispositivo
         </p>
         {point.deviceId && String(point.deviceId).trim() ? (
-          <p
-            className="break-all font-mono text-xs text-foreground"
-            data-test-id="pos-card-device"
-          >
-            {String(point.deviceId).trim()}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span title={String(point.deviceId).trim()}>
+              <Badge
+                variant="secondary-outlined"
+                className="font-mono text-xs"
+                data-test-id="pos-card-device"
+              >
+                {maskDeviceId(String(point.deviceId))}
+              </Badge>
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Identificador del terminal
+            </span>
+          </div>
         ) : (
           <p className="text-sm italic text-muted-foreground">No asignado</p>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-border/80 bg-gradient-to-b from-background to-neutral/40 px-3 py-2.5">
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <p className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
+            <CreditCard
+              className="h-3.5 w-3.5 shrink-0"
+              strokeWidth={2}
+              aria-hidden
+            />
+            Medios de pago
+          </p>
+        </div>
+
+        {pmLoading ? (
+          <p
+            className="text-sm text-muted-foreground"
+            data-test-id="pos-card-payment-methods-loading"
+          >
+            Cargando…
+          </p>
+        ) : pmError ? (
+          <p
+            className="text-sm text-error"
+            data-test-id="pos-card-payment-methods-error"
+          >
+            {pmError}
+          </p>
+        ) : enabledPaymentMethods.length === 0 ? (
+          <p
+            className="text-sm text-muted-foreground"
+            data-test-id="pos-card-payment-methods-empty"
+          >
+            No configurados
+          </p>
+        ) : (
+          <div
+            className="flex flex-wrap gap-1.5"
+            data-test-id="pos-card-payment-methods-badges"
+          >
+            {enabledPaymentMethods.slice(0, 6).map((m) => (
+              <span
+                key={m.companyPaymentMethodId}
+                title={
+                  m.bankAccountKey
+                    ? `${m.label} · ${m.bankAccountKey}`
+                    : m.label
+                }
+                className="inline-block max-w-full"
+              >
+                <Badge variant="info-outlined" className="max-w-full truncate">
+                  {m.alias?.trim() || m.label}
+                </Badge>
+              </span>
+            ))}
+            {enabledPaymentMethods.length > 6 ? (
+              <Badge variant="secondary-outlined">
+                +{enabledPaymentMethods.length - 6}
+              </Badge>
+            ) : null}
+          </div>
         )}
       </div>
 
@@ -142,22 +237,6 @@ export function PointOfSaleCard({
           </div>
         )}
       </div>
-
-      {(createdLabel || updatedLabel) && (
-        <div
-          className="flex flex-wrap items-center gap-1 border-t border-border/70 pt-2.5 text-[0.7rem] text-muted-foreground"
-          data-test-id="pos-card-dates"
-        >
-          <CalendarClock className="h-3.5 w-3.5 shrink-0 text-secondary" strokeWidth={2} aria-hidden />
-          {createdLabel ? <span>Creado {createdLabel}</span> : null}
-          {updatedLabel && updatedLabel !== createdLabel ? (
-            <span>
-              {createdLabel ? " · " : null}
-              Actualizado {updatedLabel}
-            </span>
-          ) : null}
-        </div>
-      )}
     </div>
   );
 
@@ -201,6 +280,7 @@ export function PointOfSaleCard({
         priceListCatalog={priceListCatalog}
         companyId={point.companyId ?? activeCompanyId}
         onSuccess={async () => {
+          await reloadPaymentMethods();
           await router.refresh();
         }}
       />

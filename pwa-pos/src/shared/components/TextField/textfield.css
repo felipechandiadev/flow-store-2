@@ -111,6 +111,19 @@
   transform: translateY(-50%);
 }
 
+/** Contenedor de acciones al final del input (p. ej. limpiar monto); `pointer-events: auto` para poder clicar. */
+.fs-text-field__end-adornment {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  pointer-events: auto;
+}
+
 /* Campo o grupo con margen inferior (formularios base) */
 .fs-form-group {
   margin-bottom: 1rem;

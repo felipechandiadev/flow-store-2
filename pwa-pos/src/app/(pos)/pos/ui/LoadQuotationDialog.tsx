@@ -49,6 +49,7 @@ function quotationLinesToCart(detail: QuotationDetail): PosCartLine[] {
     variantId: l.productVariantId ?? l.id,
     sku: l.productSku ?? null,
     barcode: null,
+    unitAllowDecimals: false,
     unitSymbol: null,
     unitId: null,
     unitPrice: Number(l.unitPrice) || 0,

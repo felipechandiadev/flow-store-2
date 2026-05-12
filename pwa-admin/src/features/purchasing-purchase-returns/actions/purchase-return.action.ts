@@ -33,6 +33,7 @@ export async function createPurchaseReturnAction(
   }
   try {
     const data = await PurchaseReturnRequest.create({ ...input, userId });
+    revalidatePath("/purchasing/transactions/purchase-returns", "layout");
     revalidatePath("/purchasing/purchase-returns");
     revalidatePath("/purchasing/purchase-returns/list");
     revalidatePath("/purchasing/dte/credit-notes");

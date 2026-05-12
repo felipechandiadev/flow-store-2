@@ -22,13 +22,19 @@ export async function getQuotationByDocumentAction(documentNumber: string) {
 
 export async function createQuotationAction(payload: CreateQuotationPayload) {
   const res = await QuotationsRequest.create(payload);
-  if (res.success) revalidatePath("/sales/quotations");
+  if (res.success) {
+    revalidatePath("/sales/transactions/quotations");
+    revalidatePath("/sales/quotations");
+  }
   return res;
 }
 
 export async function cancelQuotationAction(id: string, reason?: string) {
   const res = await QuotationsRequest.cancel(id, reason);
-  if (res.success) revalidatePath("/sales/quotations");
+  if (res.success) {
+    revalidatePath("/sales/transactions/quotations");
+    revalidatePath("/sales/quotations");
+  }
   return res;
 }
 
@@ -38,6 +44,7 @@ export async function convertQuotationAction(
 ) {
   const res = await QuotationsRequest.convert(id, payload);
   if (res.success) {
+    revalidatePath("/sales/transactions/quotations");
     revalidatePath("/sales/quotations");
     revalidatePath("/sales");
   }

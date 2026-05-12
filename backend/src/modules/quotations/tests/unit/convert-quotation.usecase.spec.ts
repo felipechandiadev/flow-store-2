@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConvertQuotationUseCase } from '@modules/quotations/application/commands/convert-quotation.usecase';
 import {
   Transaction,
@@ -19,9 +15,6 @@ describe('ConvertQuotationUseCase', () => {
   let txRepo: { findOne: jest.Mock; save: jest.Mock };
   let lineRepo: { find: jest.Mock };
   let commandBus: { execute: jest.Mock };
-  let companiesService: {
-    getQuotationSettings: jest.Mock;
-  };
   let usecase: ConvertQuotationUseCase;
 
   const baseQuotation = (overrides: Partial<Transaction> = {}): Transaction =>
@@ -80,21 +73,9 @@ describe('ConvertQuotationUseCase', () => {
         documentNumber: 'VTA-26-00010',
       } as Partial<Transaction>),
     };
-    companiesService = {
-      getQuotationSettings: jest.fn().mockResolvedValue({
-        enabled: true,
-        defaultValidityDays: 15,
-        maxValidityDays: 60,
-        allowCustomValidity: true,
-        defaultTerms: null,
-        allowExpiredConversion: true,
-        reExpiredPricesOnConversion: false,
-      }),
-    };
     usecase = new ConvertQuotationUseCase(
       txRepo as any,
       lineRepo as any,
-      companiesService as any,
       commandBus as any,
     );
   });
@@ -133,31 +114,7 @@ describe('ConvertQuotationUseCase', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('blocks expired conversion when company forbids it', async () => {
-    const expired = baseQuotation({
-      metadata: {
-        quotation: {
-          issuedAt: new Date().toISOString(),
-          validUntil: new Date(Date.now() - 86400000).toISOString(),
-        },
-      },
-    });
-    txRepo.findOne.mockResolvedValueOnce(expired);
-    companiesService.getQuotationSettings.mockResolvedValueOnce({
-      enabled: true,
-      defaultValidityDays: 15,
-      maxValidityDays: 60,
-      allowCustomValidity: true,
-      defaultTerms: null,
-      allowExpiredConversion: false,
-      reExpiredPricesOnConversion: false,
-    });
-    await expect(
-      usecase.execute(COMPANY_ID, USER_ID, 'q-1', {}),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  it('requires overrideExpired when expired and allowed by config', async () => {
+  it('blocks conversion when quotation is expired', async () => {
     const expired = baseQuotation({
       metadata: {
         quotation: {
@@ -211,31 +168,9 @@ describe('ConvertQuotationUseCase', () => {
         targetTransactionId: 'sale-1',
         targetTransactionDocumentNumber: 'VTA-26-00010',
         expiredAtConversion: false,
+        pricesRefreshed: false,
       }),
     );
-  });
-
-  it('respects price snapshot even when expired with override', async () => {
-    const expired = baseQuotation({
-      metadata: {
-        quotation: {
-          issuedAt: new Date().toISOString(),
-          validUntil: new Date(Date.now() - 86400000).toISOString(),
-        },
-      },
-    });
-    const line = baseLine({ unitPrice: 999 });
-    txRepo.findOne.mockResolvedValueOnce(expired);
-    lineRepo.find.mockResolvedValueOnce([line]);
-
-    const result = await usecase.execute(COMPANY_ID, USER_ID, 'q-1', {
-      overrideExpired: true,
-    });
-
-    const command: CreateTransactionCommand = commandBus.execute.mock.calls[0][0];
-    expect(command.dto.lines![0].unitPrice).toBe(999);
-    expect(result.expiredAtConversion).toBe(true);
-    expect(result.pricesRefreshed).toBe(false);
   });
 
   it('supports targetType=CUSTOMER_ORDER', async () => {

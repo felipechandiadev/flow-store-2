@@ -8,8 +8,6 @@ export interface CompanyQuotationSettings {
   maxValidityDays: number;
   allowCustomValidity: boolean;
   defaultTerms: string | null;
-  allowExpiredConversion: boolean;
-  reExpiredPricesOnConversion: boolean;
 }
 
 export function defaultCompanyQuotationSettings(): CompanyQuotationSettings {
@@ -19,7 +17,5 @@ export function defaultCompanyQuotationSettings(): CompanyQuotationSettings {
     maxValidityDays: 60,
     allowCustomValidity: true,
     defaultTerms: null,
-    allowExpiredConversion: true,
-    reExpiredPricesOnConversion: false,
   };
 }

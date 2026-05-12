@@ -1,7 +1,6 @@
 import {
   ArrayMinSize,
   IsArray,
-  IsBoolean,
   IsDateString,
   IsEnum,
   IsNumber,
@@ -158,11 +157,6 @@ export class ConvertQuotationDto {
     message: 'targetType debe ser SALE o CUSTOMER_ORDER',
   })
   targetType?: TransactionType.SALE | TransactionType.CUSTOMER_ORDER;
-
-  /** Override explícito para convertir una cotización vencida. */
-  @IsOptional()
-  @IsBoolean()
-  overrideExpired?: boolean;
 
   /** Solo aplica si la conversión la hace el POS dentro de una sesión activa. */
   @IsOptional()

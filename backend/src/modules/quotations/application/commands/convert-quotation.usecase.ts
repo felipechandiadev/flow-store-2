@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -16,7 +15,6 @@ import {
 import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { CreateTransactionCommand } from '@modules/transactions/application/commands/create-transaction.usecase';
-import { CompaniesService } from '@modules/companies/application/companies.service';
 import { ConvertQuotationDto } from '../dto/quotation.dtos';
 
 export interface ConvertQuotationResult {
@@ -34,12 +32,9 @@ export interface ConvertQuotationResult {
  * `status=CONFIRMED`) a una venta (`SALE`) o pedido de cliente
  * (`CUSTOMER_ORDER`).
  *
- *  - Por defecto se respetan los precios cotizados (snapshot copy desde
+ *  - Se respetan los precios cotizados (snapshot copy desde
  *    `transaction_lines`), sin reconsultar `price_list_items`.
- *  - Si la cotización está vencida y `Company.settings.quotations` lo
- *    permite, se aplica la política configurada
- *    (`reExpiredPricesOnConversion`) para decidir si refrescar precios
- *    actuales.
+ *  - Si la vigencia (`metadata.quotation.validUntil`) ya pasó, no se convierte.
  *  - La cotización origen pasa a `status=COMPLETED` con
  *    `metadata.quotation.convertedToTransactionId`.
  *  - El destino guarda `metadata.links.quotationId` para trazabilidad
@@ -54,7 +49,6 @@ export class ConvertQuotationUseCase {
     private readonly txRepository: Repository<Transaction>,
     @InjectRepository(TransactionLine)
     private readonly lineRepository: Repository<TransactionLine>,
-    private readonly companiesService: CompaniesService,
     private readonly commandBus: CommandBus,
   ) {}
 
@@ -94,23 +88,15 @@ export class ConvertQuotationUseCase {
       throw new BadRequestException('La cotización está anulada');
     }
 
-    const cfg = await this.companiesService.getQuotationSettings(companyId);
     const validUntilIso = quotation.metadata?.quotation?.validUntil;
     const expired =
       typeof validUntilIso === 'string' &&
       new Date(validUntilIso).getTime() < Date.now();
 
     if (expired) {
-      if (!cfg.allowExpiredConversion) {
-        throw new ForbiddenException(
-          'La cotización está vencida y la empresa no permite convertir vencidas',
-        );
-      }
-      if (!dto.overrideExpired) {
-        throw new BadRequestException(
-          'La cotización está vencida; envíe overrideExpired=true para convertirla',
-        );
-      }
+      throw new BadRequestException(
+        'La cotización está vencida y no puede convertirse',
+      );
     }
 
     const sourceLines = await this.lineRepository.find({
@@ -121,16 +107,7 @@ export class ConvertQuotationUseCase {
       throw new BadRequestException('La cotización no tiene líneas');
     }
 
-    const pricesRefreshed = expired && cfg.reExpiredPricesOnConversion;
-    if (pricesRefreshed) {
-      // V1: si en el futuro queremos re-leer precios desde price_list_items,
-      // este es el punto de extensión. Por ahora dejamos placeholder y
-      // anotamos en el log.
-      this.logger.warn(
-        `convertQuotation ${quotation.id}: pricesRefreshed=true solicitado por settings, ` +
-          `pero la implementación V1 conserva snapshots; ajuste futuro.`,
-      );
-    }
+    const pricesRefreshed = false;
 
     const targetDto = new CreateTransactionDto();
     targetDto.transactionType = targetType;
@@ -198,9 +175,7 @@ export class ConvertQuotationUseCase {
     await this.txRepository.save(quotation);
 
     this.logger.log(
-      `Quotation ${quotation.documentNumber} → ${created.documentNumber} (${targetType})${
-        expired ? ' (expired override)' : ''
-      }`,
+      `Quotation ${quotation.documentNumber} → ${created.documentNumber} (${targetType})`,
     );
 
     return {

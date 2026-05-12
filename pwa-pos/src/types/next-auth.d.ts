@@ -4,6 +4,8 @@ declare module "next-auth" {
   interface Session {
     user: DefaultSession["user"] & {
       id: string;
+      /** Login del usuario (requerido por el backend p.ej. `CreateSaleDto.userName`). */
+      userName?: string;
       accessToken?: string;
       role?: string;
       companyId?: string | null;
@@ -15,6 +17,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     accessToken?: string;
+    userName?: string | null;
     role?: string;
     companyId?: string | null;
     activeCompanyId?: string | null;

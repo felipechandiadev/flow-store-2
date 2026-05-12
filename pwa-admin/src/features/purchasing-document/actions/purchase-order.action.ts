@@ -41,6 +41,7 @@ export async function createPurchaseOrderAction(input: CreatePurchaseOrderInput)
   });
 
   if (result.success) {
+    revalidatePath("/purchasing/transactions/orders", "page");
     revalidatePath("/purchasing/orders/list", "page");
   }
   return result;

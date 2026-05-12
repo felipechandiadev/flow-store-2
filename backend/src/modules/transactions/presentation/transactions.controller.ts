@@ -23,6 +23,49 @@ import {
 export class TransactionsController {
   constructor(private readonly queryBus: QueryBus) {}
 
+  /**
+   * Si `forcedTransactionTypes` tiene elementos, fija el filtro IN y omite `type` / `types`
+   * del query string (endpoints dedicados ventas / devoluciones cliente).
+   */
+  private executeTransactionSearch(
+    query: SearchTransactionsDto,
+    forcedTransactionTypes?: string[],
+  ) {
+    const transactionTypes =
+      forcedTransactionTypes ??
+      (query.types && String(query.types).trim()
+        ? String(query.types)
+            .split(',')
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0)
+        : undefined);
+
+    const singleType =
+      forcedTransactionTypes && forcedTransactionTypes.length > 0
+        ? undefined
+        : query.type;
+
+    return this.queryBus.execute(
+      new SearchTransactionsQuery(
+        query.page,
+        query.limit || query.pageSize,
+        singleType,
+        query.status,
+        query.paymentMethod,
+        query.branchId,
+        query.pointOfSaleId,
+        query.customerId,
+        query.supplierId,
+        query.dateFrom,
+        query.dateTo,
+        query.search,
+        query.bankAccountKey,
+        query.cashHubId,
+        transactionTypes,
+      ),
+    );
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Search transactions',
@@ -101,24 +144,29 @@ export class TransactionsController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async search(@Query() query: SearchTransactionsDto) {
-    return this.queryBus.execute(
-      new SearchTransactionsQuery(
-        query.page,
-        query.limit || query.pageSize,
-        query.type,
-        query.status,
-        query.paymentMethod,
-        query.branchId,
-        query.pointOfSaleId,
-        query.customerId,
-        query.supplierId,
-        query.dateFrom,
-        query.dateTo,
-        query.search,
-        query.bankAccountKey,
-        query.cashHubId,
-      ),
-    );
+    return this.executeTransactionSearch(query);
+  }
+
+  @Get('sales')
+  @ApiOperation({
+    summary: 'Ventas a cliente (SALE)',
+    description:
+      'Solo transacciones `SALE`. Mismos query params que GET /transactions; se ignoran `type` y `types`.',
+  })
+  async listSales(@Query() query: SearchTransactionsDto) {
+    return this.executeTransactionSearch(query, [TransactionType.SALE]);
+  }
+
+  @Get('customer-returns')
+  @ApiOperation({
+    summary: 'Devoluciones de venta a cliente (SALE_RETURN)',
+    description:
+      'Solo transacciones `SALE_RETURN`. Mismos query params que GET /transactions; se ignoran `type` y `types`.',
+  })
+  async listCustomerReturns(@Query() query: SearchTransactionsDto) {
+    return this.executeTransactionSearch(query, [
+      TransactionType.SALE_RETURN,
+    ]);
   }
 
   @Get('journal')

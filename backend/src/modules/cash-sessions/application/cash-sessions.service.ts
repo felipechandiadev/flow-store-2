@@ -372,10 +372,27 @@ export class CashSessionsService {
       metadata,
     } = createSaleDto;
 
+    const paymentsForSale = Array.isArray(payments)
+      ? payments.filter((p) => (Number(p.amount) || 0) > 0)
+      : null;
+
     // Validaciones básicas
     if (!lines || lines.length === 0) {
       throw new BadRequestException('Debes enviar al menos una línea de venta');
     }
+
+    if (
+      Array.isArray(payments) &&
+      payments.length > 0 &&
+      paymentsForSale &&
+      paymentsForSale.length === 0
+    ) {
+      throw new BadRequestException(
+        'Todos los medios de pago enviados tienen monto cero.',
+      );
+    }
+
+    const paymentsUsed = paymentsForSale ?? [];
 
     // Determinar método de pago final.
     // Cuando hay múltiples pagos, el sistema infiere "mixto" leyendo
@@ -385,18 +402,19 @@ export class CashSessionsService {
     // (o el primero si todos son iguales) para que reportes/asientos
     // tengan un valor representativo.
     let finalPaymentMethod = paymentMethod;
-    let paymentDetails = payments;
-    const isMixedPayment = !!(payments && payments.length > 1);
+    let paymentDetails: typeof payments | undefined;
+    const isMixedPayment = paymentsUsed.length > 1;
 
-    if (payments && payments.length > 1) {
-      const dominant = [...payments].sort(
+    if (paymentsUsed.length > 1) {
+      const dominant = [...paymentsUsed].sort(
         (a, b) => Number(b.amount ?? 0) - Number(a.amount ?? 0),
       )[0];
-      finalPaymentMethod = dominant?.paymentMethod ?? payments[0].paymentMethod;
-      paymentDetails = payments;
-    } else if (payments && payments.length === 1) {
-      finalPaymentMethod = payments[0].paymentMethod;
-      paymentDetails = payments;
+      finalPaymentMethod =
+        dominant?.paymentMethod ?? paymentsUsed[0].paymentMethod;
+      paymentDetails = paymentsUsed;
+    } else if (paymentsUsed.length === 1) {
+      finalPaymentMethod = paymentsUsed[0].paymentMethod;
+      paymentDetails = paymentsUsed;
     }
 
     // Parsear método de pago

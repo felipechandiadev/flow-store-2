@@ -246,7 +246,9 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
   );
   const paymentsSignature = useMemo(
     () =>
-      JSON.stringify(payments.map((p) => p.companyPaymentMethodId ?? "")),
+      JSON.stringify(
+        payments.map((p) => [p.companyPaymentMethodId ?? "", Number(p.amount) || 0]),
+      ),
     [payments],
   );
 
@@ -274,6 +276,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
         lines: engineLines,
         customerId: saleCustomer?.customerId ?? null,
         paymentMethodIds: payments
+          .filter((p) => (Number(p.amount) || 0) > 0)
           .map((p) => p.companyPaymentMethodId)
           .filter((x): x is string => !!x),
       },

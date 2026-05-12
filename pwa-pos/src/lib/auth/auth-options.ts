@@ -79,6 +79,7 @@ export const authOptions: NextAuthOptions = {
               `${data.user.person?.firstName || ""} ${data.user.person?.lastName || ""}`.trim() ||
               data.user.userName,
             email: data.user.email,
+            userName: data.user.userName,
             accessToken: data.user.id,
             role,
             companyId: userCompanyId,
@@ -95,6 +96,7 @@ export const authOptions: NextAuthOptions = {
     jwt: async ({ token, user }) => {
       if (user) {
         token.accessToken = (user as any).accessToken;
+        token.userName = (user as any).userName ?? null;
         token.role = (user as any).role ?? null;
         token.companyId = (user as any).companyId ?? null;
         token.activeCompanyId = (user as any).activeCompanyId ?? null;
@@ -106,6 +108,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         if (backendUserId) session.user.id = backendUserId;
         (session.user as any).accessToken = token.accessToken;
+        (session.user as any).userName =
+          (token.userName as string | null | undefined) ?? undefined;
         (session.user as any).role = token.role ?? undefined;
         (session.user as any).companyId = token.companyId ?? null;
         (session.user as any).activeCompanyId = token.activeCompanyId ?? null;

@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, Inject } from '@nestjs/common';
+import { Injectable, ConflictException, Inject, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, IsNull, Not } from 'typeorm';
 import { Customer } from '@modules/customers/domain/customer.entity';
@@ -14,6 +14,8 @@ import {
   CustomersRepositoryPort,
   CUSTOMERS_REPOSITORY,
 } from './ports/customers.repository.port';
+import { CompaniesService } from '@modules/companies/application/companies.service';
+import { TenantContext } from '@common/tenant';
 
 enum PersonType {
   NATURAL = 'NATURAL',
@@ -29,6 +31,7 @@ export class CustomersService {
     private readonly personRepository: Repository<Person>,
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
+    private readonly companiesService: CompaniesService,
   ) {}
 
   async create(createCustomerDto: CreateCustomerDto) {
@@ -46,6 +49,18 @@ export class CustomersService {
       paymentDayOfMonth,
       notes,
     } = createCustomerDto;
+
+    const companyId = TenantContext.getCompanyId();
+    if (companyId) {
+      const icc =
+        await this.companiesService.getInternalCustomerCreditSettings(companyId);
+      const lim = Number(creditLimit) || 0;
+      if (!icc.enabled && lim > 0) {
+        throw new BadRequestException(
+          'El crédito interno está deshabilitado para esta empresa; el límite de crédito debe ser 0.',
+        );
+      }
+    }
 
     let person: Person | null = null;
 

@@ -18,6 +18,8 @@ interface TextFieldProps {
   startAdornment?: React.ReactNode;
   /** Igual que `startSymbol` pero al final del campo. */
   endSymbol?: string;
+  /** Contenido React al final (p. ej. iconos); el input gana `padding-right` automático según el ancho medido. */
+  endAdornment?: React.ReactNode;
   className?: string;
   variante?: "normal" | "contrast" | "autocomplete";
   rows?: number;
@@ -60,6 +62,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   startSymbol,
   startAdornment,
   endSymbol,
+  endAdornment,
   className = "",
   variante = "normal",
   rows,
@@ -87,6 +90,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const startLeadingRef = useRef<HTMLSpanElement>(null);
+  const endAdornmentRef = useRef<HTMLSpanElement>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [currencyRawValue, setCurrencyRawValue] = useState<string>(value);
   const passwordToggleLabel = showPassword ? "Ocultar contraseña" : "Mostrar contraseña";
@@ -323,6 +327,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   const START_LEADING_INSET = "0.75rem";
   const START_LEADING_GAP = "0.5rem";
   const [startLeadingMeasuredPx, setStartLeadingMeasuredPx] = useState(0);
+  const [endTrailingMeasuredPx, setEndTrailingMeasuredPx] = useState(0);
   const startLeadingFallbackPx =
     hasStartSymbol && startSymbol
       ? Math.max(8, startSymbol.length * (isCompact ? 10 : 12))
@@ -349,6 +354,27 @@ export const TextField: React.FC<TextFieldProps> = ({
     ro?.observe(el);
     return () => ro?.disconnect();
   }, [hasStartLeading, startSymbol, startAdornment]);
+
+  const hasEndAdornment = Boolean(endAdornment);
+  const hasEndSymbol = typeof endSymbol === "string" && endSymbol.length > 0;
+  const hasPasswordToggle = type === "password" && passwordVisibilityToggle;
+
+  useLayoutEffect(() => {
+    const el = endAdornmentRef.current;
+    if (!hasEndAdornment || !el) {
+      setEndTrailingMeasuredPx(0);
+      return;
+    }
+    const apply = () => setEndTrailingMeasuredPx(el.offsetWidth);
+    apply();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(apply) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [hasEndAdornment, endAdornment]);
+
+  const endAdornmentSlotPx = hasEndAdornment
+    ? endTrailingMeasuredPx || (isCompact ? 52 : 68)
+    : 0;
 
   const getDisplayValue = () => {
     if (type === 'currency') {
@@ -520,7 +546,7 @@ export const TextField: React.FC<TextFieldProps> = ({
             onBlur={() => setFocused(false)}
             onChange={type === "dni" ? handleDNIChange : type === "currency" ? handleCurrencyChange : handleChange}
             onKeyDown={onKeyDown}
-            className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${compactInputClass} ${borderlessInputClass} block ${isCompact ? "min-w-0" : "min-w-[180px]"} ${startPaddingClass} ${(endSymbol || (type === "password" && passwordVisibilityToggle)) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
+            className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${compactInputClass} ${borderlessInputClass} block ${isCompact ? "min-w-0" : "min-w-[180px]"} ${startPaddingClass} ${hasEndAdornment ? " pr-3" : (hasEndSymbol || hasPasswordToggle) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
             placeholder={
               type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
               (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))
@@ -535,6 +561,9 @@ export const TextField: React.FC<TextFieldProps> = ({
             data-test-id={props["data-test-id"]}
             style={{
               ...(hasStartLeading && inputPaddingStart ? { paddingLeft: inputPaddingStart } : {}),
+              ...(hasEndAdornment && endAdornmentSlotPx > 0
+                ? { paddingRight: `calc(0.35rem + ${endAdornmentSlotPx}px)` }
+                : {}),
               ...(style || {}),
             }}
             {...(type === "dni" || type === "currency" || type === "datePicker" || type === "tel" ? {} : props)}
@@ -565,6 +594,14 @@ export const TextField: React.FC<TextFieldProps> = ({
               )}
             </button>
           )}
+          {hasEndAdornment ? (
+            <span
+              ref={endAdornmentRef}
+              className={`fs-text-field__end-adornment ${showDisabledChrome ? "opacity-50" : ""}`}
+            >
+              {endAdornment}
+            </span>
+          ) : null}
         </div>
       )}
       {/* Placeholder personalizado para campos requeridos */}
@@ -574,7 +611,12 @@ export const TextField: React.FC<TextFieldProps> = ({
           style={{
             backgroundColor: "var(--color-background)",
             left: floatingStartLeft,
-            paddingRight: (endSymbol || (type === "password" && passwordVisibilityToggle)) ? '40px' : '12px',
+            paddingRight:
+              hasEndAdornment && endAdornmentSlotPx > 0
+                ? `${endAdornmentSlotPx + 12}px`
+                : hasEndSymbol || hasPasswordToggle
+                  ? "40px"
+                  : "12px",
             top: isTextArea ? '1.25rem' : '50%',
             transform: isTextArea ? 'none' : 'translateY(-50%)'
           }}

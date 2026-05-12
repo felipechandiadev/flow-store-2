@@ -5,6 +5,15 @@ export type CompanyDetails = {
   id: string | null;
   razonSocial: string;
   nombreFantasia: string | null;
+  /** RUT u otro identificador fiscal si el backend lo envía. */
+  rut?: string | null;
+  businessActivity?: string | null;
+  defaultCurrency?: string | null;
+  /**
+   * URL de logo de marca (absoluta o relativa al dominio del POS).
+   * Se intenta leer desde `settings` del backend (`logoUrl`, `posLogoUrl`, `brand.logoUrl`).
+   */
+  logoUrl?: string | null;
   bankAccounts: Array<{
     accountKey?: string;
     bankName: string;
@@ -20,8 +29,27 @@ type CompanyApiResponse = {
   id?: string | null;
   razonSocial?: string;
   nombreFantasia?: string | null;
+  rut?: string | null;
+  businessActivity?: string | null;
+  defaultCurrency?: string | null;
+  settings?: unknown;
   bankAccounts?: unknown[] | null;
 };
+
+function extractCompanyLogoUrl(settings: unknown): string | null {
+  if (!settings || typeof settings !== "object") return null;
+  const s = settings as Record<string, unknown>;
+  const pick = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  return (
+    pick(s.logoUrl) ??
+    pick(s.posLogoUrl) ??
+    (() => {
+      const brand = s.brand;
+      if (!brand || typeof brand !== "object") return null;
+      return pick((brand as Record<string, unknown>).logoUrl);
+    })()
+  );
+}
 
 function normalizeBankAccounts(raw: unknown): CompanyDetails["bankAccounts"] {
   if (!Array.isArray(raw)) return [];
@@ -80,6 +108,17 @@ export class CompanyRequest {
         return null;
       }
 
+      const rut =
+        data.rut != null && String(data.rut).trim() !== "" ? String(data.rut).trim() : null;
+      const businessActivity =
+        data.businessActivity != null && String(data.businessActivity).trim() !== ""
+          ? String(data.businessActivity).trim()
+          : null;
+      const defaultCurrency =
+        data.defaultCurrency != null && String(data.defaultCurrency).trim() !== ""
+          ? String(data.defaultCurrency).trim()
+          : null;
+
       return {
         id: data.id != null && String(data.id).trim() !== "" ? String(data.id).trim() : null,
         razonSocial: String(data.razonSocial),
@@ -87,6 +126,10 @@ export class CompanyRequest {
           data.nombreFantasia != null && String(data.nombreFantasia).trim() !== ""
             ? String(data.nombreFantasia).trim()
             : null,
+        rut,
+        businessActivity,
+        defaultCurrency,
+        logoUrl: extractCompanyLogoUrl(data.settings),
         bankAccounts: normalizeBankAccounts(data.bankAccounts),
       };
     } catch {

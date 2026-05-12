@@ -26,6 +26,7 @@ type BranchOption = { id: string; name: string };
 
 function savePosContext(input: {
   pointOfSaleId: string;
+  cashSessionId?: string | null;
   pointOfSaleName?: string | null;
   branchName?: string | null;
   priceListId?: string | null;
@@ -34,6 +35,7 @@ function savePosContext(input: {
 }) {
   savePosContextClient({
     pointOfSaleId: input.pointOfSaleId,
+    cashSessionId: input.cashSessionId ?? null,
     pointOfSaleName: input.pointOfSaleName ?? null,
     branchName: input.branchName ?? null,
     priceListId: input.priceListId ?? null,
@@ -92,10 +94,14 @@ function MyOpenSessionPanel({
 
   const handleContinue = () => {
     if (myPos) {
-      savePosContext(buildPosContextFromPos(myPos));
+      savePosContext({
+        ...buildPosContextFromPos(myPos),
+        cashSessionId: myOpenSession.cashSessionId,
+      });
     } else {
       savePosContext({
         pointOfSaleId: myOpenSession.pointOfSaleId,
+        cashSessionId: myOpenSession.cashSessionId,
         pointOfSaleName: myOpenSession.pointOfSaleName,
         branchName: myOpenSession.branchName,
       });
@@ -249,7 +255,10 @@ function NewSessionForm({
       }
 
       if (selectedPos) {
-        savePosContext(buildPosContextFromPos(selectedPos));
+        savePosContext({
+          ...buildPosContextFromPos(selectedPos),
+          cashSessionId: result.cashSessionId,
+        });
       }
 
       setIsOpenAmountDialog(false);

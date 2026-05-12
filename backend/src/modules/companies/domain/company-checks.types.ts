@@ -1,26 +1,31 @@
 /**
  * Configuración de cheques para una empresa.
  *
- * Se persiste dentro de `companies.settings.checks` (columna JSON), por lo
- * que NO requiere migración propia y puede evolucionar sin cambios de
- * schema.
+ * Se persiste dentro de `companies.settings` (columna JSON), clave
+ * `checks`, junto al resto de ajustes de la empresa.
  *
  * - `enabled`: master switch. Si está en false, ninguna ruta de cheques
  *   (POS, gastos, cartera) está habilitada.
  * - `receiveChecks`: la empresa acepta cheques como pago entrante. Se
  *   refleja en el catálogo `paymentMethods` (entrada CHECK isActive).
  * - `issueChecks`: la empresa emite cheques en pagos a proveedores/gastos.
- * - `allowPostdated`: permite cheques "a fecha" (con `dueDate`).
+ * - `allowPostdatedReceived`: en cheques recibidos, permite `dueDate`
+ *   (postdatados).
+ * - `allowPostdatedIssued`: en cheques emitidos, permite `dueDate`.
  * - `defaultDepositBankAccountKey`: cuenta sugerida al depositar un
  *   cheque entrante.
  * - `defaultIssueBankAccountKey`: cuenta sobre la que se gira al emitir
  *   cheques salientes.
+ *
+ * Compatibilidad: si en JSON antiguo solo existe `allowPostdated`, se
+ * interpreta como ambos flags cuando correspondan receive/issue.
  */
 export interface CompanyCheckSettings {
   enabled: boolean;
   receiveChecks: boolean;
   issueChecks: boolean;
-  allowPostdated: boolean;
+  allowPostdatedReceived: boolean;
+  allowPostdatedIssued: boolean;
   defaultDepositBankAccountKey: string | null;
   defaultIssueBankAccountKey: string | null;
 }
@@ -30,7 +35,8 @@ export function buildDefaultCompanyCheckSettings(): CompanyCheckSettings {
     enabled: false,
     receiveChecks: false,
     issueChecks: false,
-    allowPostdated: false,
+    allowPostdatedReceived: false,
+    allowPostdatedIssued: false,
     defaultDepositBankAccountKey: null,
     defaultIssueBankAccountKey: null,
   };
@@ -51,6 +57,7 @@ export function sanitizeCompanyCheckSettings(
   raw: unknown,
 ): CompanyCheckSettings {
   const r = (raw ?? {}) as Partial<CompanyCheckSettings> & {
+    allowPostdated?: unknown;
     [k: string]: unknown;
   };
   const truthy = (v: unknown): boolean =>
@@ -59,13 +66,32 @@ export function sanitizeCompanyCheckSettings(
   const enabled = truthy(r.enabled);
   const receiveChecks = enabled && truthy(r.receiveChecks);
   const issueChecks = enabled && truthy(r.issueChecks);
-  const allowPostdated = enabled && truthy(r.allowPostdated);
+
+  const legacyPostdated =
+    'allowPostdatedReceived' in r === false &&
+    'allowPostdatedIssued' in r === false &&
+    'allowPostdated' in r
+      ? truthy(r.allowPostdated)
+      : false;
+
+  const allowPostdatedReceived =
+    receiveChecks &&
+    ('allowPostdatedReceived' in r
+      ? truthy(r.allowPostdatedReceived)
+      : legacyPostdated);
+
+  const allowPostdatedIssued =
+    issueChecks &&
+    ('allowPostdatedIssued' in r
+      ? truthy(r.allowPostdatedIssued)
+      : legacyPostdated);
 
   return {
     enabled,
     receiveChecks,
     issueChecks,
-    allowPostdated,
+    allowPostdatedReceived,
+    allowPostdatedIssued,
     defaultDepositBankAccountKey: trimOrNull(r.defaultDepositBankAccountKey),
     defaultIssueBankAccountKey: trimOrNull(r.defaultIssueBankAccountKey),
   };

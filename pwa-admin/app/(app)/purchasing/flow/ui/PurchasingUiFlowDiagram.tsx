@@ -140,7 +140,7 @@ function buildNodes(): Node<PurchasingFlowStepData>[] {
     step("purchase-order", { x: -69.28068979655512, y: 347.1419435993737 }, {
       sourceBottom: "split",
       title: "2. Orden de compra (compromiso con proveedor)",
-      uiPath: "/purchasing/orders/new → /purchasing/orders/list",
+      uiPath: "/purchasing/transactions/orders/new → /purchasing/transactions/orders",
       uiSummary:
         "Armás el documento con sucursal, proveedor, almacén opcional, líneas desde el buscador de variantes y totales. Podés guardar borrador o confirmar según validaciones de la pantalla.",
       transactionTypes: [
@@ -158,7 +158,7 @@ function buildNodes(): Node<PurchasingFlowStepData>[] {
     }),
     step("reception", { x: -276.4574457355159, y: 913.6290282003131 }, {
       title: "3a. Recepción de mercancía (ingreso a inventario)",
-      uiPath: "/purchasing/receptions/new",
+      uiPath: "/purchasing/transactions/receptions/new",
       uiSummary:
         "Misma experiencia de armado de documento que la OC: elegís proveedor, bodega, líneas y tributación. Refleja lo que realmente entró al almacén.",
       transactionTypes: [
@@ -194,7 +194,7 @@ function buildNodes(): Node<PurchasingFlowStepData>[] {
     }),
     step("purchase-return", { x: -276, y: 1240 }, {
       title: "3d. Devolución a proveedor (logística / stock)",
-      uiPath: "/purchasing/purchase-returns/new → /purchasing/purchase-returns/list",
+      uiPath: "/purchasing/transactions/purchase-returns/new → /purchasing/transactions/purchase-returns",
       uiSummary:
         "Registrás la salida física (o el reverso operativo) hacia el proveedor. Es el ancla obligatoria para emitir después una **nota de crédito** fiscal asociada en la UI de notas de crédito.",
       transactionTypes: [

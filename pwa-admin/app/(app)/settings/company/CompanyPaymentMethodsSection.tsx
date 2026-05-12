@@ -12,6 +12,7 @@ import {
   getCompanyPaymentMethodsAction,
   replaceCompanyPaymentMethodsAction,
 } from "@/features/companies/actions/companies-payment-methods.action";
+import { getCompanyInternalCustomerCreditSettingsAction } from "@/features/companies/actions/companies-internal-customer-credit.action";
 import { CompanyPaymentMethodDialog } from "./CompanyPaymentMethodDialog";
 
 type Props = {
@@ -97,18 +98,25 @@ export function CompanyPaymentMethodsSection({ companyId }: Props) {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CompanyPaymentMethodConfig | null>(null);
+  const [internalCreditEnabled, setInternalCreditEnabled] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
-    getCompanyPaymentMethodsAction(companyId)
-      .then((res) => {
+    Promise.all([
+      getCompanyPaymentMethodsAction(companyId),
+      getCompanyInternalCustomerCreditSettingsAction(companyId),
+    ])
+      .then(([pm, icc]) => {
         if (cancelled) return;
-        if (res.success) {
-          setItems(res.paymentMethods);
+        if (pm.success) {
+          setItems(pm.paymentMethods);
         } else {
-          setLoadError(res.error);
+          setLoadError(pm.error);
+        }
+        if (icc.success) {
+          setInternalCreditEnabled(icc.internalCustomerCredit.enabled);
         }
       })
       .catch((e) => {
@@ -240,6 +248,7 @@ export function CompanyPaymentMethodsSection({ companyId }: Props) {
           setEditing(null);
           setError(null);
         }}
+        internalCreditEnabled={internalCreditEnabled}
         initial={editing}
         onConfirm={handleConfirm}
         busy={busy}

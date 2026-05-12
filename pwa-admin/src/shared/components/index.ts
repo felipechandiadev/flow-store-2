@@ -34,6 +34,8 @@ export { default as PrintDialog } from './PrintDialog';
 // Form Fields & Inputs
 export { default as RangeSlider } from './RangeSlider';
 export { default as NumberStepper } from './NumberStepper';
+export { Stepper } from './Stepper';
+export type { StepperProps, StepperStepItem } from './Stepper';
 export { default as LocationPickerWrapper } from './LocationPicker';
 
 // File Upload

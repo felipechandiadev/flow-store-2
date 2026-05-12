@@ -15,13 +15,9 @@
  *   `validUntil` por cotización; si false, siempre se usa el default.
  * - `defaultTerms`: texto legal por defecto que se imprime al pie del
  *   documento (puede vaciarse en cada cotización).
- * - `allowExpiredConversion`: si true, una cotización vencida puede
- *   convertirse a SALE/CUSTOMER_ORDER con override explícito; si false,
- *   se bloquea cualquier conversión post-vencimiento.
- * - `reExpiredPricesOnConversion`: cuando se convierte una cotización
- *   vencida con override, controla si se respetan los precios originales
- *   (false, default deseado) o si se re-leen desde `price_list_items`
- *   vigentes (true).
+ *
+ * Las cotizaciones vencidas no se convierten a venta/pedido (regla fija en
+ * `ConvertQuotationUseCase`).
  */
 export interface CompanyQuotationSettings {
   enabled: boolean;
@@ -29,15 +25,11 @@ export interface CompanyQuotationSettings {
   maxValidityDays: number;
   allowCustomValidity: boolean;
   defaultTerms: string | null;
-  allowExpiredConversion: boolean;
-  reExpiredPricesOnConversion: boolean;
 }
 
 /**
- * Defaults pensados para implementación por defecto: módulo habilitado
- * con 15 días de vigencia, máximo 60, vigencia editable, y conversión
- * post-vencimiento permitida (con override) respetando el precio
- * cotizado.
+ * Defaults: módulo habilitado con 15 días de vigencia, máximo 60, vigencia
+ * editable.
  */
 export function buildDefaultCompanyQuotationSettings(): CompanyQuotationSettings {
   return {
@@ -46,8 +38,6 @@ export function buildDefaultCompanyQuotationSettings(): CompanyQuotationSettings
     maxValidityDays: 60,
     allowCustomValidity: true,
     defaultTerms: null,
-    allowExpiredConversion: true,
-    reExpiredPricesOnConversion: false,
   };
 }
 
@@ -96,8 +86,6 @@ export function sanitizeCompanyQuotationSettings(
 
   const enabled = truthy(r.enabled);
   const allowCustomValidity = truthy(r.allowCustomValidity);
-  const allowExpiredConversion = truthy(r.allowExpiredConversion);
-  const reExpiredPricesOnConversion = truthy(r.reExpiredPricesOnConversion);
 
   const defaultValidityDays = clampDays(r.defaultValidityDays, 15, 1, 365);
   let maxValidityDays = clampDays(r.maxValidityDays, 60, 1, 1825);
@@ -111,7 +99,5 @@ export function sanitizeCompanyQuotationSettings(
     maxValidityDays,
     allowCustomValidity,
     defaultTerms: trimOrNull(r.defaultTerms),
-    allowExpiredConversion,
-    reExpiredPricesOnConversion,
   };
 }

@@ -1,9 +1,5 @@
-import { PurchaseReturnForm } from "./PurchaseReturnForm";
+import { redirect } from "next/navigation";
 
-export default function NewPurchaseReturnPage() {
-  return (
-    <div className="min-h-0 min-w-0" data-test-id="purchase-returns-new-page">
-      <PurchaseReturnForm />
-    </div>
-  );
+export default function Page() {
+  redirect("/purchasing/transactions/purchase-returns/new");
 }

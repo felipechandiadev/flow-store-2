@@ -16,6 +16,8 @@ import {
 type Props = {
   open: boolean;
   onClose: () => void;
+  /** Si false, no se ofrece INTERNAL_CREDIT al crear (sí al editar uno existente). */
+  internalCreditEnabled?: boolean;
   /** Si viene definido, el dialog opera en modo edición. */
   initial: CompanyPaymentMethodConfig | null;
   /** Llamado cuando el usuario confirma. El padre se encarga de persistir
@@ -43,6 +45,7 @@ function newClientId(): string {
 export function CompanyPaymentMethodDialog({
   open,
   onClose,
+  internalCreditEnabled = true,
   initial,
   onConfirm,
   busy,
@@ -73,6 +76,25 @@ export function CompanyPaymentMethodDialog({
     () => (editing ? "Editar medio de pago" : "Nuevo medio de pago"),
     [editing],
   );
+
+  const methodOptions = useMemo(() => {
+    const base = METHOD_OPTIONS.filter(
+      (o) => internalCreditEnabled || o.id !== "INTERNAL_CREDIT",
+    );
+    if (
+      initial?.method === "INTERNAL_CREDIT" &&
+      !base.some((o) => o.id === "INTERNAL_CREDIT")
+    ) {
+      return [
+        ...base,
+        {
+          id: "INTERNAL_CREDIT" as CompanyPaymentMethodId,
+          label: `${COMPANY_PAYMENT_METHOD_LABELS.INTERNAL_CREDIT} (INTERNAL_CREDIT)`,
+        },
+      ];
+    }
+    return base;
+  }, [internalCreditEnabled, initial?.method]);
 
   async function handleSubmit() {
     const item: CompanyPaymentMethodConfig = {
@@ -110,7 +132,7 @@ export function CompanyPaymentMethodDialog({
           label="Tipo de medio"
           name="company-payment-method"
           placeholder="Seleccionar"
-          options={METHOD_OPTIONS}
+          options={methodOptions}
           value={method}
           onChange={(id) =>
             setMethod((id != null ? String(id) : "CASH") as CompanyPaymentMethodId)

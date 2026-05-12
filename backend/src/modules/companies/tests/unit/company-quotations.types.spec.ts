@@ -11,8 +11,6 @@ describe('CompanyQuotationSettings helpers', () => {
       maxValidityDays: 60,
       allowCustomValidity: true,
       defaultTerms: null,
-      allowExpiredConversion: true,
-      reExpiredPricesOnConversion: false,
     });
   });
 
@@ -23,16 +21,12 @@ describe('CompanyQuotationSettings helpers', () => {
       maxValidityDays: '90',
       allowCustomValidity: 1,
       defaultTerms: '  Términos  ',
-      allowExpiredConversion: '1',
-      reExpiredPricesOnConversion: false,
     });
     expect(out.enabled).toBe(true);
     expect(out.defaultValidityDays).toBe(20);
     expect(out.maxValidityDays).toBe(90);
     expect(out.allowCustomValidity).toBe(true);
     expect(out.defaultTerms).toBe('Términos');
-    expect(out.allowExpiredConversion).toBe(true);
-    expect(out.reExpiredPricesOnConversion).toBe(false);
   });
 
   it('sanitize clamps below-min and above-max into the legal range', () => {

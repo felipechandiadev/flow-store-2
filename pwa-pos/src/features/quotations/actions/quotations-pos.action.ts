@@ -20,7 +20,6 @@ export async function convertQuotationToSalePosAction(
   payload: {
     cashSessionId?: string;
     pointOfSaleId?: string;
-    overrideExpired?: boolean;
   } = {},
 ) {
   return QuotationsPosRequest.convertToSale(id, payload);

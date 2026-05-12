@@ -1,0 +1,154 @@
+"use client";
+
+import { useMemo } from "react";
+import DataGrid from "@/shared/components/DataGrid/DataGrid";
+import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
+import Badge, { type BadgeVariant } from "@/shared/components/Badge/Badge";
+import {
+  CASH_SESSION_STATUS_LABEL,
+  type CashSessionListRow,
+  type CashSessionListStatus,
+} from "@/features/sales-cash-sessions/types/cash-session-list.types";
+
+type CashSessionsDataGridProps = {
+  rows: CashSessionListRow[];
+  total: number;
+};
+
+function formatMoney(amount: number | null | undefined): string {
+  if (amount == null || !Number.isFinite(amount)) return "—";
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function formatDateTimeSlash(value: string | null | undefined): string {
+  if (!value?.trim()) return "—";
+  const dt = new Date(value.trim());
+  if (Number.isNaN(dt.getTime())) return "—";
+  return `${pad2(dt.getDate())}/${pad2(dt.getMonth() + 1)}/${dt.getFullYear()} ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`;
+}
+
+function statusBadgeVariant(status: CashSessionListStatus): BadgeVariant {
+  if (status === "OPEN") return "success-outlined";
+  if (status === "CLOSED") return "secondary-outlined";
+  if (status === "RECONCILED") return "info-outlined";
+  return "secondary-outlined";
+}
+
+export default function CashSessionsDataGrid({
+  rows,
+  total,
+}: CashSessionsDataGridProps) {
+  const columns: DataGridColumn[] = useMemo(
+    () => [
+      {
+        field: "openedAt",
+        headerName: "Apertura",
+        sortable: false,
+        width: 160,
+        valueGetter: ({ row }) =>
+          formatDateTimeSlash((row as CashSessionListRow).openedAt),
+      },
+      {
+        field: "status",
+        headerName: "Estado",
+        sortable: false,
+        width: 130,
+        valueGetter: ({ row }) => (row as CashSessionListRow).status,
+        renderCell: ({ value }) => {
+          const status = value as CashSessionListStatus;
+          return (
+            <Badge variant={statusBadgeVariant(status)}>
+              {CASH_SESSION_STATUS_LABEL[status] ?? status}
+            </Badge>
+          );
+        },
+      },
+      {
+        field: "branchName",
+        headerName: "Sucursal",
+        sortable: false,
+        minWidth: 140,
+        valueGetter: ({ row }) => (row as CashSessionListRow).branchName ?? "—",
+      },
+      {
+        field: "pointOfSaleName",
+        headerName: "Punto de venta",
+        sortable: false,
+        minWidth: 160,
+        valueGetter: ({ row }) =>
+          (row as CashSessionListRow).pointOfSaleName ?? "—",
+      },
+      {
+        field: "openedByFullName",
+        headerName: "Abierta por",
+        sortable: false,
+        minWidth: 180,
+        flex: 0.8,
+        valueGetter: ({ row }) => {
+          const r = row as CashSessionListRow;
+          if (r.openedByFullName) return r.openedByFullName;
+          return r.openedByUserName ?? "—";
+        },
+      },
+      {
+        field: "openingAmount",
+        headerName: "Apertura ($)",
+        sortable: false,
+        width: 130,
+        align: "right",
+        valueGetter: ({ row }) =>
+          formatMoney((row as CashSessionListRow).openingAmount),
+      },
+      {
+        field: "closedAt",
+        headerName: "Cierre",
+        sortable: false,
+        width: 160,
+        valueGetter: ({ row }) =>
+          formatDateTimeSlash((row as CashSessionListRow).closedAt),
+      },
+      {
+        field: "closingAmount",
+        headerName: "Cierre ($)",
+        sortable: false,
+        width: 130,
+        align: "right",
+        valueGetter: ({ row }) =>
+          formatMoney((row as CashSessionListRow).closingAmount),
+      },
+      {
+        field: "difference",
+        headerName: "Diferencia",
+        sortable: false,
+        width: 120,
+        align: "right",
+        valueGetter: ({ row }) =>
+          formatMoney((row as CashSessionListRow).difference),
+      },
+    ],
+    [],
+  );
+
+  return (
+    <DataGrid
+      title="Sesiones de caja"
+      columns={columns}
+      rows={rows}
+      totalRows={total}
+      totalGeneral={total}
+      height="85vh"
+      showExportButton={false}
+      showSortButton={false}
+      showFilterButton={false}
+      data-test-id="sales-cash-sessions-data-grid"
+    />
+  );
+}

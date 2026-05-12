@@ -7,6 +7,7 @@ import { CompanyGeneralSection } from "./CompanyGeneralSection";
 import { CompanyLogoSection } from "./CompanyLogoSection";
 import { CompanyBankAccountsSection } from "./CompanyBankAccountsSection";
 import { CompanyPaymentMethodsSection } from "./CompanyPaymentMethodsSection";
+import { CompanyInternalCustomerCreditSection } from "./CompanyInternalCustomerCreditSection";
 import { CompanyChecksSection } from "./CompanyChecksSection";
 import { CompanyQuotationsSection } from "./CompanyQuotationsSection";
 import { CompanyPartnersSection } from "./CompanyPartnersSection";
@@ -35,6 +36,8 @@ export function CompanySettingsContent({ company, shareholders }: Props) {
           <CompanyBankAccountsSection company={company} />
 
           <CompanyPaymentMethodsSection companyId={company.id} />
+
+          <CompanyInternalCustomerCreditSection company={company} />
 
           <CompanyChecksSection company={company} />
 

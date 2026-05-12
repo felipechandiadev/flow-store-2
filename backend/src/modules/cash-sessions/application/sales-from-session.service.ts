@@ -180,10 +180,28 @@ export class SalesFromSessionService {
       promotionSnapshot,
     } = createSaleDto;
 
+    /** Medios con monto > 0: montos en cero no cuentan como uso en la venta. */
+    const paymentsForSale = Array.isArray(payments)
+      ? payments.filter((p) => (Number(p.amount) || 0) > 0)
+      : null;
+
     // Validaciones básicas
     if (!lines || lines.length === 0) {
       throw new BadRequestException('Debes enviar al menos una línea de venta');
     }
+
+    if (
+      Array.isArray(payments) &&
+      payments.length > 0 &&
+      paymentsForSale &&
+      paymentsForSale.length === 0
+    ) {
+      throw new BadRequestException(
+        'Todos los medios de pago enviados tienen monto cero.',
+      );
+    }
+
+    const paymentsUsed = paymentsForSale ?? [];
 
     // Determinar método de pago final.
     // Si hay múltiples pagos, NO se marca como `MIXED`: el sistema
@@ -192,14 +210,15 @@ export class SalesFromSessionService {
     // (fallback al primero) para que reportes/asientos sigan teniendo
     // un valor representativo.
     let finalPaymentMethod = paymentMethod;
-    const isMixedPayment = !!(payments && payments.length > 1);
-    if (payments && payments.length > 1) {
-      const dominant = [...payments].sort(
+    const isMixedPayment = paymentsUsed.length > 1;
+    if (paymentsUsed.length > 1) {
+      const dominant = [...paymentsUsed].sort(
         (a, b) => Number(b.amount ?? 0) - Number(a.amount ?? 0),
       )[0];
-      finalPaymentMethod = dominant?.paymentMethod ?? payments[0].paymentMethod;
-    } else if (payments && payments.length === 1) {
-      finalPaymentMethod = payments[0].paymentMethod;
+      finalPaymentMethod =
+        dominant?.paymentMethod ?? paymentsUsed[0].paymentMethod;
+    } else if (paymentsUsed.length === 1) {
+      finalPaymentMethod = paymentsUsed[0].paymentMethod;
     }
 
     return await this.dataSource.transaction(async (manager) => {
@@ -342,7 +361,7 @@ export class SalesFromSessionService {
           true,
         );
 
-        const paymentMethodIds: string[] = (payments ?? [])
+        const paymentMethodIds: string[] = paymentsUsed
           .map((p) => (p as any).companyPaymentMethodId as string | undefined)
           .filter((x): x is string => !!x);
 
@@ -499,7 +518,7 @@ export class SalesFromSessionService {
         capturedAt: string;
         checkData?: Record<string, any> | null;
       }> = [];
-      if (Array.isArray(payments) && payments.length > 0) {
+      if (paymentsUsed.length > 0) {
         const companyId = pointOfSale.companyId;
         let catalog: Awaited<
           ReturnType<CompaniesService['getPaymentMethods']>
@@ -512,7 +531,7 @@ export class SalesFromSessionService {
           catalog = [];
         }
         const now = new Date().toISOString();
-        paymentSnapshots = payments.map((p) => {
+        paymentSnapshots = paymentsUsed.map((p) => {
           const cmpId = (p as any).companyPaymentMethodId as string | undefined;
           const cmp = cmpId ? catalog.find((c) => c.id === cmpId) : undefined;
           const rawCheckData = (p as any).checkData as
@@ -561,7 +580,7 @@ export class SalesFromSessionService {
         bankAccountKey: bankAccountKey || undefined,
         metadata: {
           ...metadata,
-          paymentDetails: payments,
+          paymentDetails: paymentsUsed.length > 0 ? paymentsUsed : undefined,
           paymentSnapshots:
             paymentSnapshots.length > 0 ? paymentSnapshots : undefined,
           paymentSnapshot:
@@ -630,10 +649,10 @@ export class SalesFromSessionService {
       // realmente recibido. Antes se sumaba el `amountPaid` total cuando
       // el método era `CASH` o `MIXED`, lo cual sobre-contaba en pagos
       // mixtos (sumaba también la parte tarjeta/transferencia). Ahora
-      // se suma exactamente la porción `CASH` declarada en `payments`.
+      // se suma exactamente la porción `CASH` declarada en los pagos con monto > 0.
       const cashPortion = (() => {
-        if (payments && payments.length > 0) {
-          return payments
+        if (paymentsUsed.length > 0) {
+          return paymentsUsed
             .filter((p) => p.paymentMethod === PaymentMethod.CASH)
             .reduce((acc, p) => acc + Number(p.amount ?? 0), 0);
         }

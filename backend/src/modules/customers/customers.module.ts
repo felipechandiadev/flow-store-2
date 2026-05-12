@@ -8,6 +8,7 @@ import { Customer } from '@modules/customers/domain/customer.entity';
 import { Person } from '@modules/persons/domain/person.entity';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
 import { InstallmentsModule } from '@modules/installments/installments.module';
+import { CompaniesModule } from '@modules/companies/companies.module';
 import { CustomerOrmEntity } from './infrastructure/orm-mappers/customer.orm-entity';
 
 // CQRS Imports
@@ -38,6 +39,7 @@ import { CustomersSearchBootstrap } from './infrastructure/customers-search.boot
   imports: [
     TypeOrmModule.forFeature([Customer, CustomerOrmEntity, Person, Transaction]),
     InstallmentsModule,
+    CompaniesModule,
     CqrsModule,
   ],
   controllers: [CustomersController],

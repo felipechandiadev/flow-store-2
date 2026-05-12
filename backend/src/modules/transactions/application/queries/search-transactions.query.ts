@@ -16,5 +16,10 @@ export class SearchTransactionsQuery {
     readonly bankAccountKey?: string,
     /** Movimientos asociados a un centro de acopio. */
     readonly cashHubId?: string,
+    /**
+     * Si viene con elementos, filtra `tx.transactionType IN (...)` y tiene
+     * prioridad sobre `type` (filtro simple).
+     */
+    readonly transactionTypes?: string[],
   ) {}
 }

@@ -250,4 +250,40 @@ export class CompaniesController {
       await this.companiesService.replaceQuotationSettings(id, incoming);
     return { success: true, quotationSettings };
   }
+
+  /**
+   * Política global de crédito interno para clientes (`settings.internalCustomerCredit`).
+   */
+  @Get('companies/:id/internal-customer-credit-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async getCompanyInternalCustomerCreditSettings(@Param('id') id: string) {
+    const internalCustomerCredit =
+      await this.companiesService.getInternalCustomerCreditSettings(id);
+    return { success: true, internalCustomerCredit };
+  }
+
+  /**
+   * Body: `{ internalCustomerCredit: { enabled: boolean } }` o el objeto directo.
+   */
+  @Put('companies/:id/internal-customer-credit-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async replaceCompanyInternalCustomerCreditSettings(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const incoming =
+      body &&
+      typeof body === 'object' &&
+      'internalCustomerCredit' in (body as any)
+        ? (body as any).internalCustomerCredit
+        : body;
+    const internalCustomerCredit =
+      await this.companiesService.replaceInternalCustomerCreditSettings(
+        id,
+        incoming,
+      );
+    return { success: true, internalCustomerCredit };
+  }
 }

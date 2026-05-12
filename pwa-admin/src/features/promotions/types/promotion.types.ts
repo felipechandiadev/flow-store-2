@@ -27,6 +27,22 @@ export const PROMOTION_TYPE_LABEL: Record<PromotionType, string> = {
   BUY_X_GET_Y: "Lleva X paga Y",
 };
 
+/** Texto de ayuda en el paso 1 del editor (alineado al motor backend). */
+export const PROMOTION_TYPE_DESCRIPTION: Record<PromotionType, string> = {
+  PERCENT_ON_LINE:
+    "Descuento porcentual sobre cada línea del carrito que cumpla los filtros de producto o categoría.",
+  AMOUNT_ON_LINE:
+    "Descuento fijo en pesos aplicado al subtotal de cada línea elegible (útil para montos fijos por ítem).",
+  PERCENT_ON_ORDER:
+    "Porcentaje sobre el subtotal del pedido completo, después de resolver descuentos por línea.",
+  AMOUNT_ON_ORDER:
+    "Monto fijo en pesos descontado una vez del total del pedido (no por línea).",
+  PRICE_OVERRIDE:
+    "Fija el precio unitario de las líneas elegibles a un valor concreto (ej. precio empleado o oferta cerrada).",
+  BUY_X_GET_Y:
+    "Por cada grupo de unidades compradas, las últimas unidades del grupo reciben un descuento (100% = gratis).",
+};
+
 export const PROMOTION_ACTIVATION_LABEL: Record<PromotionActivation, string> = {
   AUTO: "Automática",
   MANUAL: "Manual",

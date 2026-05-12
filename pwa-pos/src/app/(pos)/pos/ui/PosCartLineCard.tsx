@@ -153,6 +153,14 @@ export default function PosCartLineCard({
                   −
                 </button>
                 <span className="min-w-[2ch] text-center text-sm font-semibold tabular-nums">{quantityLabel}</span>
+                <button
+                  type="button"
+                  className="rounded px-2 py-1 text-lg leading-none text-zinc-700 hover:bg-white dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  onClick={onIncrement}
+                  aria-label="Aumentar cantidad"
+                >
+                  +
+                </button>
                 <IconButton
                   icon="Pencil"
                   variant="basicSecondary"
@@ -162,14 +170,6 @@ export default function PosCartLineCard({
                   onClick={() => setQtyDialogOpen(true)}
                   data-test-id="pos-cart-line-edit-qty"
                 />
-                <button
-                  type="button"
-                  className="rounded px-2 py-1 text-lg leading-none text-zinc-700 hover:bg-white dark:text-zinc-200 dark:hover:bg-zinc-800"
-                  onClick={onIncrement}
-                  aria-label="Aumentar cantidad"
-                >
-                  +
-                </button>
               </div>
             </div>
             <IconButton

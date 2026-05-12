@@ -23,6 +23,8 @@ export type CustomerListResult = {
   pageSize: number;
   total: number;
   customers: CustomerListRow[];
+  /** Política empresa: crédito interno para clientes (Ajustes → Empresa). */
+  internalCreditEnabled?: boolean;
 };
 
 export type CreateCustomerFormInput = {

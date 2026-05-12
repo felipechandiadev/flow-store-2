@@ -77,7 +77,6 @@ export function QuotationDetailDialog({
   const [convertTarget, setConvertTarget] = useState<"SALE" | "CUSTOMER_ORDER">(
     "SALE",
   );
-  const [overrideExpired, setOverrideExpired] = useState(false);
 
   const open = !!quotation;
 
@@ -97,7 +96,6 @@ export function QuotationDetailDialog({
     if (!quotation) {
       setDetail(null);
       setCancelReason("");
-      setOverrideExpired(false);
       setConvertTarget("SALE");
       setError(null);
       return;
@@ -112,7 +110,7 @@ export function QuotationDetailDialog({
     quotation.effectiveStatus) as QuotationEffectiveStatus;
 
   const canCancel = status === "ACTIVE" || status === "EXPIRED";
-  const canConvert = status === "ACTIVE" || status === "EXPIRED";
+  const canConvert = status === "ACTIVE";
 
   async function doCancel() {
     if (!quotation) return;
@@ -136,7 +134,6 @@ export function QuotationDetailDialog({
     setError(null);
     const res = await convertQuotationAction(quotation.id, {
       targetType: convertTarget,
-      overrideExpired: status === "EXPIRED" ? true : overrideExpired,
     });
     setBusy(false);
     if (!res.success) {
@@ -316,13 +313,6 @@ export function QuotationDetailDialog({
                     }
                     data-test-id="quotation-convert-target"
                   />
-                  {status === "EXPIRED" ? (
-                    <div className="flex items-center text-xs text-warning">
-                      Cotización vencida: al convertir se respetan los precios
-                      cotizados (a menos que la empresa lo haya configurado al
-                      contrario).
-                    </div>
-                  ) : null}
                 </div>
               ) : null}
               {canCancel ? (

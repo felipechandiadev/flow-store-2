@@ -16,7 +16,11 @@ export default async function Page() {
           </div>
         }
       >
-        <CustomersDataGrid rows={result.customers} total={result.total} />
+        <CustomersDataGrid
+          rows={result.customers}
+          total={result.total}
+          internalCreditEnabled={result.internalCreditEnabled !== false}
+        />
       </Suspense>
     </div>
   );

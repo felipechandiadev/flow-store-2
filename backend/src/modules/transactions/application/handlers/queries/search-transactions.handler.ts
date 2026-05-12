@@ -2,7 +2,10 @@ import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SearchTransactionsQuery } from '@modules/transactions/application/queries/search-transactions.query';
-import { Transaction } from '@modules/transactions/domain/transaction.entity';
+import {
+  Transaction,
+  TransactionType,
+} from '@modules/transactions/domain/transaction.entity';
 
 @QueryHandler(SearchTransactionsQuery)
 export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTransactionsQuery> {
@@ -35,8 +38,14 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
     qb.leftJoinAndSelect('tx.pointOfSale', 'pos');
     qb.leftJoinAndSelect('tx.cashSession', 'cashSession');
 
-    // Apply filters
-    if (query.type) {
+    // Apply filters (lista tiene prioridad sobre type simple)
+    const allowedTypes = new Set<string>(Object.values(TransactionType));
+    const typeInList = (query.transactionTypes ?? []).filter((t) =>
+      allowedTypes.has(t),
+    );
+    if (typeInList.length > 0) {
+      qb.andWhere('tx.transactionType IN (:...typeInList)', { typeInList });
+    } else if (query.type) {
       qb.andWhere('tx.transactionType = :type', { type: query.type });
     }
 

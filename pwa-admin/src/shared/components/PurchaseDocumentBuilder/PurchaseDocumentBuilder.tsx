@@ -272,7 +272,7 @@ export function PurchaseDocumentBuilder({
       try {
         const result = await onSavePurchaseOrder(input);
         if (result.success) {
-          router.push("/purchasing/orders/list");
+          router.push("/purchasing/transactions/orders");
         } else {
           setSaveError(result.error);
         }
@@ -337,7 +337,7 @@ export function PurchaseDocumentBuilder({
     try {
       const result = await onSaveReception(input);
       if (result.success) {
-        router.push("/purchasing/receptions/list");
+        router.push("/purchasing/transactions/receptions");
       } else {
         setSaveError(result.error);
       }

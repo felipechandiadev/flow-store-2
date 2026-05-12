@@ -77,12 +77,17 @@ export function CompanyChecksSection({ company }: Props) {
   function patch(part: Partial<CompanyCheckSettings>) {
     setSettings((s) => {
       const next = { ...s, ...part } as CompanyCheckSettings;
-      // Si se apaga el master, apagamos las dependientes localmente para
-      // reflejar el comportamiento del backend.
       if (next.enabled === false) {
         next.receiveChecks = false;
         next.issueChecks = false;
-        next.allowPostdated = false;
+        next.allowPostdatedReceived = false;
+        next.allowPostdatedIssued = false;
+      }
+      if (next.receiveChecks === false) {
+        next.allowPostdatedReceived = false;
+      }
+      if (next.issueChecks === false) {
+        next.allowPostdatedIssued = false;
       }
       return next;
     });
@@ -143,31 +148,53 @@ export function CompanyChecksSection({ company }: Props) {
               onChange={(v) => patch({ enabled: v })}
               data-test-id="settings-company-checks-enabled"
             />
-            <div className="ml-2 flex flex-col gap-2 border-l border-border pl-4">
-              <Switch
-                label="Aceptar cheques como pago entrante"
-                labelPosition="right"
-                checked={settings.receiveChecks}
-                disabled={busy || !settings.enabled}
-                onChange={(v) => patch({ receiveChecks: v })}
-                data-test-id="settings-company-checks-receive"
-              />
-              <Switch
-                label="Emitir cheques para pagar a proveedores/gastos"
-                labelPosition="right"
-                checked={settings.issueChecks}
-                disabled={busy || !settings.enabled}
-                onChange={(v) => patch({ issueChecks: v })}
-                data-test-id="settings-company-checks-issue"
-              />
-              <Switch
-                label="Permitir cheques a fecha (postdatados)"
-                labelPosition="right"
-                checked={settings.allowPostdated}
-                disabled={busy || !settings.enabled}
-                onChange={(v) => patch({ allowPostdated: v })}
-                data-test-id="settings-company-checks-postdated"
-              />
+            <div className="ml-2 flex flex-col gap-3 border-l border-border pl-4">
+              <div className="flex flex-col gap-2">
+                <Switch
+                  label="Aceptar cheques como pago entrante"
+                  labelPosition="right"
+                  checked={settings.receiveChecks}
+                  disabled={busy || !settings.enabled}
+                  onChange={(v) => patch({ receiveChecks: v })}
+                  data-test-id="settings-company-checks-receive"
+                />
+                <div className="ml-2 border-l border-border pl-3">
+                  <Switch
+                    label="Permitir cheques a fecha en cheques recibidos"
+                    labelPosition="right"
+                    checked={settings.allowPostdatedReceived}
+                    disabled={
+                      busy || !settings.enabled || !settings.receiveChecks
+                    }
+                    onChange={(v) =>
+                      patch({ allowPostdatedReceived: v })
+                    }
+                    data-test-id="settings-company-checks-postdated-received"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Switch
+                  label="Emitir cheques para pagar a proveedores/gastos"
+                  labelPosition="right"
+                  checked={settings.issueChecks}
+                  disabled={busy || !settings.enabled}
+                  onChange={(v) => patch({ issueChecks: v })}
+                  data-test-id="settings-company-checks-issue"
+                />
+                <div className="ml-2 border-l border-border pl-3">
+                  <Switch
+                    label="Permitir cheques a fecha en cheques emitidos"
+                    labelPosition="right"
+                    checked={settings.allowPostdatedIssued}
+                    disabled={
+                      busy || !settings.enabled || !settings.issueChecks
+                    }
+                    onChange={(v) => patch({ allowPostdatedIssued: v })}
+                    data-test-id="settings-company-checks-postdated-issued"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 

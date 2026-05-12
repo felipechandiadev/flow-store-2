@@ -142,7 +142,7 @@ export default function PurchaseOrdersDataGrid({ rows, total }: PurchaseOrdersDa
       showExportButton={false}
       showSortButton={false}
       showFilterButton={false}
-      onAddClick={() => router.push("/purchasing/orders/new")}
+      onAddClick={() => router.push("/purchasing/transactions/orders/new")}
       data-test-id="purchase-orders-data-grid"
     />
   );

@@ -923,8 +923,8 @@ async function bootstrap() {
     }
 
     /**
-     * Configuración de cheques a nivel empresa
-     * (`company.settings.checks`).
+     * Configuración de cheques en `company.settings.checks` (JSON de la
+     * empresa, misma capa que cotizaciones y medios de pago).
      *
      * Idempotente: solo crea el bloque si no existe; respeta cambios
      * manuales hechos desde la UI.
@@ -941,7 +941,8 @@ async function bootstrap() {
           enabled: true,
           receiveChecks: true,
           issueChecks: true,
-          allowPostdated: true,
+          allowPostdatedReceived: true,
+          allowPostdatedIssued: true,
           defaultDepositBankAccountKey: null,
           defaultIssueBankAccountKey: null,
         },
@@ -953,12 +954,10 @@ async function bootstrap() {
     }
 
     /**
-     * Configuración de cotizaciones a nivel empresa
-     * (`company.settings.quotations`).
+     * Configuración de cotizaciones en `company.settings.quotations`
+     * (JSON de la empresa; coherent con Ajustes → Empresa → Cotizaciones).
      *
      * Defaults: módulo habilitado con 15 días de vigencia y máximo 60.
-     * Conversión de cotizaciones vencidas permitida con override
-     * explícito; los precios cotizados se respetan al convertir.
      */
     const existingCompanySettingsAfterChecks =
       (company.settings && typeof company.settings === 'object'
@@ -974,14 +973,32 @@ async function bootstrap() {
           maxValidityDays: 60,
           allowCustomValidity: true,
           defaultTerms: null,
-          allowExpiredConversion: true,
-          reExpiredPricesOnConversion: false,
         },
       };
       await companyRepo.save(company);
       console.log(`✅ Configuración de cotizaciones creada (enabled=true, vigencia 15 días)`);
     } else {
       console.log(`✅ Configuración de cotizaciones ya existía; no se sobrescribe`);
+    }
+
+    /**
+     * Crédito interno global (`company.settings.internalCustomerCredit`).
+     * Idempotente: solo crea si falta.
+     */
+    const existingCompanySettingsAfterQuotations =
+      (company.settings && typeof company.settings === 'object'
+        ? (company.settings as Record<string, any>)
+        : {}) ?? {};
+    const existingIcc = existingCompanySettingsAfterQuotations.internalCustomerCredit;
+    if (!existingIcc || typeof existingIcc !== 'object') {
+      company.settings = {
+        ...existingCompanySettingsAfterQuotations,
+        internalCustomerCredit: { enabled: true },
+      };
+      await companyRepo.save(company);
+      console.log(`✅ Configuración de crédito interno cliente creada (enabled=true)`);
+    } else {
+      console.log(`✅ Configuración de crédito interno ya existía; no se sobrescribe`);
     }
 
     /**

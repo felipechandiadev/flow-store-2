@@ -7,6 +7,10 @@ import { Building2, Store } from "lucide-react";
 import { Button, IconButton, TextField } from "@/shared/admin-shared";
 import { findMyOpenCashSessionAction } from "@/features/session/actions/cash-session.action";
 import {
+  readPosContextClient,
+  savePosContextClient,
+} from "@/features/session/lib/pos-context-storage";
+import {
   readPosCompany,
   type PosCompanyConfig,
 } from "@/features/company/storage/pos-company-storage";
@@ -47,6 +51,22 @@ export default function LoginPage() {
       const cashSession = await findMyOpenCashSessionAction();
 
       if (cashSession.success) {
+        if (cashSession.cashSessionId && cashSession.pointOfSaleId) {
+          const prev = readPosContextClient();
+          if (prev?.pointOfSaleId === cashSession.pointOfSaleId) {
+            savePosContextClient({ ...prev, cashSessionId: cashSession.cashSessionId });
+          } else {
+            savePosContextClient({
+              pointOfSaleId: cashSession.pointOfSaleId,
+              cashSessionId: cashSession.cashSessionId,
+              pointOfSaleName: cashSession.pointOfSaleName ?? null,
+              branchName: cashSession.branchName ?? null,
+              branchId: prev?.branchId ?? null,
+              priceListId: prev?.priceListId ?? null,
+              priceLists: prev?.priceLists ?? [],
+            });
+          }
+        }
         router.push(cashSession.cashSessionId ? "/pos" : "/session-setup");
         return;
       }

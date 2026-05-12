@@ -79,7 +79,6 @@ export interface CreateQuotationPayload {
 
 export interface ConvertQuotationPayload {
   targetType?: "SALE" | "CUSTOMER_ORDER";
-  overrideExpired?: boolean;
   cashSessionId?: string;
   pointOfSaleId?: string;
   notes?: string;

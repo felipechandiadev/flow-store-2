@@ -40,6 +40,7 @@ export async function createDirectReceptionAction(input: CreateDirectReceptionIn
       supplierId: input.supplierId.trim(),
       userId,
     });
+    revalidatePath("/purchasing/transactions/receptions", "layout");
     revalidatePath("/purchasing/receptions", "layout");
     return { success: true };
   } catch (e) {

@@ -139,7 +139,6 @@ export class QuotationsPosRequest {
     payload: {
       cashSessionId?: string;
       pointOfSaleId?: string;
-      overrideExpired?: boolean;
     },
   ): Promise<
     | {

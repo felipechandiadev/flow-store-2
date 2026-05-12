@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Dialog, TextField } from "@/shared/admin-shared";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import { createQuotationPosAction } from "@/features/quotations/actions/quotations-pos.action";
+import {
+  buildQuotationReceiptHtml,
+  printPosQuotationReceipt,
+  type QuotationReceiptPrintInput,
+} from "@/features/quotations/lib/quotation-receipt-print";
+import { getCompanyDetailsAction } from "@/features/company/actions/company.action";
 
 type Props = {
   open: boolean;
@@ -26,20 +32,37 @@ export function SaveAsQuotationDialog({ open, onClose, onSaved }: Props) {
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<{
-    documentNumber: string;
-    validUntil: string;
-  } | null>(null);
+  /** Datos listos para imprimir / vista previa (mismo payload que la impresora). */
+  const [receiptInput, setReceiptInput] = useState<QuotationReceiptPrintInput | null>(null);
+  const printedQuotationIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       setError(null);
-      setCreated(null);
+      setReceiptInput(null);
       setBusy(false);
       setNotes("");
       setValidityDays("15");
+      printedQuotationIdRef.current = null;
     }
   }, [open]);
+
+  useEffect(() => {
+    const input = receiptInput;
+    const q = input?.quotation;
+    if (!input || !q?.id) return;
+    if (printedQuotationIdRef.current === q.id) return;
+    printedQuotationIdRef.current = q.id;
+    const t = window.setTimeout(() => {
+      printPosQuotationReceipt(input);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [receiptInput]);
+
+  const previewSrcDoc = useMemo(() => {
+    if (!receiptInput || typeof window === "undefined") return null;
+    return buildQuotationReceiptHtml(receiptInput, window.location.origin);
+  }, [receiptInput]);
 
   const totals = cart.lines.reduce(
     (acc, l) => {
@@ -120,32 +143,47 @@ export function SaveAsQuotationDialog({ open, onClose, onSaved }: Props) {
       setError(res.message);
       return;
     }
-    setCreated({
-      documentNumber: res.quotation.documentNumber,
-      validUntil: res.quotation.validUntil,
+    const company = await getCompanyDetailsAction();
+    const ctxAfter = readPosContextClient();
+    setReceiptInput({
+      quotation: res.quotation,
+      company,
+      branchName: ctxAfter?.branchName ?? null,
+      pointOfSaleName: ctxAfter?.pointOfSaleName ?? null,
     });
   }
 
   function closeAndClear() {
-    if (created) {
+    if (receiptInput) {
       cart.clear();
       onSaved?.();
     }
     onClose();
   }
 
+  function handleReprint() {
+    if (receiptInput) printPosQuotationReceipt(receiptInput);
+  }
+
+  const q = receiptInput?.quotation;
+
   return (
     <Dialog
       open={open}
       onClose={closeAndClear}
       title="Guardar como cotización"
-      size="sm"
+      size={receiptInput ? "lg" : "sm"}
       alertArea={error ? <Alert variant="error">{error}</Alert> : undefined}
       actions={
-        created ? (
-          <Button type="button" variant="primary" onClick={closeAndClear}>
-            Volver al POS
-          </Button>
+        receiptInput ? (
+          <>
+            <Button type="button" variant="outlined" onClick={handleReprint}>
+              Imprimir de nuevo
+            </Button>
+            <Button type="button" variant="primary" onClick={closeAndClear}>
+              Volver al POS
+            </Button>
+          </>
         ) : (
           <>
             <Button
@@ -168,23 +206,26 @@ export function SaveAsQuotationDialog({ open, onClose, onSaved }: Props) {
           </>
         )
       }
-      actionsJustify={created ? "end" : "between"}
+      actionsJustify="between"
       data-test-id="pos-save-quotation-dialog"
     >
-      {created ? (
+      {receiptInput && q ? (
         <div className="grid gap-3 text-sm">
           <p>La cotización se generó correctamente.</p>
-          <div className="rounded-lg border border-border bg-background p-3">
-            <div className="text-xs uppercase text-muted-foreground">Folio</div>
-            <div className="font-mono text-base font-semibold">
-              {created.documentNumber}
-            </div>
-            <div className="mt-2 text-xs uppercase text-muted-foreground">
-              Vence
-            </div>
-            <div className="text-sm">
-              {new Date(created.validUntil).toLocaleString("es-CL")}
-            </div>
+          <div
+            className="mx-auto max-h-[min(55vh,520px)] w-full max-w-[min(100%,420px)] overflow-auto rounded-lg border border-border bg-zinc-100 p-2 shadow-inner dark:bg-zinc-950"
+            data-test-id="pos-save-quotation-receipt-preview-wrap"
+          >
+            {previewSrcDoc ? (
+              <iframe
+                title="Vista previa cotización 80 mm"
+                srcDoc={previewSrcDoc}
+                className="mx-auto block min-h-[320px] w-[80mm] max-w-full border-0 bg-white"
+                data-test-id="pos-save-quotation-receipt-preview-iframe"
+              />
+            ) : (
+              <p className="p-4 text-center text-muted-foreground">Preparando vista previa…</p>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             Los precios cotizados serán respetados al convertir esta cotización

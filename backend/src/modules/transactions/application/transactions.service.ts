@@ -40,6 +40,13 @@ export class TransactionsService {
   }
 
   async search(dto: SearchTransactionsDto): Promise<any> {
+    const transactionTypes =
+      dto.types && String(dto.types).trim()
+        ? String(dto.types)
+            .split(',')
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0)
+        : undefined;
     return this.queryBus.execute(
       new SearchTransactionsQuery(
         dto.page,
@@ -56,6 +63,7 @@ export class TransactionsService {
         dto.search,
         dto.bankAccountKey,
         dto.cashHubId,
+        transactionTypes,
       ),
     );
   }

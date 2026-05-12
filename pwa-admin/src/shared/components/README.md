@@ -18,6 +18,7 @@ shared/components/
 ├── DataGrid/                   # Tabla compleja
 ├── RangeSlider/                # Rango deslizante
 ├── NumberStepper/              # Incrementador numérico
+├── Stepper/                    # Indicador de pasos (wizard / flujo)
 ├── Switch/                     # Interruptor
 ├── Tabs/                       # Pestañas
 ├── FileUploader/               # Cargador de archivos
@@ -374,6 +375,30 @@ import { NumberStepper } from '@/shared/components';
 
 ---
 
+### Stepper
+Chrome visual para asistentes multi-paso: puntos de estado (activo / completado / pendiente), título y descripción del paso actual, ranura `children` para el formulario y `footer` opcional para botones. La navegación la controla el padre.
+
+Si el Stepper está **dentro de un `Dialog`**, conviene dejar `footer` vacío y poner **Atrás / Siguiente** (y Guardar) en `Dialog.actions`, con `justify-between`: Cancelar a un lado y el grupo de navegación al otro — patrón usado en **Ventas → Promociones → editor**.
+
+```tsx
+import { Stepper } from '@/shared/components';
+
+<Stepper
+  steps={[
+    { id: '1', title: 'Tipo', description: 'Elige una opción.' },
+    { id: '2', title: 'Detalle', description: 'Completa los datos.' },
+  ]}
+  activeIndex={step}
+  allowClickCompletedSteps
+  onCompletedStepClick={setStep}
+  footer={<div>...</div>}
+>
+  {stepContent}
+</Stepper>
+```
+
+---
+
 ### LocationPicker
 Selector de ubicación.
 
@@ -669,6 +694,7 @@ import {
   // Controles
   RangeSlider,
   NumberStepper,
+  Stepper,
   LocationPickerWrapper,
 
   // Archivos
@@ -722,7 +748,7 @@ Los componentes incluyen clases responsive de Tailwind:
 
 ## ✨ Próximas Mejoras
 
-- [ ] Componente de Stepper para flujos paso a paso
+- [x] Stepper para flujos paso a paso (`Stepper/`, demo en `/ui-components/stepper`)
 - [ ] Tooltip mejorado
 - [ ] Autocomplete con búsqueda remota
 - [ ] Carga de imágenes con preview

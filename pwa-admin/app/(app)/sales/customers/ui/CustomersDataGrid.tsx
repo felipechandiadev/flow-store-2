@@ -10,6 +10,7 @@ import { CreateCustomerDialog } from "./CreateCustomerDialog";
 type CustomersDataGridProps = {
   rows: CustomerListRow[];
   total: number;
+  internalCreditEnabled?: boolean;
 };
 
 function fmtClp(n: number): string {
@@ -31,12 +32,16 @@ function formatDateShort(iso?: string): string {
   return d.toLocaleDateString("es-CL", { year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
-export default function CustomersDataGrid({ rows, total }: CustomersDataGridProps) {
+export default function CustomersDataGrid({
+  rows,
+  total,
+  internalCreditEnabled = true,
+}: CustomersDataGridProps) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
 
-  const columns: DataGridColumn[] = useMemo(
-    () => [
+  const columns: DataGridColumn[] = useMemo(() => {
+    const base: DataGridColumn[] = [
       {
         field: "displayName",
         headerName: "Nombre",
@@ -67,29 +72,36 @@ export default function CustomersDataGrid({ rows, total }: CustomersDataGridProp
         width: 120,
         valueGetter: ({ row }) => (row as CustomerListRow).phone?.trim() || "—",
       },
-      {
-        field: "creditLimit",
-        headerName: "Límite crédito",
-        sortable: false,
-        width: 130,
-        align: "right",
-        valueGetter: ({ row }) => fmtClp(Number((row as CustomerListRow).creditLimit ?? 0)),
-      },
-      {
-        field: "availableCredit",
-        headerName: "Crédito disponible",
-        sortable: false,
-        width: 140,
-        align: "right",
-        valueGetter: ({ row }) => fmtClp(Number((row as CustomerListRow).availableCredit ?? 0)),
-      },
-      {
-        field: "paymentDayOfMonth",
-        headerName: "Día pago",
-        width: 90,
-        align: "right",
-        valueGetter: ({ row }) => String((row as CustomerListRow).paymentDayOfMonth ?? "—"),
-      },
+    ];
+    if (internalCreditEnabled) {
+      base.push(
+        {
+          field: "creditLimit",
+          headerName: "Límite crédito",
+          sortable: false,
+          width: 130,
+          align: "right",
+          valueGetter: ({ row }) => fmtClp(Number((row as CustomerListRow).creditLimit ?? 0)),
+        },
+        {
+          field: "availableCredit",
+          headerName: "Crédito disponible",
+          sortable: false,
+          width: 140,
+          align: "right",
+          valueGetter: ({ row }) =>
+            fmtClp(Number((row as CustomerListRow).availableCredit ?? 0)),
+        },
+        {
+          field: "paymentDayOfMonth",
+          headerName: "Día pago",
+          width: 90,
+          align: "right",
+          valueGetter: ({ row }) => String((row as CustomerListRow).paymentDayOfMonth ?? "—"),
+        },
+      );
+    }
+    base.push(
       {
         field: "isActive",
         headerName: "Activo",
@@ -108,9 +120,9 @@ export default function CustomersDataGrid({ rows, total }: CustomersDataGridProp
         width: 110,
         valueGetter: ({ row }) => formatDateShort((row as CustomerListRow).createdAt),
       },
-    ],
-    [],
-  );
+    );
+    return base;
+  }, [internalCreditEnabled]);
 
   const onSuccess = useCallback(async () => {
     await router.refresh();
@@ -131,7 +143,12 @@ export default function CustomersDataGrid({ rows, total }: CustomersDataGridProp
         onAddClick={() => setCreateOpen(true)}
         data-test-id="customers-data-grid"
       />
-      <CreateCustomerDialog open={createOpen} onClose={() => setCreateOpen(false)} onSuccess={onSuccess} />
+      <CreateCustomerDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSuccess={onSuccess}
+        internalCreditEnabled={internalCreditEnabled}
+      />
     </>
   );
 }

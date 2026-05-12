@@ -178,30 +178,6 @@ export function CompanyQuotationsSection({ company }: Props) {
                 data-test-id="settings-company-quotations-custom-validity"
               />
 
-              <div className="flex flex-col gap-3 border-t border-border pt-3">
-                <Switch
-                  label="Permitir convertir cotizaciones vencidas (con override)"
-                  labelPosition="right"
-                  checked={settings.allowExpiredConversion}
-                  disabled={busy}
-                  onChange={(v) =>
-                    patch({
-                      allowExpiredConversion: v,
-                      ...(v ? {} : { reExpiredPricesOnConversion: false }),
-                    })
-                  }
-                  data-test-id="settings-company-quotations-allow-expired"
-                />
-                <Switch
-                  label="Al convertir vencidas, recalcular precios actuales (no respeta cotizado)"
-                  labelPosition="right"
-                  checked={settings.reExpiredPricesOnConversion}
-                  disabled={busy || !settings.allowExpiredConversion}
-                  onChange={(v) => patch({ reExpiredPricesOnConversion: v })}
-                  data-test-id="settings-company-quotations-recompute"
-                />
-              </div>
-
               <TextField
                 label="Términos y condiciones por defecto"
                 value={settings.defaultTerms ?? ""}

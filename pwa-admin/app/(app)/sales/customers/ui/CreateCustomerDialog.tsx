@@ -28,9 +28,16 @@ export type CreateCustomerDialogProps = {
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void | Promise<void>;
+  /** Si false, no se muestran límite de crédito ni día de pago. */
+  internalCreditEnabled?: boolean;
 };
 
-export function CreateCustomerDialog({ open, onClose, onSuccess }: CreateCustomerDialogProps) {
+export function CreateCustomerDialog({
+  open,
+  onClose,
+  onSuccess,
+  internalCreditEnabled = true,
+}: CreateCustomerDialogProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [documentType, setDocumentType] = useState<"RUN" | "PASSPORT" | "OTHER">("RUN");
@@ -82,7 +89,9 @@ export function CreateCustomerDialog({ open, onClose, onSuccess }: CreateCustome
 
   const handleSubmit = () => {
     setError(null);
-    const creditLimit = Math.max(0, Math.round(Number(creditLimitStr.replace(/\D/g, "")) || 0));
+    const creditLimit = internalCreditEnabled
+      ? Math.max(0, Math.round(Number(creditLimitStr.replace(/\D/g, "")) || 0))
+      : 0;
     const day = Number(paymentDayOfMonth) as CreateCustomerFormInput["paymentDayOfMonth"];
     const input: CreateCustomerFormInput = {
       personType: "NATURAL",
@@ -94,7 +103,11 @@ export function CreateCustomerDialog({ open, onClose, onSuccess }: CreateCustome
       phone: phone.trim() || undefined,
       address: address.trim() || undefined,
       creditLimit,
-      paymentDayOfMonth: [5, 10, 15, 20, 25, 30].includes(day) ? day : 5,
+      paymentDayOfMonth: internalCreditEnabled
+        ? [5, 10, 15, 20, 25, 30].includes(day)
+          ? day
+          : 5
+        : 5,
       notes: notes.trim() || null,
     };
 
@@ -212,37 +225,54 @@ export function CreateCustomerDialog({ open, onClose, onSuccess }: CreateCustome
           data-test-id="customer-create-address"
         />
 
-        <div className="flex flex-col gap-3 border-t border-border pt-3">
-          <p className="text-sm font-semibold text-foreground">Datos de cliente</p>
-          <TextField
-            label="Límite de crédito (CLP)"
-            name="customer-credit-limit"
-            type="currency"
-            currencySymbol="$"
-            startSymbol="$"
-            value={creditLimitStr}
-            onChange={(e) => setCreditLimitStr(e.target.value)}
-            data-test-id="customer-create-credit-limit"
-          />
-          <Select
-            label="Día de pago del mes"
-            name="customer-payment-day"
-            placeholder="Día de pago"
-            options={PAYMENT_DAY_OPTIONS}
-            value={paymentDayOfMonth}
-            onChange={(v) => setPaymentDayOfMonth(v != null ? String(v) : "5")}
-            alwaysShowLabel
-            data-test-id="customer-create-payment-day"
-          />
-          <TextField
-            label="Notas (opcional)"
-            name="customer-notes"
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            data-test-id="customer-create-notes"
-          />
-        </div>
+        {internalCreditEnabled ? (
+          <div className="flex flex-col gap-3 border-t border-border pt-3">
+            <p className="text-sm font-semibold text-foreground">Datos de cliente</p>
+            <TextField
+              label="Límite de crédito (CLP)"
+              name="customer-credit-limit"
+              type="currency"
+              currencySymbol="$"
+              startSymbol="$"
+              value={creditLimitStr}
+              onChange={(e) => setCreditLimitStr(e.target.value)}
+              data-test-id="customer-create-credit-limit"
+            />
+            <Select
+              label="Día de pago del mes"
+              name="customer-payment-day"
+              placeholder="Día de pago"
+              options={PAYMENT_DAY_OPTIONS}
+              value={paymentDayOfMonth}
+              onChange={(v) => setPaymentDayOfMonth(v != null ? String(v) : "5")}
+              alwaysShowLabel
+              data-test-id="customer-create-payment-day"
+            />
+            <TextField
+              label="Notas (opcional)"
+              name="customer-notes"
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              data-test-id="customer-create-notes"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 border-t border-border pt-3">
+            <p className="text-sm text-muted-foreground">
+              El crédito interno está deshabilitado en la empresa. No se asigna límite de crédito ni día de
+              pago.
+            </p>
+            <TextField
+              label="Notas (opcional)"
+              name="customer-notes"
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              data-test-id="customer-create-notes"
+            />
+          </div>
+        )}
       </div>
     </Dialog>
   );

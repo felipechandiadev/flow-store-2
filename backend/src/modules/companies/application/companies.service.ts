@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { PersonBankAccountDto } from '@modules/persons/application/dto/person-bank-account.dto';
 import {
   CompanyPaymentMethodConfig,
@@ -23,7 +23,13 @@ import {
   buildDefaultCompanyQuotationSettings,
   sanitizeCompanyQuotationSettings,
 } from '../domain/company-quotations.types';
+import {
+  CompanyInternalCustomerCreditSettings,
+  buildDefaultInternalCustomerCreditSettings,
+  sanitizeInternalCustomerCreditSettings,
+} from '../domain/company-internal-customer-credit.types';
 import { PaymentMethod } from '@modules/transactions/domain/transaction.entity';
+import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 
@@ -45,6 +51,8 @@ export class CompaniesService {
   constructor(
     @InjectRepository(Company)
     private readonly companyRepository: Repository<Company>,
+    @InjectRepository(PointOfSale)
+    private readonly posRepository: Repository<PointOfSale>,
   ) {}
 
   /**
@@ -220,9 +228,29 @@ export class CompaniesService {
         e instanceof Error ? e.message : 'Configuración inválida',
       );
     }
-    company.settings = { ...(company.settings ?? {}), paymentMethods: validated };
+    const settings = { ...(company.settings ?? {}) };
+    const icc = this.readInternalCustomerCreditFromSettings(settings);
+    const internalCreditIds = new Set<string>();
+    const finalList = !icc.enabled
+      ? validated.map((m) => {
+          if (m.method === PaymentMethod.INTERNAL_CREDIT) {
+            internalCreditIds.add(m.id);
+            return { ...m, isActive: false };
+          }
+          return m;
+        })
+      : validated;
+    settings.paymentMethods = finalList;
+    company.settings = settings;
     await this.companyRepository.save(company);
-    return validated;
+    if (!icc.enabled && internalCreditIds.size > 0) {
+      await this.applyPaymentMethodToggleOnAllPointsOfSale(
+        companyId,
+        internalCreditIds,
+        false,
+      );
+    }
+    return finalList;
   }
 
   /**
@@ -243,9 +271,12 @@ export class CompaniesService {
 
   /**
    * Reemplaza la configuración de cheques de una empresa.
-   * Sincroniza la entrada `CHECK` del catálogo `paymentMethods`: si
-   * `receiveChecks=false`, la entrada se marca `isActive=false`; si
-   * `receiveChecks=true` y existía la entrada, se reactiva.
+   * Sincroniza el catálogo `paymentMethods` para `CHECK`:
+   * `isActive` solo si `enabled && receiveChecks` (módulo de cheques activo
+   * y la empresa acepta cheques entrantes).
+   * En cadena: actualiza `points_of_sale.settings.paymentMethods` para
+   * cada fila ligada a un medio empresa tipo CHECK (`isEnabled` alineado
+   * con ese mismo criterio).
    */
   async replaceCheckSettings(
     companyId: string,
@@ -257,18 +288,24 @@ export class CompaniesService {
     if (!company) throw new NotFoundException('Empresa no encontrada');
 
     const validated = sanitizeCompanyCheckSettings(raw);
+    const checkActiveForPos =
+      validated.enabled === true && validated.receiveChecks === true;
 
     const settings = { ...(company.settings ?? {}) };
     settings.checks = validated;
 
+    const checkCompanyMethodIds = new Set<string>();
+
     if (Array.isArray(settings.paymentMethods)) {
       try {
         const list = validateCompanyPaymentMethods(settings.paymentMethods);
-        const next = list.map((m) =>
-          m.method === PaymentMethod.CHECK
-            ? { ...m, isActive: validated.receiveChecks ? true : false }
-            : m,
-        );
+        const next = list.map((m) => {
+          if (m.method === PaymentMethod.CHECK) {
+            checkCompanyMethodIds.add(m.id);
+            return { ...m, isActive: checkActiveForPos };
+          }
+          return m;
+        });
         settings.paymentMethods = next;
       } catch {
         // Si el catálogo es inválido no rompemos la actualización de
@@ -278,6 +315,125 @@ export class CompaniesService {
 
     company.settings = settings;
     await this.companyRepository.save(company);
+
+    if (checkCompanyMethodIds.size > 0) {
+      await this.applyPaymentMethodToggleOnAllPointsOfSale(
+        companyId,
+        checkCompanyMethodIds,
+        checkActiveForPos,
+      );
+    }
+
+    return validated;
+  }
+
+  /**
+   * Alinea `isEnabled` en `points_of_sale.settings.paymentMethods` para
+   * filas cuyo `companyPaymentMethodId` está en el conjunto dado.
+   */
+  private async applyPaymentMethodToggleOnAllPointsOfSale(
+    companyId: string,
+    companyPaymentMethodIds: Set<string>,
+    isEnabled: boolean,
+  ): Promise<void> {
+    const poses = await this.posRepository.find({
+      where: { companyId, deletedAt: IsNull() },
+    });
+    for (const pos of poses) {
+      const raw = pos.settings?.paymentMethods;
+      if (!Array.isArray(raw) || raw.length === 0) continue;
+      let changed = false;
+      const next = raw.map((row: Record<string, unknown>) => {
+        const pid =
+          typeof row.companyPaymentMethodId === 'string'
+            ? row.companyPaymentMethodId
+            : '';
+        if (!companyPaymentMethodIds.has(pid)) {
+          return row;
+        }
+        if (row.isEnabled !== isEnabled) {
+          changed = true;
+        }
+        return { ...row, isEnabled };
+      });
+      if (changed) {
+        pos.settings = { ...(pos.settings ?? {}), paymentMethods: next };
+        await this.posRepository.save(pos);
+      }
+    }
+  }
+
+  private readInternalCustomerCreditFromSettings(
+    settings: Record<string, any>,
+  ): CompanyInternalCustomerCreditSettings {
+    const raw = settings.internalCustomerCredit;
+    if (!raw || typeof raw !== 'object') {
+      return buildDefaultInternalCustomerCreditSettings();
+    }
+    return sanitizeInternalCustomerCreditSettings(raw);
+  }
+
+  /**
+   * Lee la política global de crédito interno para clientes.
+   */
+  async getInternalCustomerCreditSettings(
+    companyId: string,
+  ): Promise<CompanyInternalCustomerCreditSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    const settings = (company.settings ?? {}) as Record<string, any>;
+    return this.readInternalCustomerCreditFromSettings(settings);
+  }
+
+  /**
+   * Persiste `settings.internalCustomerCredit` y en cascada deja
+   * `INTERNAL_CREDIT` en catálogo empresa y POS alineados con `enabled`.
+   */
+  async replaceInternalCustomerCreditSettings(
+    companyId: string,
+    raw: unknown,
+  ): Promise<CompanyInternalCustomerCreditSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+
+    const validated = sanitizeInternalCustomerCreditSettings(raw);
+    const active = validated.enabled === true;
+
+    const settings = { ...(company.settings ?? {}) };
+    settings.internalCustomerCredit = validated;
+
+    const internalCreditCompanyIds = new Set<string>();
+    if (Array.isArray(settings.paymentMethods)) {
+      try {
+        const list = validateCompanyPaymentMethods(settings.paymentMethods);
+        const next = list.map((m) => {
+          if (m.method === PaymentMethod.INTERNAL_CREDIT) {
+            internalCreditCompanyIds.add(m.id);
+            return { ...m, isActive: active };
+          }
+          return m;
+        });
+        settings.paymentMethods = next;
+      } catch {
+        // catálogo inválido: no bloqueamos el guardado del flag
+      }
+    }
+
+    company.settings = settings;
+    await this.companyRepository.save(company);
+
+    if (internalCreditCompanyIds.size > 0) {
+      await this.applyPaymentMethodToggleOnAllPointsOfSale(
+        companyId,
+        internalCreditCompanyIds,
+        active,
+      );
+    }
+
     return validated;
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert,
@@ -27,7 +27,15 @@ import type { EffectivePaymentMethod } from "@/features/pos-payment-methods/type
 import { getEffectivePosPaymentMethodsAction } from "@/features/pos-payment-methods/actions/payment-methods-pos.action";
 import { PosPromotionsPanel } from "@/features/promotions/ui/PosPromotionsPanel";
 import { getCompanyDetailsAction } from "@/features/company/actions/company.action";
+import type { CompanyDetails } from "@/features/company/infrastructure/company.request";
 import { SaveAsQuotationDialog } from "@/app/(pos)/pos/ui/SaveAsQuotationDialog";
+import {
+  PosSaleReceiptDialog,
+  buildPosSaleReceiptSnapshot,
+  type PosSaleReceiptData,
+} from "@/app/(pos)/pos/payment/ui/PosSaleReceiptDialog";
+import { createSaleFromPosAction } from "@/features/session/actions/create-sale.action";
+import { buildCreateSaleClientPayload } from "@/features/session/lib/build-create-sale-payload";
 import { Save } from "lucide-react";
 
 /**
@@ -108,11 +116,21 @@ type Props = {
 export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const router = useRouter();
   const cart = usePosCart();
-  const { payments, setPayments, saleCustomer: customer, setSaleCustomer: setCustomer } = cart;
+  const {
+    payments,
+    setPayments,
+    saleCustomer: customer,
+    setSaleCustomer: setCustomer,
+    appliedPromotions,
+    orderDiscount,
+    loadedQuotation,
+  } = cart;
   const saleTitleId = useId();
   const [addOpen, setAddOpen] = useState(false);
   const [saveQuotationOpen, setSaveQuotationOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
+  const [receiptData, setReceiptData] = useState<PosSaleReceiptData | null>(null);
+  const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
   /**
@@ -175,6 +193,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       try {
         const details = await getCompanyDetailsAction();
         if (cancelled) return;
+        setCompanyDetails(details);
         const opts =
           details?.bankAccounts?.length
             ? details.bankAccounts
@@ -314,6 +333,17 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const remaining = Math.max(0, saleTotal - appliedTotal);
   const overpay = Math.max(0, appliedTotal - saleTotal);
 
+  useEffect(() => {
+    if (nonCashTotal > saleTotal + 0.01) return;
+    setPaymentMethodsAlert((prev) => (prev === NON_CASH_LIMIT_MSG ? "" : prev));
+  }, [nonCashTotal, saleTotal]);
+
+  useEffect(() => {
+    if (!addOpen) return;
+    if (nonCashTotal > saleTotal + 0.01) return;
+    setAddAlert((prev) => (prev === NON_CASH_LIMIT_MSG ? "" : prev));
+  }, [addOpen, nonCashTotal, saleTotal]);
+
   /**
    * Decide si una línea debe mostrar el campo "Referencia".
    * - Si hay catálogo efectivo: se respeta `requireReference` por config; además,
@@ -423,6 +453,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       const next = parseAmountCLPInput(raw);
       setPageAlert("");
       setPaymentMethodsAlert("");
+      let nonCashOverflow = false;
       setPayments((prev) => {
         const row = prev.find((p) => p.id === id);
         if (!row) return prev;
@@ -435,9 +466,43 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         const maxAllowed = Math.max(0, Math.round(saleTotal - others));
         const clamped = Math.min(next, maxAllowed);
         if (next > maxAllowed + 0.01) {
-          setPaymentMethodsAlert(NON_CASH_LIMIT_MSG);
+          nonCashOverflow = true;
         }
         return prev.map((p) => (p.id === id ? { ...p, amount: clamped } : p));
+      });
+      if (nonCashOverflow) {
+        queueMicrotask(() => {
+          setPaymentMethodsAlert(NON_CASH_LIMIT_MSG);
+        });
+      }
+    },
+    [saleTotal, setPayments],
+  );
+
+  /** Deja el monto en cero (el medio sigue en la lista; no se considera usado hasta cargar monto). */
+  const clearPaymentLineAmount = useCallback(
+    (id: string) => {
+      updatePaymentLineAmount(id, "");
+    },
+    [updatePaymentLineAmount],
+  );
+
+  /** Para medios distintos de efectivo: asigna a esta línea el saldo pendiente sin violar el tope no-efectivo. */
+  const fillNonCashLineBalance = useCallback(
+    (id: string) => {
+      setPageAlert("");
+      setPaymentMethodsAlert("");
+      setPayments((prev) => {
+        const row = prev.find((p) => p.id === id);
+        if (!row || row.type === "CASH") return prev;
+        const othersNonCash = prev
+          .filter((p) => p.id !== id && p.type !== "CASH")
+          .reduce((a, p) => a + p.amount, 0);
+        const maxAllowed = Math.max(0, Math.round(saleTotal - othersNonCash));
+        const othersAll = prev.filter((p) => p.id !== id).reduce((a, p) => a + p.amount, 0);
+        const gap = Math.max(0, Math.round(saleTotal - othersAll));
+        const next = Math.min(maxAllowed, gap);
+        return prev.map((p) => (p.id === id ? { ...p, amount: next } : p));
       });
     },
     [saleTotal, setPayments],
@@ -537,6 +602,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     }
     if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar.";
     for (const p of payments) {
+      if ((Number(p.amount) || 0) <= 0) continue;
       if (p.type === "CHECK") {
         const cd = p.checkData;
         if (!cd?.checkNumber?.trim() || !cd?.bankName?.trim()) {
@@ -565,7 +631,67 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       return;
     }
     setConfirmLoading(true);
-    await new Promise((r) => setTimeout(r, 650));
+    const posCtx = readPosContextClient();
+    const cashSessionId = posCtx?.cashSessionId?.trim();
+    const pointOfSaleId = posCtx?.pointOfSaleId?.trim();
+    if (!cashSessionId || !pointOfSaleId) {
+      setConfirmLoading(false);
+      setPageAlert(
+        "Falta la sesión de caja en el contexto del POS. Ve a la configuración de sesión y vuelve a entrar al punto de venta.",
+      );
+      return;
+    }
+
+    const salePayload = buildCreateSaleClientPayload({
+      pointOfSaleId,
+      cashSessionId,
+      cartLines: cart.lines,
+      payments,
+      customer,
+      appliedPromotions,
+      appliedTotal,
+      overpay,
+    });
+
+    const saleRes = await createSaleFromPosAction(salePayload);
+    if (!saleRes.success) {
+      setConfirmLoading(false);
+      setPageAlert(saleRes.message);
+      return;
+    }
+
+    let details = companyDetails;
+    if (!details) {
+      try {
+        details = (await getCompanyDetailsAction()) ?? null;
+        if (details) setCompanyDetails(details);
+      } catch {
+        details = null;
+      }
+    }
+    const snapshot = buildPosSaleReceiptSnapshot({
+      lines: cart.lines,
+      payments,
+      customer,
+      company: details,
+      posContext: posCtx,
+      appliedPromotions,
+      orderDiscount,
+      lineDiscountsTotal,
+      totals: {
+        net: totals.net,
+        gross: totals.gross,
+        taxes,
+        discounts,
+        saleTotal,
+        appliedTotal: appliedTotal,
+        overpay,
+      },
+      methodsById,
+      loadedQuotation,
+      saleFolio: saleRes.documentNumber,
+    });
+    setReceiptData(snapshot);
     setConfirmLoading(false);
     setSuccessOpen(true);
   };
@@ -805,7 +931,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                   className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
                   data-test-id={`pos-payment-method-row-${p.id}`}
                 >
-                  <div className="grid grid-cols-[minmax(11rem,1fr)_minmax(10rem,13rem)_auto] items-center gap-3">
+                  <div className="grid grid-cols-[minmax(10rem,1fr)_minmax(11.5rem,15rem)_auto] items-center gap-3">
                     <p className="truncate text-sm font-medium text-foreground" title={label}>
                       {label}
                     </p>
@@ -818,17 +944,48 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                       currencySymbol="$"
                       alwaysShowLabel
                       className="w-full"
+                      endAdornment={
+                        <span className="inline-flex items-center">
+                          {p.type !== "CASH" && remaining > 0.01 ? (
+                            <IconButton
+                              icon="ArrowDownToLine"
+                              variant="ghost"
+                              size="xs"
+                              ariaLabel="Rellenar con saldo pendiente"
+                              title="Rellenar con saldo pendiente"
+                              disabled={confirmLoading}
+                              onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.preventDefault()}
+                              onClick={() => fillNonCashLineBalance(p.id)}
+                              data-test-id={`pos-payment-fill-remaining-${p.id}`}
+                            />
+                          ) : null}
+                          <IconButton
+                            icon="X"
+                            variant="ghost"
+                            size="xs"
+                            ariaLabel="Limpiar monto"
+                            title="Limpiar monto"
+                            disabled={confirmLoading}
+                            onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.preventDefault()}
+                            onClick={() => clearPaymentLineAmount(p.id)}
+                            data-test-id={`pos-payment-clear-amount-${p.id}`}
+                          />
+                        </span>
+                      }
                       data-test-id={
                         index === 0 ? "pos-payment-default-cash-amount" : `pos-payment-line-amount-${p.id}`
                       }
                     />
                     <IconButton
-                      icon="X"
+                      icon="Trash2"
                       variant="basicSecondary"
                       size="sm"
-                      className="ml-1"
-                      ariaLabel="Quitar método"
+                      className="ml-1 shrink-0"
+                      ariaLabel="Quitar medio de pago"
+                      title="Quitar medio de pago"
+                      disabled={payments.length <= 1 || confirmLoading}
                       onClick={() => removePayment(p.id)}
+                      data-test-id={`pos-payment-remove-line-${p.id}`}
                     />
                   </div>
                   {p.type === "TRANSFER" && bankAccountOptions.length > 0 ? (
@@ -1017,37 +1174,16 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         </div>
       </Dialog>
 
-      <Dialog
-        open={successOpen}
+      <PosSaleReceiptDialog
+        open={successOpen && receiptData != null}
+        data={receiptData}
         onClose={() => {
           setSuccessOpen(false);
+          setReceiptData(null);
           cart.clear();
           router.push("/pos");
         }}
-        title="Venta registrada"
-        size="sm"
-        actions={
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() => {
-              setSuccessOpen(false);
-              cart.clear();
-              router.push("/pos");
-            }}
-          >
-            Volver al POS
-          </Button>
-        }
-        actionsJustify="end"
-        data-test-id="pos-payment-success-dialog"
-      >
-        <p className="text-sm text-muted-foreground">
-          La venta quedó registrada en esta sesión (UI de demostración). La integración con{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">POST /cash-sessions/sales</code> se conectará en una
-          siguiente iteración.
-        </p>
-      </Dialog>
+      />
 
       <SaveAsQuotationDialog
         open={saveQuotationOpen}

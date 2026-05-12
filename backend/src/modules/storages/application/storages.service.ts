@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { TenantContext } from '@common/tenant';
 import { DeepPartial, Repository } from 'typeorm';
 import {
   Storage,
@@ -53,20 +54,30 @@ export class StoragesService {
     isDefault?: boolean;
     isActive?: boolean;
   }) {
-    const storage = this.storageRepository.create({
-      name: data.name,
-      code: data.code ?? undefined,
-      category: (data.category ?? StorageCategory.IN_BRANCH) as StorageCategory,
-      type: (data.type ?? StorageType.WAREHOUSE) as StorageType,
-      branchId: data.branchId ?? null,
-      capacity: data.capacity ?? null,
-      address: data.address ?? null,
-      location: data.location ?? null,
-      isDefault: !!data.isDefault,
-      isActive: data.isActive !== false,
-    } as DeepPartial<Storage>);
+    const companyId = TenantContext.getCompanyId();
+    const wantDefault = !!data.isDefault;
 
-    const saved = await this.storageRepository.save(storage);
+    const saved = await this.storageRepository.manager.transaction(async (em) => {
+      if (wantDefault && companyId) {
+        await em.update(Storage, { companyId }, { isDefault: false });
+      }
+
+      const storage = em.create(Storage, {
+        name: data.name,
+        code: data.code ?? undefined,
+        category: (data.category ?? StorageCategory.IN_BRANCH) as StorageCategory,
+        type: (data.type ?? StorageType.WAREHOUSE) as StorageType,
+        branchId: data.branchId ?? null,
+        capacity: data.capacity ?? null,
+        address: data.address ?? null,
+        location: data.location ?? null,
+        isDefault: wantDefault,
+        isActive: data.isActive !== false,
+      } as DeepPartial<Storage>);
+
+      return em.save(storage);
+    });
+
     const created = await this.getStorageById(saved.id);
 
     return { success: true, storage: created };
@@ -87,18 +98,30 @@ export class StoragesService {
       isActive: boolean;
     }>,
   ) {
-    const updateData: any = { ...data };
+    const existing = await this.storageRepository.findOne({ where: { id } });
 
-    if (updateData.category) {
-      updateData.category = updateData.category as StorageCategory;
-    }
-    if (updateData.type) {
-      updateData.type = updateData.type as StorageType;
+    if (!existing) {
+      return { success: false, message: 'Storage not found', statusCode: 404 };
     }
 
-    await this.storageRepository.update(id, updateData);
+    const patch: Record<string, unknown> = { ...data };
+
+    if (patch.category) {
+      patch.category = patch.category as StorageCategory;
+    }
+    if (patch.type) {
+      patch.type = patch.type as StorageType;
+    }
+
+    await this.storageRepository.manager.transaction(async (em) => {
+      const merged = em.merge(Storage, existing, patch as DeepPartial<Storage>);
+      if (merged.isDefault && merged.companyId) {
+        await em.update(Storage, { companyId: merged.companyId }, { isDefault: false });
+      }
+      await em.save(merged);
+    });
+
     const updated = await this.getStorageById(id);
-
     if (!updated) {
       return { success: false, message: 'Storage not found', statusCode: 404 };
     }

@@ -18,7 +18,7 @@ import {
   deletePromotionAction,
   togglePromotionActiveAction,
 } from "@/features/promotions/actions/promotions.action";
-import { PromotionEditorDialog } from "./PromotionEditorDialog";
+import { PromotionEditorDialog } from "./editor/PromotionEditorDialog";
 
 type Props = {
   initialItems: PromotionRow[];
