@@ -25,8 +25,7 @@ export class AppConfigService {
       apiPrefix: this.configService.get<string>('API_PREFIX')!,
       cors: {
         origin: this.configService.get<string>('CORS_ORIGIN')!,
-        credentials:
-          this.configService.get<string>('CORS_CREDENTIALS')! === 'true',
+        credentials: this.envBool(this.configService.get('CORS_CREDENTIALS')),
       },
       logging: {
         level: this.configService.get<string>('LOG_LEVEL')! as any,
@@ -34,7 +33,7 @@ export class AppConfigService {
         maxFiles: this.configService.get<string>('LOG_MAX_FILES')!,
       },
       metrics: {
-        enabled: this.configService.get<string>('METRICS_ENABLED')! === 'true',
+        enabled: this.envBool(this.configService.get('METRICS_ENABLED')),
         prefix: this.configService.get<string>('METRICS_PREFIX')!,
       },
       security: {
@@ -60,14 +59,13 @@ export class AppConfigService {
         timezone: this.configService.get<string>('TIMEZONE')!,
       },
       features: {
-        enableSwagger:
-          this.configService.get<string>('ENABLE_SWAGGER')! === 'true',
-        enableCors: this.configService.get<string>('ENABLE_CORS')! === 'true',
-        enableHealthCheck:
-          this.configService.get<string>('ENABLE_HEALTH_CHECK')! === 'true',
-        enableMetrics:
-          this.configService.get<string>('ENABLE_METRICS')! === 'true',
-        enableCache: this.configService.get<string>('ENABLE_CACHE')! === 'true',
+        enableSwagger: this.envBool(this.configService.get('ENABLE_SWAGGER')),
+        enableCors: this.envBool(this.configService.get('ENABLE_CORS')),
+        enableHealthCheck: this.envBool(
+          this.configService.get('ENABLE_HEALTH_CHECK'),
+        ),
+        enableMetrics: this.envBool(this.configService.get('ENABLE_METRICS')),
+        enableCache: this.envBool(this.configService.get('ENABLE_CACHE')),
       },
     };
   }
@@ -104,8 +102,7 @@ export class AppConfigService {
       db: parseInt(this.configService.get<string>('REDIS_DB')!, 10),
       keyPrefix: this.configService.get<string>('REDIS_KEY_PREFIX')!,
       ttl: parseInt(this.configService.get<string>('REDIS_TTL')!, 10),
-      clusterMode:
-        this.configService.get<string>('REDIS_CLUSTER_MODE')! === 'true',
+      clusterMode: this.envBool(this.configService.get('REDIS_CLUSTER_MODE')),
     };
   }
 

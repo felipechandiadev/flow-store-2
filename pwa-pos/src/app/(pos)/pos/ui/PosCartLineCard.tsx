@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { PosProductSearchItem } from "@/features/pos-products/types/pos-product.types";
+import { getPosVariantStockAction } from "@/features/pos-products/actions/pos-products.action";
 import type { ResolvedLineDiscount } from "@/features/promotions/lib/discount-engine.types";
 import { InlineSepDot, PosProductNameWithAttributes } from "@/features/pos-products/ui/posProductPreview";
 import IconButton from "@/shared/components/IconButton/IconButton";
@@ -24,12 +24,14 @@ function formatMoney(n: number) {
 
 export default function PosCartLineCard({
   line,
+  pointOfSaleId,
   onIncrement,
   onDecrement,
   onRemove,
   onSetQuantity,
 }: {
   line: PosCartLine;
+  pointOfSaleId: string;
   onIncrement: () => void;
   onDecrement: () => void;
   onRemove: () => void;
@@ -42,6 +44,41 @@ export default function PosCartLineCard({
   const [qtyDialogOpen, setQtyDialogOpen] = useState(false);
   const [qtyDraft, setQtyDraft] = useState("");
   const [qtyError, setQtyError] = useState<string | null>(null);
+  const [stockDialogOpen, setStockDialogOpen] = useState(false);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockError, setStockError] = useState<string | null>(null);
+  const [stockDetail, setStockDetail] = useState<{
+    storageName: string | null;
+    availableStock: number | null;
+    availableStockBase: number | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!stockDialogOpen) return;
+    setStockError(null);
+    setStockDetail(null);
+    if (!pointOfSaleId?.trim()) {
+      setStockError("Sin punto de venta en contexto.");
+      return;
+    }
+    setStockLoading(true);
+    void (async () => {
+      const res = await getPosVariantStockAction({
+        variantId: line.variantId,
+        pointOfSaleId: pointOfSaleId.trim(),
+      });
+      setStockLoading(false);
+      if (!res.success) {
+        setStockError(res.message);
+        return;
+      }
+      setStockDetail({
+        storageName: res.storageName,
+        availableStock: res.availableStock,
+        availableStockBase: res.availableStockBase,
+      });
+    })();
+  }, [stockDialogOpen, line.variantId, pointOfSaleId]);
 
   useEffect(() => {
     if (!qtyDialogOpen) return;
@@ -114,9 +151,22 @@ export default function PosCartLineCard({
               </>
             ) : null}
             <InlineSepDot />
-            <span className="font-mono text-[11px] text-muted-foreground">
-              Stock sucursal:{" "}
-              <span className="font-semibold text-foreground">{stockLabel}</span>
+            <span className="inline-flex items-center gap-0.5 font-mono text-[11px] text-muted-foreground">
+              <span>
+                Stock:{" "}
+                <span className="font-semibold text-foreground">{stockLabel}</span>
+              </span>
+              {line.trackInventory ? (
+                <IconButton
+                  icon="Info"
+                  variant="ghost"
+                  size="xs"
+                  ariaLabel="Ver stock en sala de venta"
+                  title="Stock en sala de venta"
+                  onClick={() => setStockDialogOpen(true)}
+                  data-test-id="pos-cart-line-stock-info"
+                />
+              ) : null}
             </span>
           </div>
           {line.discount ? (
@@ -184,6 +234,50 @@ export default function PosCartLineCard({
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={stockDialogOpen}
+        onClose={() => setStockDialogOpen(false)}
+        title="Stock en sala de venta"
+        size="sm"
+        alertArea={
+          stockError ? <Alert variant="error">{stockError}</Alert> : undefined
+        }
+        actions={
+          <Button type="button" variant="primary" onClick={() => setStockDialogOpen(false)}>
+            Cerrar
+          </Button>
+        }
+        actionsJustify="end"
+        data-test-id="pos-cart-line-stock-dialog"
+      >
+        <div className="grid gap-2 text-sm">
+          {stockLoading ? (
+            <p className="text-muted-foreground">Cargando…</p>
+          ) : stockDetail ? (
+            <>
+              <p>
+                <span className="text-muted-foreground">Almacén: </span>
+                <span className="font-medium">{stockDetail.storageName ?? "—"}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Disponible (venta): </span>
+                <span className="font-mono font-semibold">
+                  {stockDetail.availableStock == null ? "—" : String(stockDetail.availableStock)}
+                </span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Unidad base: </span>
+                <span className="font-mono font-semibold">
+                  {stockDetail.availableStockBase == null ? "—" : String(stockDetail.availableStockBase)}
+                </span>
+              </p>
+            </>
+          ) : (
+            <p className="text-muted-foreground">Sin datos.</p>
+          )}
+        </div>
+      </Dialog>
 
       <Dialog
         open={qtyDialogOpen}

@@ -46,6 +46,7 @@ export class CashHubsService {
         `SUM(CASE
           WHEN tx.transactionType = :inType THEN tx.total
           WHEN tx.transactionType = :outType THEN -tx.total
+          WHEN tx.transactionType = :depositFromSession THEN -tx.total
           ELSE 0
         END)`,
         'balance',
@@ -56,6 +57,7 @@ export class CashHubsService {
       .setParameters({
         inType: TransactionType.CASH_SESSION_TO_HUB_TRANSFER,
         outType: TransactionType.CASH_DEPOSIT,
+        depositFromSession: TransactionType.CASH_SESSION_DEPOSIT,
       })
       .groupBy('tx.cashHubId')
       .getRawMany<{ cashHubId: string; balance: string | null }>();
@@ -68,6 +70,35 @@ export class CashHubsService {
     }
 
     return hubs.map((h) => Object.assign(h, { currentBalance: byId.get(h.id) ?? 0 }));
+  }
+
+  /**
+   * Saldo efectivo del centro de acopio: entradas por traslado desde sesión de caja,
+   * salidas por depósito bancario y por ingreso de efectivo desde el hub hacia una sesión POS.
+   */
+  async getHubBalance(companyId: string, hubId: string): Promise<number> {
+    await this.getOne(hubId, companyId);
+    const row = await this.txRepo
+      .createQueryBuilder('tx')
+      .select(
+        `COALESCE(SUM(CASE
+          WHEN tx.transactionType = :inType THEN tx.total
+          WHEN tx.transactionType = :outType THEN -tx.total
+          WHEN tx.transactionType = :depositFromSession THEN -tx.total
+          ELSE 0
+        END), 0)`,
+        'balance',
+      )
+      .where('tx.cashHubId = :hubId', { hubId })
+      .andWhere('tx.status = :status', { status: TransactionStatus.CONFIRMED })
+      .setParameters({
+        inType: TransactionType.CASH_SESSION_TO_HUB_TRANSFER,
+        outType: TransactionType.CASH_DEPOSIT,
+        depositFromSession: TransactionType.CASH_SESSION_DEPOSIT,
+      })
+      .getRawOne<{ balance: string | null }>();
+    const n = Number(row?.balance ?? 0);
+    return Number.isFinite(n) ? n : 0;
   }
 
   async getOne(id: string, companyId: string): Promise<CashHub> {

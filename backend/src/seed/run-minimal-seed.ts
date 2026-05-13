@@ -53,6 +53,7 @@ import {
   StorageCategory,
   StorageType,
 } from '@modules/storages/domain/storage.entity';
+import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import {
   buildDefaultCompanyCatalog,
   buildDefaultPosList,
@@ -111,10 +112,10 @@ function buildSeedCompanyBankAccounts(
   ];
 }
 
-const SEED_UNIT_BASE_NAME = 'UNIDAD';
-const SEED_UNIT_BASE_SYMBOL = 'UN';
-const SEED_UNIT_DERIVED_NAME = 'DOCENA';
-const SEED_UNIT_DERIVED_SYMBOL = 'DOC';
+const SEED_UNIT_BASE_NAME = 'Unidad';
+const SEED_UNIT_BASE_SYMBOL = 'un';
+const SEED_UNIT_DERIVED_NAME = 'Docena';
+const SEED_UNIT_DERIVED_SYMBOL = 'doc';
 
 const SEED_CATEGORY_PARENT_NAME = 'CAT 01';
 const SEED_CATEGORY_CHILD_NAME = 'CAT 02';
@@ -728,6 +729,140 @@ async function truncateAllPublicTables(dataSource: DataSource): Promise<void> {
   );
 }
 
+/**
+ * Si la migración del triplete UoM no corrió, el ORM sigue esperando
+ * `stock_base_unit_id` / `sale_unit_id` / `purchase_unit_id`. DDL idempotente.
+ */
+async function ensureProductVariantUomTripletColumns(
+  dataSource: DataSource,
+): Promise<void> {
+  const rows = await dataSource.query<{ column_name: string }[]>(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'product_variants'
+       AND column_name IN ('stock_base_unit_id', 'sale_unit_id', 'purchase_unit_id')`,
+  );
+  if (rows.length < 3) {
+    console.log(
+      '⚙️  Aplicando columnas UoM en product_variants (stock / venta / compra)…',
+    );
+
+    await dataSource.query(`
+    ALTER TABLE "product_variants"
+      ADD COLUMN IF NOT EXISTS "stock_base_unit_id" uuid,
+      ADD COLUMN IF NOT EXISTS "sale_unit_id" uuid,
+      ADD COLUMN IF NOT EXISTS "purchase_unit_id" uuid
+  `);
+
+    await dataSource.query(`
+    UPDATE "product_variants"
+    SET
+      "stock_base_unit_id" = COALESCE("stock_base_unit_id", "unit_id"),
+      "sale_unit_id" = COALESCE("sale_unit_id", "unit_id"),
+      "purchase_unit_id" = COALESCE("purchase_unit_id", "unit_id")
+    WHERE "stock_base_unit_id" IS NULL
+       OR "sale_unit_id" IS NULL
+       OR "purchase_unit_id" IS NULL
+  `);
+
+    await dataSource.query(`
+    ALTER TABLE "product_variants"
+      ALTER COLUMN "stock_base_unit_id" SET NOT NULL,
+      ALTER COLUMN "sale_unit_id" SET NOT NULL,
+      ALTER COLUMN "purchase_unit_id" SET NOT NULL
+  `);
+  }
+
+  await dataSource.query(`
+    DO $$ BEGIN
+      ALTER TABLE "product_variants" ADD CONSTRAINT "FK_product_variants_stock_base_unit"
+        FOREIGN KEY ("stock_base_unit_id") REFERENCES "units"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+  await dataSource.query(`
+    DO $$ BEGIN
+      ALTER TABLE "product_variants" ADD CONSTRAINT "FK_product_variants_sale_unit"
+        FOREIGN KEY ("sale_unit_id") REFERENCES "units"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+  await dataSource.query(`
+    DO $$ BEGIN
+      ALTER TABLE "product_variants" ADD CONSTRAINT "FK_product_variants_purchase_unit"
+        FOREIGN KEY ("purchase_unit_id") REFERENCES "units"("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+
+  console.log('✅ Columnas y FKs UoM de product_variants verificadas.');
+}
+
+async function ensurePointsOfSaleStorageColumn(dataSource: DataSource): Promise<void> {
+  await dataSource.query(`
+    ALTER TABLE "points_of_sale" ADD COLUMN IF NOT EXISTS "storage_id" uuid
+  `);
+  await dataSource.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_points_of_sale_storage'
+      ) THEN
+        ALTER TABLE "points_of_sale"
+        ADD CONSTRAINT "fk_points_of_sale_storage"
+        FOREIGN KEY ("storage_id") REFERENCES "storages"("id") ON DELETE SET NULL;
+      END IF;
+    END
+    $$;
+  `);
+  console.log('✅ Columna points_of_sale.storage_id verificada.');
+}
+
+async function ensureStockLevelThresholdColumns(dataSource: DataSource): Promise<void> {
+  await dataSource.query(`
+    ALTER TABLE "stock_levels"
+    ADD COLUMN IF NOT EXISTS "minimum_stock" integer NULL
+  `);
+  await dataSource.query(`
+    ALTER TABLE "stock_levels"
+    ADD COLUMN IF NOT EXISTS "maximum_stock" integer NULL
+  `);
+  await dataSource.query(`
+    ALTER TABLE "stock_levels"
+    ADD COLUMN IF NOT EXISTS "reorder_point" integer NULL
+  `);
+  console.log('✅ Columnas stock_levels (umbrales por bodega) verificadas.');
+}
+
+async function ensureProductVariantShippingColumns(
+  dataSource: DataSource,
+): Promise<void> {
+  await dataSource.query(`
+    ALTER TABLE product_variants
+    ADD COLUMN IF NOT EXISTS net_weight_kg numeric(14,6) NULL
+  `);
+  await dataSource.query(`
+    ALTER TABLE product_variants
+    ADD COLUMN IF NOT EXISTS gross_weight_kg numeric(14,6) NULL
+  `);
+  await dataSource.query(`
+    ALTER TABLE product_variants
+    ADD COLUMN IF NOT EXISTS package_length_cm numeric(12,3) NULL
+  `);
+  await dataSource.query(`
+    ALTER TABLE product_variants
+    ADD COLUMN IF NOT EXISTS package_width_cm numeric(12,3) NULL
+  `);
+  await dataSource.query(`
+    ALTER TABLE product_variants
+    ADD COLUMN IF NOT EXISTS package_height_cm numeric(12,3) NULL
+  `);
+  await dataSource.query(`
+    ALTER TABLE product_variants
+    ADD COLUMN IF NOT EXISTS volumetric_divisor_k integer NULL
+  `);
+  console.log('✅ Columnas product_variants (logística / envío) verificadas.');
+}
+
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(MinimalSeedModule, {
     logger: ['error', 'warn', 'log'],
@@ -810,7 +945,11 @@ async function bootstrap() {
       await truncateAllPublicTables(dataSource);
     }
 
-    const userRepo = dataSource.getRepository(User);
+    await ensureProductVariantUomTripletColumns(dataSource);
+
+    await ensurePointsOfSaleStorageColumn(dataSource);
+    await ensureStockLevelThresholdColumns(dataSource);
+    await ensureProductVariantShippingColumns(dataSource);
     const personRepo = dataSource.getRepository(Person);
     const companyRepo = dataSource.getRepository(Company);
     const taxRepo = dataSource.getRepository(Tax);
@@ -830,6 +969,7 @@ async function bootstrap() {
     const accountingRuleLineRepo = dataSource.getRepository(AccountingRuleLine);
     const automationRuleRepo = dataSource.getRepository(AutomationRule);
     const automationActionRepo = dataSource.getRepository(AutomationAction);
+    const userRepo = dataSource.getRepository(User);
 
     const userName = process.env.SEED_ADMIN_USERNAME || 'admin';
     const password = process.env.SEED_ADMIN_PASSWORD || '098098';
@@ -1545,7 +1685,7 @@ async function bootstrap() {
     // Units (ejemplos): UNIDAD (base) y DOCENA (derivada)
     // Se alinean con la data existente en BD: dimension=count, allowDecimals=false.
     let baseUnit = await unitRepo.findOne({
-      where: { symbol: SEED_UNIT_BASE_SYMBOL, deletedAt: null as never },
+      where: { symbol: SEED_UNIT_BASE_SYMBOL, companyId: company.id, deletedAt: null as never },
     });
     if (!baseUnit) {
       baseUnit = unitRepo.create({
@@ -1573,7 +1713,7 @@ async function bootstrap() {
     }
 
     let dozen = await unitRepo.findOne({
-      where: { symbol: SEED_UNIT_DERIVED_SYMBOL },
+      where: { symbol: SEED_UNIT_DERIVED_SYMBOL, companyId: company.id },
       withDeleted: true,
     });
     if (!dozen) {
@@ -1603,6 +1743,99 @@ async function bootstrap() {
       await unitRepo.save(dozen);
       console.log(`✅ Unidad ejemplo ${dozen.symbol} ya existía: id=${dozen.id} (sincronizada con seed)`);
     }
+
+    /** Símbolos de unidad seed (empresa actual) para variantes y product.baseUnitId */
+    type SeedUnitKey = 'UN' | 'G' | 'KG' | 'ML' | 'L' | 'DOC';
+
+    const upsertSeedUnit = async (args: {
+      symbol: string;
+      name: string;
+      dimension: UnitDimension;
+      isBase: boolean;
+      conversionFactor: number;
+      baseUnitId: string | null;
+      allowDecimals: boolean;
+      active?: boolean;
+    }): Promise<Unit> => {
+      let u = await unitRepo.findOne({
+        where: { symbol: args.symbol, companyId: company.id },
+        withDeleted: true,
+      });
+      if (!u) {
+        u = unitRepo.create({
+          symbol: args.symbol,
+          name: args.name,
+          dimension: args.dimension,
+          isBase: args.isBase,
+          conversionFactor: args.conversionFactor,
+          baseUnitId: args.baseUnitId,
+          allowDecimals: args.allowDecimals,
+          active: args.active ?? true,
+        });
+        await unitRepo.save(u);
+        console.log(`✅ Unidad seed creada: ${args.symbol} (${args.name}) id=${u.id}`);
+      } else {
+        if (u.deletedAt) {
+          u = await unitRepo.recover(u);
+        }
+        u.name = args.name;
+        u.dimension = args.dimension;
+        u.isBase = args.isBase;
+        u.conversionFactor = args.conversionFactor;
+        u.baseUnitId = args.baseUnitId;
+        u.allowDecimals = args.allowDecimals;
+        u.active = args.active ?? true;
+        await unitRepo.save(u);
+        console.log(`✅ Unidad seed ${args.symbol} ya existía: id=${u.id} (sincronizada)`);
+      }
+      return u;
+    };
+
+    const unitGram = await upsertSeedUnit({
+      symbol: 'gr',
+      name: 'Gramo',
+      dimension: UnitDimension.MASS,
+      isBase: true,
+      conversionFactor: 1,
+      baseUnitId: null,
+      allowDecimals: true,
+    });
+    const unitKg = await upsertSeedUnit({
+      symbol: 'kg',
+      name: 'Kilogramo',
+      dimension: UnitDimension.MASS,
+      isBase: false,
+      conversionFactor: 1000,
+      baseUnitId: unitGram.id,
+      allowDecimals: true,
+    });
+    const unitMl = await upsertSeedUnit({
+      symbol: 'ml',
+      name: 'Mililitro',
+      dimension: UnitDimension.VOLUME,
+      isBase: true,
+      conversionFactor: 1,
+      baseUnitId: null,
+      allowDecimals: true,
+    });
+    const unitLiter = await upsertSeedUnit({
+      symbol: 'L',
+      name: 'Litro',
+      dimension: UnitDimension.VOLUME,
+      isBase: false,
+      conversionFactor: 1000,
+      baseUnitId: unitMl.id,
+      allowDecimals: true,
+    });
+
+    const seedUnitId: Record<SeedUnitKey, string> = {
+      UN: baseUnit.id,
+      DOC: dozen.id,
+      G: unitGram.id,
+      KG: unitKg.id,
+      ML: unitMl.id,
+      L: unitLiter.id,
+    };
 
     // Categories (ejemplos): CAT 01 (padre) y CAT 02 (hija)
     const existingCat1 = await categoryRepo.findOne({
@@ -1772,6 +2005,22 @@ async function bootstrap() {
     const variantRepo = dataSource.getRepository(ProductVariant);
     const priceListItemRepo = dataSource.getRepository(PriceListItem);
 
+    type SeedVariantUom = {
+      stock: SeedUnitKey;
+      sale: SeedUnitKey;
+      purchase: SeedUnitKey;
+    };
+
+    type SeedVariantShipping = {
+      netWeightKg: number;
+      grossWeightKg: number;
+      packageLengthCm: number;
+      packageWidthCm: number;
+      packageHeightCm: number;
+      /** Divisor K en (L×W×H cm³)/K → kg volumétrico; por defecto 5000 en payload. */
+      volumetricDivisorK?: number;
+    };
+
     type SeedVariantSeed = {
       sku: string;
       barcode?: string;
@@ -1783,6 +2032,10 @@ async function bootstrap() {
       attributeValues?: Record<string, string>;
       retailNet: number;
       wholesaleNet: number;
+      /** Si se omite: venta/stock/compra en UNIDAD (UN). */
+      uom?: SeedVariantUom;
+      /** Datos de empaque/peso para cotización de flete (variantes físicas). */
+      shipping?: SeedVariantShipping;
     };
 
     type SeedProductSeed = {
@@ -1791,6 +2044,8 @@ async function bootstrap() {
       description?: string;
       productType: ProductType;
       categoryId: string;
+      /** Unidad de referencia del producto en catálogo (columna `base_unit_id`). Por defecto UN. */
+      productBaseUnit?: SeedUnitKey;
       variants: SeedVariantSeed[];
     };
 
@@ -1802,6 +2057,7 @@ async function bootstrap() {
           'Físico con tres presentaciones por peso (250 g, 500 g, 1 kg); inventario rastreado; típico venta minorista / compra a proveedor.',
         productType: ProductType.PHYSICAL,
         categoryId: cat2.id,
+        productBaseUnit: 'G',
         variants: [
           {
             sku: 'SEED-DEMO-CAFE-250',
@@ -1813,6 +2069,15 @@ async function bootstrap() {
             attributeValues: { [peso.id]: '250 g' },
             retailNet: 2790,
             wholesaleNet: 2350,
+            uom: { stock: 'G', sale: 'G', purchase: 'KG' },
+            shipping: {
+              netWeightKg: 0.25,
+              grossWeightKg: 0.31,
+              packageLengthCm: 14,
+              packageWidthCm: 9,
+              packageHeightCm: 6,
+              volumetricDivisorK: 5000,
+            },
           },
           {
             sku: 'SEED-DEMO-CAFE-500',
@@ -1824,6 +2089,15 @@ async function bootstrap() {
             attributeValues: { [peso.id]: '500 g' },
             retailNet: 4990,
             wholesaleNet: 4200,
+            uom: { stock: 'G', sale: 'G', purchase: 'KG' },
+            shipping: {
+              netWeightKg: 0.5,
+              grossWeightKg: 0.58,
+              packageLengthCm: 16,
+              packageWidthCm: 10,
+              packageHeightCm: 9,
+              volumetricDivisorK: 5000,
+            },
           },
           {
             sku: 'SEED-DEMO-CAFE-1KG',
@@ -1835,6 +2109,15 @@ async function bootstrap() {
             attributeValues: { [peso.id]: '1 kg' },
             retailNet: 8990,
             wholesaleNet: 7600,
+            uom: { stock: 'G', sale: 'KG', purchase: 'KG' },
+            shipping: {
+              netWeightKg: 1,
+              grossWeightKg: 1.12,
+              packageLengthCm: 22,
+              packageWidthCm: 12,
+              packageHeightCm: 11,
+              volumetricDivisorK: 5000,
+            },
           },
         ],
       },
@@ -1856,6 +2139,14 @@ async function bootstrap() {
             attributeValues: { [talla.id]: 'XS' },
             retailNet: 11990,
             wholesaleNet: 10200,
+            shipping: {
+              netWeightKg: 0.12,
+              grossWeightKg: 0.17,
+              packageLengthCm: 32,
+              packageWidthCm: 24,
+              packageHeightCm: 3,
+              volumetricDivisorK: 5000,
+            },
           },
           {
             sku: 'SEED-DEMO-POL-SM',
@@ -1867,6 +2158,14 @@ async function bootstrap() {
             attributeValues: { [talla.id]: 'SM' },
             retailNet: 12490,
             wholesaleNet: 10600,
+            shipping: {
+              netWeightKg: 0.14,
+              grossWeightKg: 0.19,
+              packageLengthCm: 32,
+              packageWidthCm: 24,
+              packageHeightCm: 3,
+              volumetricDivisorK: 5000,
+            },
           },
           {
             sku: 'SEED-DEMO-POL-ML',
@@ -1878,6 +2177,14 @@ async function bootstrap() {
             attributeValues: { [talla.id]: 'M' },
             retailNet: 12990,
             wholesaleNet: 11000,
+            shipping: {
+              netWeightKg: 0.16,
+              grossWeightKg: 0.21,
+              packageLengthCm: 32,
+              packageWidthCm: 24,
+              packageHeightCm: 3,
+              volumetricDivisorK: 5000,
+            },
           },
           {
             sku: 'SEED-DEMO-POL-LG',
@@ -1889,6 +2196,14 @@ async function bootstrap() {
             attributeValues: { [talla.id]: 'L' },
             retailNet: 12990,
             wholesaleNet: 11000,
+            shipping: {
+              netWeightKg: 0.17,
+              grossWeightKg: 0.22,
+              packageLengthCm: 32,
+              packageWidthCm: 24,
+              packageHeightCm: 3,
+              volumetricDivisorK: 5000,
+            },
           },
           {
             sku: 'SEED-DEMO-POL-XL',
@@ -1900,6 +2215,14 @@ async function bootstrap() {
             attributeValues: { [talla.id]: 'XL' },
             retailNet: 13490,
             wholesaleNet: 11400,
+            shipping: {
+              netWeightKg: 0.18,
+              grossWeightKg: 0.23,
+              packageLengthCm: 32,
+              packageWidthCm: 24,
+              packageHeightCm: 3,
+              volumetricDivisorK: 5000,
+            },
           },
           {
             sku: 'SEED-DEMO-POL-XXL',
@@ -1911,6 +2234,14 @@ async function bootstrap() {
             attributeValues: { [talla.id]: 'XXL' },
             retailNet: 13990,
             wholesaleNet: 11800,
+            shipping: {
+              netWeightKg: 0.2,
+              grossWeightKg: 0.25,
+              packageLengthCm: 32,
+              packageWidthCm: 24,
+              packageHeightCm: 3,
+              volumetricDivisorK: 5000,
+            },
           },
         ],
       },
@@ -1960,6 +2291,7 @@ async function bootstrap() {
           'Materia prima / insumo físico (25 kg y 5 kg) para recepciones y líneas de receta (BOM) hacia servicios o producción.',
         productType: ProductType.PHYSICAL,
         categoryId: cat2.id,
+        productBaseUnit: 'KG',
         variants: [
           {
             sku: 'SEED-DEMO-MP-HAR25',
@@ -1970,6 +2302,15 @@ async function bootstrap() {
             trackInventory: true,
             retailNet: 18990,
             wholesaleNet: 16500,
+            uom: { stock: 'G', sale: 'KG', purchase: 'KG' },
+            shipping: {
+              netWeightKg: 25,
+              grossWeightKg: 25.5,
+              packageLengthCm: 65,
+              packageWidthCm: 42,
+              packageHeightCm: 18,
+              volumetricDivisorK: 5000,
+            },
           },
           {
             sku: 'SEED-DEMO-MP-HAR5',
@@ -1980,6 +2321,64 @@ async function bootstrap() {
             trackInventory: true,
             retailNet: 45990,
             wholesaleNet: 39900,
+            uom: { stock: 'G', sale: 'KG', purchase: 'KG' },
+            shipping: {
+              netWeightKg: 5,
+              grossWeightKg: 5.15,
+              packageLengthCm: 38,
+              packageWidthCm: 26,
+              packageHeightCm: 14,
+              volumetricDivisorK: 5000,
+            },
+          },
+        ],
+      },
+      {
+        name: 'Aceite de oliva extra virgen',
+        brand: 'Origen Mediterráneo',
+        description:
+          'Físico por volumen (500 mL y 1 L); stock en mililitros; compra típica en litros.',
+        productType: ProductType.PHYSICAL,
+        categoryId: cat2.id,
+        productBaseUnit: 'ML',
+        variants: [
+          {
+            sku: 'SEED-DEMO-ACE-500',
+            barcode: '7800004005002',
+            basePrice: 5990,
+            baseCost: 3200,
+            pmp: 3500,
+            trackInventory: true,
+            retailNet: 5990,
+            wholesaleNet: 5100,
+            uom: { stock: 'ML', sale: 'ML', purchase: 'L' },
+            shipping: {
+              netWeightKg: 0.48,
+              grossWeightKg: 0.65,
+              packageLengthCm: 7,
+              packageWidthCm: 7,
+              packageHeightCm: 22,
+              volumetricDivisorK: 5000,
+            },
+          },
+          {
+            sku: 'SEED-DEMO-ACE-1L',
+            barcode: '7800004010002',
+            basePrice: 9990,
+            baseCost: 5200,
+            pmp: 5800,
+            trackInventory: true,
+            retailNet: 9990,
+            wholesaleNet: 8500,
+            uom: { stock: 'ML', sale: 'L', purchase: 'L' },
+            shipping: {
+              netWeightKg: 0.92,
+              grossWeightKg: 1.08,
+              packageLengthCm: 8,
+              packageWidthCm: 8,
+              packageHeightCm: 29,
+              volumetricDivisorK: 5000,
+            },
           },
         ],
       },
@@ -2029,7 +2428,7 @@ async function bootstrap() {
         categoryId: def.categoryId,
         taxIds: [ivaTax.id],
         isActive: true,
-        baseUnitId: baseUnit.id,
+        baseUnitId: seedUnitId[def.productBaseUnit ?? 'UN'],
       };
       if (!product) {
         product = productRepo.create(productPayload);
@@ -2053,6 +2452,11 @@ async function bootstrap() {
               })
             : undefined;
 
+        const triplet = vd.uom ?? { stock: 'UN', sale: 'UN', purchase: 'UN' };
+        const saleId = seedUnitId[triplet.sale];
+        const stockId = seedUnitId[triplet.stock];
+        const purchaseId = seedUnitId[triplet.purchase];
+
         const variantPayload: DeepPartial<ProductVariant> = {
           productId: product.id,
           sku: vd.sku,
@@ -2060,7 +2464,10 @@ async function bootstrap() {
           basePrice: vd.basePrice,
           baseCost: vd.baseCost,
           pmp: vd.pmp,
-          unitId: baseUnit.id,
+          unitId: saleId,
+          stockBaseUnitId: stockId,
+          saleUnitId: saleId,
+          purchaseUnitId: purchaseId,
           attributeValues: vd.attributeValues ?? undefined,
           taxIds: [ivaTax.id],
           trackInventory: vd.trackInventory,
@@ -2070,6 +2477,18 @@ async function bootstrap() {
           maximumStock: 0,
           reorderPoint: 0,
         };
+
+        if (vd.shipping) {
+          const k = vd.shipping.volumetricDivisorK ?? 5000;
+          variantPayload.netWeightKg = vd.shipping.netWeightKg;
+          variantPayload.grossWeightKg = vd.shipping.grossWeightKg;
+          variantPayload.packageLengthCm = vd.shipping.packageLengthCm;
+          variantPayload.packageWidthCm = vd.shipping.packageWidthCm;
+          variantPayload.packageHeightCm = vd.shipping.packageHeightCm;
+          variantPayload.volumetricDivisorK = k;
+          variantPayload.weight = vd.shipping.netWeightKg;
+          variantPayload.weightUnit = 'kg';
+        }
 
         if (!variant) {
           const createPayload: DeepPartial<ProductVariant> = {
@@ -2123,6 +2542,7 @@ async function bootstrap() {
       ? await posRepo.save({
           ...existingPos,
           branchId: seedBranch.id,
+          storageId: seedSalaVenta.id,
           isActive: true,
           deviceId: undefined,
           defaultPriceListId: minorista.id,
@@ -2132,6 +2552,7 @@ async function bootstrap() {
           posRepo.create({
             name: SEED_POS_NAME,
             branchId: seedBranch.id,
+            storageId: seedSalaVenta.id,
             isActive: true,
             deviceId: undefined,
             defaultPriceListId: minorista.id,
@@ -2140,6 +2561,38 @@ async function bootstrap() {
         );
     console.log(
       `✅ Punto de venta ${caja.name} ${existingPos ? 'ya existía' : 'creado'}: id=${caja.id}`,
+    );
+
+    const stockLevelRepo = dataSource.getRepository(StockLevel);
+    const trackedVariants = await variantRepo.find({
+      where: { companyId: company.id, trackInventory: true, deletedAt: null as never },
+      select: ['id'],
+    });
+    const demoStockBase = 100000;
+    for (const v of trackedVariants) {
+      let sl = await stockLevelRepo.findOne({
+        where: { productVariantId: v.id, storageId: seedSalaVenta.id },
+      });
+      if (!sl) {
+        sl = stockLevelRepo.create({
+          companyId: company.id,
+          productVariantId: v.id,
+          storageId: seedSalaVenta.id,
+          physicalStock: demoStockBase,
+          committedStock: 0,
+          availableStock: demoStockBase,
+          incomingStock: 0,
+        });
+      } else {
+        sl.physicalStock = demoStockBase;
+        sl.committedStock = 0;
+        sl.availableStock = demoStockBase;
+        sl.incomingStock = 0;
+      }
+      await stockLevelRepo.save(sl);
+    }
+    console.log(
+      `✅ Stock demo en «${SEED_STORAGE_SALA_NAME}»: ${trackedVariants.length} variante(s) a ${demoStockBase} u. base`,
     );
 
     /**

@@ -13,6 +13,7 @@ export type CreateSaleApiBody = {
     productVariantId: string;
     quantity: number;
     unitPrice: number;
+    unitId?: string;
     discountAmount?: number;
     taxRate?: number;
     taxAmount?: number;
@@ -70,6 +71,7 @@ export function buildCreateSaleLines(cartLines: PosCartLine[]) {
       productVariantId: l.variantId,
       quantity: qty,
       unitPrice: unitNet,
+      ...(l.unitId ? { unitId: l.unitId } : {}),
       ...(discountAmount > 0 ? { discountAmount } : {}),
       taxRate: Number.isFinite(taxRate) && taxRate >= 0 ? taxRate : undefined,
       taxAmount: taxAmount > 0 ? taxAmount : undefined,

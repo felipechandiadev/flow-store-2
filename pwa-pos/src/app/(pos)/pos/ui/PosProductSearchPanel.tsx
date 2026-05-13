@@ -34,6 +34,7 @@ type Props = {
   priceListId: string;
   priceListOptions: PosPriceListSnapshot[];
   branchId: string | null;
+  pointOfSaleId: string;
   onPriceListChange: (id: string) => void;
   onPickProduct: (item: PosProductSearchItem) => void;
 };
@@ -42,6 +43,7 @@ export default function PosProductSearchPanel({
   priceListId,
   priceListOptions,
   branchId,
+  pointOfSaleId,
   onPriceListChange,
   onPickProduct,
 }: Props) {
@@ -96,7 +98,7 @@ export default function PosProductSearchPanel({
 
   useEffect(() => {
     setPage(1);
-  }, [pageSize, priceListId, branchId]);
+  }, [pageSize, priceListId, branchId, pointOfSaleId]);
 
   const load = useCallback(async () => {
     if (!canSearch) return;
@@ -107,6 +109,7 @@ export default function PosProductSearchPanel({
         query: searchQuery,
         priceListId,
         branchId,
+        pointOfSaleId,
         page,
         pageSize,
       });
@@ -126,7 +129,7 @@ export default function PosProductSearchPanel({
     } finally {
       setLoading(false);
     }
-  }, [canSearch, searchQuery, priceListId, branchId, page, pageSize]);
+  }, [canSearch, searchQuery, priceListId, branchId, pointOfSaleId, page, pageSize]);
 
   useEffect(() => {
     void load();
@@ -268,7 +271,7 @@ export default function PosProductSearchPanel({
                     ) : null}
                     <InlineSepDot />
                     <span className="font-mono text-[11px] text-muted-foreground">
-                      Stock sucursal:{" "}
+                      Stock:{" "}
                       <span className="font-semibold text-foreground">
                         {item.availableStock == null ? "—" : String(item.availableStock)}
                       </span>

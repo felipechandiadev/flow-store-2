@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { BadgeCheck, Building2, ImageOff, Image as ImageIcon, Store, User } from "lucide-react";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
+import { StockAlertsDropdown } from "@/features/inventory-stock/ui/StockAlertsDropdown";
 
 export type PosTopBarProps = {
   pointOfSaleName?: string | null;
@@ -233,6 +234,7 @@ export default function PosTopBar({
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-2">
+          <StockAlertsDropdown />
           <nav className="flex items-center gap-2">
             <IconButton
               icon="Users"
@@ -243,20 +245,31 @@ export default function PosTopBar({
               data-test-id="pos-topbar-customers"
             />
             <IconButton
+              icon="ArrowLeftRight"
+              variant="basic"
+              size="md"
+              ariaLabel="Movimientos de caja"
+              title="Movimientos de caja"
+              onClick={() => router.push("/cash/movements")}
+              data-test-id="pos-topbar-cash-movements"
+            />
+            <IconButton
               icon="BanknoteArrowDown"
               variant="basic"
               size="md"
-              ariaLabel="Operación de caja"
-              onClick={() => router.push("/cash/movements")}
-              data-test-id="pos-topbar-cash-op"
+              ariaLabel="Ingreso de efectivo desde centro de acopio"
+              title="Ingreso desde centro de acopio"
+              onClick={() => router.push("/cash/hub-deposit")}
+              data-test-id="pos-topbar-hub-deposit"
             />
             <IconButton
               icon="BanknoteArrowUp"
               variant="basic"
               size="md"
-              ariaLabel="Operación de caja"
-              onClick={() => router.push("/cash/movements")}
-              data-test-id="pos-topbar-cash-op-up"
+              ariaLabel="Egreso de efectivo a centro de acopio"
+              title="Egreso a centro de acopio"
+              onClick={() => router.push("/cash/hub-withdrawal")}
+              data-test-id="pos-topbar-hub-withdrawal"
             />
             <IconButton
               icon="LockKeyhole"

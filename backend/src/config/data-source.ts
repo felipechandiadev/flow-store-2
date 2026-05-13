@@ -83,6 +83,11 @@ import { Quotations1745000000000 } from '../migrations/1745000000000-Quotations'
 import { EnsureDocumentSequences1746000000000 } from '../migrations/1746000000000-EnsureDocumentSequences';
 import { Promotions1748000000000 } from '../migrations/1748000000000-Promotions';
 import { SuperAdminRoleAndUserNonDeletable1749000000000 } from '../migrations/1749000000000-SuperAdminRoleAndUserNonDeletable';
+import { ProductVariantUomTriplet1750000000000 } from '../migrations/1750000000000-ProductVariantUomTriplet';
+import { ProductVariantCountStockBridge1751000000000 } from '../migrations/1751000000000-ProductVariantCountStockBridge';
+import { PointOfSaleStorage1752000000000 } from '../migrations/1752000000000-PointOfSaleStorage';
+import { StockLevelThresholds1753000000000 } from '../migrations/1753000000000-StockLevelThresholds';
+import { ProductVariantShippingLogistics1753100000000 } from '../migrations/1753100000000-ProductVariantShippingLogistics';
 
 /**
  * DataSource usado por `typeorm` CLI (`migration:run`, `schema:log`, …).
@@ -174,6 +179,11 @@ export const AppDataSource = new DataSource({
     EnsureDocumentSequences1746000000000,
     Promotions1748000000000,
     SuperAdminRoleAndUserNonDeletable1749000000000,
+    ProductVariantUomTriplet1750000000000,
+    ProductVariantCountStockBridge1751000000000,
+    PointOfSaleStorage1752000000000,
+    StockLevelThresholds1753000000000,
+    ProductVariantShippingLogistics1753100000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',

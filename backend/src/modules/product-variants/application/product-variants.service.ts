@@ -5,7 +5,8 @@ import {
   Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
+import { Unit } from '@modules/units/domain/unit.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import {
@@ -18,6 +19,8 @@ import {
 } from '@modules/price-list-items/application/ports/price-list-items.repository.port';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 import { AttributesService } from '@modules/attributes/application/attributes.service';
+import { Product } from '@modules/products/domain/product.entity';
+import { VariantQuantityConversionService } from './variant-quantity-conversion.service';
 import { SearchPurchasingVariantsDto } from './dto/search-purchasing-variants.dto';
 import { appendPmpHistory } from './helpers/pmp-history';
 import {
@@ -39,7 +42,19 @@ export class ProductVariantsService {
     private readonly attributesService: AttributesService,
     @InjectRepository(ProductVariant)
     private readonly variantOrm: Repository<ProductVariant>,
+    private readonly conversion: VariantQuantityConversionService,
   ) {}
+
+  private parseCountBridgeInput(raw: unknown): number | null {
+    if (raw === null || raw === undefined || raw === '') {
+      return null;
+    }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) {
+      return null;
+    }
+    return n;
+  }
 
   async findAll(params?: Record<string, any>) {
     // If adapter exposes query builder, use it; otherwise fallback to port's findAll
@@ -60,6 +75,9 @@ export class ProductVariantsService {
         .leftJoinAndSelect('v.product', 'product')
         .leftJoinAndSelect('product.category', 'category')
         .leftJoinAndSelect('v.unit', 'unit')
+        .leftJoinAndSelect('v.stockBaseUnit', 'stockBaseUnit')
+        .leftJoinAndSelect('v.saleUnit', 'saleUnit')
+        .leftJoinAndSelect('v.purchaseUnit', 'purchaseUnit')
         .where('v.deletedAt IS NULL');
       if (params?.productId)
         qb.andWhere('v.productId = :productId', {
@@ -133,6 +151,17 @@ export class ProductVariantsService {
         baseCost: Number(variant.baseCost),
         pmp: Number(variant.pmp ?? 0),
         unitId: variant.unitId,
+        stockBaseUnitId: variant.stockBaseUnitId,
+        saleUnitId: variant.saleUnitId,
+        purchaseUnitId: variant.purchaseUnitId,
+        stockBaseQtyPerCountSaleUnit:
+          (variant as any).stockBaseQtyPerCountSaleUnit != null
+            ? Number((variant as any).stockBaseQtyPerCountSaleUnit)
+            : null,
+        stockBaseQtyPerCountPurchaseUnit:
+          (variant as any).stockBaseQtyPerCountPurchaseUnit != null
+            ? Number((variant as any).stockBaseQtyPerCountPurchaseUnit)
+            : null,
         unitOfMeasure: variant.unit?.name || 'Unidad',
         attributeValues: variant.attributeValues || {},
         displayName: this.generateDisplayName(variant),
@@ -141,6 +170,30 @@ export class ProductVariantsService {
         isActive: variant.isActive,
         weight: variant.weight ? Number(variant.weight) : null,
         weightUnit: variant.weightUnit,
+        netWeightKg:
+          (variant as any).netWeightKg != null
+            ? Number((variant as any).netWeightKg)
+            : null,
+        grossWeightKg:
+          (variant as any).grossWeightKg != null
+            ? Number((variant as any).grossWeightKg)
+            : null,
+        packageLengthCm:
+          (variant as any).packageLengthCm != null
+            ? Number((variant as any).packageLengthCm)
+            : null,
+        packageWidthCm:
+          (variant as any).packageWidthCm != null
+            ? Number((variant as any).packageWidthCm)
+            : null,
+        packageHeightCm:
+          (variant as any).packageHeightCm != null
+            ? Number((variant as any).packageHeightCm)
+            : null,
+        volumetricDivisorK:
+          (variant as any).volumetricDivisorK != null
+            ? Number((variant as any).volumetricDivisorK)
+            : null,
         primaryImageUrl:
           variantMediaMap.get(variant.id)?.primaryImageUrl ?? null,
         mediaAssets: variantMediaMap.get(variant.id)?.mediaAssets ?? [],
@@ -284,7 +337,52 @@ export class ProductVariantsService {
     );
 
     const initialPmp = Number(sanitizedData.pmp ?? 0) || 0;
+
+    if (!sanitizedData.productId) {
+      throw new BadRequestException('productId es obligatorio para crear variante.');
+    }
+    const product = await this.variantOrm.manager.getRepository(Product).findOne({
+      where: { id: sanitizedData.productId },
+    });
+    if (!product?.companyId) {
+      throw new BadRequestException('Producto no encontrado o sin empresa.');
+    }
+    const companyId = product.companyId;
+    const saleId = String(sanitizedData.saleUnitId ?? sanitizedData.unitId ?? '').trim();
+    if (!saleId) {
+      throw new BadRequestException('unitId (unidad de venta) es obligatoria.');
+    }
+    const stockId = String(sanitizedData.stockBaseUnitId ?? saleId).trim();
+    const purchaseId = String(sanitizedData.purchaseUnitId ?? saleId).trim();
+    const bridgesForValidate = {
+      stockBaseQtyPerCountSaleUnit: this.parseCountBridgeInput(
+        sanitizedData.stockBaseQtyPerCountSaleUnit,
+      ),
+      stockBaseQtyPerCountPurchaseUnit: this.parseCountBridgeInput(
+        sanitizedData.stockBaseQtyPerCountPurchaseUnit,
+      ),
+    };
+    await this.conversion.validateVariantUomTripletAsync(
+      stockId,
+      saleId,
+      purchaseId,
+      companyId,
+      bridgesForValidate,
+    );
+    const unitRows = await this.variantOrm.manager.getRepository(Unit).find({
+      where: { companyId, deletedAt: IsNull() },
+    });
+    const byIdForNorm = new Map(unitRows.map((u) => [u.id, u]));
+    const persistedBridges = this.conversion.normalizePersistedCountBridges(
+      stockId,
+      saleId,
+      purchaseId,
+      byIdForNorm,
+      bridgesForValidate,
+    );
+
     const variant = {
+      companyId,
       productId: sanitizedData.productId || null,
       sku: sanitizedData.sku || '',
       barcode: sanitizedData.barcode || null,
@@ -300,9 +398,20 @@ export class ProductVariantsService {
             }),
           }
         : {}),
-      unitId: sanitizedData.unitId,
+      unitId: saleId,
+      stockBaseUnitId: stockId,
+      saleUnitId: saleId,
+      purchaseUnitId: purchaseId,
+      stockBaseQtyPerCountSaleUnit: persistedBridges.stockBaseQtyPerCountSaleUnit,
+      stockBaseQtyPerCountPurchaseUnit: persistedBridges.stockBaseQtyPerCountPurchaseUnit,
       weight: sanitizedData.weight ?? null,
       weightUnit: sanitizedData.weightUnit ?? 'kg',
+      netWeightKg: sanitizedData.netWeightKg ?? null,
+      grossWeightKg: sanitizedData.grossWeightKg ?? null,
+      packageLengthCm: sanitizedData.packageLengthCm ?? null,
+      packageWidthCm: sanitizedData.packageWidthCm ?? null,
+      packageHeightCm: sanitizedData.packageHeightCm ?? null,
+      volumetricDivisorK: sanitizedData.volumetricDivisorK ?? null,
       attributeValues: normalizedAttrValues,
       taxIds: sanitizedData.taxIds ?? null,
       trackInventory:
@@ -400,6 +509,7 @@ export class ProductVariantsService {
     }
 
     if (pmpProvided) {
+      // `pmp` es por unidad base de stock (coherente con saldos y automation).
       const newPmp = Number((v as any).pmp ?? 0) || 0;
       (v as any).pmpHistory = appendPmpHistory((v as any).pmpHistory, {
         previousPmp: prevPmp,
@@ -407,6 +517,74 @@ export class ProductVariantsService {
         source: 'manual_api',
       });
     }
+
+    const companyId = String((v as any).companyId ?? '').trim();
+    if (!companyId) {
+      throw new BadRequestException('Variante sin company_id; no se puede validar unidades.');
+    }
+    // `unitId` en API = unidad de venta legacy. `Object.assign` actualiza `unitId` pero no pisa `saleUnitId`
+    // si el body solo envía `unitId` → hay que resolver la venta desde el payload primero.
+    const saleId = String(
+      (sanitizedData.saleUnitId != null && String(sanitizedData.saleUnitId).trim()
+        ? String(sanitizedData.saleUnitId).trim()
+        : null) ??
+        (sanitizedData.unitId != null && String(sanitizedData.unitId).trim()
+          ? String(sanitizedData.unitId).trim()
+          : null) ??
+        (v as any).saleUnitId ??
+        (v as any).unitId ??
+        '',
+    ).trim();
+    if (!saleId) {
+      throw new BadRequestException('La variante debe tener unitId o saleUnitId.');
+    }
+    const stockId = String(
+      (sanitizedData.stockBaseUnitId != null && String(sanitizedData.stockBaseUnitId).trim()
+        ? String(sanitizedData.stockBaseUnitId).trim()
+        : null) ?? (v as any).stockBaseUnitId ?? saleId,
+    ).trim();
+    const purchaseId = String(
+      (sanitizedData.purchaseUnitId != null && String(sanitizedData.purchaseUnitId).trim()
+        ? String(sanitizedData.purchaseUnitId).trim()
+        : null) ?? (v as any).purchaseUnitId ?? saleId,
+    ).trim();
+    (v as any).saleUnitId = saleId;
+    (v as any).stockBaseUnitId = stockId;
+    (v as any).purchaseUnitId = purchaseId;
+    (v as any).unitId = saleId;
+    const bridgesForValidate = {
+      stockBaseQtyPerCountSaleUnit: this.parseCountBridgeInput((v as any).stockBaseQtyPerCountSaleUnit),
+      stockBaseQtyPerCountPurchaseUnit: this.parseCountBridgeInput(
+        (v as any).stockBaseQtyPerCountPurchaseUnit,
+      ),
+    };
+    await this.conversion.validateVariantUomTripletAsync(
+      stockId,
+      saleId,
+      purchaseId,
+      companyId,
+      bridgesForValidate,
+    );
+    const unitRows = await this.variantOrm.manager.getRepository(Unit).find({
+      where: { companyId, deletedAt: IsNull() },
+    });
+    const byIdForNorm = new Map(unitRows.map((u) => [u.id, u]));
+    const persistedBridges = this.conversion.normalizePersistedCountBridges(
+      stockId,
+      saleId,
+      purchaseId,
+      byIdForNorm,
+      bridgesForValidate,
+    );
+    (v as any).stockBaseQtyPerCountSaleUnit = persistedBridges.stockBaseQtyPerCountSaleUnit;
+    (v as any).stockBaseQtyPerCountPurchaseUnit = persistedBridges.stockBaseQtyPerCountPurchaseUnit;
+
+    // `findById` carga ManyToOne de unidades; si solo actualizamos las columnas FK, las relaciones
+    // en memoria siguen con el id anterior y TypeORM puede volver a escribir esos ids al guardar.
+    delete (v as any).unit;
+    delete (v as any).stockBaseUnit;
+    delete (v as any).saleUnit;
+    delete (v as any).purchaseUnit;
 
     const saved = await this.variantRepository.save(v);
 

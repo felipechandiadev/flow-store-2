@@ -20,7 +20,16 @@ export class TypeOrmProductVariantsRepository implements ProductVariantsReposito
   async findById(id: string): Promise<ProductVariant | null> {
     const found = await this.repo.findOne({
       where: { id } as any,
-      relations: ['product', 'unit', 'priceListItems'] as any,
+      relations: [
+        'product',
+        'product.category',
+        'unit',
+        'stockBaseUnit',
+        'saleUnit',
+        'purchaseUnit',
+        'priceListItems',
+        'priceListItems.priceList',
+      ] as any,
     });
     return found as unknown as ProductVariant | null;
   }

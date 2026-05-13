@@ -9,6 +9,7 @@ import {
   IsString,
   IsUUID,
   Min,
+  Max,
   ValidateNested,
 } from 'class-validator';
 import { PriceListItemInputDto } from './create-product-variant.dto';
@@ -43,6 +44,18 @@ export class UpdateProductVariantDto {
 
   @IsOptional()
   @IsUUID()
+  stockBaseUnitId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  saleUnitId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  purchaseUnitId?: string;
+
+  @IsOptional()
+  @IsUUID()
   unitId?: string;
 
   @IsOptional()
@@ -53,6 +66,38 @@ export class UpdateProductVariantDto {
   @IsOptional()
   @IsString()
   weightUnit?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  netWeightKg?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  grossWeightKg?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  packageLengthCm?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  packageWidthCm?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  packageHeightCm?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  volumetricDivisorK?: number;
 
   @IsOptional()
   @IsObject()
@@ -106,4 +151,14 @@ export class UpdateProductVariantDto {
   @IsArray()
   @IsUUID('4', { each: true })
   multimediaAssetIds?: string[];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  stockBaseQtyPerCountSaleUnit?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  stockBaseQtyPerCountPurchaseUnit?: number;
 }

@@ -17,6 +17,8 @@ import { OpenCashSessionDto } from '../application/dto/open-cash-session.dto';
 import { CreateSaleDto } from '../application/dto/create-sale.dto';
 import { RegisterCashMovementDto } from '../application/dto/register-cash-movement.dto';
 import { CloseCashSessionDto } from '../application/dto/close-cash-session.dto';
+import { DepositCashFromHubBodyDto } from '../application/dto/deposit-cash-from-hub.dto';
+import { WithdrawCashToHubBodyDto } from '../application/dto/withdraw-cash-to-hub.dto';
 
 @Controller('cash-sessions')
 export class CashSessionsController {
@@ -35,6 +37,29 @@ export class CashSessionsController {
   @Get()
   async findAll(@Query() query: GetCashSessionsDto) {
     return this.coreService.findAll(query);
+  }
+
+  @Get(':id/movements')
+  async getMovements(@Param('id') id: string) {
+    return this.coreService.listMovementsForSession(id);
+  }
+
+  /**
+   * UPDATED: Use new SalesFromSessionService
+   */
+  @Get(':id/sales')
+  async getSales(@Param('id') id: string) {
+    return this.salesService.getSalesForSession(id);
+  }
+
+  @Get(':id/cash-hubs-for-deposit')
+  async listCashHubsForDeposit(@Param('id') id: string) {
+    return this.coreService.listCashHubsForSessionDeposit(id);
+  }
+
+  @Get(':id/available-cash')
+  async getAvailableCash(@Param('id') id: string) {
+    return this.coreService.getAvailableCashForOpenSession(id);
   }
 
   /**
@@ -57,20 +82,40 @@ export class CashSessionsController {
 
   /**
    * UPDATED: Use new SalesFromSessionService
-   */
-  @Get(':id/sales')
-  async getSales(@Param('id') id: string) {
-    return this.salesService.getSalesForSession(id);
-  }
-
-  /**
-   * UPDATED: Use new SalesFromSessionService
    *
    * Now delegates to TransactionsService for SALE + asientos generation
    */
   @Post('sales')
   async createSale(@Body() createSaleDto: CreateSaleDto) {
     return this.salesService.createSale(createSaleDto);
+  }
+
+  @Post(':id/cash-deposits-from-hub')
+  async depositFromHub(
+    @Param('id') id: string,
+    @Body() body: DepositCashFromHubBodyDto,
+  ) {
+    return this.coreService.depositCashFromHub({
+      cashSessionId: id,
+      cashHubId: body.cashHubId,
+      amount: body.amount,
+      userId: body.userId,
+      reason: body.reason,
+    });
+  }
+
+  @Post(':id/cash-withdrawals-to-hub')
+  async withdrawToHub(
+    @Param('id') id: string,
+    @Body() body: WithdrawCashToHubBodyDto,
+  ) {
+    return this.coreService.withdrawCashSessionToHub({
+      cashSessionId: id,
+      cashHubId: body.cashHubId,
+      amount: body.amount,
+      userId: body.userId,
+      reason: body.reason,
+    });
   }
 
   /**
@@ -120,12 +165,16 @@ export class CashSessionsController {
     if (userId) {
       return this.coreService.close(sessionId, userId, {
         cashHubId: dto.cashHubId,
+        notes: dto.notes,
+        counted: dto.counted,
       });
     }
 
     if (userName) {
       return this.coreService.closeByUserName(sessionId, userName, {
         cashHubId: dto.cashHubId,
+        notes: dto.notes,
+        counted: dto.counted,
       });
     }
 

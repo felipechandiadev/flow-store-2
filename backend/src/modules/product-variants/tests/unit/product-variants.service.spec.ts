@@ -26,6 +26,7 @@ describe('ProductVariantsService', () => {
   };
   let variantOrm: {
     createQueryBuilder: jest.Mock;
+    manager: { getRepository: jest.Mock };
   };
 
   beforeEach(() => {
@@ -58,6 +59,36 @@ describe('ProductVariantsService', () => {
         take: jest.fn().mockReturnThis(),
         getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
       }),
+      manager: {
+        getRepository: jest.fn().mockImplementation((Entity: any) => {
+          const n = Entity?.name ?? '';
+          if (n === 'Product') {
+            return {
+              findOne: jest
+                .fn()
+                .mockResolvedValue({ id: 'product-1', companyId: 'company-1' }),
+            };
+          }
+          if (n === 'Unit') {
+            return {
+              find: jest.fn().mockResolvedValue([
+                { id: 'unit-1', dimension: 'count', deletedAt: null },
+              ]),
+            };
+          }
+          return { findOne: jest.fn(), find: jest.fn().mockResolvedValue([]) };
+        }),
+      },
+    };
+
+    const conversion = {
+      validateVariantUomTripletAsync: jest.fn().mockResolvedValue(undefined),
+      normalizePersistedCountBridges: jest.fn().mockReturnValue({
+        stockBaseQtyPerCountSaleUnit: null,
+        stockBaseQtyPerCountPurchaseUnit: null,
+      }),
+      toVariantStockBaseSync: jest.fn(),
+      enrichCreateTransactionDto: jest.fn(),
     };
 
     service = new ProductVariantsService(
@@ -66,6 +97,7 @@ describe('ProductVariantsService', () => {
       multimediaService as unknown as MultimediaServiceAdapter,
       attributesService as any,
       variantOrm as any,
+      conversion as any,
     );
   });
 
@@ -149,6 +181,11 @@ describe('ProductVariantsService', () => {
         id: 'variant-1',
         productId: 'product-1',
         sku: 'SKU-1',
+        companyId: 'company-1',
+        unitId: 'unit-1',
+        saleUnitId: 'unit-1',
+        stockBaseUnitId: 'unit-1',
+        purchaseUnitId: 'unit-1',
       })
       .mockResolvedValueOnce({
         id: 'variant-1',
@@ -242,6 +279,11 @@ describe('ProductVariantsService', () => {
         sku: 'SKU-1',
         pmp: 100,
         pmpHistory: null,
+        companyId: 'company-1',
+        unitId: 'unit-1',
+        saleUnitId: 'unit-1',
+        stockBaseUnitId: 'unit-1',
+        purchaseUnitId: 'unit-1',
       })
       .mockResolvedValueOnce({
         id: 'variant-1',
@@ -275,6 +317,11 @@ describe('ProductVariantsService', () => {
         productId: 'product-1',
         sku: 'SKU-1',
         pmp: 10,
+        companyId: 'company-1',
+        unitId: 'unit-1',
+        saleUnitId: 'unit-1',
+        stockBaseUnitId: 'unit-1',
+        purchaseUnitId: 'unit-1',
       })
       .mockResolvedValueOnce({ id: 'variant-1', sku: 'SKU-1' });
     variantRepository.save.mockImplementation(async (row: any) => ({ ...row }));

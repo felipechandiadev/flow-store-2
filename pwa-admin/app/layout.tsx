@@ -5,6 +5,8 @@ import "./globals.css";
 import AuthProvider from '@/providers/AuthProvider';
 import ErrorHandlerProvider from '@/providers/ErrorHandlerProvider';
 
+const THEME_COLOR = "#1C2046";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -16,20 +18,34 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  manifest: '/manifest.json',
-  title: 'FlowStore | Panel de Administración',
-  description: 'Administrador de tienda Flow Store',
+  manifest: "/manifest.json",
+  applicationName: "FlowStore Admin",
+  title: "FlowStore | Panel de Administración",
+  description: "Administrador de tienda Flow Store",
+  appleWebApp: {
+    capable: true,
+    title: "FlowStore | Panel de Administración",
+    statusBarStyle: "default",
+  },
   icons: {
     icon: [
-      { url: '/fav.png', type: 'image/png' },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/android-chrome-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/android-chrome-512x512.png", sizes: "512x512", type: "image/png" },
     ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  other: {
+    "msapplication-TileColor": THEME_COLOR,
+    "msapplication-config": "/browserconfig.xml",
   },
 };
 
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
-  themeColor: '#000000',
+  themeColor: THEME_COLOR,
 };
 
 /** Solo en build/SSR; no usar `process` dentro del string del `<script>` (en el browser no existe). */

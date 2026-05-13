@@ -19,6 +19,13 @@ export type ProductVariantGridRow = {
   sku: string;
   productId?: string | null;
   unitId?: string | null;
+  stockBaseUnitId?: string | null;
+  saleUnitId?: string | null;
+  purchaseUnitId?: string | null;
+  /** Stock base (g, ml, m…) por 1 unidad de venta en conteo. */
+  stockBaseQtyPerCountSaleUnit?: number | null;
+  /** Stock base por 1 unidad de compra en conteo. */
+  stockBaseQtyPerCountPurchaseUnit?: number | null;
   barcode?: string | null;
   unitOfMeasure?: string | null;
   isActive?: boolean;
@@ -32,8 +39,20 @@ export type ProductVariantGridRow = {
   attributeValues?: Record<string, string>;
   trackInventory?: boolean;
   allowNegativeStock?: boolean;
+  minimumStock?: number;
+  maximumStock?: number;
+  reorderPoint?: number;
   weight?: number | null;
   weightUnit?: string | null;
+  /** Peso neto producto (kg), sin embalaje. */
+  netWeightKg?: number | null;
+  /** Peso bruto con embalaje (kg), típico para courier. */
+  grossWeightKg?: number | null;
+  packageLengthCm?: number | null;
+  packageWidthCm?: number | null;
+  packageHeightCm?: number | null;
+  /** Divisor K en (L×W×H cm³)/K → kg volumétrico; null → default de aplicación (5000). */
+  volumetricDivisorK?: number | null;
   primaryImageUrl?: string | null;
   mediaAssets?: ProductVariantMediaAsset[];
   priceListItems: ProductPriceListItemRow[];

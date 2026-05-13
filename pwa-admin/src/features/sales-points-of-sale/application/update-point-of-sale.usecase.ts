@@ -13,6 +13,7 @@ export class UpdatePointOfSaleUseCase {
     return PointOfSaleRequest.update(d.id, {
       name: d.name.trim(),
       branchId: d.branchId,
+      storageId: d.storageId,
       deviceId: d.deviceId,
       isActive: d.isActive !== false,
       priceLists: d.priceLists,

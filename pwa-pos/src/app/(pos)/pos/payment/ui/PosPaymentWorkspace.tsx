@@ -22,6 +22,7 @@ import type { PosCustomerSearchRow } from "@/features/customers/types/pos-custom
 import PosCustomerSearchPanel, {
   type PosCustomerSearchInitial,
 } from "@/features/customers/ui/PosCustomerSearchPanel";
+import { PosCreateCustomerDialog } from "@/features/customers/ui/PosCreateCustomerDialog";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import type { EffectivePaymentMethod } from "@/features/pos-payment-methods/types/effective-payment-method.types";
 import { getEffectivePosPaymentMethodsAction } from "@/features/pos-payment-methods/actions/payment-methods-pos.action";
@@ -128,6 +129,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const saleTitleId = useId();
   const [addOpen, setAddOpen] = useState(false);
   const [saveQuotationOpen, setSaveQuotationOpen] = useState(false);
+  const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<PosSaleReceiptData | null>(null);
   const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
@@ -883,6 +885,8 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           onPick={pickSearchCustomer}
           onClearSelected={clearSaleCustomer}
           heightVh={POS_PAYMENT_PANEL_HEIGHT_VH}
+          showAddCustomer
+          onAddCustomerClick={() => setCreateCustomerOpen(true)}
         />
 
         {/* Columna 3 — Métodos de pago */}
@@ -1189,6 +1193,20 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         open={saveQuotationOpen}
         onClose={() => setSaveQuotationOpen(false)}
         onSaved={() => router.push("/pos")}
+      />
+
+      <PosCreateCustomerDialog
+        open={createCustomerOpen}
+        onClose={() => setCreateCustomerOpen(false)}
+        onSuccess={(info) => {
+          setCustomer({
+            customerId: info.customerId,
+            name: info.displayName,
+            document: info.documentNumber,
+            phone: info.phone,
+            email: info.email,
+          });
+        }}
       />
     </div>
   );

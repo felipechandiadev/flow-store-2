@@ -7,6 +7,7 @@ import {
   Min,
   Max,
   IsObject,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -19,6 +20,10 @@ export class SaleLineDto {
 
   @IsNumber()
   unitPrice: number;
+
+  @IsOptional()
+  @IsUUID()
+  unitId?: string;
 
   @IsOptional()
   @IsNumber()

@@ -6,11 +6,12 @@ const posPriceListEntry = z.object({
   isActive: z.boolean(),
 });
 
-/** Alineado a `PointOfSale` y `PosService.createPointOfSale` (name, branchId, deviceId, isActive, priceLists, defaultPriceListId). */
+/** Alineado a `PointOfSale` y `PosService.createPointOfSale` (name, branchId, storageId, deviceId, isActive, priceLists, defaultPriceListId). */
 export const CreatePointOfSaleFormSchema = z
   .object({
     name: z.string().min(1, "El nombre es obligatorio").max(255),
     branchId: z.string().uuid("Debe elegir una sucursal"),
+    storageId: z.string().uuid("Debe elegir la sala de venta (almacén)"),
     deviceId: z
       .string()
       .max(100)
@@ -37,6 +38,7 @@ export const UpdatePointOfSaleFormSchema = z
     id: z.string().uuid("Identificador de punto de venta no válido"),
     name: z.string().min(1, "El nombre es obligatorio").max(255),
     branchId: z.string().uuid("Debe elegir una sucursal"),
+    storageId: z.string().uuid("Debe elegir la sala de venta (almacén)"),
     deviceId: z
       .union([z.string().max(100), z.null(), z.undefined()])
       .transform((v) => (v == null || v === "" || !String(v).trim() ? null : String(v).trim())),

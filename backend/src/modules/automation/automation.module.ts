@@ -8,13 +8,16 @@ import { AutomationRulesService } from './application/automation-rules.service';
 import { AutomationEngine } from './application/automation.engine';
 import { TransactionCreatedAutomationHandler } from './application/handlers/transaction-created.automation-handler';
 import { CreateDerivedTransactionActionHandler } from './application/handlers/actions/create-derived-transaction.action';
+import { UpdateStockActionHandler } from './application/handlers/actions/update-stock.action';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
+import { StockRealtimeModule } from '@modules/stock-realtime/stock-realtime.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([AutomationRule, AutomationAction]),
     CqrsModule,
     TransactionsModule,
+    StockRealtimeModule,
   ],
   controllers: [AutomationRulesController],
   providers: [
@@ -22,6 +25,7 @@ import { TransactionsModule } from '@modules/transactions/transactions.module';
     AutomationEngine,
     TransactionCreatedAutomationHandler,
     CreateDerivedTransactionActionHandler,
+    UpdateStockActionHandler,
   ],
   exports: [AutomationRulesService, AutomationEngine],
 })

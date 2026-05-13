@@ -10,6 +10,8 @@ import {
   IsString,
   IsUUID,
   Min,
+  Max,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -62,8 +64,22 @@ export class CreateProductVariantDto {
   @IsNumber()
   pmp?: number;
 
+  @IsOptional()
   @IsUUID()
-  unitId!: string;
+  stockBaseUnitId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  purchaseUnitId?: string;
+
+  /** Legacy: unidad de venta; si se omite, usar `saleUnitId`. */
+  @ValidateIf((o) => !o.saleUnitId)
+  @IsUUID()
+  unitId?: string;
+
+  @ValidateIf((o) => !o.unitId)
+  @IsUUID()
+  saleUnitId?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -73,6 +89,43 @@ export class CreateProductVariantDto {
   @IsOptional()
   @IsString()
   weightUnit?: string;
+
+  /** Peso neto del producto (kg), sin embalaje. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  netWeightKg?: number;
+
+  /** Peso bruto con embalaje (kg), típico para courier/ERP. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  grossWeightKg?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  packageLengthCm?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  packageWidthCm?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  packageHeightCm?: number;
+
+  /**
+   * Divisor K en (L×W×H cm³)/K → kg volumétrico. Si se omite, usar default de aplicación (p. ej. 5000).
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  volumetricDivisorK?: number;
 
   @IsOptional()
   @IsObject()
@@ -126,4 +179,21 @@ export class CreateProductVariantDto {
   @IsArray()
   @IsUUID('4', { each: true })
   multimediaAssetIds?: string[];
+
+  /**
+   * Stock base (masa/volumen/longitud) por 1 unidad de venta en conteo.
+   * Obligatorio si unidad de venta es `count` y stock base no lo es.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  stockBaseQtyPerCountSaleUnit?: number;
+
+  /**
+   * Stock base por 1 unidad de compra en conteo.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  stockBaseQtyPerCountPurchaseUnit?: number;
 }

@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
+import { posDisplayStockInSaleUnits } from '@modules/product-variants/application/variant-count-bridge.util';
 
 export type PosProductSearchResult = {
   productId: string;
@@ -17,6 +18,10 @@ export type PosProductSearchResult = {
   barcode: string | null;
   unitSymbol: string | null;
   unitId: string | null;
+  stockBaseUnitId: string | null;
+  stockBaseUnitSymbol: string | null;
+  saleUnitId: string | null;
+  purchaseUnitId: string | null;
   unitPrice: number;
   unitTaxRate: number;
   unitTaxAmount: number;
@@ -93,6 +98,9 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
         { priceListId },
       )
       .leftJoin('v.unit', 'unit')
+      .leftJoin('v.saleUnit', 'saleUnit')
+      .leftJoin('v.stockBaseUnit', 'stockBaseUnit')
+      .leftJoin('v.purchaseUnit', 'purchaseUnit')
       .where('v.deletedAt IS NULL')
       .andWhere('v.isActive = :isActive', { isActive: true })
       .andWhere('product.deletedAt IS NULL')
@@ -113,12 +121,23 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
       'v.sku',
       'v.barcode',
       'v.trackInventory',
+      'v.stockBaseUnitId',
+      'v.saleUnitId',
+      'v.purchaseUnitId',
+      'v.stockBaseQtyPerCountSaleUnit',
       'v.attributeValues',
       'product.id',
       'product.name',
       'product.description',
       'unit.id',
       'unit.symbol',
+      'saleUnit.id',
+      'saleUnit.symbol',
+      'saleUnit.dimension',
+      'stockBaseUnit.id',
+      'stockBaseUnit.symbol',
+      'stockBaseUnit.dimension',
+      'purchaseUnit.id',
       'priceListItem.id',
       'priceListItem.netPrice',
       'priceListItem.grossPrice',
@@ -240,6 +259,18 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
           }
         }
 
+        const track = variant.trackInventory ?? false;
+        const stockBaseQty = stockByVariant[variant.id] ?? 0;
+        const availableStockBase = track ? stockBaseQty : null;
+        const availableStock = track
+          ? posDisplayStockInSaleUnits({
+              physicalStockInBase: stockBaseQty,
+              stockBaseDimension: (variant as any).stockBaseUnit?.dimension ?? null,
+              saleDimension: (variant as any).saleUnit?.dimension ?? null,
+              stockBaseQtyPerCountSaleUnit: (variant as any).stockBaseQtyPerCountSaleUnit,
+            })
+          : null;
+
         return {
           productId: variant.productId!,
           productName: variant.product?.name || 'Producto sin nombre',
@@ -248,19 +279,19 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
           variantId: variant.id,
           sku: variant.sku || null,
           barcode: variant.barcode || null,
-          unitSymbol: variant.unit?.symbol || null,
-          unitId: variant.unit?.id || null,
+          unitSymbol: (variant as any).saleUnit?.symbol ?? variant.unit?.symbol ?? null,
+          unitId: (variant as any).saleUnitId ?? variant.unitId ?? null,
+          stockBaseUnitId: (variant as any).stockBaseUnitId ?? null,
+          stockBaseUnitSymbol: (variant as any).stockBaseUnit?.symbol ?? null,
+          saleUnitId: (variant as any).saleUnitId ?? null,
+          purchaseUnitId: (variant as any).purchaseUnitId ?? null,
           unitPrice: netPrice,
           unitTaxRate: taxRate,
           unitTaxAmount: taxAmount,
           unitPriceWithTax: grossPrice,
-          trackInventory: variant.trackInventory ?? false,
-          availableStock: variant.trackInventory
-            ? (stockByVariant[variant.id] ?? 0)
-            : null,
-          availableStockBase: variant.trackInventory
-            ? (stockByVariant[variant.id] ?? 0)
-            : null,
+          trackInventory: track,
+          availableStock,
+          availableStockBase,
           attributes,
           metadata: null,
         };

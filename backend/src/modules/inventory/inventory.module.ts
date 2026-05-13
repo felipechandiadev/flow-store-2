@@ -17,6 +17,7 @@ import { GetAllStocksQueryHandler } from './application/handlers/queries/get-sto
 import { GetStockByIdQueryHandler } from './application/handlers/queries/get-stock.handlers';
 import { GetLowStockItemsQueryHandler } from './application/handlers/queries/get-stock.handlers';
 import { GetStockMovementHistoryQueryHandler } from './application/handlers/queries/get-stock.handlers';
+import { StockLevelThresholdSchemaBootstrap } from './application/stock-level-threshold-schema.bootstrap';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { GetStockMovementHistoryQueryHandler } from './application/handlers/quer
   ],
   controllers: [InventoryController],
   providers: [
+    StockLevelThresholdSchemaBootstrap,
     InventoryService,
     InventoryServiceAdapter,
     {

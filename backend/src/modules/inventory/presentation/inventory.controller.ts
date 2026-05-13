@@ -1,9 +1,11 @@
-import { Controller, Get, Query, Post, Body } from '@nestjs/common';
+import { Controller, Get, Query, Post, Body, Patch } from '@nestjs/common';
 import { InventoryService } from '../application/inventory.service';
 import {
   CreateAdjustmentDto,
   CreateTransferDto,
 } from '../application/dto/stock-level.dto';
+import { CurrentCompany } from '@common/tenant';
+import { UpdateStockLevelThresholdsDto } from '../application/dto/update-stock-level-thresholds.dto';
 
 @Controller('inventory')
 export class InventoryController {
@@ -12,6 +14,18 @@ export class InventoryController {
   @Get('filters')
   async getFilters() {
     return this.inventoryService.getFilters();
+  }
+
+  @Get('threshold-alerts')
+  async getThresholdAlerts(
+    @CurrentCompany() companyId: string,
+    @Query('storageId') storageId?: string,
+  ) {
+    const items = await this.inventoryService.getThresholdAlerts(
+      companyId,
+      storageId?.trim() || undefined,
+    );
+    return { items };
   }
 
   @Get()
@@ -46,5 +60,13 @@ export class InventoryController {
   @Post('transfer')
   async transfer(@Body() data: CreateTransferDto) {
     return this.inventoryService.transfer(data);
+  }
+
+  @Patch('stock-levels/thresholds')
+  async updateStockLevelThresholds(
+    @CurrentCompany() companyId: string,
+    @Body() body: UpdateStockLevelThresholdsDto,
+  ) {
+    return this.inventoryService.updateStockLevelThresholds(companyId, body);
   }
 }

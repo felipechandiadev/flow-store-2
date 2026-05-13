@@ -6,6 +6,7 @@ import IconButton from '@/shared/components/IconButton';
 import { useImageWithPlaceholder } from '@/shared/hooks/useImageWithPlaceholder';
 import CompanySwitcher from '@/features/companies/components/CompanySwitcher';
 import SideBar, { SideBarMenuItem } from './SideBar';
+import { StockAlertsDropdown } from '@/features/inventory-stock/ui/StockAlertsDropdown';
 
 export type { SideBarMenuItem };
 // TODO: Implement NotificationBell and useNotificationsSocket when notifications feature is created
@@ -77,6 +78,8 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
     onError: onLogoError,
   } = useImageWithPlaceholder(logoSrc);
 
+  // Stock alerts: WebSocket + dropdown (StockRealtimeProvider en layout app)
+
   // Notificaciones WebSocket - TODO: Implement when notifications feature is ready
   // const {
   //   notifications,
@@ -98,7 +101,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
   return (
     <SideBarContext.Provider value={{ open, close, isOpen: showSidebar, expanded: sidebarExpanded, setExpanded: setSidebarExpanded }}>
         <div data-test-id="top-bar-root">
-      <header className={`fixed top-0 z-30 w-full flex items-center justify-between px-10 py-2 pb-3 bg-background border-b border-border ${className}`}>
+      <header className={`fixed top-0 z-50 w-full flex items-center justify-between px-10 py-2 pb-3 bg-background border-b border-border ${className}`}>
           <div className="flex items-center gap-3">
             {logoSrc ? (
               <div
@@ -188,6 +191,8 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
               <CompanySwitcher fallbackCompanyLabel={companySwitcherFallbackLabel} />
             </div>
 
+            <StockAlertsDropdown />
+
             {/* Notification Bell - TODO: Implement when notifications feature is ready */}
             {/* <div className="mr-4">
               <NotificationBell
@@ -220,7 +225,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
         </header>
         {showSidebar && (
           <div
-            className="fixed inset-0 z-40 flex"
+            className="fixed inset-0 z-[60] flex"
             data-test-id="sidebar-shell"
             role="presentation"
           >

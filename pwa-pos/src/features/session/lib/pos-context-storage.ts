@@ -6,6 +6,8 @@ export type PosPriceListSnapshot = { id: string; name: string };
 
 export type PosContextV1 = {
   pointOfSaleId: string;
+  /** Almacén sala de venta (STORE) del POS: stock mostrado y descuentos de venta. */
+  storageId?: string | null;
   /** Sesión de caja abierta asociada (requerida para registrar ventas en el backend). */
   cashSessionId?: string | null;
   pointOfSaleName?: string | null;

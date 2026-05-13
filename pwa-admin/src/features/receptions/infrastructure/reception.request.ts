@@ -1,6 +1,10 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
-import type { CreateDirectReceptionInput } from "../types/reception.types";
+import type {
+  CreateDirectReceptionInput,
+  ReceptionGridRow,
+  ReceptionListForGridResult,
+} from "../types/reception.types";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -25,6 +29,47 @@ async function authHeaders(): Promise<HeadersInit> {
 }
 
 export class ReceptionRequest {
+  static async listForGrid(opts: { limit?: number; offset?: number } = {}): Promise<ReceptionListForGridResult> {
+    const limit = Math.min(200, Math.max(1, Math.round(opts.limit ?? 25)));
+    const offset = Math.max(0, Math.round(opts.offset ?? 0));
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl(`receptions?limit=${limit}&offset=${offset}`), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as
+        | null
+        | { message?: unknown; error?: unknown; success?: unknown };
+      const msg =
+        typeof body?.message === "string"
+          ? body.message
+          : Array.isArray(body?.message)
+            ? body.message.map(String).join("; ")
+            : typeof body?.error === "string"
+              ? body.error
+              : `HTTP ${res.status}`;
+      throw new Error(`No se pudieron listar recepciones (${msg})`);
+    }
+    const json = (await res.json()) as {
+      rows?: ReceptionGridRow[];
+      count?: number;
+      limit?: number;
+      offset?: number;
+    };
+    const rows = (json.rows ?? []).map((r) => ({
+      ...r,
+      id: String(r?.id ?? ""),
+    })) as ReceptionGridRow[];
+    return {
+      rows: rows.filter((r) => r.id),
+      total: typeof json.count === "number" ? json.count : rows.length,
+      limit: typeof json.limit === "number" ? json.limit : limit,
+      offset: typeof json.offset === "number" ? json.offset : offset,
+    };
+  }
+
   static async createDirect(input: CreateDirectReceptionInput & { userId: string }): Promise<unknown> {
     const { userId, ...body } = input;
     const headers = await authHeaders();

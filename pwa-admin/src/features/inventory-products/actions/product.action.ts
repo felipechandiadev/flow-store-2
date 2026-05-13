@@ -5,6 +5,7 @@ import { ProductRequest } from "../infrastructure/product.request";
 import type { ProductGridRow } from "../types/product-grid.types";
 
 const PRODUCTS_PATH = "/inventory/products";
+const PRODUCT_VARIANT_DETAIL_PATH_PREFIX = "/inventory/products/variants";
 
 export type CreateProductFormInput = {
   name: string;
@@ -45,7 +46,10 @@ export type CreateProductVariantFormInput = {
   sku: string;
   barcode?: string | null;
   basePrice: number;
+  /** Unidad de venta / cotización (API legacy: `unitId`). */
   unitId: string;
+  stockBaseUnitId?: string;
+  purchaseUnitId?: string;
   isActive?: boolean;
   priceListItems: CreateProductVariantPriceListItemInput[];
   /** PMP (precio medio ponderado) guardado en la variante; entero ≥ 0 (omitir → 0). */
@@ -57,6 +61,19 @@ export type CreateProductVariantFormInput = {
   minimumStock?: number;
   maximumStock?: number;
   reorderPoint?: number;
+  /** Cantidad en unidad base de stock por 1 unidad de venta (conteo), si aplica. */
+  stockBaseQtyPerCountSaleUnit?: number;
+  /** Cantidad en unidad base de stock por 1 unidad de compra (conteo), si aplica. */
+  stockBaseQtyPerCountPurchaseUnit?: number;
+  /** Peso legacy + logística / courier. */
+  weight?: number | null;
+  weightUnit?: string | null;
+  netWeightKg?: number | null;
+  grossWeightKg?: number | null;
+  packageLengthCm?: number | null;
+  packageWidthCm?: number | null;
+  packageHeightCm?: number | null;
+  volumetricDivisorK?: number | null;
 };
 
 export type CreateProductVariantResult = { success: true; id: string } | { success: false; error: string };
@@ -273,6 +290,10 @@ export async function createProductVariantAction(
     barcode: input.barcode?.trim() || null,
     basePrice,
     unitId,
+    stockBaseUnitId: input.stockBaseUnitId?.trim() || unitId,
+    purchaseUnitId: input.purchaseUnitId?.trim() || unitId,
+    stockBaseQtyPerCountSaleUnit: input.stockBaseQtyPerCountSaleUnit,
+    stockBaseQtyPerCountPurchaseUnit: input.stockBaseQtyPerCountPurchaseUnit,
     isActive: input.isActive !== false,
     priceListItems: items,
     pmp: pmpToSend,
@@ -381,6 +402,10 @@ export async function updateProductVariantAction(
     barcode: input.barcode?.trim() || null,
     basePrice,
     unitId,
+    stockBaseUnitId: input.stockBaseUnitId?.trim() || unitId,
+    purchaseUnitId: input.purchaseUnitId?.trim() || unitId,
+    stockBaseQtyPerCountSaleUnit: input.stockBaseQtyPerCountSaleUnit,
+    stockBaseQtyPerCountPurchaseUnit: input.stockBaseQtyPerCountPurchaseUnit,
     isActive: input.isActive !== false,
     priceListItems: items,
     pmp: pmpToSend,
@@ -390,9 +415,55 @@ export async function updateProductVariantAction(
     minimumStock: input.minimumStock,
     maximumStock: input.maximumStock,
     reorderPoint: input.reorderPoint,
+    weight: input.weight,
+    weightUnit: input.weightUnit ?? undefined,
+    netWeightKg: input.netWeightKg,
+    grossWeightKg: input.grossWeightKg,
+    packageLengthCm: input.packageLengthCm,
+    packageWidthCm: input.packageWidthCm,
+    packageHeightCm: input.packageHeightCm,
+    volumetricDivisorK: input.volumetricDivisorK,
   });
   if (r.success) {
     revalidatePath(PRODUCTS_PATH, "page");
+    revalidatePath(`${PRODUCT_VARIANT_DETAIL_PATH_PREFIX}/${encodeURIComponent(trimmedId)}`, "page");
   }
   return r;
+}
+
+export type UpdateProductVariantLogisticsInput = {
+  netWeightKg?: number | null;
+  grossWeightKg?: number | null;
+  packageLengthCm?: number | null;
+  packageWidthCm?: number | null;
+  packageHeightCm?: number | null;
+  volumetricDivisorK?: number | null;
+};
+
+export async function updateProductVariantLogisticsAction(
+  variantId: string,
+  input: UpdateProductVariantLogisticsInput,
+): Promise<UpdateProductVariantResult> {
+  const trimmedId = variantId?.trim() ?? "";
+  if (!trimmedId) {
+    return { success: false, error: "Variante no válida" };
+  }
+  const body: Record<string, unknown> = {
+    netWeightKg: input.netWeightKg ?? null,
+    grossWeightKg: input.grossWeightKg ?? null,
+    packageLengthCm: input.packageLengthCm ?? null,
+    packageWidthCm: input.packageWidthCm ?? null,
+    packageHeightCm: input.packageHeightCm ?? null,
+    volumetricDivisorK: input.volumetricDivisorK ?? null,
+  };
+  const r = await ProductRequest.patchVariantFields(trimmedId, body);
+  if (r.success) {
+    revalidatePath(PRODUCTS_PATH, "page");
+    revalidatePath(`${PRODUCT_VARIANT_DETAIL_PATH_PREFIX}/${encodeURIComponent(trimmedId)}`, "page");
+  }
+  return r;
+}
+
+export async function getProductVariantDetailForPage(variantId: string) {
+  return ProductRequest.fetchVariantById(variantId);
 }

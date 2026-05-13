@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
+import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { CreatePointOfSaleDialog } from "./CreatePointOfSaleDialog";
 
 type PointsOfSaleCollectionAddActionProps = {
   branches: BranchListItem[];
   priceListCatalog: PriceListListItem[];
+  storages: StorageListItem[];
   activeCompanyId: string | null;
 };
 
@@ -19,6 +21,7 @@ type PointsOfSaleCollectionAddActionProps = {
 export function PointsOfSaleCollectionAddAction({
   branches,
   priceListCatalog,
+  storages,
   activeCompanyId,
 }: PointsOfSaleCollectionAddActionProps) {
   const [open, setOpen] = useState(false);
@@ -40,6 +43,7 @@ export function PointsOfSaleCollectionAddAction({
         companyId={activeCompanyId}
         branches={branches}
         priceListCatalog={priceListCatalog}
+        storages={storages}
         onSuccess={async () => {
           await router.refresh();
         }}

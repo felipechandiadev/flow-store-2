@@ -28,9 +28,6 @@ interface AutoCompleteProps<T = Option> {
   alwaysShowLabel?: boolean;
 }
 
-// Ref map para tracking de items renderizados
-const itemRefs = new Map<string | number, HTMLLIElement | null>();
-
 const AutoComplete = <T = Option,>({
   options,
   label,
@@ -73,6 +70,8 @@ const AutoComplete = <T = Option,>({
   const [validationTriggered, setValidationTriggered] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  /** Refs por instancia (evita colisiones entre múltiples AutoComplete en la página). */
+  const itemRefsRef = useRef<Map<string | number, HTMLLIElement | null>>(new Map());
   const disabled = (props as any).disabled;
 
   // Sync inputValue with value prop
@@ -92,6 +91,22 @@ const AutoComplete = <T = Option,>({
     [options, inputValue, filterOption, getLabel],
   );
 
+  // Mantener el índice destacado válido al cambiar el filtrado/abierto.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    if (filteredOptions.length === 0) {
+      if (highlightedIndex !== -1) {
+        setHighlightedIndex(-1);
+      }
+      return;
+    }
+    if (highlightedIndex >= filteredOptions.length) {
+      setHighlightedIndex(filteredOptions.length - 1);
+    }
+  }, [open, filteredOptions.length, highlightedIndex]);
+
   const handleSelect = useCallback(
     (option: T) => {
       setInputValue(getLabel(option));
@@ -102,27 +117,23 @@ const AutoComplete = <T = Option,>({
     [getLabel, onChange],
   );
 
-  /**
-   * Misma lógica que Select: listener en document (burbuja), `highlightedIndex` en dependencias del
-   * efecto para que Enter use el índice actual. El foco en el input no marca `focused` en el padre;
-   * comprobamos `containerRef.contains(document.activeElement)`.
-   */
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const root = containerRef.current;
-      if (!root || disabled) {
-        return;
-      }
-      const active = document.activeElement;
-      if (!active || !root.contains(active)) {
+  const handleInputKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (disabled) {
         return;
       }
 
       const list = filteredOptions;
+      const hasItems = list.length > 0;
 
+      // #region agent log
+      fetch('http://127.0.0.1:7499/ingest/88a9c382-e0ee-4ab4-9a5c-23a427cc624a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67a81e'},body:JSON.stringify({sessionId:'67a81e',runId:'pre-fix',hypothesisId:'H1',location:'AutoComplete.tsx:handleInputKeyDown',message:'keydown',data:{key:e.key,open,highlightedIndex,filteredLen:list.length,hasItems,disabled:!!disabled},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
+
+      // Abrir con teclado aunque aún no esté abierto.
       if (!open) {
-        if (["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) {
-          if (list.length === 0) {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter") {
+          if (!hasItems) {
             return;
           }
           e.preventDefault();
@@ -139,9 +150,78 @@ const AutoComplete = <T = Option,>({
         return;
       }
 
-      if (list.length === 0) {
+      if (!hasItems) {
         return;
       }
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        e.stopPropagation();
+        setHighlightedIndex((i) => (i < list.length - 1 ? i + 1 : 0));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        e.stopPropagation();
+        setHighlightedIndex((i) => (i > 0 ? i - 1 : list.length - 1));
+        return;
+      }
+      if (e.key === "Enter") {
+        // Evitar submit de formularios al seleccionar.
+        if (highlightedIndex >= 0 && highlightedIndex < list.length) {
+          e.preventDefault();
+          e.stopPropagation();
+          // #region agent log
+          fetch('http://127.0.0.1:7499/ingest/88a9c382-e0ee-4ab4-9a5c-23a427cc624a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67a81e'},body:JSON.stringify({sessionId:'67a81e',runId:'pre-fix',hypothesisId:'H1',location:'AutoComplete.tsx:handleInputKeyDown',message:'enter-select',data:{highlightedIndex,selectedValue:String(getValue(list[highlightedIndex]!))},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion agent log
+          handleSelect(list[highlightedIndex]!);
+        }
+      }
+    },
+    [disabled, filteredOptions, open, highlightedIndex, handleSelect],
+  );
+
+  /**
+   * Respaldo: manejar flechas/Enter aun si el foco no está exactamente en el <input>
+   * (p. ej. foco en el wrapper o en un botón dentro del control).
+   */
+  useEffect(() => {
+    const onDocKeyDown = (e: KeyboardEvent) => {
+      if (disabled) return;
+      if (e.defaultPrevented) return;
+      const root = containerRef.current;
+      if (!root) return;
+      const active = document.activeElement;
+      if (!active || !root.contains(active)) return;
+
+      // Si el foco está en el input/textarea, el handler `onKeyDown` del TextField
+      // ya se encarga de la navegación. Evita doble incremento (salta opciones).
+      const tag = (active as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") {
+        return;
+      }
+
+      const list = filteredOptions;
+      const hasItems = list.length > 0;
+
+      if (!open) {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter") {
+          if (!hasItems) return;
+          e.preventDefault();
+          setOpen(true);
+          setHighlightedIndex(e.key === "ArrowUp" ? list.length - 1 : 0);
+        }
+        return;
+      }
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+        setHighlightedIndex(-1);
+        return;
+      }
+
+      if (!hasItems) return;
 
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -153,25 +233,24 @@ const AutoComplete = <T = Option,>({
         setHighlightedIndex((i) => (i > 0 ? i - 1 : list.length - 1));
         return;
       }
-      if (e.key === "Enter" && highlightedIndex >= 0) {
-        e.preventDefault();
-        if (highlightedIndex < list.length) {
+      if (e.key === "Enter") {
+        if (highlightedIndex >= 0 && highlightedIndex < list.length) {
+          e.preventDefault();
           handleSelect(list[highlightedIndex]!);
         }
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [disabled, open, filteredOptions, handleSelect, highlightedIndex]);
+    // Bubble: así el input puede `stopPropagation()` y evitar dobles eventos.
+    document.addEventListener("keydown", onDocKeyDown);
+    return () => document.removeEventListener("keydown", onDocKeyDown);
+  }, [disabled, filteredOptions, open, highlightedIndex, handleSelect]);
 
   // Scroll al item destacado (auto evita saltos bruscos con listas largas)
   useEffect(() => {
     if (highlightedIndex >= 0 && open) {
       const highlightedKey = getValue(filteredOptions[highlightedIndex]);
-      const element = itemRefs.get(highlightedKey);
+      const element = itemRefsRef.current.get(highlightedKey);
       if (element) {
         element.scrollIntoView({ block: "nearest" });
       }
@@ -226,6 +305,7 @@ const AutoComplete = <T = Option,>({
             setOpen(true);
             setHighlightedIndex(-1);
           }}
+          onKeyDown={handleInputKeyDown}
           placeholder={placeholder}
           name={name}
           required={required}
@@ -282,8 +362,8 @@ const AutoComplete = <T = Option,>({
             <li
               key={optValue}
               ref={(el) => {
-                if (el) itemRefs.set(optValue, el);
-                else itemRefs.delete(optValue);
+                if (el) itemRefsRef.current.set(optValue, el);
+                else itemRefsRef.current.delete(optValue);
               }}
               className={dropdownOptionClass}
               onMouseDown={() => {

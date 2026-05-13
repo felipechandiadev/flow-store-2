@@ -66,6 +66,36 @@ function normalizeStorageBreakdown(raw: unknown): StockGridRow["storageBreakdown
           typeof o.committedStock === "number" && Number.isFinite(o.committedStock)
             ? o.committedStock
             : Number(o.committedStock) || 0,
+        stockLevelId:
+          o.stockLevelId === undefined
+            ? undefined
+            : o.stockLevelId === null
+              ? null
+              : String(o.stockLevelId),
+        minimumStockOverride:
+          o.minimumStockOverride === undefined
+            ? undefined
+            : o.minimumStockOverride === null
+              ? null
+              : Number(o.minimumStockOverride),
+        maximumStockOverride:
+          o.maximumStockOverride === undefined
+            ? undefined
+            : o.maximumStockOverride === null
+              ? null
+              : Number(o.maximumStockOverride),
+        reorderPointOverride:
+          o.reorderPointOverride === undefined
+            ? undefined
+            : o.reorderPointOverride === null
+              ? null
+              : Number(o.reorderPointOverride),
+        effectiveMinimumStock:
+          o.effectiveMinimumStock != null ? Number(o.effectiveMinimumStock) : undefined,
+        effectiveMaximumStock:
+          o.effectiveMaximumStock != null ? Number(o.effectiveMaximumStock) : undefined,
+        effectiveReorderPoint:
+          o.effectiveReorderPoint != null ? Number(o.effectiveReorderPoint) : undefined,
       };
     })
     .filter((x): x is NonNullable<typeof x> => x != null);
@@ -114,6 +144,17 @@ function normalizeRow(row: unknown): StockGridRow | null {
     productName: o.productName != null ? String(o.productName) : "",
     sku: o.sku != null ? String(o.sku) : "",
     unitOfMeasure: o.unitOfMeasure != null ? String(o.unitOfMeasure) : "",
+    saleUnitOfMeasure: o.saleUnitOfMeasure != null ? String(o.saleUnitOfMeasure) : "",
+    stockUnitSymbol: o.stockUnitSymbol != null ? String(o.stockUnitSymbol) : "",
+    saleUnitSymbol: o.saleUnitSymbol != null ? String(o.saleUnitSymbol) : "",
+    stockBaseQtyPerCountSaleUnit: (() => {
+      const raw = o.stockBaseQtyPerCountSaleUnit;
+      if (raw == null || raw === "") {
+        return null;
+      }
+      const n = typeof raw === "number" && Number.isFinite(raw) ? raw : Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })(),
     attributeValues: parseAttributeValues(o.attributeValues),
     totalStock:
       typeof o.totalStock === "number" && Number.isFinite(o.totalStock) ? o.totalStock : Number(o.totalStock) || 0,

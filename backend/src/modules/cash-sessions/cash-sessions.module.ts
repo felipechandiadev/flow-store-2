@@ -18,10 +18,12 @@ import { TreasuryAccount } from '@modules/treasury-accounts/domain/treasury-acco
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { Product } from '@modules/products/domain/product.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
+import { Unit } from '@modules/units/domain/unit.entity';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 import { CashHubsModule } from '@modules/cash-hubs/cash-hubs.module';
 import { CompaniesModule } from '@modules/companies/companies.module';
 import { PromotionsModule } from '@modules/promotions/promotions.module';
+import { ProductVariantsModule } from '@modules/product-variants/product-variants.module';
 
 @Module({
   imports: [
@@ -36,11 +38,13 @@ import { PromotionsModule } from '@modules/promotions/promotions.module';
       StockLevel,
       Product,
       Storage,
+      Unit,
     ]),
     TransactionsModule, // <-- NEW: For delegation of transaction creation
     CashHubsModule,
     CompaniesModule,
     PromotionsModule,
+    ProductVariantsModule,
     CqrsModule,
   ],
   controllers: [CashSessionsController],

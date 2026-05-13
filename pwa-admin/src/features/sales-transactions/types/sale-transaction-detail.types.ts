@@ -1,0 +1,36 @@
+export type SaleTransactionDetailLine = {
+  id: string;
+  productName: string;
+  productSku: string | null;
+  variantName: string | null;
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+  taxAmount: number;
+  subtotal: number;
+  total: number;
+  unitOfMeasure: string | null;
+};
+
+export type SaleTransactionDetail = {
+  id: string;
+  documentNumber: string;
+  transactionType: string;
+  createdAt: string;
+  status: string;
+  subtotal: number;
+  taxAmount: number;
+  discountAmount: number;
+  total: number;
+  paymentMethod: string;
+  amountPaid: number;
+  changeAmount: number | null;
+  notes: string | null;
+  externalReference: string | null;
+  branchName: string | null;
+  pointOfSaleName: string | null;
+  userFullName: string | null;
+  userUserName: string | null;
+  customerLabel: string | null;
+  lines: SaleTransactionDetailLine[];
+};

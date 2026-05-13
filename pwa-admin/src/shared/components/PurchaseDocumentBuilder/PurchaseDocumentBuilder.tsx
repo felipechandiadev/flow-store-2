@@ -96,7 +96,15 @@ export function PurchaseDocumentBuilder({
   const referenceError = reference.status === "error" ? reference.message : null;
   const referenceFieldsLocked = referenceLoading || referenceError != null;
 
-  const activeTaxes = useMemo(() => taxes.filter((t) => t.isActive !== false), [taxes]);
+  /**
+   * En documentos de compra (OC / recepción) no se deben listar impuestos de tipo RETENTION
+   * en las líneas (aplican a otros flujos como honorarios/retenciones).
+   */
+  const activeTaxes = useMemo(
+    () => taxes.filter((t) => t.isActive !== false && t.taxType !== "RETENTION"),
+    [taxes],
+  );
+  const activeTaxIdSet = useMemo(() => new Set(activeTaxes.map((t) => t.id)), [activeTaxes]);
   const activeStorages = useMemo(() => storages.filter((s) => s.isActive !== false), [storages]);
   const activeSuppliers = useMemo(() => suppliers.filter((s) => s.isActive !== false), [suppliers]);
 
@@ -154,11 +162,11 @@ export function PurchaseDocumentBuilder({
         attributeValues: { ...item.attributeValues },
         quantity: 1,
         unitPrice: price,
-        taxIds: [...item.defaultTaxIds],
+        taxIds: (item.defaultTaxIds ?? []).filter((id) => activeTaxIdSet.has(id)),
       };
       return [...prev, row];
     });
-  }, []);
+  }, [activeTaxIdSet]);
 
   const removeLine = useCallback((key: string) => {
     setLines((prev) => prev.filter((l) => l.key !== key));

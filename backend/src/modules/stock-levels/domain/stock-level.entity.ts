@@ -51,6 +51,18 @@ export class StockLevel {
   @Column({ type: 'decimal', precision: 15, scale: 3, default: 0 })
   incomingStock!: number;
 
+  /** Si es null, se hereda `ProductVariant.minimumStock`. */
+  @Column({ name: 'minimum_stock', type: 'int', nullable: true })
+  minimumStock?: number | null;
+
+  /** Si es null, se hereda `ProductVariant.maximumStock`. */
+  @Column({ name: 'maximum_stock', type: 'int', nullable: true })
+  maximumStock?: number | null;
+
+  /** Si es null, se hereda `ProductVariant.reorderPoint`. */
+  @Column({ name: 'reorder_point', type: 'int', nullable: true })
+  reorderPoint?: number | null;
+
   // Referencia a la última transacción que afectó este saldo
   @Column({ type: 'uuid', nullable: true })
   lastTransactionId?: string | null;

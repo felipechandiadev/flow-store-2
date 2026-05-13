@@ -6,6 +6,7 @@ import { CollectionPageLayout } from "@/shared/components/layouts";
 import type { PointOfSaleListItem } from "@/features/sales-points-of-sale/types/point-of-sale.types";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
+import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
 import { PointsOfSaleCollectionAddAction } from "./PointsOfSaleCollectionAddAction";
 import { PointOfSaleCard } from "./PointOfSaleCard";
 
@@ -13,6 +14,7 @@ type PointsOfSaleCollectionProps = {
   initialPointsOfSale: PointOfSaleListItem[];
   branches: BranchListItem[];
   priceListCatalog: PriceListListItem[];
+  storages: StorageListItem[];
   activeCompanyId: string | null;
 };
 
@@ -24,6 +26,7 @@ export function PointsOfSaleCollection({
   initialPointsOfSale,
   branches,
   priceListCatalog,
+  storages,
   activeCompanyId,
 }: PointsOfSaleCollectionProps) {
   const searchParams = useSearchParams();
@@ -64,6 +67,7 @@ export function PointsOfSaleCollection({
                 point={p}
                 branches={branches}
                 priceListCatalog={priceListCatalog}
+                storages={storages}
                 activeCompanyId={activeCompanyId}
                 data-test-id={`pos-card-${p.id}`}
               />

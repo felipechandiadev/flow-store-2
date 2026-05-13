@@ -6,7 +6,12 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeepPartial, Repository, IsNull } from 'typeorm';
 import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
+import {
+  Storage,
+  StorageType,
+} from '@modules/storages/domain/storage.entity';
 import { CompaniesService } from '@modules/companies/application/companies.service';
+import { TenantContext } from '@common/tenant/tenant.context';
 import {
   EffectivePaymentMethod,
   PosPaymentMethodConfig,
@@ -20,6 +25,8 @@ export class PosService {
   constructor(
     @InjectRepository(PointOfSale)
     private posRepository: Repository<PointOfSale>,
+    @InjectRepository(Storage)
+    private readonly storageRepository: Repository<Storage>,
     private readonly companiesService: CompaniesService,
   ) {}
 
@@ -27,6 +34,7 @@ export class PosService {
     const query = this.posRepository
       .createQueryBuilder('pos')
       .leftJoinAndSelect('pos.branch', 'branch')
+      .leftJoinAndSelect('pos.storage', 'storage')
       .where('pos.deletedAt IS NULL')
       .orderBy('pos.name', 'ASC');
 
@@ -45,7 +53,7 @@ export class PosService {
   async getPointOfSaleById(id: string) {
     const pos = await this.posRepository.findOne({
       where: { id, deletedAt: IsNull() },
-      relations: { branch: true },
+      relations: { branch: true, storage: true },
     });
     if (!pos) {
       return null;
@@ -55,7 +63,8 @@ export class PosService {
 
   async createPointOfSale(data: {
     name: string;
-    branchId?: string | null;
+    branchId: string;
+    storageId: string;
     deviceId?: string | null;
     isActive?: boolean;
     priceLists?: Array<{ id: string; name: string; isActive: boolean }>;
@@ -63,6 +72,27 @@ export class PosService {
   }) {
     if (!data.name || !data.name.trim()) {
       return { success: false, error: 'El nombre es requerido' };
+    }
+    if (!data.branchId?.trim()) {
+      return { success: false, error: 'La sucursal es requerida' };
+    }
+    if (!data.storageId?.trim()) {
+      return {
+        success: false,
+        error: 'Debe elegir la sala de venta (almacén tipo sala) para stock POS',
+      };
+    }
+    const companyId = TenantContext.getCompanyId();
+    if (!companyId) {
+      return { success: false, error: 'No hay empresa activa en el contexto' };
+    }
+    const storageErr = await this.validatePosStoreStorage(
+      companyId,
+      data.branchId.trim(),
+      data.storageId.trim(),
+    );
+    if (storageErr) {
+      return { success: false, error: storageErr };
     }
 
     const priceLists = Array.isArray(data.priceLists) ? data.priceLists : [];
@@ -72,7 +102,8 @@ export class PosService {
 
     const pos = this.posRepository.create({
       name: data.name.trim(),
-      branchId: data.branchId ?? undefined,
+      branchId: data.branchId.trim(),
+      storageId: data.storageId.trim(),
       deviceId: data.deviceId ?? undefined,
       isActive: data.isActive !== false,
       priceLists,
@@ -94,6 +125,7 @@ export class PosService {
       isActive: boolean;
       priceLists: Array<{ id: string; name: string; isActive: boolean }>;
       defaultPriceListId: string | null;
+      storageId: string | null;
     }>,
   ) {
     const pos = await this.posRepository.findOne({
@@ -121,6 +153,52 @@ export class PosService {
     }
     if (data.defaultPriceListId !== undefined) {
       updateData.defaultPriceListId = data.defaultPriceListId ?? undefined;
+    }
+
+    const nextBranchId =
+      data.branchId !== undefined ? data.branchId ?? pos.branchId : pos.branchId;
+    if (data.storageId !== undefined) {
+      const sid =
+        typeof data.storageId === 'string' && data.storageId.trim()
+          ? data.storageId.trim()
+          : null;
+      if (!sid) {
+        return {
+          success: false,
+          error:
+            'El almacén sala de venta es obligatorio; no se puede dejar vacío.',
+        };
+      }
+      const branchForStorage = (nextBranchId ?? '').toString().trim();
+      if (!branchForStorage) {
+        return {
+          success: false,
+          error: 'Asigne sucursal al POS antes de fijar la sala de venta.',
+        };
+      }
+      const companyId = pos.companyId;
+      const storageErr = await this.validatePosStoreStorage(
+        companyId,
+        branchForStorage,
+        sid,
+      );
+      if (storageErr) {
+        return { success: false, error: storageErr };
+      }
+      updateData.storageId = sid;
+    } else if (data.branchId !== undefined && data.branchId && pos.storageId) {
+      const storageErr = await this.validatePosStoreStorage(
+        pos.companyId,
+        data.branchId,
+        pos.storageId,
+      );
+      if (storageErr) {
+        return {
+          success: false,
+          error:
+            'La sala de venta actual no pertenece a la nueva sucursal; elija otra.',
+        };
+      }
     }
 
     await this.posRepository.update(id, updateData);
@@ -220,6 +298,14 @@ export class PosService {
             name: pos.branch.name,
           }
         : undefined,
+      storageId: pos.storageId ?? null,
+      storage: pos.storage
+        ? {
+            id: pos.storage.id,
+            name: pos.storage.name,
+            type: pos.storage.type,
+          }
+        : undefined,
       priceLists: pos.priceLists ?? [],
       deviceId: pos.deviceId,
       isActive: pos.isActive,
@@ -227,5 +313,32 @@ export class PosService {
       createdAt: pos.createdAt,
       updatedAt: pos.updatedAt,
     };
+  }
+
+  /** Mensaje de error o `null` si el almacén es una sala de venta válida para la sucursal. */
+  private async validatePosStoreStorage(
+    companyId: string,
+    branchId: string,
+    storageId: string,
+  ): Promise<string | null> {
+    const storage = await this.storageRepository.findOne({
+      where: { id: storageId, deletedAt: IsNull() },
+    });
+    if (!storage) {
+      return 'Almacén no encontrado';
+    }
+    if (storage.companyId !== companyId) {
+      return 'El almacén no pertenece a la empresa activa';
+    }
+    if ((storage.branchId ?? null) !== branchId) {
+      return 'El almacén debe pertenecer a la misma sucursal que el punto de venta';
+    }
+    if (storage.type !== StorageType.STORE) {
+      return 'El almacén del POS debe ser tipo sala de venta (STORE)';
+    }
+    if (!storage.isActive) {
+      return 'El almacén sala de venta está inactivo';
+    }
+    return null;
   }
 }

@@ -56,6 +56,7 @@ import { InventoryEventHandler } from './application/events/inventory-event.hand
 
 // Event Store
 import { EventStoreModule } from './infrastructure/event-store/event-store.module';
+import { ProductVariantsModule } from '@modules/product-variants/product-variants.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { EventStoreModule } from './infrastructure/event-store/event-store.modul
     CqrsModule,
     EventStoreModule,
     CacheModule,
+    ProductVariantsModule,
   ],
   controllers: [
     TransactionsController,

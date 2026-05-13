@@ -3,6 +3,7 @@ import { AutomationRulesService } from './automation-rules.service';
 import { AutomationEventType } from '../domain/automation-event-type.enum';
 import { AutomationActionType } from '../domain/automation-action-type.enum';
 import { CreateDerivedTransactionActionHandler } from './handlers/actions/create-derived-transaction.action';
+import { UpdateStockActionHandler } from './handlers/actions/update-stock.action';
 
 export type AutomationContext = {
   companyId: string;
@@ -17,6 +18,7 @@ export class AutomationEngine {
   constructor(
     private readonly rulesService: AutomationRulesService,
     private readonly createDerivedTx: CreateDerivedTransactionActionHandler,
+    private readonly updateStock: UpdateStockActionHandler,
   ) {}
 
   async handle(ctx: AutomationContext) {
@@ -36,6 +38,9 @@ export class AutomationEngine {
           switch (action.type as AutomationActionType) {
             case AutomationActionType.CREATE_DERIVED_TRANSACTION:
               await this.createDerivedTx.execute(ctx, rule, action);
+              break;
+            case AutomationActionType.UPDATE_STOCK:
+              await this.updateStock.execute(ctx, rule);
               break;
             default:
               this.logger.warn(

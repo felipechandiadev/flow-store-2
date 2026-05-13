@@ -70,6 +70,7 @@ export default function PosWorkspace() {
         priceListId={priceListId}
         priceListOptions={priceListOptions}
         branchId={branchId}
+        pointOfSaleId={ctx.pointOfSaleId}
         onPriceListChange={setPriceListId}
         onPickProduct={addProduct}
       />
@@ -142,6 +143,7 @@ export default function PosWorkspace() {
               <PosCartLineCard
                 key={line.variantId}
                 line={line}
+                pointOfSaleId={ctx.pointOfSaleId}
                 onIncrement={() => cart.increment(line.variantId)}
                 onDecrement={() => cart.decrement(line.variantId)}
                 onRemove={() => cart.remove(line.variantId)}

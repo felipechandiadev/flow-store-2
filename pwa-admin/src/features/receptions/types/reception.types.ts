@@ -21,3 +21,21 @@ export type CreateDirectReceptionInput = {
 };
 
 export type CreateReceptionResult = { success: true } | { success: false; error: string };
+
+/** Fila enriquecida desde `GET /api/receptions` (`rows[]` del backend). */
+export type ReceptionGridRow = {
+  id: string;
+  createdAt?: string;
+  supplierName?: string | null;
+  storageName?: string | null;
+  documentNumber?: string | null;
+  /** Origen: directa, desde OC, etc. */
+  type?: string;
+};
+
+export type ReceptionListForGridResult = {
+  rows: ReceptionGridRow[];
+  total: number;
+  limit: number;
+  offset: number;
+};

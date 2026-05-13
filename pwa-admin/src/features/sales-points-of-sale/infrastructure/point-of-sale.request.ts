@@ -57,6 +57,7 @@ export class PointOfSaleRequest {
     body: {
       name: string;
       branchId: string;
+      storageId: string;
       deviceId: string | null;
       isActive: boolean;
       priceLists: Array<{ id: string; name: string; isActive: boolean }>;
@@ -73,6 +74,7 @@ export class PointOfSaleRequest {
         body: JSON.stringify({
           name: body.name,
           branchId: body.branchId,
+          storageId: body.storageId,
           deviceId: body.deviceId,
           isActive: body.isActive,
           priceLists: body.priceLists,
@@ -101,6 +103,7 @@ export class PointOfSaleRequest {
   static async create(body: {
     name: string;
     branchId: string;
+    storageId: string;
     deviceId: string | null;
     isActive: boolean;
     priceLists: Array<{ id: string; name: string; isActive: boolean }>;
@@ -114,6 +117,7 @@ export class PointOfSaleRequest {
         body: JSON.stringify({
           name: body.name,
           branchId: body.branchId,
+          storageId: body.storageId,
           deviceId: body.deviceId,
           isActive: body.isActive,
           priceLists: body.priceLists,

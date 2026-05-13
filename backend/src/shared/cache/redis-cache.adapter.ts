@@ -44,13 +44,19 @@ export class RedisCacheAdapter
         host: redisConfig.host,
         port: redisConfig.port,
         connectTimeout: 60000,
+        reconnectStrategy: () => false,
       },
       password: redisConfig.password,
       database: redisConfig.db,
     });
 
+    let lastErrorLogAt = 0;
     this.client.on('error', (err) => {
-      this.logger.error(`Redis connection error: ${err.message}`, err.stack);
+      const now = Date.now();
+      if (now - lastErrorLogAt > 60_000) {
+        lastErrorLogAt = now;
+        this.logger.warn(`Redis connection error: ${err.message}`);
+      }
     });
 
     this.client.on('connect', () => {

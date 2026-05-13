@@ -44,7 +44,11 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError("Credenciales inválidas");
+        setError(
+          result.error === "CredentialsSignin"
+            ? "Credenciales inválidas"
+            : result.error,
+        );
         return;
       }
 

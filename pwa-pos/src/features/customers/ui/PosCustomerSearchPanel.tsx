@@ -41,6 +41,8 @@ export const POS_CUSTOMER_URL_KEYS = {
   query: "customerQuery",
   page: "customerPage",
   pageSize: "customerPageSize",
+  /** Cliente seleccionado para ficha (página Clientes). */
+  selectedId: "customerId",
 } as const;
 
 export type PosCustomerSearchInitial = {
@@ -59,6 +61,14 @@ type Props = {
   onClearSelected: () => void;
   /** Alto del panel respecto al viewport (vh). Por defecto coincide con la columna del payment. */
   heightVh?: number;
+  /**
+   * `stacked`: al seleccionar cliente, el detalle compacto sustituye la lista (pantalla de cobro).
+   * `split`: la lista permanece; el detalle completo vive fuera (página Clientes).
+   */
+  variant?: "stacked" | "split";
+  /** Muestra botón + para creación rápida de cliente. */
+  showAddCustomer?: boolean;
+  onAddCustomerClick?: () => void;
 };
 
 /**
@@ -81,6 +91,9 @@ export default function PosCustomerSearchPanel({
   onPick,
   onClearSelected,
   heightVh = 76,
+  variant = "stacked",
+  showAddCustomer = false,
+  onAddCustomerClick,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -208,10 +221,8 @@ export default function PosCustomerSearchPanel({
   const queryLen = draftQuery.trim().length;
   const noMatches = !showLoading && hasResults === false && queryLen >= 2 && !initial.error;
 
-  // ─── Modo DETALLE: cuando hay cliente seleccionado se renderiza ─────────
-  // una "sub-page" dentro del mismo contenedor con toda la información del
-  // cliente y un botón de regreso a la izquierda que limpia la selección.
-  if (selectedCustomer) {
+  // ─── Modo DETALLE embebido (sólo pantalla de cobro) ───────────────────────
+  if (variant === "stacked" && selectedCustomer) {
     const documentLine = selectedCustomer.document?.trim() || "";
     const phoneLine = selectedCustomer.phone?.trim() || "";
     const emailLine = selectedCustomer.email?.trim() || "";
@@ -226,7 +237,7 @@ export default function PosCustomerSearchPanel({
         aria-label="Detalle del cliente seleccionado"
         data-test-id="pos-customer-search-panel-detail"
       >
-        <div className="shrink-0 flex items-center gap-2">
+        <div className="shrink-0 flex w-full items-center gap-2">
           <IconButton
             icon="ArrowLeft"
             variant="basicSecondary"
@@ -237,6 +248,18 @@ export default function PosCustomerSearchPanel({
             data-test-id="pos-customer-search-detail-back"
           />
           <h2 className="text-sm font-semibold text-foreground">Cliente</h2>
+          {showAddCustomer && onAddCustomerClick ? (
+            <IconButton
+              icon="Plus"
+              variant="basicSecondary"
+              size="sm"
+              className="ml-auto shrink-0"
+              ariaLabel="Crear cliente"
+              title="Crear cliente"
+              onClick={onAddCustomerClick}
+              data-test-id="pos-customer-search-add-customer"
+            />
+          ) : null}
         </div>
 
         <div
@@ -305,15 +328,41 @@ export default function PosCustomerSearchPanel({
       data-test-id="pos-customer-search-panel"
     >
       <div className="shrink-0 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-foreground">Cliente</h2>
-        {showLoading ? (
-          <span
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-            data-test-id="pos-customer-search-pending"
-          >
-            <DotProgress />
-          </span>
-        ) : null}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <h2 className="text-sm font-semibold text-foreground">Cliente</h2>
+          {showAddCustomer && onAddCustomerClick ? (
+            <IconButton
+              icon="Plus"
+              variant="basicSecondary"
+              size="sm"
+              ariaLabel="Crear cliente"
+              title="Crear cliente"
+              onClick={onAddCustomerClick}
+              data-test-id="pos-customer-search-add-customer"
+            />
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {variant === "split" && selectedCustomer ? (
+            <Button
+              type="button"
+              variant="outlined"
+              size="sm"
+              onClick={onClearSelected}
+              data-test-id="pos-customer-search-clear-selection"
+            >
+              Limpiar
+            </Button>
+          ) : null}
+          {showLoading ? (
+            <span
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+              data-test-id="pos-customer-search-pending"
+            >
+              <DotProgress />
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <TextField
@@ -366,12 +415,20 @@ export default function PosCustomerSearchPanel({
               const detailBits = [row.documentNumber, row.phone, row.email]
                 .map((s) => (s ?? "").trim())
                 .filter((s) => s.length > 0);
+              const picked =
+                variant === "split" &&
+                selectedCustomer?.customerId &&
+                selectedCustomer.customerId === row.customerId;
               return (
                 <button
                   key={row.customerId}
                   type="button"
                   onClick={() => onPick(row)}
-                  className="block w-full rounded-xl border border-zinc-200 bg-white p-3 text-left shadow-sm transition hover:border-primary/60 hover:shadow focus:border-primary focus:outline-none dark:border-zinc-800 dark:bg-zinc-950"
+                  className={`block w-full rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-primary/60 hover:shadow focus:border-primary focus:outline-none dark:bg-zinc-950 ${
+                    picked
+                      ? "border-primary ring-2 ring-primary/25 dark:border-primary"
+                      : "border-zinc-200 dark:border-zinc-800"
+                  }`}
                   data-test-id={`pos-customer-search-pick-${row.customerId}`}
                 >
                   <p className="text-sm font-medium text-foreground">

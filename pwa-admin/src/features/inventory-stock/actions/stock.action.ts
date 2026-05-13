@@ -8,6 +8,8 @@ const STOCK_PATH = "/inventory/stock";
 
 function revalidateStockRoute() {
   revalidatePath(STOCK_PATH, "page");
+  // Invalida layouts del segmento para que `router.refresh()` reciba RSC nuevo (no solo caché de página aislada).
+  revalidatePath(STOCK_PATH, "layout");
 }
 
 export async function listStockForGrid(input: ListStockForGridInput): Promise<ListStockForGridResult> {

@@ -27,9 +27,13 @@ import { ProductVariant } from '@modules/product-variants/domain/product-variant
 import { Product } from '@modules/products/domain/product.entity';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
+import { Branch } from '@modules/branches/domain/branch.entity';
+import { Unit } from '@modules/units/domain/unit.entity';
+import { VariantQuantityConversionService } from '@modules/product-variants/application/variant-quantity-conversion.service';
 import { GetCashSessionsDto } from './dto/get-cash-sessions.dto';
 import { OpenCashSessionDto } from './dto/open-cash-session.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
+import { saleTransactionCashFlows } from './sale-transaction-cash-flow.util';
 
 @Injectable()
 export class CashSessionsService {
@@ -49,6 +53,7 @@ export class CashSessionsService {
     private readonly dataSource: DataSource,
     @InjectRepository(TreasuryAccount)
     private readonly treasuryAccountRepository: Repository<TreasuryAccount>,
+    private readonly variantQuantityConversion: VariantQuantityConversionService,
   ) {}
 
   // Full implementations restored from original module
@@ -469,6 +474,20 @@ export class CashSessionsService {
         );
       }
 
+      const branch = await manager.getRepository(Branch).findOne({
+        where: { id: pointOfSale.branchId as any },
+      });
+      if (!branch?.companyId) {
+        throw new BadRequestException(
+          'La sucursal del punto de venta no tiene empresa asociada.',
+        );
+      }
+      const companyIdForUnits = branch.companyId;
+      const unitRows = await manager.getRepository(Unit).find({
+        where: { companyId: companyIdForUnits, deletedAt: IsNull() },
+      });
+      const unitsById = new Map(unitRows.map((u) => [u.id, u]));
+
       // Generar número de documento
       const documentNum =
         documentNumber ||
@@ -510,13 +529,39 @@ export class CashSessionsService {
         discountAmount += lineDiscount;
         taxAmount += lineTax;
 
+        const lineUnitId = (
+          (line as any).unitId ??
+          variant.saleUnitId ??
+          variant.unitId ??
+          ''
+        )
+          .toString()
+          .trim();
+        if (!lineUnitId) {
+          throw new BadRequestException(
+            `Variante ${variant.id} sin unidad de venta (saleUnitId / unitId).`,
+          );
+        }
+        const converted = this.variantQuantityConversion.toVariantStockBaseSync(
+          variant,
+          Number(line.quantity) || 0,
+          lineUnitId,
+          unitsById,
+          'sale',
+        );
+
         transactionLines.push({
+          companyId: companyIdForUnits,
           productId: variant.productId,
           productVariantId: line.productVariantId,
           productName: variant.product.name,
           productSku: variant.sku,
           variantName: variant.product.name, // Por ahora usar el nombre del producto
+          unitId: lineUnitId,
           quantity: line.quantity,
+          quantityInBase: converted.quantityInBase,
+          unitConversionFactor: converted.unitConversionFactor,
+          unitOfMeasure: converted.unitOfMeasure,
           unitPrice: line.unitPrice,
           unitCost: line.unitCost || variant.baseCost || 0,
           discountAmount: lineDiscount,
@@ -600,7 +645,9 @@ export class CashSessionsService {
           const stockRepo = manager.getRepository(StockLevel);
           for (const savedLine of savedLines) {
             const variantId = savedLine.productVariantId;
-            const qty = Number(savedLine.quantity ?? 0);
+            const qty = Number(
+              savedLine.quantityInBase ?? savedLine.quantity ?? 0,
+            );
 
             // Find existing stock level for variant+storage
             let stockEntry = (await stockRepo.findOne({
@@ -1021,11 +1068,15 @@ export class CashSessionsService {
             cashIn += total;
           }
           break;
-        case TransactionType.SALE:
-          // No sumar aquí, los pagos están en PAYMENT_IN
-          // El cambio ya se maneja por separado
+        case TransactionType.SALE: {
+          const { cashIn: saleIn, cashOut: saleOut } =
+            saleTransactionCashFlows(tx);
+          cashIn += saleIn;
+          cashOut += saleOut;
           break;
+        }
         case TransactionType.CASH_SESSION_WITHDRAWAL:
+        case TransactionType.CASH_SESSION_TO_HUB_TRANSFER:
         case TransactionType.OPERATING_EXPENSE:
         case TransactionType.PAYMENT_OUT:
         case TransactionType.SALE_RETURN:

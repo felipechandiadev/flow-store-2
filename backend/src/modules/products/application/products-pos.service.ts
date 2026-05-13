@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, IsNull } from 'typeorm';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { Product } from '@modules/products/domain/product.entity';
+import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
+import { Storage } from '@modules/storages/domain/storage.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import {
   PRICE_LIST_ITEMS_REPOSITORY,
@@ -12,6 +14,7 @@ import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { SearchPosProductsDto } from './dto/search-pos-products.dto';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 import { AttributeOrmEntity } from '@modules/attributes/infrastructure/orm-mappers/attribute.orm-entity';
+import { posDisplayStockInSaleUnits } from '@modules/product-variants/application/variant-count-bridge.util';
 
 export type PosProductSearchResult = {
   productId: string;
@@ -61,12 +64,33 @@ export class ProductsPosService {
    * - Incluye stock disponible por bodega (branch)
    */
   async searchForPos(dto: SearchPosProductsDto) {
-    const { query, priceListId, branchId, page = 1, pageSize = 20 } = dto;
+    const { query, priceListId, branchId, page = 1, pageSize = 20, pointOfSaleId } =
+      dto;
 
     if (!priceListId) {
       throw new NotFoundException(
         'priceListId es requerido para búsqueda en POS',
       );
+    }
+
+    let resolvedBranchId = branchId;
+    let storageIdsForStock: string[] | null = null;
+    if (pointOfSaleId) {
+      const pos = await this.dataSource.getRepository(PointOfSale).findOne({
+        where: { id: pointOfSaleId, deletedAt: IsNull() },
+      });
+      if (!pos) {
+        throw new NotFoundException(`Punto de venta ${pointOfSaleId} no encontrado`);
+      }
+      if (branchId && pos.branchId && pos.branchId !== branchId) {
+        throw new BadRequestException(
+          'branchId no coincide con la sucursal del punto de venta indicado',
+        );
+      }
+      resolvedBranchId = pos.branchId ?? branchId;
+      if (pos.storageId) {
+        storageIdsForStock = [pos.storageId];
+      }
     }
 
     // Construir query base
@@ -80,6 +104,8 @@ export class ProductsPosService {
         { priceListId },
       )
       .leftJoin('v.unit', 'unit')
+      .leftJoin('v.saleUnit', 'saleUnit')
+      .leftJoin('v.stockBaseUnit', 'stockBaseUnit')
       .where('v.deletedAt IS NULL')
       .andWhere('v.isActive = :isActive', { isActive: true })
       .andWhere('product.deletedAt IS NULL')
@@ -110,6 +136,9 @@ export class ProductsPosService {
       'v.sku',
       'v.barcode',
       'v.trackInventory',
+      'v.stockBaseUnitId',
+      'v.saleUnitId',
+      'v.stockBaseQtyPerCountSaleUnit',
       'v.attributeValues',
       'product.id',
       'product.name',
@@ -117,6 +146,13 @@ export class ProductsPosService {
       'unit.id',
       'unit.symbol',
       'unit.allowDecimals',
+      'saleUnit.id',
+      'saleUnit.symbol',
+      'saleUnit.dimension',
+      'saleUnit.allowDecimals',
+      'stockBaseUnit.id',
+      'stockBaseUnit.symbol',
+      'stockBaseUnit.dimension',
       'priceListItem.id',
       'priceListItem.netPrice',
       'priceListItem.grossPrice',
@@ -145,7 +181,7 @@ export class ProductsPosService {
       };
     }
 
-    // Cargar stock por bodega si se especifica branchId
+    // Cargar stock: almacén del POS (sala de venta) o suma por sucursal si solo viene branchId
     const variantIds = variants.map((v) => v.id);
     const productIds = Array.from(
       new Set(variants.map((variant) => variant.productId).filter(Boolean)),
@@ -163,12 +199,29 @@ export class ProductsPosService {
     const multimediaByProduct: Record<string, string | null> = {};
     const attributeNameById: Record<string, string> = {};
 
-    if (branchId) {
+    if (storageIdsForStock && storageIdsForStock.length === 1) {
+      const stockLevels = await this.stockLevelRepository
+        .createQueryBuilder('sl')
+        .where('sl.productVariantId IN (:...variantIds)', { variantIds })
+        .andWhere('sl.storageId = :storageId', { storageId: storageIdsForStock[0] })
+        .select('sl.productVariantId', 'variantId')
+        .addSelect('COALESCE(SUM(sl.availableStock), 0)', 'stock')
+        .groupBy('sl.productVariantId')
+        .getRawMany();
+
+      stockByVariant = stockLevels.reduce(
+        (acc, row) => {
+          acc[row.variantId] = Number(row.stock || 0);
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
+    } else if (resolvedBranchId) {
       const stockLevels = await this.stockLevelRepository
         .createQueryBuilder('sl')
         .innerJoin('sl.storage', 'storage')
         .where('sl.productVariantId IN (:...variantIds)', { variantIds })
-        .andWhere('storage.branchId = :branchId', { branchId })
+        .andWhere('storage.branchId = :branchId', { branchId: resolvedBranchId })
         .andWhere('storage.deletedAt IS NULL')
         .select('sl.productVariantId', 'variantId')
         .addSelect('COALESCE(SUM(sl.availableStock), 0)', 'stock')
@@ -267,6 +320,18 @@ export class ProductsPosService {
           }
         }
 
+        const track = variant.trackInventory ?? false;
+        const stockBaseQty = stockByVariant[variant.id] ?? 0;
+        const availableStockBase = track ? stockBaseQty : null;
+        const availableStock = track
+          ? posDisplayStockInSaleUnits({
+              physicalStockInBase: stockBaseQty,
+              stockBaseDimension: (variant as any).stockBaseUnit?.dimension ?? null,
+              saleDimension: (variant as any).saleUnit?.dimension ?? null,
+              stockBaseQtyPerCountSaleUnit: (variant as any).stockBaseQtyPerCountSaleUnit,
+            })
+          : null;
+
         return {
           productId: variant.productId!,
           productName: variant.product?.name || 'Producto sin nombre',
@@ -275,20 +340,17 @@ export class ProductsPosService {
           variantId: variant.id,
           sku: variant.sku || null,
           barcode: variant.barcode || null,
-          unitSymbol: variant.unit?.symbol || null,
-          unitId: variant.unit?.id || null,
-          unitAllowDecimals: variant.unit?.allowDecimals === true,
+          unitSymbol: (variant as any).saleUnit?.symbol ?? (variant as any).unit?.symbol ?? null,
+          unitId: (variant as any).saleUnitId ?? (variant as any).unit?.id ?? null,
+          unitAllowDecimals:
+            (variant as any).saleUnit?.allowDecimals === true || variant.unit?.allowDecimals === true,
           unitPrice: netPrice,
           unitTaxRate: taxRate,
           unitTaxAmount: taxAmount,
           unitPriceWithTax: grossPrice,
-          trackInventory: variant.trackInventory ?? false,
-          availableStock: variant.trackInventory
-            ? (stockByVariant[variant.id] ?? 0)
-            : null,
-          availableStockBase: variant.trackInventory
-            ? (stockByVariant[variant.id] ?? 0)
-            : null,
+          trackInventory: track,
+          availableStock,
+          availableStockBase,
           attributes,
           metadata: null,
         };
@@ -305,6 +367,80 @@ export class ProductsPosService {
         hasPreviousPage: page > 1,
       },
       products,
+    };
+  }
+
+  /**
+   * Stock disponible de una variante en la sala de venta del POS (`pointOfSaleId`)
+   * o en un `storageId` explícito.
+   */
+  async getVariantStockForPos(args: {
+    variantId: string;
+    pointOfSaleId?: string;
+    storageId?: string;
+  }) {
+    const variantId = args.variantId?.trim();
+    if (!variantId) {
+      throw new BadRequestException('variantId es requerido');
+    }
+    let storageId = args.storageId?.trim() || undefined;
+    let storageName: string | null = null;
+    if (!storageId && args.pointOfSaleId?.trim()) {
+      const pos = await this.dataSource.getRepository(PointOfSale).findOne({
+        where: { id: args.pointOfSaleId.trim(), deletedAt: IsNull() },
+        relations: { storage: true },
+      });
+      if (!pos) {
+        throw new NotFoundException('Punto de venta no encontrado');
+      }
+      storageId = pos.storageId ?? undefined;
+      storageName = pos.storage?.name ?? null;
+    }
+    if (!storageId) {
+      throw new BadRequestException(
+        'Indique storageId o un pointOfSaleId con sala de venta (storage) configurada',
+      );
+    }
+    if (!storageName) {
+      const st = await this.dataSource.getRepository(Storage).findOne({
+        where: { id: storageId, deletedAt: IsNull() },
+        select: ['id', 'name'],
+      });
+      storageName = st?.name ?? null;
+    }
+
+    const variant = await this.variantRepository.findOne({
+      where: { id: variantId, deletedAt: IsNull() },
+      relations: ['product', 'unit', 'saleUnit', 'stockBaseUnit'],
+    });
+    if (!variant) {
+      throw new NotFoundException('Variante no encontrada');
+    }
+
+    const sl = await this.stockLevelRepository.findOne({
+      where: { productVariantId: variantId, storageId },
+    });
+    const stockBaseQty = Number(sl?.availableStock ?? 0);
+    const track = variant.trackInventory ?? false;
+    const availableStockBase = track ? stockBaseQty : null;
+    const availableStock = track
+      ? posDisplayStockInSaleUnits({
+          physicalStockInBase: stockBaseQty,
+          stockBaseDimension: (variant as any).stockBaseUnit?.dimension ?? null,
+          saleDimension: (variant as any).saleUnit?.dimension ?? null,
+          stockBaseQtyPerCountSaleUnit: (variant as any).stockBaseQtyPerCountSaleUnit,
+        })
+      : null;
+
+    return {
+      success: true as const,
+      variantId: variant.id,
+      sku: variant.sku ?? null,
+      storageId,
+      storageName,
+      trackInventory: track,
+      availableStock,
+      availableStockBase,
     };
   }
 }

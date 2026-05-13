@@ -36,6 +36,15 @@ export class StockLevelOrmEntity {
   @Column({ type: 'decimal', precision: 15, scale: 3, default: 0 })
   incomingStock!: number;
 
+  @Column({ name: 'minimum_stock', type: 'int', nullable: true })
+  minimumStock?: number | null;
+
+  @Column({ name: 'maximum_stock', type: 'int', nullable: true })
+  maximumStock?: number | null;
+
+  @Column({ name: 'reorder_point', type: 'int', nullable: true })
+  reorderPoint?: number | null;
+
   @Column({ type: 'uuid', nullable: true })
   lastTransactionId?: string | null;
 

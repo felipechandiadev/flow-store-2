@@ -11,6 +11,7 @@ import Switch from "@/shared/components/Switch/Switch";
 import { createProductVariantAction } from "@/features/inventory-products/actions/product.action";
 import { listUnitsForPage } from "@/features/inventory-units/actions/unit.action";
 import type { UnitListItem } from "@/features/inventory-units/types/unit.types";
+import { dimensionLabel } from "@/features/inventory-units/types/unit.types";
 import { listPriceListsForPage } from "@/features/sales-price-lists/actions/price-list.action";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
 import { listTaxesForPage } from "@/features/accounting-taxes/actions/tax.action";
@@ -95,6 +96,10 @@ export function CreateProductVariantDialog({
   const [sku, setSku] = useState("");
   const [barcode, setBarcode] = useState("");
   const [unitId, setUnitId] = useState<string | null>(null);
+  const [stockBaseUnitId, setStockBaseUnitId] = useState<string | null>(null);
+  const [purchaseUnitId, setPurchaseUnitId] = useState<string | null>(null);
+  const [stockBaseQtyPerCountSaleUnit, setStockBaseQtyPerCountSaleUnit] = useState("");
+  const [stockBaseQtyPerCountPurchaseUnit, setStockBaseQtyPerCountPurchaseUnit] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [trackInventory, setTrackInventory] = useState(true);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
@@ -156,6 +161,30 @@ export function CreateProductVariantDialog({
     [priceRows],
   );
 
+  const stockUnitMeta = useMemo(
+    () => units.find((u) => u.id === stockBaseUnitId),
+    [units, stockBaseUnitId],
+  );
+  const saleUnitMeta = useMemo(() => units.find((u) => u.id === unitId), [units, unitId]);
+  const purchaseUnitMeta = useMemo(
+    () => units.find((u) => u.id === purchaseUnitId),
+    [units, purchaseUnitId],
+  );
+
+  const needsCountSaleBridge = useMemo(() => {
+    if (!stockUnitMeta || !saleUnitMeta) {
+      return false;
+    }
+    return stockUnitMeta.dimension !== "count" && saleUnitMeta.dimension === "count";
+  }, [stockUnitMeta, saleUnitMeta]);
+
+  const needsCountPurchaseBridge = useMemo(() => {
+    if (!stockUnitMeta || !purchaseUnitMeta) {
+      return false;
+    }
+    return stockUnitMeta.dimension !== "count" && purchaseUnitMeta.dimension === "count";
+  }, [stockUnitMeta, purchaseUnitMeta]);
+
   /** `variant.basePrice` en API: neto de la primera fila con lista (orden del array). */
   const derivedBasePrice = useMemo(() => {
     if (completedPriceRows.length === 0) {
@@ -180,6 +209,10 @@ export function CreateProductVariantDialog({
     setSku("");
     setBarcode("");
     setUnitId(null);
+    setStockBaseUnitId(null);
+    setPurchaseUnitId(null);
+    setStockBaseQtyPerCountSaleUnit("");
+    setStockBaseQtyPerCountPurchaseUnit("");
     setIsActive(true);
     const isService = String(productType || "").toUpperCase() === "SERVICE";
     setTrackInventory(!isService);
@@ -212,7 +245,10 @@ export function CreateProductVariantDialog({
           activePriceLists.find((p) => p.isDefault)?.id ?? activePriceLists[0]?.id ?? null;
         setPriceRows([createVariantPriceRow(defaultIva, defaultPriceListId)]);
         const defaultUnit = list.find((u) => u.active) ?? null;
-        setUnitId(defaultUnit?.id ?? null);
+        const du = defaultUnit?.id ?? null;
+        setUnitId(du);
+        setStockBaseUnitId(du);
+        setPurchaseUnitId(du);
         if (list.length === 0) {
           setLoadError("No hay unidades de medida. Cree una en Inventario → Unidades.");
         } else if (!list.some((u) => u.active)) {
@@ -250,8 +286,8 @@ export function CreateProductVariantDialog({
       setError("El SKU es obligatorio");
       return;
     }
-    if (!unitId) {
-      setError("Seleccione una unidad de medida");
+    if (!unitId || !stockBaseUnitId || !purchaseUnitId) {
+      setError("Seleccione unidad de venta, stock y compra");
       return;
     }
 
@@ -305,6 +341,29 @@ export function CreateProductVariantDialog({
     const attributeValuesPayload =
       Object.keys(attributeValues).length > 0 ? attributeValues : undefined;
 
+    let stockBaseQtyPerCountSaleUnitOut: number | undefined;
+    let stockBaseQtyPerCountPurchaseUnitOut: number | undefined;
+    if (needsCountSaleBridge) {
+      const n = Number(String(stockBaseQtyPerCountSaleUnit).replace(",", ".").trim());
+      if (!Number.isFinite(n) || n <= 0) {
+        setError(
+          `Indique cuánto stock (${dimensionLabel(stockUnitMeta!.dimension)} en ${stockUnitMeta!.symbol || stockUnitMeta!.name}) equivale 1 unidad de venta (${saleUnitMeta?.symbol || saleUnitMeta?.name}). Use un número > 0.`,
+        );
+        return;
+      }
+      stockBaseQtyPerCountSaleUnitOut = n;
+    }
+    if (needsCountPurchaseBridge) {
+      const n = Number(String(stockBaseQtyPerCountPurchaseUnit).replace(",", ".").trim());
+      if (!Number.isFinite(n) || n <= 0) {
+        setError(
+          `Indique cuánto stock (${dimensionLabel(stockUnitMeta!.dimension)} en ${stockUnitMeta!.symbol || stockUnitMeta!.name}) equivale 1 unidad de compra (${purchaseUnitMeta?.symbol || purchaseUnitMeta?.name}). Use un número > 0.`,
+        );
+        return;
+      }
+      stockBaseQtyPerCountPurchaseUnitOut = n;
+    }
+
     startTransition(() => {
       void (async () => {
         const r = await createProductVariantAction({
@@ -313,6 +372,8 @@ export function CreateProductVariantDialog({
           barcode: barcode.trim() || null,
           basePrice,
           unitId: String(unitId),
+          stockBaseUnitId: String(stockBaseUnitId),
+          purchaseUnitId: String(purchaseUnitId),
           isActive,
           priceListItems,
           pmp: draftPmp,
@@ -322,6 +383,8 @@ export function CreateProductVariantDialog({
           minimumStock: Math.max(0, Math.round(Number(minimumStock) || 0)),
           maximumStock: Math.max(0, Math.round(Number(maximumStock) || 0)),
           reorderPoint: Math.max(0, Math.round(Number(reorderPoint) || 0)),
+          stockBaseQtyPerCountSaleUnit: stockBaseQtyPerCountSaleUnitOut,
+          stockBaseQtyPerCountPurchaseUnit: stockBaseQtyPerCountPurchaseUnitOut,
         });
         if (r.success) {
           setNewVariantId(r.id);
@@ -368,6 +431,8 @@ export function CreateProductVariantDialog({
     Boolean(productId.trim()) &&
     Boolean(sku.trim()) &&
     Boolean(unitId) &&
+    Boolean(stockBaseUnitId) &&
+    Boolean(purchaseUnitId) &&
     !isPending &&
     !loadError &&
     !priceRows.some((r) => !r.priceListId?.trim()) &&
@@ -495,10 +560,10 @@ export function CreateProductVariantDialog({
             </div>
           </div>
 
-          <div className="min-w-0">
+          <div className="flex min-w-0 flex-col gap-3">
             <Select
-              label="Unidad de medida"
-              name="pv-create-unit"
+              label="Unidad de venta"
+              name="pv-create-unit-sale"
               options={unitOptions}
               value={unitId}
               onChange={(v) => setUnitId(v != null ? String(v) : null)}
@@ -507,6 +572,56 @@ export function CreateProductVariantDialog({
               disabled={unitOptions.length === 0}
               data-test-id="product-variant-create-unit"
             />
+            <Select
+              label="Unidad de stock (inventario)"
+              name="pv-create-unit-stock"
+              options={unitOptions}
+              value={stockBaseUnitId}
+              onChange={(v) => setStockBaseUnitId(v != null ? String(v) : null)}
+              placeholder="Unidad base de inventario"
+              required
+              disabled={unitOptions.length === 0}
+              data-test-id="product-variant-create-unit-stock"
+            />
+            <Select
+              label="Unidad de compra por defecto"
+              name="pv-create-unit-purchase"
+              options={unitOptions}
+              value={purchaseUnitId}
+              onChange={(v) => setPurchaseUnitId(v != null ? String(v) : null)}
+              placeholder="Unidad en órdenes de compra"
+              required
+              disabled={unitOptions.length === 0}
+              data-test-id="product-variant-create-unit-purchase"
+            />
+            <p className="text-xs text-muted-foreground">
+              Si el stock es masa, volumen o longitud y la venta o compra son de conteo (piezas), indique cuánto
+              stock en la unidad base equivale a <span className="font-medium">1</span> unidad de venta o de compra.
+              En el resto de casos las tres unidades deben ser convertibles en la misma cadena (o use la misma en las
+              tres).
+            </p>
+            {needsCountSaleBridge ? (
+              <TextField
+                label={`Contenido por 1 unidad de venta (${stockUnitMeta?.symbol || stockUnitMeta?.name || "stock base"})`}
+                name="pv-create-count-bridge-sale"
+                value={stockBaseQtyPerCountSaleUnit}
+                onChange={(e) => setStockBaseQtyPerCountSaleUnit(e.target.value)}
+                placeholder="Ej: 250"
+                className="w-full"
+                data-test-id="product-variant-create-count-bridge-sale"
+              />
+            ) : null}
+            {needsCountPurchaseBridge ? (
+              <TextField
+                label={`Contenido por 1 unidad de compra (${stockUnitMeta?.symbol || stockUnitMeta?.name || "stock base"})`}
+                name="pv-create-count-bridge-purchase"
+                value={stockBaseQtyPerCountPurchaseUnit}
+                onChange={(e) => setStockBaseQtyPerCountPurchaseUnit(e.target.value)}
+                placeholder="Ej: 250"
+                className="w-full"
+                data-test-id="product-variant-create-count-bridge-purchase"
+              />
+            ) : null}
           </div>
 
           {selectableAttributes.length > 0 ? (

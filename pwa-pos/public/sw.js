@@ -1,6 +1,13 @@
 // Cache básico para el POS (PWA)
 const CACHE_NAME = 'flow-pos-v1';
-const CORE_ASSETS = ['/', '/manifest.json', '/logo.png'];
+const CORE_ASSETS = [
+  "/",
+  "/manifest.json",
+  "/logo.png",
+  "/android-chrome-192x192.png",
+  "/android-chrome-512x512.png",
+  "/favicon-32x32.png",
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

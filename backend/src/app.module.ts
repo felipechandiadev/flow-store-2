@@ -52,6 +52,7 @@ import { ExpenseCategoriesModule } from './modules/expense-categories/expense-ca
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { ReceptionsModule } from './modules/receptions/receptions.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { StockRealtimeModule } from './modules/stock-realtime/stock-realtime.module';
 import { InstallmentsModule } from './modules/installments/installments.module';
 import { MultimediaModule } from './modules/multimedia/multimedia.module';
 import { ObservabilityModule } from './shared/observability.module';
@@ -79,6 +80,7 @@ import { PromotionsModule } from './modules/promotions/promotions.module';
     EventsModule,
     CacheModule,
     TenantModule,
+    StockRealtimeModule,
     HealthModule,
     PosModule,
     AuthModule,

@@ -9,6 +9,7 @@ import Select from "@/shared/components/Select/Select";
 import Switch from "@/shared/components/Switch/Switch";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
+import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
 import { createPointOfSaleAction } from "@/features/sales-points-of-sale/actions/point-of-sale.action";
 import { getCompanyPaymentMethodsAction } from "@/features/companies/actions/companies-payment-methods.action";
 import { replacePosPaymentMethodsAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
@@ -25,6 +26,7 @@ export type CreatePointOfSaleDialogProps = {
   companyId: string | null;
   branches: BranchListItem[];
   priceListCatalog: PriceListListItem[];
+  storages: StorageListItem[];
 };
 
 /**
@@ -37,9 +39,11 @@ export function CreatePointOfSaleDialog({
   companyId,
   branches,
   priceListCatalog,
+  storages,
 }: CreatePointOfSaleDialogProps) {
   const [name, setName] = useState("");
   const [branchId, setBranchId] = useState<string>(branches[0]?.id ?? "");
+  const [storageId, setStorageId] = useState("");
   const [deviceId, setDeviceId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
@@ -58,6 +62,12 @@ export function CreatePointOfSaleDialog({
     () => branches.map((b) => ({ id: b.id, label: b.name })),
     [branches],
   );
+
+  const storeRoomOptions = useMemo(() => {
+    return storages
+      .filter((s) => s.branchId === branchId && s.type === "STORE" && s.isActive)
+      .map((s) => ({ id: s.id, label: s.name }));
+  }, [storages, branchId]);
 
   const hasBranches = branchOptions.length > 0;
 
@@ -80,6 +90,7 @@ export function CreatePointOfSaleDialog({
     setDefaultListId(null);
     setError(null);
     setBranchId(branches[0]?.id ?? "");
+    setStorageId("");
 
     setPaymentCatalog([]);
     setPosPaymentDraft([]);
@@ -125,9 +136,23 @@ export function CreatePointOfSaleDialog({
     });
   }, [selectedListIds]);
 
+  useEffect(() => {
+    if (!branchId) {
+      setStorageId("");
+      return;
+    }
+    setStorageId((prev) => {
+      if (prev && storeRoomOptions.some((o) => o.id === prev)) {
+        return prev;
+      }
+      return storeRoomOptions[0]?.id ?? "";
+    });
+  }, [branchId, storeRoomOptions]);
+
   const handleClose = () => {
     setName("");
     setBranchId(branches[0]?.id ?? "");
+    setStorageId("");
     setDeviceId("");
     setIsActive(true);
     setSelectedListIds([]);
@@ -161,6 +186,7 @@ export function CreatePointOfSaleDialog({
         const r = await createPointOfSaleAction({
           name: name.trim(),
           branchId,
+          storageId,
           deviceId,
           isActive,
           priceLists,
@@ -218,7 +244,14 @@ export function CreatePointOfSaleDialog({
             variant="primary"
             size="md"
             onClick={handleSubmit}
-            disabled={!name.trim() || isPending || !branchId || !hasBranches}
+            disabled={
+              !name.trim() ||
+              isPending ||
+              !branchId ||
+              !hasBranches ||
+              !storageId ||
+              storeRoomOptions.length === 0
+            }
             data-test-id="pos-create-submit"
           >
             Crear
@@ -256,6 +289,29 @@ export function CreatePointOfSaleDialog({
             No hay sucursales. Crea al menos una en Ajustes → Sucursales para poder asignar el punto de venta.
           </p>
         )}
+        {hasBranches ? (
+          storeRoomOptions.length === 0 ? (
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              No hay almacenes tipo sala de venta en esta sucursal. Créalo en Inventario → Almacenes (tipo «Sala de
+              venta»).
+            </p>
+          ) : (
+            <Select
+              label="Sala de venta (stock POS)"
+              name="pos-storage"
+              value={storageId}
+              onChange={(id) => {
+                if (id != null && id !== "") {
+                  setStorageId(String(id));
+                }
+              }}
+              options={storeRoomOptions}
+              placeholder="Almacén sala"
+              required
+              data-test-id="pos-create-storage"
+            />
+          )
+        ) : null}
         <TextField
           label="ID de dispositivo (opcional)"
           name="pos-device"

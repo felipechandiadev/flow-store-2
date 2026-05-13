@@ -49,11 +49,98 @@ export class ProductVariantOrmEntity {
   @JoinColumn({ name: 'unit_id' })
   unit!: Unit;
 
+  @Column({ type: 'uuid', name: 'stock_base_unit_id' })
+  stockBaseUnitId!: string;
+
+  @ManyToOne(() => Unit, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'stock_base_unit_id' })
+  stockBaseUnit!: Unit;
+
+  @Column({ type: 'uuid', name: 'sale_unit_id' })
+  saleUnitId!: string;
+
+  @ManyToOne(() => Unit, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'sale_unit_id' })
+  saleUnit!: Unit;
+
+  @Column({ type: 'uuid', name: 'purchase_unit_id' })
+  purchaseUnitId!: string;
+
+  @ManyToOne(() => Unit, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'purchase_unit_id' })
+  purchaseUnit!: Unit;
+
+  @Column({
+    name: 'stock_base_qty_per_count_sale_unit',
+    type: 'decimal',
+    precision: 18,
+    scale: 9,
+    nullable: true,
+  })
+  stockBaseQtyPerCountSaleUnit?: number | string | null;
+
+  @Column({
+    name: 'stock_base_qty_per_count_purchase_unit',
+    type: 'decimal',
+    precision: 18,
+    scale: 9,
+    nullable: true,
+  })
+  stockBaseQtyPerCountPurchaseUnit?: number | string | null;
+
   @Column({ type: 'decimal', precision: 10, scale: 3, nullable: true })
   weight?: number;
 
   @Column({ type: 'varchar', length: 16, name: 'weight_unit', default: 'kg' })
   weightUnit!: string;
+
+  @Column({
+    name: 'net_weight_kg',
+    type: 'decimal',
+    precision: 14,
+    scale: 6,
+    nullable: true,
+  })
+  netWeightKg?: number | string | null;
+
+  @Column({
+    name: 'gross_weight_kg',
+    type: 'decimal',
+    precision: 14,
+    scale: 6,
+    nullable: true,
+  })
+  grossWeightKg?: number | string | null;
+
+  @Column({
+    name: 'package_length_cm',
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: true,
+  })
+  packageLengthCm?: number | string | null;
+
+  @Column({
+    name: 'package_width_cm',
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: true,
+  })
+  packageWidthCm?: number | string | null;
+
+  @Column({
+    name: 'package_height_cm',
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: true,
+  })
+  packageHeightCm?: number | string | null;
+
+  @Column({ name: 'volumetric_divisor_k', type: 'int', nullable: true })
+  volumetricDivisorK?: number | null;
 
   @Column({ type: 'json', nullable: true })
   attributeValues?: Record<string, string>;

@@ -1,26 +1,72 @@
 {
   "name": "FlowStore - Panel de administración",
-  "short_name": "FlowStore",
+  "short_name": "FlowStore Admin",
   "description": "Administrador de tienda Flow Store",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "theme_color": "#1C2046",
   "lang": "es-CL",
   "icons": [
     {
-      "src": "/fav.png",
+      "src": "/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/android-chrome-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/logo.png",
+      "src": "/android-chrome-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/android-chrome-192x192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/android-chrome-512x512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/logo-app.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Panel",
+      "short_name": "Panel",
+      "description": "Ir al panel principal",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icons/shortcut-dashboard.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Productos",
+      "short_name": "Productos",
+      "description": "Catálogo de productos",
+      "url": "/inventory/products",
+      "icons": [{ "src": "/icons/shortcut-dashboard.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

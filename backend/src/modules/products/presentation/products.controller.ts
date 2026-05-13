@@ -52,6 +52,24 @@ export class ProductsController {
     };
   }
 
+  /**
+   * Stock de una variante en la sala de venta del POS o en un almacén explícito.
+   * Query: `pointOfSaleId` y/o `storageId` (al menos uno debe resolver un almacén).
+   */
+  @Get('pos/variants/:variantId/stock-by-storage')
+  async getPosVariantStock(
+    @Param('variantId') variantId: string,
+    @Query('pointOfSaleId') pointOfSaleId?: string,
+    @Query('storageId') storageId?: string,
+  ) {
+    const data = await this.productsPosService.getVariantStockForPos({
+      variantId,
+      pointOfSaleId,
+      storageId,
+    });
+    return data;
+  }
+
   @Get(':id/stocks')
   async stocks(@Param('id') id: string) {
     return this.productsService.getStocks(id);

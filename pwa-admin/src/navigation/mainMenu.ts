@@ -1,7 +1,8 @@
 import type { SideBarMenuItem } from '@/shared/components/TopBar/SideBar';
 
+/** Showcase UI (oculto temporalmente en sidebar; restaurar entradas según necesidad). */
 export const uiComponentItems: SideBarMenuItem[] = [
-  { id: 'ui-alert', label: 'Alert', url: '/ui-components/alert' },
+  /* { id: 'ui-alert', label: 'Alert', url: '/ui-components/alert' },
   { id: 'ui-autocomplete', label: 'Autocomplete', url: '/ui-components/autocomplete' },
   { id: 'ui-badge', label: 'Badge', url: '/ui-components/badge' },
   { id: 'ui-button', label: 'Button', url: '/ui-components/button' },
@@ -32,7 +33,7 @@ export const uiComponentItems: SideBarMenuItem[] = [
   { id: 'ui-select', label: 'Select', url: '/ui-components/select' },
   { id: 'ui-switch', label: 'Switch', url: '/ui-components/switch' },
   { id: 'ui-tabs', label: 'Tabs', url: '/ui-components/tabs' },
-  { id: 'ui-textfield', label: 'TextField', url: '/ui-components/textfield' },
+  { id: 'ui-textfield', label: 'TextField', url: '/ui-components/textfield' }, */
 ];
 
 /**
@@ -45,7 +46,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
     label: 'Ventas',
     children: [
       { id: 'sales-transactions', label: 'Transacciones', url: '/sales/transactions/sales' },
-      { id: 'sales-promotions', label: 'Promociones', url: '/sales/promotions' },
+      // { id: 'sales-promotions', label: 'Promociones', url: '/sales/promotions' },
       { id: 'sales-customers', label: 'Clientes', url: '/sales/customers' },
       { id: 'sales-pos', label: 'Puntos de venta', url: '/sales/points-of-sale' },
       { id: 'sales-cash-sessions', label: 'Sesiones de caja', url: '/sales/cash-sessions' },
@@ -63,7 +64,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
       },
       { id: 'purchasing-suppliers', label: 'Proveedores', url: '/purchasing/suppliers' },
       { id: 'purchasing-dte', label: "DTE's proveedor", url: '/purchasing/dte' },
-      { id: 'purchasing-flow', label: 'Flujo del proceso', url: '/purchasing/flow' },
+      // { id: 'purchasing-flow', label: 'Flujo del proceso', url: '/purchasing/flow' },
     ],
   },
   {
@@ -86,8 +87,8 @@ export const mainMenuItems: SideBarMenuItem[] = [
       { id: 'treasury-expense-categories', label: 'Categorías de gasto', url: '/treasury/expense-categories' },
       { id: 'treasury-accounts', label: 'Cuentas bancarias y cajas', url: '/treasury/accounts' },
       { id: 'treasury-checks', label: 'Cheques', url: '/treasury/checks' },
-      { id: 'treasury-reconciliations', label: 'Conciliaciones', url: '/treasury/reconciliations' },
-      { id: 'treasury-cash-flow', label: 'Flujo de caja (Cash flow)', url: '/treasury/cash-flow' },
+      // { id: 'treasury-reconciliations', label: 'Conciliaciones', url: '/treasury/reconciliations' },
+      // { id: 'treasury-cash-flow', label: 'Flujo de caja (Cash flow)', url: '/treasury/cash-flow' },
     ],
   },
   {
@@ -96,15 +97,15 @@ export const mainMenuItems: SideBarMenuItem[] = [
     children: [
       { id: 'acc-coa', label: 'Plan de cuentas', url: '/accounting/chart-of-accounts' },
       { id: 'acc-rules', label: 'Reglas contables', url: '/accounting/rules' },
-      { id: 'acc-automation', label: 'Automatizaciones', url: '/accounting/automation' },
-      { id: 'acc-flows', label: 'Flujos', url: '/accounting/flows/sales' },
-      { id: 'acc-transaction-types', label: 'Transacciones soportadas', url: '/accounting/transactions' },
+      // { id: 'acc-automation', label: 'Automatizaciones', url: '/accounting/automation' },
+      // { id: 'acc-flows', label: 'Flujos', url: '/accounting/flows/sales' },
+      // { id: 'acc-transaction-types', label: 'Transacciones soportadas', url: '/accounting/transactions' },
       { id: 'acc-ar', label: 'Cuentas por cobrar', url: '/accounting/accounts-receivable' },
       { id: 'acc-ap', label: 'Cuentas por pagar', url: '/accounting/accounts-payable' },
       { id: 'acc-ledgers', label: 'Libros contables', url: '/accounting/ledgers' },
-      { id: 'acc-journal-entries', label: 'Asientos manuales', url: '/accounting/journal-entries' },
+      // { id: 'acc-journal-entries', label: 'Asientos manuales', url: '/accounting/journal-entries' },
       { id: 'acc-taxes', label: 'Impuestos', url: '/accounting/taxes' },
-      { id: 'acc-reports', label: 'Estados financieros', url: '/accounting/reports' },
+      // { id: 'acc-reports', label: 'Estados financieros', url: '/accounting/reports' },
     ],
   },
   {
@@ -113,7 +114,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
     children: [
       { id: 'hr-employees', label: 'Empleados', url: '/hr/employees' },
       { id: 'hr-remunerations', label: 'Remuneraciones', url: '/hr/remunerations' },
-      { id: 'hr-org-units', label: 'Unidades organizativas', url: '/hr/organizational-units' },
+      // { id: 'hr-org-units', label: 'Unidades organizativas', url: '/hr/organizational-units' },
     ],
   },
   {
@@ -146,8 +147,8 @@ export const mainMenuItems: SideBarMenuItem[] = [
       },
       { id: 'settings-branches', label: 'Sucursales', url: '/settings/branches' },
       { id: 'settings-users', label: 'Usuarios', url: '/settings/users' },
-      { id: 'settings-parameters', label: 'Parámetros del sistema', url: '/settings/parameters' },
+      // { id: 'settings-parameters', label: 'Parámetros del sistema', url: '/settings/parameters' },
     ],
   },
-  { id: 'nav-ui', label: 'UI Components', children: uiComponentItems },
+  // { id: 'nav-ui', label: 'UI Components', children: uiComponentItems },
 ];

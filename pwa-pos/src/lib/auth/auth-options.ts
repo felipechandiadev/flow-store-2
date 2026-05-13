@@ -53,42 +53,77 @@ export const authOptions: NextAuthOptions = {
           }),
         });
 
-        const data = await res.json();
+        let data: Record<string, unknown> = {};
+        try {
+          data = (await res.json()) as Record<string, unknown>;
+        } catch {
+          data = {};
+        }
+
+        const backendMessage = (): string => {
+          const raw = data.message;
+          if (typeof raw === "string" && raw.trim()) return raw.trim();
+          if (Array.isArray(raw)) {
+            const parts = raw
+              .filter((x): x is string => typeof x === "string")
+              .map((s) => s.trim())
+              .filter((s) => s.length > 0);
+            if (parts.length) return parts.join(" ");
+          }
+          if (typeof data.error === "string" && data.error.trim()) return data.error.trim();
+          return "";
+        };
+
         if (!res.ok) {
+          const msg = backendMessage();
           console.warn("[POS][auth] Login failed", {
             url,
             status: res.status,
-            message: data?.message ?? data?.error ?? null,
+            message: msg || null,
           });
+          throw new Error(msg || "No se pudo iniciar sesión.");
         }
-        if (res.ok && data.user) {
-          // Validar pertenencia: cualquier usuario que no sea SUPER_ADMIN
-          // debe pertenecer a la empresa configurada del deployment.
-          const userCompanyId = data.user.companyId ?? null;
-          const role = data.user.rol ?? null;
-          if (companyId && role !== "SUPER_ADMIN" && userCompanyId !== companyId) {
-            console.warn(
-              "[POS][auth] Usuario no pertenece a la empresa configurada",
-              { role, userCompanyId, expected: companyId },
-            );
-            return null;
-          }
-          return {
-            id: data.user.id,
-            name:
-              `${data.user.person?.firstName || ""} ${data.user.person?.lastName || ""}`.trim() ||
-              data.user.userName,
-            email: data.user.email,
-            userName: data.user.userName,
-            accessToken: data.user.id,
+
+        if (!data.user || typeof data.user !== "object") {
+          throw new Error("Credenciales inválidas");
+        }
+
+        const user = data.user as {
+          id: string;
+          userName: string;
+          email: string;
+          rol: string | null;
+          companyId: string | null;
+          person?: { firstName?: string; lastName?: string };
+        };
+        const userCompanyId = user.companyId ?? null;
+        const role = user.rol ?? null;
+
+        // Misma regla que el backend (login.handler): empresa del POS vs empresa del usuario.
+        if (companyId && role !== "SUPER_ADMIN" && userCompanyId !== companyId) {
+          console.warn("[POS][auth] Usuario no pertenece a la empresa del POS", {
             role,
-            companyId: userCompanyId,
-            // SUPER_ADMIN: usar la company del deployment como activa.
-            // ADMIN/OPERATOR: usar su propia companyId.
-            activeCompanyId: role === "SUPER_ADMIN" ? companyId : userCompanyId,
-          };
+            userCompanyId,
+            expected: companyId,
+          });
+          throw new Error(
+            "Este usuario no pertenece a la empresa solicitada por este punto de venta",
+          );
         }
-        return null;
+
+        return {
+          id: user.id,
+          name:
+            `${user.person?.firstName || ""} ${user.person?.lastName || ""}`.trim() || user.userName,
+          email: user.email,
+          userName: user.userName,
+          accessToken: user.id,
+          role,
+          companyId: userCompanyId,
+          // SUPER_ADMIN: usar la company del deployment como activa.
+          // ADMIN/OPERATOR: usar su propia companyId.
+          activeCompanyId: role === "SUPER_ADMIN" ? companyId : userCompanyId,
+        };
       },
     }),
   ],

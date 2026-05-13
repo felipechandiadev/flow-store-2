@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CreditCard, Cpu, Tags } from "lucide-react";
+import { Building2, CreditCard, Cpu, Package, Tags } from "lucide-react";
 import { CashRegisterIcon } from "./CashRegisterIcon";
 import { Card } from "@/shared/components/Cards";
 import { DeleteDialog } from "@/shared/components/Dialog/DeleteDialog";
@@ -10,6 +10,7 @@ import Badge from "@/shared/components/Badge/Badge";
 import type { PointOfSaleListItem } from "@/features/sales-points-of-sale/types/point-of-sale.types";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
+import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
 import { deletePointOfSaleAction } from "@/features/sales-points-of-sale/actions/point-of-sale.action";
 import { getEffectivePaymentMethodsForPosAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
 import { UpdatePointOfSaleDialog } from "./UpdatePointOfSaleDialog";
@@ -19,6 +20,7 @@ type PointOfSaleCardProps = {
   point: PointOfSaleListItem;
   branches: BranchListItem[];
   priceListCatalog: PriceListListItem[];
+  storages: StorageListItem[];
   activeCompanyId: string | null;
   "data-test-id"?: string;
 };
@@ -33,6 +35,7 @@ export function PointOfSaleCard({
   point,
   branches,
   priceListCatalog,
+  storages,
   activeCompanyId,
   "data-test-id": dataTestId,
 }: PointOfSaleCardProps) {
@@ -115,6 +118,16 @@ export function PointOfSaleCard({
         </p>
         <p className="text-sm font-medium leading-snug text-foreground" data-test-id="pos-card-branch">
           {point.branch?.name ?? "—"}
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-border/80 bg-gradient-to-b from-background to-neutral/40 px-3 py-2.5">
+        <p className="mb-1 flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-wider text-secondary">
+          <Package className="h-3.5 w-3.5 shrink-0" strokeWidth={2} aria-hidden />
+          Sala de venta
+        </p>
+        <p className="text-sm font-medium leading-snug text-foreground" data-test-id="pos-card-storage">
+          {point.storage?.name ?? "—"}
         </p>
       </div>
 
@@ -278,6 +291,7 @@ export function PointOfSaleCard({
         point={point}
         branches={branches}
         priceListCatalog={priceListCatalog}
+        storages={storages}
         companyId={point.companyId ?? activeCompanyId}
         onSuccess={async () => {
           await reloadPaymentMethods();

@@ -7,6 +7,7 @@ import TopBar from "@/shared/components/TopBar/TopBar";
 import ChangePasswordDialog from "@/shared/components/Dialog/ChangePasswordDialog";
 import { mainMenuItems } from "@/navigation/mainMenu";
 import { useCompany } from "@/providers/CompanyProvider";
+import { StockRealtimeProvider } from "@/features/inventory-stock/realtime/stock-realtime-context";
 
 export default function AppShellLayoutClient({ children }: { children: React.ReactNode }) {
   const { status, data: session } = useSession();
@@ -38,8 +39,9 @@ export default function AppShellLayoutClient({ children }: { children: React.Rea
   }
 
   return (
-    <div className="flex h-screen overflow-hidden flex-col">
-      <TopBar
+    <StockRealtimeProvider>
+      <div className="flex h-screen overflow-hidden flex-col">
+        <TopBar
         title="FlowStore"
         companyTradeName={companyTradeName}
         companySwitcherFallbackLabel={adminCompanySwitcherFallback}
@@ -56,5 +58,6 @@ export default function AppShellLayoutClient({ children }: { children: React.Rea
         onClose={() => setIsDialogOpen(false)}
       />
     </div>
+    </StockRealtimeProvider>
   );
 }

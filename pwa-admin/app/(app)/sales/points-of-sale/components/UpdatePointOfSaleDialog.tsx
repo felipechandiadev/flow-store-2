@@ -10,6 +10,7 @@ import Switch from "@/shared/components/Switch/Switch";
 import type { PointOfSaleListItem } from "@/features/sales-points-of-sale/types/point-of-sale.types";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
+import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
 import { updatePointOfSaleAction } from "@/features/sales-points-of-sale/actions/point-of-sale.action";
 import { getCompanyPaymentMethodsAction } from "@/features/companies/actions/companies-payment-methods.action";
 import { getPosPaymentMethodsAction, replacePosPaymentMethodsAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
@@ -26,6 +27,7 @@ export type UpdatePointOfSaleDialogProps = {
   branches: BranchListItem[];
   priceListCatalog: PriceListListItem[];
   companyId: string | null | undefined;
+  storages: StorageListItem[];
 };
 
 export function UpdatePointOfSaleDialog({
@@ -36,9 +38,11 @@ export function UpdatePointOfSaleDialog({
   branches,
   priceListCatalog,
   companyId,
+  storages,
 }: UpdatePointOfSaleDialogProps) {
   const [name, setName] = useState("");
   const [branchId, setBranchId] = useState<string>("");
+  const [storageId, setStorageId] = useState("");
   const [deviceId, setDeviceId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
@@ -60,6 +64,12 @@ export function UpdatePointOfSaleDialog({
 
   const hasBranches = branchOptions.length > 0;
 
+  const storeRoomOptions = useMemo(() => {
+    return storages
+      .filter((s) => s.branchId === branchId && s.type === "STORE" && s.isActive)
+      .map((s) => ({ id: s.id, label: s.name }));
+  }, [storages, branchId]);
+
   const defaultListOptions = useMemo(() => {
     return selectedListIds
       .map((id) => priceListCatalog.find((p) => p.id === id))
@@ -77,6 +87,14 @@ export function UpdatePointOfSaleDialog({
         ? point.branchId
         : branches[0]?.id ?? "";
     setBranchId(resolvedBranchId);
+    const rooms = storages.filter(
+      (s) => s.branchId === resolvedBranchId && s.type === "STORE" && s.isActive,
+    );
+    const initialStorage =
+      point.storageId && rooms.some((s) => s.id === point.storageId)
+        ? point.storageId
+        : rooms[0]?.id ?? "";
+    setStorageId(initialStorage);
     setDeviceId(
       point.deviceId != null && String(point.deviceId).trim() ? String(point.deviceId) : "",
     );
@@ -128,7 +146,23 @@ export function UpdatePointOfSaleDialog({
         setLoadingPayments(false);
       })();
     }
-  }, [open, point, branches, companyId]);
+  }, [open, point, branches, companyId, storages]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    if (!branchId) {
+      setStorageId("");
+      return;
+    }
+    setStorageId((prev) => {
+      if (prev && storeRoomOptions.some((o) => o.id === prev)) {
+        return prev;
+      }
+      return storeRoomOptions[0]?.id ?? "";
+    });
+  }, [open, branchId, storeRoomOptions]);
 
   useEffect(() => {
     if (selectedListIds.length === 0) {
@@ -174,6 +208,7 @@ export function UpdatePointOfSaleDialog({
           id: point.id,
           name: name.trim(),
           branchId,
+          storageId,
           deviceId,
           isActive,
           priceLists,
@@ -230,7 +265,9 @@ export function UpdatePointOfSaleDialog({
             variant="primary"
             size="md"
             onClick={handleSubmit}
-            disabled={!name.trim() || isPending || !branchId || !hasBranches}
+            disabled={
+              !name.trim() || isPending || !branchId || !hasBranches || !storageId || storeRoomOptions.length === 0
+            }
             data-test-id="pos-update-submit"
           >
             Actualizar
@@ -268,6 +305,28 @@ export function UpdatePointOfSaleDialog({
             No hay sucursales disponibles. Crea al menos una en Ajustes → Sucursales.
           </p>
         )}
+        {hasBranches ? (
+          storeRoomOptions.length === 0 ? (
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              No hay almacenes tipo sala de venta en esta sucursal. Créalo en Inventario → Almacenes.
+            </p>
+          ) : (
+            <Select
+              label="Sala de venta (stock POS)"
+              name="pos-update-storage"
+              value={storageId}
+              onChange={(id) => {
+                if (id != null && id !== "") {
+                  setStorageId(String(id));
+                }
+              }}
+              options={storeRoomOptions}
+              placeholder="Almacén sala"
+              required
+              data-test-id="pos-update-storage"
+            />
+          )
+        ) : null}
         <TextField
           label="ID de dispositivo (opcional)"
           name="pos-update-device"

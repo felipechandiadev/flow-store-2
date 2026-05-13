@@ -58,6 +58,18 @@ export class CreateTransactionLineDto {
   @Min(0.01)
   quantity!: number;
 
+  @IsOptional()
+  @IsNumber()
+  quantityInBase?: number;
+
+  @IsOptional()
+  @IsString()
+  unitOfMeasure?: string;
+
+  @IsOptional()
+  @IsNumber()
+  unitConversionFactor?: number;
+
   @IsNumber()
   @Min(0)
   unitPrice!: number;
@@ -332,6 +344,7 @@ export class CreateTransactionDto {
       TransactionType.BANK_WITHDRAWAL_TO_SHAREHOLDER,
       TransactionType.CASH_WITHDRAWAL_TO_PETTY_CASH,
       TransactionType.CASH_SESSION_TO_HUB_TRANSFER,
+      TransactionType.CASH_SESSION_DEPOSIT,
       TransactionType.PAYMENT_IN,
       TransactionType.PAYMENT_OUT,
       TransactionType.PAYROLL,
@@ -450,6 +463,20 @@ export class CreateTransactionDto {
         }
         if (!this.pointOfSaleId) {
           errors.push('CASH_SESSION_TO_HUB_TRANSFER requiere pointOfSaleId');
+        }
+        break;
+
+      case TransactionType.CASH_SESSION_DEPOSIT:
+        if (!this.cashSessionId) {
+          errors.push('CASH_SESSION_DEPOSIT requiere cashSessionId');
+        }
+        if (!this.pointOfSaleId) {
+          errors.push('CASH_SESSION_DEPOSIT requiere pointOfSaleId');
+        }
+        if (!this.cashHubId) {
+          errors.push(
+            'CASH_SESSION_DEPOSIT requiere cashHubId (centro de acopio de origen)',
+          );
         }
         break;
 

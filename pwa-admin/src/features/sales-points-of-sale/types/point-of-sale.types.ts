@@ -7,6 +7,8 @@ export type PointOfSaleListItem = {
   name: string;
   branchId?: string | null;
   branch?: { id: string; name: string } | null;
+  storageId?: string | null;
+  storage?: { id: string; name: string; type?: string } | null;
   priceLists: Array<{ id: string; name: string; isActive: boolean }>;
   deviceId?: string | null;
   isActive: boolean;

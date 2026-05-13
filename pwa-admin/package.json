@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 3021",
     "lint": "eslint",
-    "generate-favicon": "node scripts/generate-favicon.mjs"
+    "generate-pwa-icons": "node scripts/generate-pwa-icons.mjs",
+    "generate-favicon": "node scripts/generate-pwa-icons.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.99.2",
@@ -21,6 +22,7 @@
     "react-leaflet": "^5.0.0",
     "reactflow": "^11.11.4",
     "recharts": "^3.6.0",
+    "socket.io-client": "^4.8.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {

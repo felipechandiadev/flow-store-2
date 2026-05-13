@@ -3,9 +3,10 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, IsNull } from 'typeorm';
+import { Repository, DataSource, IsNull, In } from 'typeorm';
 import {
   Transaction,
   TransactionType,
@@ -20,6 +21,8 @@ import {
 import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
 import { User } from '@modules/users/domain/user.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { Unit } from '@modules/units/domain/unit.entity';
+import { VariantQuantityConversionService } from '@modules/product-variants/application/variant-quantity-conversion.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
 import {
@@ -32,6 +35,8 @@ import { applyPromotions } from '@modules/promotions/application/discount-engine
 import type { AppliedSnapshot } from '@modules/promotions/application/discount-engine.types';
 import { Promotion } from '@modules/promotions/domain/promotion.entity';
 import { PromotionRedemption } from '@modules/promotions/domain/promotion-redemption.entity';
+import { Storage } from '@modules/storages/domain/storage.entity';
+import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 
 /**
  * SalesFromSessionService - Single Responsibility: Sale Transaction Creation
@@ -55,6 +60,8 @@ import { PromotionRedemption } from '@modules/promotions/domain/promotion-redemp
  */
 @Injectable()
 export class SalesFromSessionService {
+  private readonly logger = new Logger(SalesFromSessionService.name);
+
   constructor(
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
@@ -72,6 +79,7 @@ export class SalesFromSessionService {
     private readonly transactionsService: TransactionsService,
     private readonly companiesService: CompaniesService,
     private readonly promotionsService: PromotionsService,
+    private readonly variantQuantityConversion: VariantQuantityConversionService,
   ) {}
 
   /**
@@ -240,6 +248,15 @@ export class SalesFromSessionService {
         );
       }
 
+      if (!pointOfSale.companyId) {
+        throw new BadRequestException('Punto de venta sin empresa asociada.');
+      }
+      const companyIdForUnits = pointOfSale.companyId;
+      const unitRows = await manager.getRepository(Unit).find({
+        where: { companyId: companyIdForUnits, deletedAt: IsNull() },
+      });
+      const unitsById = new Map(unitRows.map((u) => [u.id, u]));
+
       // Verificar sesión de caja
       const cashSession = await manager.getRepository(CashSession).findOne({
         where: { id: cashSessionId },
@@ -304,13 +321,38 @@ export class SalesFromSessionService {
         discountAmount += lineDiscount;
         taxAmount += lineTax;
 
+        const lineUnitId = (
+          (line as any).unitId ??
+          variant.saleUnitId ??
+          variant.unitId ??
+          ''
+        )
+          .toString()
+          .trim();
+        if (!lineUnitId) {
+          throw new BadRequestException(
+            `Variante ${variant.id} sin unidad de venta (saleUnitId / unitId).`,
+          );
+        }
+        const converted = this.variantQuantityConversion.toVariantStockBaseSync(
+          variant,
+          Number(line.quantity) || 0,
+          lineUnitId,
+          unitsById,
+          'sale',
+        );
+
         transactionLines.push({
           productId: variant.productId,
           productVariantId: line.productVariantId,
           productName: variant.product.name,
           productSku: variant.sku,
           variantName: variant.product.name,
+          unitId: lineUnitId,
           quantity: line.quantity,
+          quantityInBase: converted.quantityInBase,
+          unitConversionFactor: converted.unitConversionFactor,
+          unitOfMeasure: converted.unitOfMeasure,
           unitPrice: line.unitPrice,
           unitCost: line.unitCost || variant.baseCost || 0,
           discountAmount: lineDiscount,
@@ -553,6 +595,84 @@ export class SalesFromSessionService {
         });
       }
 
+      // Almacén para stock y automation: debe persistirse en `transactions.storageId`
+      // (UpdateStockActionHandler lo exige). Sin `storageId`, el listener no mueve inventario.
+      let effectiveStorageId =
+        typeof storageId === 'string' && storageId.trim()
+          ? storageId.trim()
+          : undefined;
+      if (!effectiveStorageId && pointOfSale.storageId) {
+        effectiveStorageId = pointOfSale.storageId;
+      }
+      if (!effectiveStorageId && pointOfSale.branchId) {
+        const storageRepo = manager.getRepository(Storage);
+        const branchId = pointOfSale.branchId;
+        let chosen = await storageRepo.findOne({
+          where: {
+            branchId,
+            isDefault: true,
+            isActive: true,
+            deletedAt: IsNull(),
+          },
+          order: { name: 'ASC' },
+        });
+        if (!chosen) {
+          chosen = await storageRepo.findOne({
+            where: {
+              branchId,
+              isActive: true,
+              deletedAt: IsNull(),
+            },
+            order: { isDefault: 'DESC', name: 'ASC' },
+          });
+        }
+        effectiveStorageId = chosen?.id;
+      }
+
+      const qtyNeedByVariant = new Map<string, number>();
+      for (const tl of transactionLines) {
+        const vid = tl.productVariantId as string | undefined;
+        if (!vid) continue;
+        const q = Number(tl.quantityInBase) || 0;
+        if (q <= 0) continue;
+        qtyNeedByVariant.set(vid, (qtyNeedByVariant.get(vid) ?? 0) + q);
+      }
+      const variantIdsToCheck = [...qtyNeedByVariant.keys()];
+      if (effectiveStorageId && variantIdsToCheck.length > 0) {
+        const variantsToCheck = await manager.getRepository(ProductVariant).find({
+          where: { id: In(variantIdsToCheck) },
+          select: ['id', 'sku', 'trackInventory', 'allowNegativeStock'],
+        });
+        for (const v of variantsToCheck) {
+          if (!v.trackInventory || v.allowNegativeStock) continue;
+          const need = qtyNeedByVariant.get(v.id) ?? 0;
+          const sl = await manager.getRepository(StockLevel).findOne({
+            where: {
+              productVariantId: v.id,
+              storageId: effectiveStorageId,
+            },
+          });
+          const avail = Number(sl?.availableStock ?? 0);
+          if (need > avail) {
+            throw new BadRequestException(
+              `Stock insuficiente en sala de venta para ${v.sku ?? v.id}: se requieren ${need} (unidad base), disponible ${avail}.`,
+            );
+          }
+        }
+      }
+
+      const hasStockLines = transactionLines.some((l) => l.productVariantId);
+      if (hasStockLines && !effectiveStorageId) {
+        this.logger.error(
+          `Venta sin storageId: POS=${pointOfSaleId} branch=${pointOfSale.branchId ?? 'null'}. ` +
+            `UpdateStock omitirá el descuento de inventario.`,
+        );
+        throw new BadRequestException(
+          'No hay almacén para descontar stock en esta sucursal. Marque un almacén como predeterminado ' +
+            '(Inventario → Almacenes) o envíe storageId en la venta.',
+        );
+      }
+
       // ✅ DELEGAR: Usar TransactionsService.createTransaction() para generar asientos
       // Esto asegura:
       // 1. documentNumber único generado
@@ -567,6 +687,7 @@ export class SalesFromSessionService {
         userId: user.id,
         pointOfSaleId: pointOfSale.id,
         cashSessionId: cashSession.id,
+        storageId: effectiveStorageId,
         customerId: customerId || undefined,
         subtotal,
         taxAmount,
@@ -591,7 +712,7 @@ export class SalesFromSessionService {
            * marcamos `paymentMethod = MIXED`.
            */
           isMixedPayment,
-          storageId: storageId || undefined,
+          storageId: effectiveStorageId || undefined,
           promotionSnapshot:
             serverAppliedPromotions.length > 0
               ? serverAppliedPromotions

@@ -11,7 +11,7 @@ import {
   Index,
 } from 'typeorm';
 import { Branch } from '@modules/branches/domain/branch.entity';
-import { PriceList } from '@modules/price-lists/domain/price-list.entity';
+import { Storage } from '@modules/storages/domain/storage.entity';
 
 @Entity('points_of_sale')
 export class PointOfSale {
@@ -38,6 +38,10 @@ export class PointOfSale {
   /** Centro de acopio por defecto al consolidar efectivo al cerrar sesión (opcional). */
   @Column({ type: 'uuid', nullable: true })
   defaultCashHubId?: string | null;
+
+  /** Almacén tipo sala de venta (STORE) de la misma sucursal: stock POS y descuentos de venta. */
+  @Column({ type: 'uuid', name: 'storage_id', nullable: true })
+  storageId?: string | null;
 
   @Column({ type: 'varchar', length: 255 })
   name!: string;
@@ -68,6 +72,10 @@ export class PointOfSale {
   @ManyToOne(() => Branch, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'branchId' })
   branch?: Branch;
+
+  @ManyToOne(() => Storage, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'storage_id' })
+  storage?: Storage;
 
   // Relaciones a PriceList ahora se gestionan vía priceLists JSON
 

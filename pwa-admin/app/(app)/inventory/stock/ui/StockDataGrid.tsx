@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
@@ -13,6 +13,7 @@ import { Select, type Option } from "@/shared/components/Select";
 import type { StockGridRow, StockStorageBreakdownRow } from "@/features/inventory-stock/types/stock-grid.types";
 import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
 import { adjustStockAction, transferStockAction } from "@/features/inventory-stock/actions/stock.action";
+import { useStockRealtime } from "@/features/inventory-stock/realtime/stock-realtime-context";
 
 type StockDataGridProps = {
   rows: StockGridRow[];
@@ -24,6 +25,24 @@ type StockDataGridProps = {
 
 function formatQty(n: number): string {
   return new Intl.NumberFormat("es-CL", { maximumFractionDigits: 3 }).format(n);
+}
+
+/** Izquierda: stock base por 1 unidad de venta (puente). Derecha: cantidad actual en unidades de venta. Ej. 250gr/2UN */
+function formatStockSlashPair(qty: number, row: StockGridRow): string {
+  const n = Number(qty);
+  if (!Number.isFinite(n)) {
+    return formatQty(0);
+  }
+  const stockSym = (row.stockUnitSymbol || "").trim();
+  const saleSym = (row.saleUnitSymbol || "").trim();
+  const bridge = row.stockBaseQtyPerCountSaleUnit;
+  if (bridge != null && bridge > 0 && saleSym && stockSym) {
+    const saleQty = n / bridge;
+    if (Number.isFinite(saleQty) && saleQty >= 0) {
+      return `${formatQty(bridge)}${stockSym}/${formatQty(saleQty)}${saleSym}`;
+    }
+  }
+  return stockSym ? `${formatQty(n)}${stockSym}` : formatQty(n);
 }
 
 function formatMoney(n: number): string {
@@ -174,13 +193,25 @@ function StockStorageCard({
       </div>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
         <dt className="text-muted-foreground">Físico</dt>
-        <dd className="text-right font-mono tabular-nums text-foreground">{formatQty(b.quantity)}</dd>
+        <dd
+          className="text-right font-mono tabular-nums text-foreground"
+          title={row.unitOfMeasure ? `Stock base: ${row.unitOfMeasure}` : undefined}
+        >
+          {formatStockSlashPair(b.quantity, row)}
+        </dd>
         <dt className="text-muted-foreground">Disponible</dt>
-        <dd className="text-right font-mono tabular-nums text-foreground">{formatQty(b.availableStock)}</dd>
+        <dd
+          className="text-right font-mono tabular-nums text-foreground"
+          title={row.unitOfMeasure ? `Stock base: ${row.unitOfMeasure}` : undefined}
+        >
+          {formatStockSlashPair(b.availableStock, row)}
+        </dd>
         {b.committedStock > 0 ? (
           <>
             <dt className="text-muted-foreground">Comprometido</dt>
-            <dd className="text-right font-mono tabular-nums text-foreground">{formatQty(b.committedStock)}</dd>
+            <dd className="text-right font-mono tabular-nums text-foreground">
+              {formatStockSlashPair(b.committedStock, row)}
+            </dd>
           </>
         ) : null}
       </dl>
@@ -257,10 +288,27 @@ function StockExpandPanel({
 
 export default function StockDataGrid({ rows, total, storages, branchId }: StockDataGridProps) {
   const router = useRouter();
+  const { lastStockEvents } = useStockRealtime();
+  const lastRealtimeRefreshAt = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    const latest = lastStockEvents[0];
+    const ra = latest?.receivedAt;
+    if (ra == null || ra === lastRealtimeRefreshAt.current) {
+      return;
+    }
+    lastRealtimeRefreshAt.current = ra;
+    const t = window.setTimeout(() => {
+      router.refresh();
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [lastStockEvents, router]);
+
   const [adjust, setAdjust] = useState<AdjustState | null>(null);
   const [transfer, setTransfer] = useState<TransferState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  /** No usar `startTransition` para el action + refresh: retrasa el RSC y la grilla puede quedar con datos viejos. */
+  const [isSaving, setIsSaving] = useState(false);
 
   const openAdjust = useCallback(
     (p: { variantId: string; storageId: string; title: string; currentQty: number }) => {
@@ -323,20 +371,73 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
       },
       { field: "sku", headerName: "SKU", sortable: true, width: 120 },
       {
+        field: "unitOfMeasure",
+        headerName: "Unidad stock",
+        sortable: true,
+        width: 120,
+        renderCell: ({ row }) => {
+          const r = row as StockGridRow;
+          const t = r.unitOfMeasure?.trim();
+          return t ? (
+            <span className="text-foreground" title={t}>
+              {t}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          );
+        },
+      },
+      {
+        field: "saleUnitOfMeasure",
+        headerName: "Unidad venta",
+        sortable: true,
+        width: 120,
+        renderCell: ({ row }) => {
+          const r = row as StockGridRow;
+          const t = r.saleUnitOfMeasure?.trim();
+          return t ? (
+            <span className="text-foreground" title={t}>
+              {t}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          );
+        },
+      },
+      {
         field: "totalStock",
         headerName: "Stock total",
         sortable: true,
-        width: 110,
+        width: 130,
         align: "right",
-        renderCell: ({ value }) => <span className="font-mono tabular-nums">{formatQty(Number(value) || 0)}</span>,
+        renderCell: ({ row, value }) => (
+          <span className="font-mono tabular-nums" title={(row as StockGridRow).unitOfMeasure || undefined}>
+            {formatStockSlashPair(Number(value) || 0, row as StockGridRow)}
+          </span>
+        ),
       },
       {
         field: "availableStock",
         headerName: "Disponible",
         sortable: true,
-        width: 110,
+        width: 130,
         align: "right",
-        renderCell: ({ value }) => <span className="font-mono tabular-nums">{formatQty(Number(value) || 0)}</span>,
+        renderCell: ({ row, value }) => (
+          <span className="font-mono tabular-nums" title={(row as StockGridRow).unitOfMeasure || undefined}>
+            {formatStockSlashPair(Number(value) || 0, row as StockGridRow)}
+          </span>
+        ),
+      },
+      {
+        field: "pmpValue",
+        headerName: "Valor stock (PMP)",
+        sortable: true,
+        width: 130,
+        align: "right",
+        renderCell: ({ row }) => {
+          const r = row as StockGridRow;
+          return <span className="tabular-nums text-foreground">{formatMoney(r.pmpValue)}</span>;
+        },
       },
       {
         field: "pmp",
@@ -390,8 +491,9 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
       setError("Cantidad objetivo no válida.");
       return;
     }
-    startTransition(() => {
-      void (async () => {
+    void (async () => {
+      setIsSaving(true);
+      try {
         const r = await adjustStockAction({
           variantId: adjust.variantId,
           storageId: adjust.storageId,
@@ -405,8 +507,10 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         } else {
           setError(r.error);
         }
-      })();
-    });
+      } finally {
+        setIsSaving(false);
+      }
+    })();
   };
 
   const submitTransfer = () => {
@@ -427,8 +531,9 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
     const variantId = transfer.variantId;
     const sourceStorageId = transfer.sourceStorageId;
     const note = transfer.note.trim() || undefined;
-    startTransition(() => {
-      void (async () => {
+    void (async () => {
+      setIsSaving(true);
+      try {
         const r = await transferStockAction({
           variantId,
           sourceStorageId,
@@ -442,8 +547,10 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         } else {
           setError(r.error);
         }
-      })();
-    });
+      } finally {
+        setIsSaving(false);
+      }
+    })();
   };
 
   return (
@@ -465,7 +572,7 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
       <Dialog
         open={adjust?.open ?? false}
         onClose={() => {
-          if (!isPending) {
+          if (!isSaving) {
             setError(null);
             setAdjust(null);
           }
@@ -483,10 +590,10 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         }
         actions={
           <>
-            <Button variant="outlined" size="md" disabled={isPending} onClick={() => setAdjust(null)}>
+            <Button variant="outlined" size="md" disabled={isSaving} onClick={() => setAdjust(null)}>
               Cancelar
             </Button>
-            <Button variant="primary" size="md" disabled={isPending} onClick={submitAdjust}>
+            <Button variant="primary" size="md" disabled={isSaving} onClick={submitAdjust}>
               Guardar
             </Button>
           </>
@@ -520,7 +627,7 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
       <Dialog
         open={transfer?.open ?? false}
         onClose={() => {
-          if (!isPending) {
+          if (!isSaving) {
             setError(null);
             setTransfer(null);
           }
@@ -538,10 +645,10 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         }
         actions={
           <>
-            <Button variant="outlined" size="md" disabled={isPending} onClick={() => setTransfer(null)}>
+            <Button variant="outlined" size="md" disabled={isSaving} onClick={() => setTransfer(null)}>
               Cancelar
             </Button>
-            <Button variant="primary" size="md" disabled={isPending || !transfer?.targetStorageId} onClick={submitTransfer}>
+            <Button variant="primary" size="md" disabled={isSaving || !transfer?.targetStorageId} onClick={submitTransfer}>
               Transferir
             </Button>
           </>

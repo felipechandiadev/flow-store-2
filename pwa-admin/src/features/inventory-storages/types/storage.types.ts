@@ -40,7 +40,7 @@ export function storageTypeLabel(t: StorageType): string {
     case "WAREHOUSE":
       return "Almacén";
     case "STORE":
-      return "Tienda";
+      return "Sala de venta";
     case "COLD_ROOM":
       return "Cámara fría";
     case "TRANSIT":

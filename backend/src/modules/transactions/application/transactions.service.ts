@@ -83,7 +83,7 @@ export class TransactionsService {
     const result = await this.queryBus.execute(
       new GetMovementsForSessionQuery(cashSessionId),
     );
-    return result.movements;
+    return Array.isArray(result) ? result : [];
   }
 
   async listJournal(dto: SearchTransactionsDto): Promise<any> {

@@ -102,12 +102,15 @@ const DropdownList: React.FC<DropdownListProps> = ({
     ? childrenArray.map((child, idx) => {
         if (React.isValidElement<{ className?: string }>(child)) {
           const currentClassName = child.props.className || '';
-          const hoverClass = 
-            highlightedIndex === idx 
-              ? 'bg-primary/10 text-foreground' 
-              : hoveredIndex === idx
-              ? 'bg-neutral'
-              : '';
+          // UX: navegación por teclado debe verse igual que hover.
+          const hoverClass =
+            highlightedIndex === idx || hoveredIndex === idx ? "bg-neutral" : "";
+
+          // #region agent log
+          if (open && idx === 0) {
+            fetch('http://127.0.0.1:7499/ingest/88a9c382-e0ee-4ab4-9a5c-23a427cc624a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67a81e'},body:JSON.stringify({sessionId:'67a81e',runId:'pre-fix',hypothesisId:'H3',location:'DropdownList.tsx:clone',message:'render-open',data:{usePortal,highlightedIndex,childrenCount:childrenArray.length,hasAnchor:!!anchorRef?.current},timestamp:Date.now()})}).catch(()=>{});
+          }
+          // #endregion agent log
           
           return React.cloneElement(child, {
             key: child.key ?? idx,

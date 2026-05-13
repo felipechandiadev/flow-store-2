@@ -15,6 +15,7 @@ import { TransactionCreatedEvent } from '../../../../shared/events/transaction-c
 import { AccountingPeriodsService } from '../../../accounting-periods/application/accounting-periods.service';
 import { CreateTransactionDto } from '../dto/create-transaction.dto';
 import { DocumentNumberService } from '../document-number.service';
+import { VariantQuantityConversionService } from '@modules/product-variants/application/variant-quantity-conversion.service';
 
 export class CreateTransactionCommand {
   constructor(public readonly dto: CreateTransactionDto) {}
@@ -36,6 +37,7 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
     private readonly accountingPeriodsService: AccountingPeriodsService,
     private readonly eventBus: EventBus,
     private readonly documentNumberService: DocumentNumberService,
+    private readonly variantQuantityConversion: VariantQuantityConversionService,
   ) {}
 
   async execute(command: CreateTransactionCommand): Promise<Transaction> {
@@ -83,8 +85,11 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
         `(${accountingPeriod.id}) - Status: ${accountingPeriod.status}`,
     );
 
-    // Usar transacción DB para ATOMICIDAD
-    return this.dataSource.transaction(async (manager) => {
+    await this.variantQuantityConversion.enrichCreateTransactionDto(dto, companyId);
+
+    // Transacción DB: persistir todo y hacer commit antes de publicar el evento,
+    // para que los suscriptores (p. ej. actualización de stock) vean las líneas en BD.
+    const savedTx = await this.dataSource.transaction(async (manager) => {
       try {
         // Paso 2: Folio correlativo (SIGLA-YY-00001)
         const documentNumber = await this.documentNumberService.allocateNext(
@@ -152,6 +157,7 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
           const lineEntities = dto.lines.map((line, index) =>
             lineRepo.create({
               transactionId: savedTx.id,
+              companyId,
               productId: line.productId,
               productVariantId: line.productVariantId,
               unitId: line.unitId,
@@ -161,6 +167,9 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
               productSku: line.productSku,
               variantName: line.variantName,
               quantity: line.quantity,
+              quantityInBase: (line as any).quantityInBase ?? null,
+              unitOfMeasure: (line as any).unitOfMeasure ?? null,
+              unitConversionFactor: (line as any).unitConversionFactor ?? null,
               unitPrice: line.unitPrice,
               unitCost: line.unitCost,
               discountPercentage: line.discountPercentage,
@@ -203,15 +212,6 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
           }
         }
 
-        // Paso 5: EMITIR evento 'transaction.created'
-        // Get companyId from branch
-        const branch = await this.transactionsRepository.manager
-          .getRepository('Branch')
-          .findOne({ where: { id: command.dto.branchId } });
-        const companyId = branch?.companyId;
-
-        this.eventBus.publish(new TransactionCreatedEvent(savedTx, companyId));
-
         return savedTx;
       } catch (error) {
         this.logger.error(
@@ -221,6 +221,10 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
         throw error;
       }
     });
+
+    this.eventBus.publish(new TransactionCreatedEvent(savedTx, companyId));
+
+    return savedTx;
   }
 
 }

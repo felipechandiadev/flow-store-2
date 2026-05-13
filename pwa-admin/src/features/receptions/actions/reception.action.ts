@@ -4,11 +4,25 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import { ReceptionRequest } from "../infrastructure/reception.request";
-import type { CreateDirectReceptionInput, CreateReceptionResult } from "../types/reception.types";
+import type {
+  CreateDirectReceptionInput,
+  CreateReceptionResult,
+  ReceptionListForGridResult,
+} from "../types/reception.types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const DTE_TYPES = new Set(["invoice", "receipt", "guide", "other"]);
+
+export async function listReceptionsForGridAction(opts: {
+  page?: number;
+  limit?: number;
+} = {}): Promise<ReceptionListForGridResult> {
+  const page = Math.max(1, Math.round(opts.page ?? 1));
+  const limit = Math.min(200, Math.max(1, Math.round(opts.limit ?? 25)));
+  const offset = (page - 1) * limit;
+  return ReceptionRequest.listForGrid({ limit, offset });
+}
 
 export async function createDirectReceptionAction(input: CreateDirectReceptionInput): Promise<CreateReceptionResult> {
   const session = await getServerSession(authOptions);

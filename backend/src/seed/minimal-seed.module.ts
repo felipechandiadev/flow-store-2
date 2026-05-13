@@ -24,6 +24,7 @@ import { Product } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
+import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 
 /**
  * Misma conexión y entidades que el API: el esquema lo define TypeORM vía
@@ -59,6 +60,7 @@ import { Storage } from '@modules/storages/domain/storage.entity';
       ProductVariant,
       PriceListItem,
       Storage,
+      StockLevel,
     ]),
   ],
 })

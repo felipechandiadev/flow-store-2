@@ -12,18 +12,25 @@ import { Repository, DataSource, IsNull } from 'typeorm';
 import {
   CashSession,
   CashSessionStatus,
+  type CashSessionClosingDetails,
+  type CashSessionTenderBreakdown,
 } from '@modules/cash-sessions/domain/cash-session.entity';
 import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
 import { User } from '@modules/users/domain/user.entity';
 import { OpenCashSessionDto } from './dto/open-cash-session.dto';
 import { GetCashSessionsDto } from './dto/get-cash-sessions.dto';
+import type { CloseCashSessionCountedDto } from './dto/close-cash-session.dto';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
 import {
+  Transaction,
   TransactionType,
   PaymentMethod,
+  TransactionStatus,
+  PaymentStatus,
 } from '@modules/transactions/domain/transaction.entity';
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { CashHubsService } from '@modules/cash-hubs/application/cash-hubs.service';
+import { saleTransactionCashFlows } from './sale-transaction-cash-flow.util';
 
 /**
  * CashSessionCoreService - Single Responsibility: Session Lifecycle Management
@@ -50,6 +57,8 @@ export class CashSessionCoreService {
     private readonly pointOfSaleRepository: Repository<PointOfSale>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
     private readonly dataSource: DataSource,
     @Inject(forwardRef(() => TransactionsService))
     private readonly transactionsService: TransactionsService,
@@ -135,6 +144,20 @@ export class CashSessionCoreService {
       },
       movements,
     };
+  }
+
+  /**
+   * Movimientos de la sesión (transacciones asociadas), más recientes primero.
+   */
+  async listMovementsForSession(cashSessionId: string) {
+    const row = await this.cashSessionRepository.findOne({
+      where: { id: cashSessionId, deletedAt: null as any },
+      select: ['id'],
+    });
+    if (!row) {
+      throw new NotFoundException('Sesión de caja no encontrada');
+    }
+    return this.transactionsService.getMovementsForSession(cashSessionId);
   }
 
   /**
@@ -368,7 +391,11 @@ export class CashSessionCoreService {
   async closeByUserName(
     sessionId: string,
     userName: string,
-    options?: { cashHubId?: string },
+    options?: {
+      cashHubId?: string;
+      notes?: string | null;
+      counted?: CloseCashSessionCountedDto | null;
+    },
   ) {
     const trimmedUserName = userName?.trim();
     if (!trimmedUserName) {
@@ -388,10 +415,38 @@ export class CashSessionCoreService {
     return this.close(sessionId, user.id, options);
   }
 
+  private buildCountedTenders(
+    raw?: CloseCashSessionCountedDto | null,
+  ): { actual: CashSessionTenderBreakdown; grand: number } {
+    const actual: CashSessionTenderBreakdown = {
+      cash: Math.max(0, Number(raw?.cash ?? 0)),
+      debitCard: Math.max(0, Number(raw?.debitCard ?? 0)),
+      creditCard: Math.max(0, Number(raw?.creditCard ?? 0)),
+      transfer: Math.max(0, Number(raw?.transfer ?? 0)),
+      check: Math.max(0, Number(raw?.check ?? 0)),
+      other: Math.max(0, Number(raw?.other ?? 0)),
+    };
+    const grand = Number(
+      (
+        actual.cash +
+        actual.debitCard +
+        actual.creditCard +
+        actual.transfer +
+        actual.check +
+        actual.other
+      ).toFixed(2),
+    );
+    return { actual, grand };
+  }
+
   async close(
     sessionId: string,
     userId: string,
-    options?: { cashHubId?: string },
+    options?: {
+      cashHubId?: string;
+      notes?: string | null;
+      counted?: CloseCashSessionCountedDto | null;
+    },
   ) {
     // 1. Validar sesión
     const session = await this.cashSessionRepository.findOne({
@@ -407,9 +462,14 @@ export class CashSessionCoreService {
       );
     }
 
-    // 2. Calcular expectedAmount (sumar ventas asociadas a la sesión)
-    const expectedAmount =
+    // 2. Totales de referencia
+    const salesTotal =
       await this.transactionsService.getTotalSalesForSession(sessionId);
+    const systemCashExpected =
+      await this.recomputeCashSessionExpectedAmount(session);
+    const { actual: countedActual, grand: countedGrand } =
+      this.buildCountedTenders(options?.counted ?? null);
+    const useCounted = countedGrand >= 0.01;
 
     // 3. Obtener usuario que cierra
     const closedBy = await this.userRepository.findOne({
@@ -418,6 +478,9 @@ export class CashSessionCoreService {
     if (!closedBy) {
       throw new NotFoundException('Usuario que cierra no encontrado');
     }
+
+    const closingTxTotal = useCounted ? countedGrand : salesTotal;
+    const hubTransferAmount = useCounted ? countedActual.cash : salesTotal;
 
     // 4. Crear transacción de cierre de caja
     // Validar branchId
@@ -438,28 +501,38 @@ export class CashSessionCoreService {
     }
     let closingTxId: string | null = null;
     let hubTransferId: string | null = null;
-    if (Number(expectedAmount) >= 0.01) {
+    if (Number(closingTxTotal) >= 0.01) {
       const txDto = new CreateTransactionDto();
       txDto.transactionType = TransactionType.CASH_SESSION_CLOSING;
       txDto.branchId = branchId;
       txDto.userId = closedBy.id;
       txDto.pointOfSaleId = session.pointOfSaleId;
       txDto.cashSessionId = session.id;
-      txDto.subtotal = expectedAmount;
+      txDto.subtotal = closingTxTotal;
       txDto.taxAmount = 0;
       txDto.discountAmount = 0;
-      txDto.total = expectedAmount;
+      txDto.total = closingTxTotal;
       txDto.paymentMethod = PaymentMethod.CASH;
-      txDto.amountPaid = expectedAmount;
+      txDto.amountPaid = closingTxTotal;
       txDto.lines = [];
-      txDto.notes = 'Cierre automático de sesión de caja';
+      txDto.notes = useCounted
+        ? options?.notes?.trim() || 'Cierre de sesión con arqueo (conteo físico)'
+        : 'Cierre automático de sesión de caja';
+      if (useCounted) {
+        txDto.metadata = {
+          blindClose: true,
+          counted: countedActual,
+          systemCashExpected,
+          salesTotal,
+        };
+      }
 
       const closingTx = await this.transactionsService.createTransaction(txDto);
       closingTxId = closingTx.id;
 
       const companyId = session.pointOfSale?.branch?.companyId;
       const posId = session.pointOfSaleId;
-      if (companyId && posId) {
+      if (companyId && posId && Number(hubTransferAmount) >= 0.01) {
         let hubId: string | null = null;
         if (options?.cashHubId) {
           const ok = await this.cashHubsService.validateHubForPos(
@@ -487,19 +560,22 @@ export class CashSessionCoreService {
           hubTx.pointOfSaleId = posId;
           hubTx.cashSessionId = session.id;
           hubTx.cashHubId = hubId;
-          hubTx.subtotal = expectedAmount;
+          hubTx.subtotal = hubTransferAmount;
           hubTx.taxAmount = 0;
           hubTx.discountAmount = 0;
-          hubTx.total = expectedAmount;
+          hubTx.total = hubTransferAmount;
           hubTx.paymentMethod = PaymentMethod.CASH;
-          hubTx.amountPaid = expectedAmount;
+          hubTx.amountPaid = hubTransferAmount;
           hubTx.lines = [];
           hubTx.relatedTransactionId = closingTx.id;
-          hubTx.notes = 'Traslado de efectivo de cierre de sesión a centro de acopio';
+          hubTx.notes = useCounted
+            ? 'Traslado de efectivo contado (cierre) a centro de acopio'
+            : 'Traslado de efectivo de cierre de sesión a centro de acopio';
           hubTx.metadata = {
             cashSessionToHub: true,
             cashHubId: hubId,
             closingTransactionId: closingTx.id,
+            blindClose: useCounted,
           };
           const hubTxSaved =
             await this.transactionsService.createTransaction(hubTx);
@@ -508,13 +584,43 @@ export class CashSessionCoreService {
       }
     }
 
+    const diffTotal = useCounted
+      ? Number((countedGrand - systemCashExpected).toFixed(2))
+      : 0;
+
+    const closingDetails: CashSessionClosingDetails | null = useCounted
+      ? {
+          countedByUserId: closedBy.id,
+          countedByUserName: closedBy.userName ?? null,
+          countedAt: new Date().toISOString(),
+          notes: options?.notes?.trim() ?? null,
+          actual: countedActual,
+          expected: {
+            cash: systemCashExpected,
+            debitCard: 0,
+            creditCard: 0,
+            transfer: 0,
+            check: 0,
+            other: 0,
+          },
+          difference: {
+            cash: Number((countedActual.cash - systemCashExpected).toFixed(2)),
+            total: diffTotal,
+          },
+        }
+      : null;
+
     // 5. Actualizar sesión
     session.status = CashSessionStatus.CLOSED;
     session.closedAt = new Date();
     session.closedById = closedBy.id;
-    session.expectedAmount = expectedAmount;
-    session.closingAmount = expectedAmount; // Por ahora igual, se puede ajustar si hay conteo físico
-    session.difference = 0; // Por ahora igual, se puede ajustar si hay conteo físico
+    session.expectedAmount = useCounted ? systemCashExpected : salesTotal;
+    session.closingAmount = closingTxTotal;
+    session.difference = useCounted ? diffTotal : 0;
+    if (options?.notes?.trim()) {
+      session.notes = options.notes.trim();
+    }
+    session.closingDetails = closingDetails;
     await this.cashSessionRepository.save(session);
 
     return {
@@ -523,7 +629,13 @@ export class CashSessionCoreService {
       sessionId,
       closingTransactionId: closingTxId,
       hubTransferTransactionId: hubTransferId,
-      expectedAmount,
+      expectedAmount: useCounted ? systemCashExpected : salesTotal,
+      salesTotal,
+      systemCashExpected,
+      usedBlindCount: useCounted,
+      countedGrand: useCounted ? countedGrand : undefined,
+      counted: useCounted ? countedActual : undefined,
+      difference: useCounted ? diffTotal : undefined,
     };
   }
 
@@ -594,5 +706,285 @@ export class CashSessionCoreService {
         // TODO: Add totalSales, totalPayments, etc from DB
       },
     };
+  }
+
+  /**
+   * Centros de acopio vinculados al POS de la sesión, con saldo disponible para retirar a caja.
+   */
+  async listCashHubsForSessionDeposit(cashSessionId: string) {
+    const session = await this.cashSessionRepository.findOne({
+      where: { id: cashSessionId, deletedAt: null as any },
+      relations: ['pointOfSale'],
+    });
+    if (!session) {
+      throw new NotFoundException('Sesión de caja no encontrada');
+    }
+    if (session.status !== CashSessionStatus.OPEN) {
+      throw new BadRequestException('La sesión no está abierta');
+    }
+    const posId = session.pointOfSaleId;
+    if (!posId || !session.pointOfSale) {
+      throw new BadRequestException('Sesión sin punto de venta asociado');
+    }
+    const companyId = session.companyId;
+    const list = await this.cashHubsService.listByCompany(companyId);
+    const hubs: Array<{
+      id: string;
+      name: string;
+      code: string | null;
+      currentBalance: number;
+    }> = [];
+    for (const h of list) {
+      const ok = await this.cashHubsService.validateHubForPos(
+        companyId,
+        posId,
+        h.id,
+      );
+      if (!ok) continue;
+      hubs.push({
+        id: h.id,
+        name: h.name,
+        code: h.code ?? null,
+        currentBalance: Number((h as { currentBalance?: number }).currentBalance ?? 0),
+      });
+    }
+    return { success: true, hubs };
+  }
+
+  /**
+   * Ingreso de efectivo a la sesión desde un centro de acopio (valida saldo y vínculo POS–hub).
+   */
+  async depositCashFromHub(params: {
+    cashSessionId: string;
+    cashHubId: string;
+    amount: number;
+    userId: string;
+    reason?: string;
+  }) {
+    const { cashSessionId, cashHubId, amount, userId, reason } = params;
+    if (amount < 0.01) {
+      throw new BadRequestException('El monto debe ser mayor a cero');
+    }
+    const session = await this.cashSessionRepository.findOne({
+      where: { id: cashSessionId, deletedAt: null as any },
+      relations: ['pointOfSale'],
+    });
+    if (!session) {
+      throw new NotFoundException('Sesión de caja no encontrada');
+    }
+    if (session.status !== CashSessionStatus.OPEN) {
+      throw new BadRequestException('La sesión no está abierta');
+    }
+    const pos = session.pointOfSale;
+    const posId = session.pointOfSaleId;
+    if (!posId || !pos?.branchId) {
+      throw new BadRequestException('Punto de venta o sucursal no configurados');
+    }
+    const companyId = session.companyId;
+    const allowed = await this.cashHubsService.validateHubForPos(
+      companyId,
+      posId,
+      cashHubId,
+    );
+    if (!allowed) {
+      throw new BadRequestException(
+        'El centro de acopio no está vinculado a este punto de venta',
+      );
+    }
+    const hubBalance = await this.cashHubsService.getHubBalance(
+      companyId,
+      cashHubId,
+    );
+    if (amount > hubBalance + 0.0001) {
+      throw new BadRequestException(
+        `Saldo insuficiente en el centro de acopio (disponible: ${hubBalance})`,
+      );
+    }
+    const dto = new CreateTransactionDto();
+    dto.transactionType = TransactionType.CASH_SESSION_DEPOSIT;
+    dto.branchId = pos.branchId;
+    dto.userId = userId;
+    dto.pointOfSaleId = posId;
+    dto.cashSessionId = cashSessionId;
+    dto.cashHubId = cashHubId;
+    dto.subtotal = amount;
+    dto.taxAmount = 0;
+    dto.discountAmount = 0;
+    dto.total = amount;
+    dto.paymentMethod = PaymentMethod.CASH;
+    dto.paymentStatus = PaymentStatus.PAID;
+    dto.amountPaid = amount;
+    dto.notes = reason?.trim() || undefined;
+    dto.metadata = {
+      fromCashHub: true,
+      cashHubDeposit: true,
+      reason: reason?.trim() || undefined,
+    };
+    const saved = await this.transactionsService.createTransaction(dto);
+    const expected = await this.recomputeCashSessionExpectedAmount(session);
+    await this.cashSessionRepository.update(
+      { id: session.id },
+      { expectedAmount: expected },
+    );
+    return {
+      success: true,
+      transaction: {
+        id: saved.id,
+        documentNumber: saved.documentNumber,
+        createdAt: saved.createdAt,
+        total: Number(saved.total),
+      },
+      expectedAmount: expected,
+    };
+  }
+
+  /**
+   * Efectivo teórico disponible en la sesión abierta (para validar egresos a centro de acopio).
+   */
+  async getAvailableCashForOpenSession(cashSessionId: string) {
+    const session = await this.cashSessionRepository.findOne({
+      where: { id: cashSessionId, deletedAt: null as any },
+      relations: ['pointOfSale'],
+    });
+    if (!session) {
+      throw new NotFoundException('Sesión de caja no encontrada');
+    }
+    if (session.status !== CashSessionStatus.OPEN) {
+      throw new BadRequestException('La sesión no está abierta');
+    }
+    const available = await this.recomputeCashSessionExpectedAmount(session);
+    return { success: true, availableCash: available };
+  }
+
+  /**
+   * Egreso: traslado de efectivo desde la sesión hacia un centro de acopio (aumenta saldo del hub).
+   */
+  async withdrawCashSessionToHub(params: {
+    cashSessionId: string;
+    cashHubId: string;
+    amount: number;
+    userId: string;
+    reason?: string;
+  }) {
+    const { cashSessionId, cashHubId, amount, userId, reason } = params;
+    if (amount < 0.01) {
+      throw new BadRequestException('El monto debe ser mayor a cero');
+    }
+    const session = await this.cashSessionRepository.findOne({
+      where: { id: cashSessionId, deletedAt: null as any },
+      relations: ['pointOfSale'],
+    });
+    if (!session) {
+      throw new NotFoundException('Sesión de caja no encontrada');
+    }
+    if (session.status !== CashSessionStatus.OPEN) {
+      throw new BadRequestException('La sesión no está abierta');
+    }
+    const pos = session.pointOfSale;
+    const posId = session.pointOfSaleId;
+    if (!posId || !pos?.branchId) {
+      throw new BadRequestException('Punto de venta o sucursal no configurados');
+    }
+    const companyId = session.companyId;
+    const allowed = await this.cashHubsService.validateHubForPos(
+      companyId,
+      posId,
+      cashHubId,
+    );
+    if (!allowed) {
+      throw new BadRequestException(
+        'El centro de acopio no está vinculado a este punto de venta',
+      );
+    }
+    const available = await this.recomputeCashSessionExpectedAmount(session);
+    if (amount > available + 0.0001) {
+      throw new BadRequestException(
+        `Efectivo insuficiente en la sesión (disponible: ${available})`,
+      );
+    }
+    const dto = new CreateTransactionDto();
+    dto.transactionType = TransactionType.CASH_SESSION_TO_HUB_TRANSFER;
+    dto.branchId = pos.branchId;
+    dto.userId = userId;
+    dto.pointOfSaleId = posId;
+    dto.cashSessionId = cashSessionId;
+    dto.cashHubId = cashHubId;
+    dto.subtotal = amount;
+    dto.taxAmount = 0;
+    dto.discountAmount = 0;
+    dto.total = amount;
+    dto.paymentMethod = PaymentMethod.CASH;
+    dto.paymentStatus = PaymentStatus.PAID;
+    dto.amountPaid = amount;
+    dto.lines = [];
+    dto.notes =
+      reason?.trim() || 'Traslado de efectivo de sesión a centro de acopio';
+    dto.metadata = {
+      cashSessionToHub: true,
+      cashHubId,
+      reason: reason?.trim() || undefined,
+    };
+    const saved = await this.transactionsService.createTransaction(dto);
+    const expected = await this.recomputeCashSessionExpectedAmount(session);
+    await this.cashSessionRepository.update(
+      { id: session.id },
+      { expectedAmount: expected },
+    );
+    return {
+      success: true,
+      transaction: {
+        id: saved.id,
+        documentNumber: saved.documentNumber,
+        createdAt: saved.createdAt,
+        total: Number(saved.total),
+      },
+      expectedAmount: expected,
+    };
+  }
+
+  private async recomputeCashSessionExpectedAmount(
+    cashSession: CashSession,
+  ): Promise<number> {
+    const transactions = await this.transactionRepository.find({
+      where: {
+        cashSessionId: cashSession.id,
+        status: TransactionStatus.CONFIRMED,
+      },
+    });
+    let cashIn = 0;
+    let cashOut = 0;
+    for (const tx of transactions) {
+      const total = Number(tx.total) || 0;
+      switch (tx.transactionType) {
+        case TransactionType.CASH_SESSION_OPENING:
+        case TransactionType.CASH_SESSION_DEPOSIT:
+          cashIn += total;
+          break;
+        case TransactionType.PAYMENT_IN:
+          if (tx.paymentMethod === PaymentMethod.CASH) {
+            cashIn += total;
+          }
+          break;
+        case TransactionType.SALE: {
+          const { cashIn: saleIn, cashOut: saleOut } =
+            saleTransactionCashFlows(tx);
+          cashIn += saleIn;
+          cashOut += saleOut;
+          break;
+        }
+        case TransactionType.CASH_SESSION_WITHDRAWAL:
+        case TransactionType.CASH_SESSION_TO_HUB_TRANSFER:
+        case TransactionType.OPERATING_EXPENSE:
+        case TransactionType.PAYMENT_OUT:
+        case TransactionType.SALE_RETURN:
+          cashOut += total;
+          break;
+        default:
+          break;
+      }
+    }
+    const opening = Number(cashSession.openingAmount) || 0;
+    const expected = opening + cashIn - cashOut;
+    return Number(expected.toFixed(2));
   }
 }

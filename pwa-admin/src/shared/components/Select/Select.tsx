@@ -64,6 +64,10 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!focused) return;
 
+      // #region agent log
+      fetch('http://127.0.0.1:7499/ingest/88a9c382-e0ee-4ab4-9a5c-23a427cc624a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67a81e'},body:JSON.stringify({sessionId:'67a81e',runId:'pre-fix',hypothesisId:'H2',location:'Select.tsx:documentKeydown',message:'keydown',data:{key:e.key,open,highlightedIndex,optionsLen:options.length,focused},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
+
       if (!open && ["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) {
         e.preventDefault();
         setOpen(true);
@@ -81,6 +85,9 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
         setHighlightedIndex(i => (i > 0 ? i - 1 : options.length - 1));
       } else if (e.key === "Enter" && highlightedIndex >= 0) {
         e.preventDefault();
+        // #region agent log
+        fetch('http://127.0.0.1:7499/ingest/88a9c382-e0ee-4ab4-9a5c-23a427cc624a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67a81e'},body:JSON.stringify({sessionId:'67a81e',runId:'pre-fix',hypothesisId:'H2',location:'Select.tsx:documentKeydown',message:'enter-select',data:{highlightedIndex,selectedId:highlightedIndex>=0 && highlightedIndex<options.length ? String(options[highlightedIndex].id) : null},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion agent log
         onChangeRef.current?.(options[highlightedIndex].id);
         setOpen(false);
         setHighlightedIndex(-1);

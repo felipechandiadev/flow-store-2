@@ -13,6 +13,7 @@ export class CreatePointOfSaleUseCase {
     return PointOfSaleRequest.create({
       name: d.name.trim(),
       branchId: d.branchId,
+      storageId: d.storageId,
       deviceId: d.deviceId,
       isActive: d.isActive,
       priceLists: d.priceLists,

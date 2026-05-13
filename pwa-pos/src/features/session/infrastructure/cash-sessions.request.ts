@@ -1,6 +1,8 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import type { ListCashSessionsResponse } from "../types/cash-session.types";
+import type { CashSessionMovementRow } from "../types/cash-session-movement.types";
+import type { CashHubDepositCandidate } from "../types/cash-hub-deposit.types";
 import type { CreateSaleApiBody } from "../lib/build-create-sale-payload";
 
 export class CashSessionsRequest {
@@ -138,6 +140,413 @@ export class CashSessionsRequest {
     }
 
     return { success: false, message: "Respuesta inesperada al registrar la venta" };
+  }
+
+  static async listMovements(cashSessionId: string): Promise<
+    | { success: true; movements: CashSessionMovementRow[] }
+    | { success: false; message: string; statusCode?: number }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      throw new Error("BACKEND_API_URL is not set");
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    const res = await fetch(
+      `${base}/api/cash-sessions/${encodeURIComponent(cashSessionId)}/movements`,
+      {
+        method: "GET",
+        headers,
+        cache: "no-store",
+      },
+    );
+
+    if (res.status === 404) {
+      return { success: false, message: "Sesión de caja no encontrada", statusCode: 404 };
+    }
+
+    const data = (await res.json().catch(() => null)) as unknown;
+    if (!res.ok) {
+      const obj = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+      const rawMsg = obj.message;
+      const msg =
+        typeof rawMsg === "string"
+          ? rawMsg
+          : Array.isArray(rawMsg)
+            ? rawMsg.map(String).join(", ")
+            : typeof obj.error === "string"
+              ? obj.error
+              : res.statusText || "No se pudieron cargar los movimientos";
+      return { success: false, message: msg, statusCode: res.status };
+    }
+
+    if (!Array.isArray(data)) {
+      return { success: false, message: "Respuesta inesperada del servidor" };
+    }
+
+    return { success: true, movements: data as CashSessionMovementRow[] };
+  }
+
+  static async listCashHubsForDeposit(cashSessionId: string): Promise<
+    | { success: true; hubs: CashHubDepositCandidate[] }
+    | { success: false; message: string; statusCode?: number }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      throw new Error("BACKEND_API_URL is not set");
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    const res = await fetch(
+      `${base}/api/cash-sessions/${encodeURIComponent(cashSessionId)}/cash-hubs-for-deposit`,
+      { method: "GET", headers, cache: "no-store" },
+    );
+
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const rawMsg = data?.message;
+      const msg =
+        typeof rawMsg === "string"
+          ? rawMsg
+          : Array.isArray(rawMsg)
+            ? rawMsg.map(String).join(", ")
+            : typeof data?.error === "string"
+              ? data.error
+              : res.statusText || "No se pudieron cargar los centros de acopio";
+      return { success: false, message: msg, statusCode: res.status };
+    }
+
+    const hubs = data?.hubs;
+    if (data?.success !== true || !Array.isArray(hubs)) {
+      return { success: false, message: "Respuesta inesperada del servidor" };
+    }
+
+    return { success: true, hubs: hubs as CashHubDepositCandidate[] };
+  }
+
+  static async depositCashFromHub(
+    cashSessionId: string,
+    body: { cashHubId: string; amount: number; userId: string; reason?: string },
+  ): Promise<
+    | {
+        success: true;
+        transaction: { id: string; documentNumber: string; total: number };
+        expectedAmount: number;
+      }
+    | { success: false; message: string; statusCode?: number }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      throw new Error("BACKEND_API_URL is not set");
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    const res = await fetch(
+      `${base}/api/cash-sessions/${encodeURIComponent(cashSessionId)}/cash-deposits-from-hub`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          cashHubId: body.cashHubId,
+          amount: body.amount,
+          userId: body.userId,
+          reason: body.reason?.trim() || undefined,
+        }),
+        cache: "no-store",
+      },
+    );
+
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const rawMsg = data?.message;
+      const msg =
+        typeof rawMsg === "string"
+          ? rawMsg
+          : Array.isArray(rawMsg)
+            ? rawMsg.map(String).join(", ")
+            : typeof data?.error === "string"
+              ? data.error
+              : res.statusText || "No se pudo registrar el ingreso";
+      return { success: false, message: msg, statusCode: res.status };
+    }
+
+    const tx = data?.transaction as { id?: string; documentNumber?: string; total?: number } | undefined;
+    if (data?.success === true && tx?.id && tx?.documentNumber != null) {
+      return {
+        success: true,
+        transaction: {
+          id: String(tx.id),
+          documentNumber: String(tx.documentNumber),
+          total: Number(tx.total ?? body.amount),
+        },
+        expectedAmount: Number(data?.expectedAmount ?? 0),
+      };
+    }
+
+    return { success: false, message: "Respuesta inesperada al registrar el ingreso" };
+  }
+
+  static async getAvailableCashForSession(cashSessionId: string): Promise<
+    | { success: true; availableCash: number }
+    | { success: false; message: string; statusCode?: number }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      throw new Error("BACKEND_API_URL is not set");
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    const res = await fetch(
+      `${base}/api/cash-sessions/${encodeURIComponent(cashSessionId)}/available-cash`,
+      { method: "GET", headers, cache: "no-store" },
+    );
+
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const rawMsg = data?.message;
+      const msg =
+        typeof rawMsg === "string"
+          ? rawMsg
+          : Array.isArray(rawMsg)
+            ? rawMsg.map(String).join(", ")
+            : typeof data?.error === "string"
+              ? data.error
+              : res.statusText || "No se pudo obtener el efectivo disponible";
+      return { success: false, message: msg, statusCode: res.status };
+    }
+
+    if (data?.success !== true || typeof data?.availableCash !== "number") {
+      return { success: false, message: "Respuesta inesperada del servidor" };
+    }
+
+    return { success: true, availableCash: Number(data.availableCash) };
+  }
+
+  static async withdrawCashSessionToHub(
+    cashSessionId: string,
+    body: { cashHubId: string; amount: number; userId: string; reason?: string },
+  ): Promise<
+    | {
+        success: true;
+        transaction: { id: string; documentNumber: string; total: number };
+        expectedAmount: number;
+      }
+    | { success: false; message: string; statusCode?: number }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      throw new Error("BACKEND_API_URL is not set");
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    const res = await fetch(
+      `${base}/api/cash-sessions/${encodeURIComponent(cashSessionId)}/cash-withdrawals-to-hub`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          cashHubId: body.cashHubId,
+          amount: body.amount,
+          userId: body.userId,
+          reason: body.reason?.trim() || undefined,
+        }),
+        cache: "no-store",
+      },
+    );
+
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const rawMsg = data?.message;
+      const msg =
+        typeof rawMsg === "string"
+          ? rawMsg
+          : Array.isArray(rawMsg)
+            ? rawMsg.map(String).join(", ")
+            : typeof data?.error === "string"
+              ? data.error
+              : res.statusText || "No se pudo registrar el traslado";
+      return { success: false, message: msg, statusCode: res.status };
+    }
+
+    const tx = data?.transaction as { id?: string; documentNumber?: string; total?: number } | undefined;
+    if (data?.success === true && tx?.id && tx?.documentNumber != null) {
+      return {
+        success: true,
+        transaction: {
+          id: String(tx.id),
+          documentNumber: String(tx.documentNumber),
+          total: Number(tx.total ?? body.amount),
+        },
+        expectedAmount: Number(data?.expectedAmount ?? 0),
+      };
+    }
+
+    return { success: false, message: "Respuesta inesperada al registrar el traslado" };
+  }
+
+  static async close(input: {
+    cashSessionId: string;
+    userId: string;
+    notes?: string;
+    cashHubId?: string;
+    counted?: {
+      cash: number;
+      debitCard: number;
+      creditCard: number;
+      transfer: number;
+      check: number;
+      other: number;
+    };
+  }): Promise<
+    | {
+        success: true;
+        message?: string;
+        sessionId?: string;
+        closingTransactionId?: string | null;
+        hubTransferTransactionId?: string | null;
+        expectedAmount?: number;
+        salesTotal?: number;
+        systemCashExpected?: number;
+        usedBlindCount?: boolean;
+        countedGrand?: number;
+        counted?: Record<string, number>;
+        difference?: number;
+      }
+    | { success: false; message: string; statusCode?: number }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      throw new Error("BACKEND_API_URL is not set");
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const cashSessionId = typeof input.cashSessionId === "string" ? input.cashSessionId.trim() : "";
+    const userId = typeof input.userId === "string" ? input.userId.trim() : "";
+    if (!cashSessionId || !userId) {
+      return { success: false, message: "Sesión o usuario no válidos" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    const body: Record<string, unknown> = {
+      sessionId: cashSessionId,
+      userId,
+      notes: input.notes?.trim() || undefined,
+      cashHubId: input.cashHubId?.trim() || undefined,
+    };
+    if (input.counted) {
+      body.counted = input.counted;
+    }
+
+    const res = await fetch(`${base}/api/cash-sessions/close`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const rawMsg = data?.message;
+      const msg =
+        typeof rawMsg === "string"
+          ? rawMsg
+          : Array.isArray(rawMsg)
+            ? rawMsg.map(String).join(", ")
+            : typeof data?.error === "string"
+              ? data.error
+              : res.statusText || "No se pudo cerrar la sesión de caja";
+      return { success: false, message: msg, statusCode: res.status };
+    }
+
+    if (data?.success === true) {
+      return data as {
+        success: true;
+        message?: string;
+        sessionId?: string;
+        closingTransactionId?: string | null;
+        hubTransferTransactionId?: string | null;
+        expectedAmount?: number;
+        salesTotal?: number;
+        systemCashExpected?: number;
+        usedBlindCount?: boolean;
+        countedGrand?: number;
+        counted?: Record<string, number>;
+        difference?: number;
+      };
+    }
+
+    return { success: false, message: "Respuesta inesperada al cerrar sesión" };
   }
 }
 

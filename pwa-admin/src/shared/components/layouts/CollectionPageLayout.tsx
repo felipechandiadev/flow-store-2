@@ -288,9 +288,8 @@ function CollectionPageLayoutView({
                       value={searchInput}
                       onChange={handleSearchChange}
                       placeholder={searchPlaceholder}
-          
                       startAdornment={
-                        <Search className=" text-secondary" strokeWidth={1} aria-hidden />
+                        <Search className="h-4 w-4 shrink-0 text-secondary" aria-hidden />
                       }
                       className="w-full sm:w-64"
                       data-test-id="collection-page-layout-search"
@@ -300,16 +299,19 @@ function CollectionPageLayoutView({
               </div>
               {showSearch ? (
                 <div className="mt-0 flex items-start justify-end gap-2 sm:hidden">
-                  <div className="flex min-w-0 flex-1 items-start max-w-xs">
+                  <div className="flex min-w-0 max-w-xs flex-1 items-start">
                     <div className="flex w-full items-start gap-2">
+                      <label htmlFor={`${searchParamName}-mobile`} className="sr-only">
+                        {searchLabel}
+                      </label>
                       <TextField
-                        label={searchLabel}
+                        label="Buscar"
                         placeholder={searchPlaceholder}
                         name={`${searchParamName}-mobile`}
                         value={searchInput}
                         onChange={handleSearchChange}
                         startAdornment={
-                          <Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />
+                          <Search className="h-4 w-4 shrink-0 text-secondary" aria-hidden />
                         }
                         className="w-full text-sm"
                         data-test-id="collection-page-layout-search-mobile"

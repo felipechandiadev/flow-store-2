@@ -5,6 +5,7 @@ export { default as TextField } from "./TextField";
 export { Badge } from "./Badge";
 export { default as IconButton } from "./IconButton";
 export { Select } from "./Select";
+export type { Option as SelectOption } from "./Select";
 export { default as DropdownList } from "./DropdownList";
 export { default as Dialog } from "./Dialog";
 export { default as DotProgress } from "./DotProgress";

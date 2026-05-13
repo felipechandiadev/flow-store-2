@@ -82,6 +82,10 @@ describe('SalesFromSessionService — PR5 promotions integration', () => {
       productId: 'product-1',
       sku: 'SKU-1',
       baseCost: 0,
+      saleUnitId: 'unit-1',
+      unitId: 'unit-1',
+      stockBaseUnitId: 'unit-1',
+      purchaseUnitId: 'unit-1',
       product: {
         id: 'product-1',
         name: 'Camiseta',
@@ -123,6 +127,31 @@ describe('SalesFromSessionService — PR5 promotions integration', () => {
         if (name === 'ProductVariant') {
           return {
             findOne: jest.fn().mockResolvedValue(productVariant),
+          };
+        }
+        if (name === 'Unit') {
+          return {
+            find: jest.fn().mockResolvedValue([
+              {
+                id: 'unit-1',
+                companyId,
+                isBase: true,
+                baseUnitId: null,
+                conversionFactor: 1,
+                dimension: 'COUNT',
+              },
+            ]),
+          };
+        }
+        if (name === 'Storage') {
+          return {
+            findOne: jest.fn().mockResolvedValue({
+              id: 'storage-default-1',
+              branchId,
+              name: 'Principal',
+              isDefault: true,
+              isActive: true,
+            }),
           };
         }
         if (name === 'PromotionRedemption') {
@@ -182,6 +211,16 @@ describe('SalesFromSessionService — PR5 promotions integration', () => {
       getPaymentMethods: jest.fn().mockResolvedValue([]),
     };
 
+    const variantQuantityConversion = {
+      toVariantStockBaseSync: jest.fn().mockReturnValue({
+        quantityInBase: 1,
+        unitConversionFactor: 1,
+        unitOfMeasure: 'u',
+      }),
+      validateVariantUomTripletAsync: jest.fn().mockResolvedValue(undefined),
+      enrichCreateTransactionDto: jest.fn().mockResolvedValue(undefined),
+    };
+
     const service = new SalesFromSessionService(
       {} as any,
       {} as any,
@@ -193,6 +232,7 @@ describe('SalesFromSessionService — PR5 promotions integration', () => {
       transactionsService as any,
       companiesService as any,
       promotionsService as any,
+      variantQuantityConversion as any,
     );
 
     return {

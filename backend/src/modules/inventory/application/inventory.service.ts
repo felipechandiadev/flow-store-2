@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In, IsNull } from 'typeorm';
@@ -18,6 +19,29 @@ import { Branch } from '@modules/branches/domain/branch.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
 import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
+import { UpdateStockLevelThresholdsDto } from './dto/update-stock-level-thresholds.dto';
+import type { StockUpdatedPayload } from '@modules/stock-realtime/stock-realtime.types';
+import { buildStockUpdatedPayload } from '@modules/stock-realtime/stock-threshold-alert-payload.util';
+
+function compactUnitSymbol(u: { symbol?: string | null; name?: string | null } | null | undefined): string {
+  if (!u) {
+    return '';
+  }
+  const sym = String(u.symbol || '').trim();
+  if (sym) {
+    return sym;
+  }
+  const name = String(u.name || '').trim();
+  return name.length <= 10 ? name : `${name.slice(0, 8)}…`;
+}
+
+function parsePositiveBridge(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') {
+    return null;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 
 @Injectable()
 export class InventoryService {
@@ -65,6 +89,8 @@ export class InventoryService {
       .createQueryBuilder('variant')
       .leftJoinAndSelect('variant.product', 'product')
       .leftJoinAndSelect('variant.unit', 'unit')
+      .leftJoinAndSelect('variant.stockBaseUnit', 'stockBaseUnit')
+      .leftJoinAndSelect('variant.saleUnit', 'saleUnit')
       .where('variant.deletedAt IS NULL')
       .andWhere('(product.deletedAt IS NULL OR product.id IS NULL)');
 
@@ -162,7 +188,39 @@ export class InventoryService {
         variantId: variant.id,
         productName: product?.name || '',
         sku: variant.sku || '',
-        unitOfMeasure: variant.unit?.name || '',
+        unitOfMeasure: (() => {
+          const u = variant.stockBaseUnit ?? variant.unit;
+          if (!u) {
+            return '';
+          }
+          const sym = String(u.symbol || '').trim();
+          const name = String(u.name || '').trim();
+          if (sym && name && sym.toLowerCase() !== name.toLowerCase()) {
+            return `${name} (${sym})`;
+          }
+          return sym || name;
+        })(),
+        saleUnitOfMeasure: (() => {
+          const u = variant.saleUnit ?? variant.unit;
+          if (!u) {
+            return '';
+          }
+          const sym = String(u.symbol || '').trim();
+          const name = String(u.name || '').trim();
+          if (sym && name && sym.toLowerCase() !== name.toLowerCase()) {
+            return `${name} (${sym})`;
+          }
+          return sym || name;
+        })(),
+        stockUnitSymbol: compactUnitSymbol(
+          (variant as any).stockBaseUnit ?? (variant as any).unit,
+        ),
+        saleUnitSymbol: compactUnitSymbol(
+          (variant as any).saleUnit ?? (variant as any).unit,
+        ),
+        stockBaseQtyPerCountSaleUnit: parsePositiveBridge(
+          (variant as any).stockBaseQtyPerCountSaleUnit,
+        ),
         attributeValues: variant.attributeValues || {},
         totalStock: 0,
         availableStock: 0,
@@ -184,20 +242,36 @@ export class InventoryService {
         placeholderStorage
       ) {
         row.storageBreakdown.push({
+          stockLevelId: null,
           storageId: placeholderStorage.id,
           storageName: placeholderStorage.name || '',
           branchName: placeholderStorage.branch?.name || null,
           quantity: 0,
           availableStock: 0,
           committedStock: 0,
+          minimumStockOverride: null,
+          maximumStockOverride: null,
+          reorderPointOverride: null,
+          effectiveMinimumStock: Number(variant.minimumStock || 0),
+          effectiveMaximumStock: Number(variant.maximumStock || 0),
+          effectiveReorderPoint: Number(variant.reorderPoint || 0),
         });
       }
 
+      let anyBelowEffective = false;
       for (const sl of entries) {
         const qty = Number(sl.physicalStock || 0);
         const reservedQty = reservedByVariantStorage.get(`${vid}::${sl.storageId}`) ?? 0;
         row.reservedStock += reservedQty;
+        const effMin =
+          sl.minimumStock != null
+            ? Number(sl.minimumStock)
+            : Number(variant.minimumStock || 0);
+        if (effMin > 0 && qty < effMin) {
+          anyBelowEffective = true;
+        }
         row.storageBreakdown.push({
+          stockLevelId: sl.id,
           storageId: sl.storageId,
           storageName: sl.storage?.name || '',
           branchName: sl.storage?.branch?.name || null,
@@ -206,6 +280,18 @@ export class InventoryService {
           reservedStock: reservedQty,
           availableAfterReservation: Math.max(0, Number(sl.availableStock || 0) - reservedQty),
           committedStock: Number(sl.committedStock || 0),
+          minimumStockOverride: sl.minimumStock ?? null,
+          maximumStockOverride: sl.maximumStock ?? null,
+          reorderPointOverride: sl.reorderPoint ?? null,
+          effectiveMinimumStock: effMin,
+          effectiveMaximumStock:
+            sl.maximumStock != null
+              ? Number(sl.maximumStock)
+              : Number(variant.maximumStock || 0),
+          effectiveReorderPoint:
+            sl.reorderPoint != null
+              ? Number(sl.reorderPoint)
+              : Number(variant.reorderPoint || 0),
         });
         row.totalStock += qty;
         row.availableStock += Number(sl.availableStock || 0);
@@ -218,14 +304,16 @@ export class InventoryService {
 
       row.availableAfterReservation = Math.max(0, Number(row.availableStock || 0) - Number(row.reservedStock || 0));
       row.isBelowMinimum =
+        anyBelowEffective ||
         Number(row.totalStock) < Number(variant.minimumStock || 0);
     }
 
     const rows = variants.map((v) => grouped[v.id]).filter(Boolean);
-    // compute PMP value column (stock * pmp) for each row
     for (const r of rows) {
       r.pmpValue = Number(((r.totalStock || 0) * (r.pmp || 0)).toFixed(2));
     }
+
+    const sumPmpValue = rows.reduce((acc, r) => acc + Number(r.pmpValue || 0), 0);
 
     const sortField = (params?.sortField || 'productName').trim();
     const sortDesc = params?.sort === 'desc';
@@ -236,6 +324,14 @@ export class InventoryService {
         case 'sku':
           va = a.sku;
           vb = b.sku;
+          break;
+        case 'unitOfMeasure':
+          va = a.unitOfMeasure;
+          vb = b.unitOfMeasure;
+          break;
+        case 'saleUnitOfMeasure':
+          va = a.saleUnitOfMeasure;
+          vb = b.saleUnitOfMeasure;
           break;
         case 'totalStock':
           va = Number(a.totalStock);
@@ -248,6 +344,14 @@ export class InventoryService {
         case 'pmp':
           va = Number(a.pmp);
           vb = Number(b.pmp);
+          break;
+        case 'pmpValue':
+          va = Number(a.pmpValue);
+          vb = Number(b.pmpValue);
+          break;
+        case 'inventoryValueCost':
+          va = Number(a.inventoryValueCost);
+          vb = Number(b.inventoryValueCost);
           break;
         case 'isBelowMinimum':
           va = a.isBelowMinimum ? 1 : 0;
@@ -319,7 +423,11 @@ export class InventoryService {
       }));
     }
 
-    return { rows: pageRows, total };
+    return {
+      rows: pageRows,
+      total,
+      sumPmpValue: Number(sumPmpValue.toFixed(2)),
+    };
   }
 
   async adjust(data: {
@@ -450,33 +558,17 @@ export class InventoryService {
     const { variantId, sourceStorageId, targetStorageId, quantity, note } =
       data;
 
-    // decrement source
-    const src = await this.dataSource.getRepository(StockLevel).findOne({
+    // Stock: solo vía transacciones + UpdateStock (evita doble movimiento).
+    const srcLevel = await this.dataSource.getRepository(StockLevel).findOne({
       where: { productVariantId: variantId, storageId: sourceStorageId },
     });
-    if (!src) {
-      throw new NotFoundException('Stock no encontrado en almacén origen');
+    const srcQty = Number(srcLevel?.physicalStock ?? 0);
+    if (srcQty + 1e-9 < quantity) {
+      throw new BadRequestException(
+        `Stock insuficiente en origen: hay ${srcQty}, se solicitan ${quantity}.`,
+      );
     }
-    src.physicalStock = Number(src.physicalStock || 0) - quantity;
-    await this.dataSource.getRepository(StockLevel).save(src as any);
 
-    // increment target
-    let tgt = await this.dataSource.getRepository(StockLevel).findOne({
-      where: { productVariantId: variantId, storageId: targetStorageId },
-    });
-    if (!tgt) {
-      tgt = this.dataSource.getRepository(StockLevel).create({
-        productVariantId: variantId,
-        storageId: targetStorageId,
-        physicalStock: quantity,
-      } as any as StockLevel);
-    } else {
-      tgt.physicalStock = Number(tgt.physicalStock || 0) + quantity;
-    }
-    await this.dataSource.getRepository(StockLevel).save(tgt as any);
-
-    // create transactions
-    // determine branchId from source storage (must be non-empty)
     let branchId: string | undefined;
     const rawSource = await this.dataSource
       .getRepository(StockLevel)
@@ -543,5 +635,87 @@ export class InventoryService {
       message: 'Transferencia registrada',
       documentNumbers: [out.documentNumber, inn.documentNumber],
     };
+  }
+
+  async updateStockLevelThresholds(
+    companyId: string,
+    body: UpdateStockLevelThresholdsDto,
+  ) {
+    const storage = await this.dataSource.getRepository(Storage).findOne({
+      where: { id: body.storageId },
+      select: ['id', 'companyId'],
+    });
+    if (!storage || storage.companyId !== companyId) {
+      throw new ForbiddenException('Almacén no válido para la empresa activa');
+    }
+    const variant = await this.dataSource.getRepository(ProductVariant).findOne({
+      where: { id: body.productVariantId },
+      select: ['id', 'companyId'],
+    });
+    if (!variant || variant.companyId !== companyId) {
+      throw new ForbiddenException('Variante no válida para la empresa activa');
+    }
+    let level = await this.dataSource.getRepository(StockLevel).findOne({
+      where: {
+        productVariantId: body.productVariantId,
+        storageId: body.storageId,
+      },
+    });
+    if (!level) {
+      level = this.dataSource.getRepository(StockLevel).create({
+        companyId,
+        productVariantId: body.productVariantId,
+        storageId: body.storageId,
+        physicalStock: 0,
+        committedStock: 0,
+        availableStock: 0,
+        incomingStock: 0,
+      });
+    }
+    if (body.minimumStock !== undefined) {
+      level.minimumStock = body.minimumStock;
+    }
+    if (body.maximumStock !== undefined) {
+      level.maximumStock = body.maximumStock;
+    }
+    if (body.reorderPoint !== undefined) {
+      level.reorderPoint = body.reorderPoint;
+    }
+    await this.dataSource.getRepository(StockLevel).save(level);
+    return { ok: true, id: level.id };
+  }
+
+  /**
+   * Salidas alineadas con el payload WebSocket `stock:updated` para hidratar alertas al cargar la app.
+   */
+  async getThresholdAlerts(
+    companyId: string,
+    storageId?: string | null,
+  ): Promise<StockUpdatedPayload[]> {
+    const qb = this.dataSource
+      .getRepository(StockLevel)
+      .createQueryBuilder('sl')
+      .innerJoinAndSelect('sl.variant', 'variant')
+      .where('sl.companyId = :cid', { cid: companyId });
+    if (storageId) {
+      qb.andWhere('sl.storageId = :sid', { sid: storageId });
+    }
+    const levels = await qb.getMany();
+    const out: StockUpdatedPayload[] = [];
+    for (const sl of levels) {
+      if (!sl.variant) {
+        continue;
+      }
+      const payload = buildStockUpdatedPayload(
+        companyId,
+        sl.variant,
+        sl,
+        sl.lastTransactionId ?? null,
+      );
+      if (payload.alerts.length > 0) {
+        out.push(payload);
+      }
+    }
+    return out;
   }
 }

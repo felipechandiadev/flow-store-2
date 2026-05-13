@@ -77,8 +77,19 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
           }
           const p = item as Record<string, unknown>;
           const priceListId = p.priceListId != null ? String(p.priceListId) : "";
-          const priceListName = p.priceListName != null ? String(p.priceListName) : "";
-          const currency = p.currency != null ? String(p.currency) : "CLP";
+          const pl = p.priceList && typeof p.priceList === "object" ? (p.priceList as Record<string, unknown>) : null;
+          const priceListName =
+            p.priceListName != null && String(p.priceListName).trim()
+              ? String(p.priceListName).trim()
+              : pl?.name != null && String(pl.name).trim()
+                ? String(pl.name).trim()
+                : "";
+          const currency =
+            p.currency != null && String(p.currency).trim()
+              ? String(p.currency).trim()
+              : pl?.currency != null && String(pl.currency).trim()
+                ? String(pl.currency).trim()
+                : "CLP";
           const net = typeof p.netPrice === "number" ? p.netPrice : Number(p.netPrice) || 0;
           const gross = typeof p.grossPrice === "number" ? p.grossPrice : Number(p.grossPrice) || 0;
           if (!priceListId) {
@@ -125,13 +136,49 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
       : null;
   const weightNum = w != null && Number.isFinite(w) ? w : null;
 
+  const parseOptQty = (raw: unknown): number | null | undefined => {
+    if (raw === undefined) {
+      return undefined;
+    }
+    if (raw === null || raw === "") {
+      return null;
+    }
+    const n = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(n) || n <= 0) {
+      return null;
+    }
+    return n;
+  };
+
+  const parseNullableDecimal = (raw: unknown): number | null => {
+    if (raw == null || raw === "") {
+      return null;
+    }
+    const n = typeof raw === "number" ? raw : Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  let unitOfMeasure: string | null =
+    o.unitOfMeasure != null && String(o.unitOfMeasure).trim() ? String(o.unitOfMeasure).trim() : null;
+  if (!unitOfMeasure && o.unit && typeof o.unit === "object") {
+    const u = o.unit as Record<string, unknown>;
+    const sym = u.symbol != null && String(u.symbol).trim() ? String(u.symbol).trim() : "";
+    const nm = u.name != null && String(u.name).trim() ? String(u.name).trim() : "";
+    unitOfMeasure = sym ? `${nm} (${sym})` : nm || null;
+  }
+
   return {
     id,
     sku: sku || "—",
     productId: o.productId != null ? String(o.productId) : undefined,
     unitId: o.unitId != null ? String(o.unitId) : undefined,
+    stockBaseUnitId: o.stockBaseUnitId != null ? String(o.stockBaseUnitId) : undefined,
+    saleUnitId: o.saleUnitId != null ? String(o.saleUnitId) : undefined,
+    purchaseUnitId: o.purchaseUnitId != null ? String(o.purchaseUnitId) : undefined,
+    stockBaseQtyPerCountSaleUnit: parseOptQty(o.stockBaseQtyPerCountSaleUnit),
+    stockBaseQtyPerCountPurchaseUnit: parseOptQty(o.stockBaseQtyPerCountPurchaseUnit),
     barcode: o.barcode != null && String(o.barcode).trim() ? String(o.barcode) : null,
-    unitOfMeasure: o.unitOfMeasure != null ? String(o.unitOfMeasure) : null,
+    unitOfMeasure,
     isActive: o.isActive !== false,
     basePrice: typeof o.basePrice === "number" ? o.basePrice : o.basePrice != null ? Number(o.basePrice) : undefined,
     baseCost: typeof o.baseCost === "number" ? o.baseCost : o.baseCost != null ? Number(o.baseCost) : undefined,
@@ -141,8 +188,38 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
     attributeValues: parseAttributeValuesRecord(o.attributeValues),
     trackInventory: typeof o.trackInventory === "boolean" ? o.trackInventory : undefined,
     allowNegativeStock: typeof o.allowNegativeStock === "boolean" ? o.allowNegativeStock : undefined,
+    minimumStock:
+      typeof o.minimumStock === "number"
+        ? o.minimumStock
+        : o.minimumStock != null
+          ? Math.max(0, Math.round(Number(o.minimumStock)))
+          : undefined,
+    maximumStock:
+      typeof o.maximumStock === "number"
+        ? o.maximumStock
+        : o.maximumStock != null
+          ? Math.max(0, Math.round(Number(o.maximumStock)))
+          : undefined,
+    reorderPoint:
+      typeof o.reorderPoint === "number"
+        ? o.reorderPoint
+        : o.reorderPoint != null
+          ? Math.max(0, Math.round(Number(o.reorderPoint)))
+          : undefined,
     weight: weightNum,
     weightUnit: o.weightUnit != null ? String(o.weightUnit) : undefined,
+    netWeightKg: parseNullableDecimal(o.netWeightKg),
+    grossWeightKg: parseNullableDecimal(o.grossWeightKg),
+    packageLengthCm: parseNullableDecimal(o.packageLengthCm),
+    packageWidthCm: parseNullableDecimal(o.packageWidthCm),
+    packageHeightCm: parseNullableDecimal(o.packageHeightCm),
+    volumetricDivisorK: (() => {
+      if (o.volumetricDivisorK == null || o.volumetricDivisorK === "") {
+        return null;
+      }
+      const n = Math.round(Number(o.volumetricDivisorK));
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })(),
     primaryImageUrl:
       o.primaryImageUrl != null && String(o.primaryImageUrl).trim()
         ? resolveMultimediaPublicUrl(String(o.primaryImageUrl).trim())
@@ -369,6 +446,10 @@ export class ProductRequest {
     barcode?: string | null;
     basePrice: number;
     unitId: string;
+    stockBaseUnitId: string;
+    purchaseUnitId: string;
+    stockBaseQtyPerCountSaleUnit?: number;
+    stockBaseQtyPerCountPurchaseUnit?: number;
     isActive?: boolean;
     priceListItems: Array<{
       priceListId: string;
@@ -390,6 +471,8 @@ export class ProductRequest {
       sku: body.sku.trim(),
       basePrice: Number.isFinite(body.basePrice) ? Math.round(body.basePrice) : 0,
       unitId: body.unitId,
+      stockBaseUnitId: body.stockBaseUnitId,
+      purchaseUnitId: body.purchaseUnitId,
       isActive: body.isActive !== false,
       pmp: Math.max(0, Math.round(Number(body.pmp) || 0)),
       priceListItems: body.priceListItems.map((item) => ({
@@ -420,6 +503,12 @@ export class ProductRequest {
     }
     if (body.reorderPoint != null) {
       payload.reorderPoint = Math.max(0, Math.round(Number(body.reorderPoint) || 0));
+    }
+    if (body.stockBaseQtyPerCountSaleUnit != null) {
+      payload.stockBaseQtyPerCountSaleUnit = body.stockBaseQtyPerCountSaleUnit;
+    }
+    if (body.stockBaseQtyPerCountPurchaseUnit != null) {
+      payload.stockBaseQtyPerCountPurchaseUnit = body.stockBaseQtyPerCountPurchaseUnit;
     }
     try {
       const res = await fetch(apiUrl("product-variants"), {
@@ -467,6 +556,10 @@ export class ProductRequest {
       barcode?: string | null;
       basePrice: number;
       unitId: string;
+      stockBaseUnitId: string;
+      purchaseUnitId: string;
+      stockBaseQtyPerCountSaleUnit?: number;
+      stockBaseQtyPerCountPurchaseUnit?: number;
       isActive?: boolean;
       priceListItems: Array<{
         priceListId: string;
@@ -481,6 +574,14 @@ export class ProductRequest {
       minimumStock?: number;
       maximumStock?: number;
       reorderPoint?: number;
+      weight?: number | null;
+      weightUnit?: string | null;
+      netWeightKg?: number | null;
+      grossWeightKg?: number | null;
+      packageLengthCm?: number | null;
+      packageWidthCm?: number | null;
+      packageHeightCm?: number | null;
+      volumetricDivisorK?: number | null;
     },
   ): Promise<{ success: true } | { success: false; error: string }> {
     const headers = await authHeaders();
@@ -493,6 +594,8 @@ export class ProductRequest {
       sku: body.sku.trim(),
       basePrice: Number.isFinite(body.basePrice) ? Math.round(body.basePrice) : 0,
       unitId: body.unitId,
+      stockBaseUnitId: body.stockBaseUnitId,
+      purchaseUnitId: body.purchaseUnitId,
       isActive: body.isActive !== false,
       pmp: Math.max(0, Math.round(Number(body.pmp) || 0)),
       priceListItems: body.priceListItems.map((item) => ({
@@ -524,11 +627,132 @@ export class ProductRequest {
     if (body.reorderPoint != null) {
       payload.reorderPoint = Math.max(0, Math.round(Number(body.reorderPoint) || 0));
     }
+    if (body.stockBaseQtyPerCountSaleUnit != null) {
+      payload.stockBaseQtyPerCountSaleUnit = body.stockBaseQtyPerCountSaleUnit;
+    }
+    if (body.stockBaseQtyPerCountPurchaseUnit != null) {
+      payload.stockBaseQtyPerCountPurchaseUnit = body.stockBaseQtyPerCountPurchaseUnit;
+    }
+    if (body.weight !== undefined) {
+      payload.weight = body.weight;
+    }
+    if (body.weightUnit !== undefined && body.weightUnit !== null) {
+      payload.weightUnit = body.weightUnit;
+    }
+    if (body.netWeightKg !== undefined) {
+      payload.netWeightKg = body.netWeightKg;
+    }
+    if (body.grossWeightKg !== undefined) {
+      payload.grossWeightKg = body.grossWeightKg;
+    }
+    if (body.packageLengthCm !== undefined) {
+      payload.packageLengthCm = body.packageLengthCm;
+    }
+    if (body.packageWidthCm !== undefined) {
+      payload.packageWidthCm = body.packageWidthCm;
+    }
+    if (body.packageHeightCm !== undefined) {
+      payload.packageHeightCm = body.packageHeightCm;
+    }
+    if (body.volumetricDivisorK !== undefined) {
+      payload.volumetricDivisorK = body.volumetricDivisorK;
+    }
     try {
       const res = await fetch(apiUrl(`product-variants/${encodeURIComponent(id)}`), {
         method: "PUT",
         headers,
         body: JSON.stringify(payload),
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        const m = data.message;
+        const msg = Array.isArray(m)
+          ? m.map(String).join("; ")
+          : typeof m === "string" && m.trim()
+            ? m.trim()
+            : res.statusText;
+        return { success: false, error: msg };
+      }
+      if (data.success === false) {
+        const err =
+          typeof data.error === "string" && data.error.trim()
+            ? data.error.trim()
+            : "Error al actualizar variante";
+        return { success: false, error: err };
+      }
+      return { success: true };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al actualizar variante";
+      return { success: false, error: err };
+    }
+  }
+
+  static async fetchVariantById(
+    variantId: string,
+  ): Promise<
+    | {
+        ok: true;
+        variant: ProductVariantGridRow;
+        product: { id: string; name: string; productType: string | null; categoryName?: string | null };
+      }
+    | { ok: false; error: string }
+  > {
+    const headers = await authHeaders();
+    const id = variantId.trim();
+    if (!id) {
+      return { ok: false, error: "Variante no válida" };
+    }
+    try {
+      const res = await fetch(apiUrl(`product-variants/${encodeURIComponent(id)}`), {
+        method: "GET",
+        headers,
+        cache: "no-store",
+      });
+      const raw = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!res.ok || !raw || typeof raw !== "object") {
+        return { ok: false, error: res.status === 404 ? "Variante no encontrada" : res.statusText };
+      }
+      const prod = raw.product && typeof raw.product === "object" ? (raw.product as Record<string, unknown>) : null;
+      const productId = raw.productId != null ? String(raw.productId) : prod?.id != null ? String(prod.id) : "";
+      const productName = prod?.name != null && String(prod.name).trim() ? String(prod.name).trim() : "—";
+      const productType =
+        prod?.productType != null && String(prod.productType).trim()
+          ? String(prod.productType).trim()
+          : null;
+      const categoryName =
+        prod?.category && typeof prod.category === "object"
+          ? String((prod.category as Record<string, unknown>).name ?? "").trim() || null
+          : null;
+      const merged = { ...raw, productId: productId || raw.productId };
+      const variant = normalizeVariant(merged);
+      if (!variant) {
+        return { ok: false, error: "Respuesta inválida" };
+      }
+      return {
+        ok: true,
+        variant,
+        product: { id: productId, name: productName, productType, categoryName },
+      };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Error de red" };
+    }
+  }
+
+  static async patchVariantFields(
+    variantId: string,
+    body: Record<string, unknown>,
+  ): Promise<{ success: true } | { success: false; error: string }> {
+    const headers = await authHeaders();
+    const id = variantId.trim();
+    if (!id) {
+      return { success: false, error: "Variante no válida" };
+    }
+    try {
+      const res = await fetch(apiUrl(`product-variants/${encodeURIComponent(id)}`), {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(body),
         cache: "no-store",
       });
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;

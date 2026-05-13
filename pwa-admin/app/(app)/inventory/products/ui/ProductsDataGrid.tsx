@@ -13,8 +13,6 @@ import { Button } from "@/shared/components/Button";
 import { CreateProductDialog } from "./CreateProductDialog";
 import { EditProductDialog } from "./EditProductDialog";
 import { CreateProductVariantDialog } from "./CreateProductVariantDialog";
-import { EditProductVariantDialog } from "./EditProductVariantDialog";
-import { CreateRecipeDialog } from "./CreateRecipeDialog";
 import { deleteProductAction, deleteProductVariantAction } from "@/features/inventory-products/actions/product.action";
 
 type ProductsDataGridProps = {
@@ -30,18 +28,6 @@ function averageReferencePmp(row: ProductGridRow): number {
     return 0;
   }
   return Math.round(positives.reduce((a, b) => a + b, 0) / positives.length);
-}
-
-function formatMoney(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat("es-CL", { style: "currency", currency: currency || "CLP" }).format(amount);
-  } catch {
-    return `${amount} ${currency}`;
-  }
-}
-
-function formatNumber(n: number): string {
-  return new Intl.NumberFormat("es-CL", { maximumFractionDigits: 3 }).format(n);
 }
 
 function productTypePresentation(pt: string | null | undefined): { label: string; variant: "primary" | "warning" | "info" } {
@@ -72,178 +58,84 @@ function variantTitle(v: ProductVariantGridRow): string {
 
 function ProductVariantExpandCard({
   v,
-  productType,
-  onDefineRecipe,
-  onEdit,
+  product,
+  onOpenVariant,
   onDelete,
 }: {
   v: ProductVariantGridRow;
-  productType: string | null;
-  onDefineRecipe?: () => void;
-  onEdit?: () => void;
+  product: ProductGridRow;
+  onOpenVariant: (variantId: string) => void;
   onDelete?: () => void;
 }) {
-  const weightLine =
-    v.weight != null && Number.isFinite(v.weight)
-      ? `${formatNumber(v.weight)} ${(v.weightUnit ?? "kg").trim()}`
-      : null;
-  const track = v.trackInventory !== false;
-  const neg = v.allowNegativeStock === true;
-  const pt = (productType ?? "PHYSICAL").toString().toUpperCase();
-  const showRecipeCta = pt !== "DIGITAL" && onDefineRecipe;
+  const title = variantTitle(v);
 
   return (
-    <article
-      className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm"
-      data-test-id={`products-expand-variant-card-${v.id}`}
+    <div
+      className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-muted/15 px-2 py-1.5"
+      data-test-id={`products-expand-variant-row-${v.id}`}
     >
-      <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
-        <div className="flex min-w-0 items-start justify-between gap-2">
-          <h4 className="min-w-0 flex-1 truncate text-base font-semibold leading-snug text-foreground" title={variantTitle(v)}>
-            {variantTitle(v)}
-          </h4>
-          <div className="flex shrink-0 items-center gap-1">
-            {onEdit ? (
-              <IconButton
-                icon="Pencil"
-                variant="basicSecondary"
-                size="sm"
-                ariaLabel="Editar variante"
-                title="Editar variante"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit();
-                }}
-                data-test-id={`products-expand-variant-edit-${v.id}`}
-              />
-            ) : null}
-            {onDelete ? (
-              <IconButton
-                icon="Trash2"
-                variant="basicSecondary"
-                size="sm"
-                ariaLabel="Eliminar variante"
-                title="Eliminar variante"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                }}
-                data-test-id={`products-expand-variant-delete-${v.id}`}
-              />
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
-          <span className="min-w-0 shrink" title={v.sku}>
-            SKU: {v.sku}
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+          <span className="min-w-0 truncate font-medium text-foreground" title={title}>
+            {title}
           </span>
-          <span className="min-w-0 shrink text-right" title={v.barcode?.trim() ?? undefined}>
-            Código: {v.barcode?.trim() ? v.barcode : "—"}
+          <span className="shrink-0 font-mono text-muted-foreground" title={v.sku}>
+            {v.sku}
           </span>
-        </div>
-
-        <div className="flex min-w-0">
-          <Badge variant={v.isActive !== false ? "success" : "secondary-outlined"}>
-            {v.isActive !== false ? "Activa" : "Inactiva"}
-          </Badge>
-        </div>
-
-        <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
-          <div className="min-w-0">
-            <dt className="font-medium text-muted-foreground">Unidad</dt>
-            <dd className="mt-0.5 text-foreground">{v.unitOfMeasure?.trim() ? v.unitOfMeasure : "—"}</dd>
-          </div>
-          {weightLine ? (
-            <div className="min-w-0">
-              <dt className="font-medium text-muted-foreground">Peso</dt>
-              <dd className="mt-0.5 tabular-nums text-foreground">{weightLine}</dd>
-            </div>
+          {v.isActive === false ? (
+            <Badge variant="secondary-outlined" className="shrink-0 text-[10px]">
+              Inactiva
+            </Badge>
           ) : null}
-          <div className="min-w-0">
-            <dt className="font-medium text-muted-foreground">PMP</dt>
-            <dd className="mt-0.5 tabular-nums text-foreground">
-              {v.pmp != null && Number.isFinite(v.pmp) ? formatMoney(v.pmp, "CLP") : "—"}
-            </dd>
-          </div>
-          <div className="min-w-0 sm:col-span-2">
-            <dt className="font-medium text-muted-foreground">Inventario</dt>
-            <dd className="mt-0.5 text-foreground">
-              {track ? "Rastreado" : "Sin rastreo"}
-              {track ? (
-                <>
-                  {" · "}
-                  {neg ? "Permite stock negativo" : "No permite stock negativo"}
-                </>
-              ) : null}
-            </dd>
-          </div>
-        </dl>
-
-        <div className="border-t border-border pt-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Precios por lista
-          </p>
-          {v.priceListItems.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Sin precios por lista.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {v.priceListItems.map((p) => (
-                <li
-                  key={p.priceListId}
-                  className="rounded-lg border border-border/60 bg-muted/25 px-3 py-2 text-xs"
-                  data-test-id={`products-expand-pl-${v.id}-${p.priceListId}`}
-                >
-                  <p className="font-medium text-foreground">{p.priceListName}</p>
-                  <p className="mt-1 tabular-nums text-muted-foreground">
-                    Neto: <span className="text-foreground">{formatMoney(p.netPrice, p.currency)}</span>
-                    {" · "}
-                    Bruto: <span className="text-foreground">{formatMoney(p.grossPrice, p.currency)}</span>
-                  </p>
-                  {p.taxIds && p.taxIds.length > 0 ? (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {p.taxIds.length} impuesto{p.taxIds.length === 1 ? "" : "s"} en esta lista
-                    </p>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
-
-        {showRecipeCta ? (
-          <div className="border-t border-border pt-3" data-test-id={`products-expand-bom-${v.id}`}>
-            <Button
-              variant="outlined"
-              size="sm"
-              type="button"
-              className="w-full sm:w-auto"
-              onClick={onDefineRecipe}
-              data-test-id={`products-expand-bom-button-${v.id}`}
-            >
-              Receta (BOM)
-            </Button>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Define insumos por unidad de este SKU (servicio o producción). No aplica a productos digitales.
-            </p>
-          </div>
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+          Producto:{" "}
+          <span className="font-medium text-foreground" title={product.name}>
+            {product.name}
+          </span>
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-0.5">
+        <IconButton
+          icon="ExternalLink"
+          variant="basicSecondary"
+          size="sm"
+          ariaLabel="Abrir ficha de variante"
+          title="Ficha de variante"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenVariant(v.id);
+          }}
+          data-test-id={`products-expand-variant-open-${v.id}`}
+        />
+        {onDelete ? (
+          <IconButton
+            icon="Trash2"
+            variant="basicSecondary"
+            size="sm"
+            ariaLabel="Eliminar variante"
+            title="Eliminar variante"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            data-test-id={`products-expand-variant-delete-${v.id}`}
+          />
         ) : null}
       </div>
-    </article>
+    </div>
   );
 }
 
 function ProductExpandPanel({
   row,
   onAddVariant,
-  onDefineRecipe,
-  onEditVariant,
+  onOpenVariant,
   onDeleteVariant,
 }: {
   row: ProductGridRow;
   onAddVariant: (r: ProductGridRow) => void;
-  onDefineRecipe?: (product: ProductGridRow, variant: ProductVariantGridRow) => void;
-  onEditVariant?: (product: ProductGridRow, variant: ProductVariantGridRow) => void;
+  onOpenVariant: (variantId: string) => void;
   onDeleteVariant?: (product: ProductGridRow, variant: ProductVariantGridRow) => void;
 }) {
   const hasVariants = Boolean(row.variants?.length);
@@ -265,18 +157,15 @@ function ProductExpandPanel({
 
       {hasVariants ? (
         <div
-          className="grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+          className="flex w-full min-w-0 flex-col gap-1.5"
           data-test-id="products-expand-variant-cards"
         >
           {row.variants!.map((v) => (
             <ProductVariantExpandCard
               key={v.id}
               v={v}
-              productType={row.productType ?? null}
-              onDefineRecipe={
-                onDefineRecipe ? () => onDefineRecipe(row, v) : undefined
-              }
-              onEdit={onEditVariant ? () => onEditVariant(row, v) : undefined}
+              product={row}
+              onOpenVariant={onOpenVariant}
               onDelete={onDeleteVariant ? () => onDeleteVariant(row, v) : undefined}
             />
           ))}
@@ -325,16 +214,6 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
     productType?: string | null;
     referencePmp: number;
   } | null>(null);
-  const [bomDialog, setBomDialog] = useState<{
-    outputVariantId: string;
-    outputSku: string;
-    productName: string;
-    productType: "PHYSICAL" | "SERVICE" | "DIGITAL";
-  } | null>(null);
-  const [editVariantDialog, setEditVariantDialog] = useState<{
-    product: ProductGridRow;
-    variant: ProductVariantGridRow;
-  } | null>(null);
   const [deleteVariantTarget, setDeleteVariantTarget] = useState<{
     product: ProductGridRow;
     variant: ProductVariantGridRow;
@@ -351,20 +230,16 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
     });
   }, []);
 
-  const openRecipeDialog = useCallback((product: ProductGridRow, variant: ProductVariantGridRow) => {
-    const raw = (product.productType ?? "PHYSICAL").toString().toUpperCase();
-    if (raw === "DIGITAL") {
-      return;
-    }
-    const productType: "PHYSICAL" | "SERVICE" | "DIGITAL" =
-      raw === "SERVICE" ? "SERVICE" : raw === "DIGITAL" ? "DIGITAL" : "PHYSICAL";
-    setBomDialog({
-      outputVariantId: variant.id,
-      outputSku: variant.sku,
-      productName: product.name,
-      productType,
-    });
-  }, []);
+  const onOpenVariantPage = useCallback(
+    (variantId: string) => {
+      const id = variantId?.trim();
+      if (!id) {
+        return;
+      }
+      router.push(`/inventory/products/variants/${encodeURIComponent(id)}`);
+    },
+    [router],
+  );
 
   const onEditProduct = useCallback((r: ProductGridRow) => {
     setEditRow(r);
@@ -464,10 +339,6 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
     ];
   }, [onEditProduct, onDeleteProduct]);
 
-  const openEditVariantDialog = useCallback((product: ProductGridRow, variant: ProductVariantGridRow) => {
-    setEditVariantDialog({ product, variant });
-  }, []);
-
   const onDeleteVariantClick = useCallback((product: ProductGridRow, variant: ProductVariantGridRow) => {
     setDeleteVariantError(null);
     setDeleteVariantTarget({ product, variant });
@@ -478,12 +349,11 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
       <ProductExpandPanel
         row={row}
         onAddVariant={openVariantDialog}
-        onDefineRecipe={openRecipeDialog}
-        onEditVariant={openEditVariantDialog}
+        onOpenVariant={onOpenVariantPage}
         onDeleteVariant={onDeleteVariantClick}
       />
     ),
-    [onDeleteVariantClick, openEditVariantDialog, openRecipeDialog, openVariantDialog],
+    [onDeleteVariantClick, onOpenVariantPage, openVariantDialog],
   );
 
   return (
@@ -587,9 +457,6 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
               const r = await deleteProductVariantAction(id);
               if (r.success) {
                 setDeleteVariantTarget(null);
-                setEditVariantDialog((prev) =>
-                  prev?.variant.id === id ? null : prev,
-                );
                 await router.refresh();
               } else {
                 setDeleteVariantError(r.error);
@@ -610,29 +477,6 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
           await router.refresh();
         }}
       />
-      <CreateRecipeDialog
-        open={bomDialog != null}
-        onClose={() => setBomDialog(null)}
-        outputVariantId={bomDialog?.outputVariantId ?? ""}
-        outputSku={bomDialog?.outputSku ?? ""}
-        productName={bomDialog?.productName ?? ""}
-        productType={bomDialog?.productType ?? "PHYSICAL"}
-        onSuccess={async () => {
-          await router.refresh();
-        }}
-      />
-      {editVariantDialog != null ? (
-        <EditProductVariantDialog
-          open
-          onClose={() => setEditVariantDialog(null)}
-          product={editVariantDialog.product}
-          variant={editVariantDialog.variant}
-          productType={editVariantDialog.product.productType ?? "PHYSICAL"}
-          onSuccess={async () => {
-            await router.refresh();
-          }}
-        />
-      ) : null}
     </>
   );
 }

@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import Badge, { type BadgeVariant } from "@/shared/components/Badge/Badge";
+import IconButton from "@/shared/components/IconButton/IconButton";
 import {
   CASH_SESSION_STATUS_LABEL,
   type CashSessionListRow,
   type CashSessionListStatus,
 } from "@/features/sales-cash-sessions/types/cash-session-list.types";
+import CashSessionTransactionsDialog from "./CashSessionTransactionsDialog";
 
 type CashSessionsDataGridProps = {
   rows: CashSessionListRow[];
@@ -46,8 +48,33 @@ export default function CashSessionsDataGrid({
   rows,
   total,
 }: CashSessionsDataGridProps) {
-  const columns: DataGridColumn[] = useMemo(
-    () => [
+  const [txSession, setTxSession] = useState<CashSessionListRow | null>(null);
+
+  const openTransactions = useCallback((r: CashSessionListRow) => {
+    setTxSession(r);
+  }, []);
+
+  const columns: DataGridColumn[] = useMemo(() => {
+    function CashSessionActionsCell({ row }: { row: any; column: DataGridColumn }) {
+      const r = row as CashSessionListRow;
+      return (
+        <div
+          className="flex items-center justify-center"
+          data-test-id={`cash-sessions-row-actions-${r.id}`}
+        >
+          <IconButton
+            icon="ScrollText"
+            variant="basicSecondary"
+            size="sm"
+            ariaLabel="Ver transacciones de la sesión"
+            onClick={() => openTransactions(r)}
+            data-test-id={`cash-sessions-row-transactions-${r.id}`}
+          />
+        </div>
+      );
+    }
+
+    return [
       {
         field: "openedAt",
         headerName: "Apertura",
@@ -133,22 +160,39 @@ export default function CashSessionsDataGrid({
         valueGetter: ({ row }) =>
           formatMoney((row as CashSessionListRow).difference),
       },
-    ],
-    [],
-  );
+      {
+        field: "actions",
+        headerName: "",
+        width: 72,
+        minWidth: 72,
+        align: "center",
+        sortable: false,
+        filterable: false,
+        actionComponent: CashSessionActionsCell,
+      },
+    ];
+  }, [openTransactions]);
 
   return (
-    <DataGrid
-      title="Sesiones de caja"
-      columns={columns}
-      rows={rows}
-      totalRows={total}
-      totalGeneral={total}
-      height="85vh"
-      showExportButton={false}
-      showSortButton={false}
-      showFilterButton={false}
-      data-test-id="sales-cash-sessions-data-grid"
-    />
+    <>
+      <DataGrid
+        title="Sesiones de caja"
+        columns={columns}
+        rows={rows}
+        totalRows={total}
+        totalGeneral={total}
+        height="85vh"
+        showExportButton={false}
+        showSortButton={false}
+        showFilterButton={false}
+        pinActionsColumn
+        data-test-id="sales-cash-sessions-data-grid"
+      />
+      <CashSessionTransactionsDialog
+        session={txSession}
+        open={txSession != null}
+        onClose={() => setTxSession(null)}
+      />
+    </>
   );
 }

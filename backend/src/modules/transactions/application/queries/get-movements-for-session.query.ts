@@ -39,7 +39,7 @@ export class GetMovementsForSessionQueryHandler implements IQueryHandler<GetMove
     const txs = await this.transactionRepository.find({
       where: { cashSessionId: query.cashSessionId },
       relations: ['user', 'user.person'],
-      order: { createdAt: 'ASC' },
+      order: { createdAt: 'DESC' },
     });
 
     return txs.map((tx) => {
@@ -71,10 +71,13 @@ export class GetMovementsForSessionQueryHandler implements IQueryHandler<GetMove
     switch (tx.transactionType) {
       case TransactionType.CASH_SESSION_OPENING:
         return 'NEUTRAL';
+      case TransactionType.CASH_SESSION_CLOSING:
+        return 'OUT';
       case TransactionType.SALE:
       case TransactionType.CASH_SESSION_DEPOSIT:
       case TransactionType.PAYMENT_IN:
         return 'IN';
+      case TransactionType.SALE_RETURN:
       case TransactionType.CASH_SESSION_WITHDRAWAL:
       case TransactionType.CASH_SESSION_TO_HUB_TRANSFER:
       case TransactionType.OPERATING_EXPENSE:

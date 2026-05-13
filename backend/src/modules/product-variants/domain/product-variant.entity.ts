@@ -63,7 +63,7 @@ export class ProductVariant {
   baseCost!: number;
 
   /**
-   * Precio Promedio Ponderado actual (PMP)
+   * PMP global de la variante: moneda por **1 unidad base de stock** (alineado con `stock_levels.physicalStock`).
    */
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   pmp!: number;
@@ -77,15 +77,122 @@ export class ProductVariant {
   @Column({ type: 'uuid', name: 'unit_id' })
   unitId!: string;
 
+  /** @deprecated Mantener alineado con `saleUnitId` (compat API / clientes viejos). */
   @ManyToOne(() => Unit, { onDelete: 'RESTRICT', eager: true })
   @JoinColumn({ name: 'unit_id' })
   unit!: Unit;
+
+  /** Unidad canónica de inventario y costo (saldo en `stock_levels`). */
+  @Column({ type: 'uuid', name: 'stock_base_unit_id' })
+  stockBaseUnitId!: string;
+
+  @ManyToOne(() => Unit, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'stock_base_unit_id' })
+  stockBaseUnit!: Unit;
+
+  /** Unidad por defecto en ventas (POS, factura, etc.). */
+  @Column({ type: 'uuid', name: 'sale_unit_id' })
+  saleUnitId!: string;
+
+  @ManyToOne(() => Unit, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'sale_unit_id' })
+  saleUnit!: Unit;
+
+  /** Unidad por defecto en compras (OC, recepción). */
+  @Column({ type: 'uuid', name: 'purchase_unit_id' })
+  purchaseUnitId!: string;
+
+  @ManyToOne(() => Unit, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'purchase_unit_id' })
+  purchaseUnit!: Unit;
+
+  /**
+   * Cuando `saleUnit` es de conteo y `stockBaseUnit` es masa/volumen/longitud:
+   * cantidad de **unidad base de stock** equivalente a **1** unidad de venta (p. ej. 250 g por 1 bolsa).
+   */
+  @Column({
+    name: 'stock_base_qty_per_count_sale_unit',
+    type: 'decimal',
+    precision: 18,
+    scale: 9,
+    nullable: true,
+  })
+  stockBaseQtyPerCountSaleUnit?: number | string | null;
+
+  /**
+   * Igual que `stockBaseQtyPerCountSaleUnit` para la unidad de **compra** en conteo.
+   */
+  @Column({
+    name: 'stock_base_qty_per_count_purchase_unit',
+    type: 'decimal',
+    precision: 18,
+    scale: 9,
+    nullable: true,
+  })
+  stockBaseQtyPerCountPurchaseUnit?: number | string | null;
 
   @Column({ type: 'decimal', precision: 10, scale: 3, nullable: true })
   weight?: number;
 
   @Column({ type: 'varchar', length: 16, name: 'weight_unit', default: 'kg' })
   weightUnit!: string;
+
+  /** Peso neto del producto (sin embalaje), en kg. */
+  @Column({
+    name: 'net_weight_kg',
+    type: 'decimal',
+    precision: 14,
+    scale: 6,
+    nullable: true,
+  })
+  netWeightKg?: number | string | null;
+
+  /** Peso bruto con embalaje (valor típico a informar al transportista), en kg. */
+  @Column({
+    name: 'gross_weight_kg',
+    type: 'decimal',
+    precision: 14,
+    scale: 6,
+    nullable: true,
+  })
+  grossWeightKg?: number | string | null;
+
+  /** Largo del empaque (cm). */
+  @Column({
+    name: 'package_length_cm',
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: true,
+  })
+  packageLengthCm?: number | string | null;
+
+  /** Ancho del empaque (cm). */
+  @Column({
+    name: 'package_width_cm',
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: true,
+  })
+  packageWidthCm?: number | string | null;
+
+  /** Alto del empaque (cm). */
+  @Column({
+    name: 'package_height_cm',
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: true,
+  })
+  packageHeightCm?: number | string | null;
+
+  /**
+   * Divisor K en peso volumétrico kg = (L×W×H cm³) / K.
+   * Si es null, la aplicación puede usar un default (p. ej. 5000).
+   */
+  @Column({ name: 'volumetric_divisor_k', type: 'int', nullable: true })
+  volumetricDivisorK?: number | null;
 
   /**
    * Valores de atributos para esta variante.

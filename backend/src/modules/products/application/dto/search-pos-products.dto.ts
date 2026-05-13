@@ -14,6 +14,10 @@ export class SearchPosProductsDto {
   @IsOptional()
   branchId?: string;
 
+  @IsUUID()
+  @IsOptional()
+  pointOfSaleId?: string;
+
   @IsInt()
   @Min(1)
   @Transform(({ value }) => (value ? parseInt(value, 10) : 1))

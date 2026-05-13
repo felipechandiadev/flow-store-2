@@ -63,7 +63,8 @@ export class PosController {
     @Body()
     data: {
       name: string;
-      branchId?: string | null;
+      branchId: string;
+      storageId: string;
       deviceId?: string | null;
       isActive?: boolean;
       priceLists?: Array<{ id: string; name: string; isActive: boolean }>;
@@ -84,6 +85,7 @@ export class PosController {
       isActive: boolean;
       priceLists: Array<{ id: string; name: string; isActive: boolean }>;
       defaultPriceListId: string | null;
+      storageId: string | null;
     }>,
   ) {
     return this.posService.updatePointOfSale(id, data);

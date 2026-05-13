@@ -1,17 +1,18 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import Badge, { type BadgeVariant } from "@/shared/components/Badge/Badge";
+import IconButton from "@/shared/components/IconButton/IconButton";
 import {
   SALES_PAYMENT_METHOD_LABEL,
   SALES_PAYMENT_STATUS_LABEL,
   type SalesPaymentMethod,
   type SalesPaymentStatus,
 } from "@/features/sales-payments/types/sales-payment.types";
-import { TRANSACTION_TYPE_OPTIONS } from "@/features/transactions/types/transaction-types";
 import type { SalesTransactionListRow } from "@/features/sales-transactions/types/sales-transaction-list.types";
+import SaleTransactionDetailDialog from "./SaleTransactionDetailDialog";
 
 type SalesTransactionsDataGridProps = {
   rows: SalesTransactionListRow[];
@@ -21,12 +22,6 @@ type SalesTransactionsDataGridProps = {
   /** Sufijo opcional para `data-test-id` cuando hay varias grillas. */
   testIdSuffix?: string;
 };
-
-function transactionTypeLabel(type: string): string {
-  if (!type) return "—";
-  const opt = TRANSACTION_TYPE_OPTIONS.find((o) => o.id === type);
-  return opt?.label ?? type;
-}
 
 function formatMoney(amount: number): string {
   if (!Number.isFinite(amount)) return "—";
@@ -63,8 +58,33 @@ export default function SalesTransactionsDataGrid({
   title = "Ventas",
   testIdSuffix = "",
 }: SalesTransactionsDataGridProps) {
-  const columns: DataGridColumn[] = useMemo(
-    () => [
+  const [detailTxId, setDetailTxId] = useState<string | null>(null);
+
+  const openDetail = useCallback((r: SalesTransactionListRow) => {
+    setDetailTxId(r.id);
+  }, []);
+
+  const columns: DataGridColumn[] = useMemo(() => {
+    function SalesTransactionActionsCell({ row }: { row: any; column: DataGridColumn }) {
+      const r = row as SalesTransactionListRow;
+      return (
+        <div
+          className="flex items-center justify-center"
+          data-test-id={`sales-transactions-row-actions-${r.id}`}
+        >
+          <IconButton
+            icon="MoreHorizontal"
+            variant="basicSecondary"
+            size="sm"
+            ariaLabel="Ver detalle de la transacción"
+            onClick={() => openDetail(r)}
+            data-test-id={`sales-transactions-row-detail-${r.id}`}
+          />
+        </div>
+      );
+    }
+
+    return [
       {
         field: "documentNumber",
         headerName: "Folio",
@@ -81,15 +101,6 @@ export default function SalesTransactionsDataGrid({
         width: 160,
         valueGetter: ({ row }) =>
           formatDateTimeSlash((row as SalesTransactionListRow).createdAt),
-      },
-      {
-        field: "transactionType",
-        headerName: "Tipo",
-        sortable: false,
-        minWidth: 160,
-        flex: 0.7,
-        valueGetter: ({ row }) =>
-          transactionTypeLabel((row as SalesTransactionListRow).transactionType),
       },
       {
         field: "status",
@@ -159,9 +170,18 @@ export default function SalesTransactionsDataGrid({
         valueGetter: ({ row }) =>
           formatMoney(Number((row as SalesTransactionListRow).total ?? 0)),
       },
-    ],
-    [],
-  );
+      {
+        field: "actions",
+        headerName: "",
+        width: 72,
+        minWidth: 72,
+        align: "center",
+        sortable: false,
+        filterable: false,
+        actionComponent: SalesTransactionActionsCell,
+      },
+    ];
+  }, [openDetail]);
 
   const gridTestId =
     testIdSuffix.trim().length > 0
@@ -169,17 +189,25 @@ export default function SalesTransactionsDataGrid({
       : "sales-transactions-data-grid";
 
   return (
-    <DataGrid
-      title={title}
-      columns={columns}
-      rows={rows}
-      totalRows={total}
-      totalGeneral={total}
-      height="85vh"
-      showExportButton={false}
-      showSortButton={false}
-      showFilterButton={false}
-      data-test-id={gridTestId}
-    />
+    <>
+      <DataGrid
+        title={title}
+        columns={columns}
+        rows={rows}
+        totalRows={total}
+        totalGeneral={total}
+        height="85vh"
+        showExportButton={false}
+        showSortButton={false}
+        showFilterButton={false}
+        pinActionsColumn
+        data-test-id={gridTestId}
+      />
+      <SaleTransactionDetailDialog
+        transactionId={detailTxId}
+        open={detailTxId != null}
+        onClose={() => setDetailTxId(null)}
+      />
+    </>
   );
 }

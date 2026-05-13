@@ -26,6 +26,7 @@ type BranchOption = { id: string; name: string };
 
 function savePosContext(input: {
   pointOfSaleId: string;
+  storageId?: string | null;
   cashSessionId?: string | null;
   pointOfSaleName?: string | null;
   branchName?: string | null;
@@ -35,6 +36,7 @@ function savePosContext(input: {
 }) {
   savePosContextClient({
     pointOfSaleId: input.pointOfSaleId,
+    storageId: input.storageId ?? null,
     cashSessionId: input.cashSessionId ?? null,
     pointOfSaleName: input.pointOfSaleName ?? null,
     branchName: input.branchName ?? null,
@@ -60,6 +62,7 @@ function buildPosContextFromPos(pos: PointOfSaleListItem) {
       : availablePriceLists[0]?.id ?? "";
   return {
     pointOfSaleId: pos.id,
+    storageId: pos.storageId ?? null,
     pointOfSaleName: pos.name,
     branchName: pos.branch?.name ?? null,
     branchId: pos.branchId ?? pos.branch?.id ?? null,
