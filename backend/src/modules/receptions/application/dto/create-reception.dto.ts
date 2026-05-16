@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  IsObject,
   MaxLength,
   Min,
   ValidateNested,
@@ -119,6 +120,12 @@ export class CreateReceptionDto {
   @IsIn([...RECEPTION_DTE_TYPES])
   dteType?: (typeof RECEPTION_DTE_TYPES)[number];
 
+  /** Alias en inglés de `dteType` (tipo de documento tributario). */
+  @IsOptional()
+  @IsString()
+  @IsIn([...RECEPTION_DTE_TYPES])
+  documentType?: (typeof RECEPTION_DTE_TYPES)[number];
+
   @IsOptional()
   @IsString()
   notes?: string;
@@ -134,4 +141,14 @@ export class CreateReceptionDto {
   @ValidateNested({ each: true })
   @Type(() => CreateReceptionLineDto)
   lines?: CreateReceptionLineDto[];
+
+  /** Plan de pago del documento fiscal (factura/boleta) en recepción directa. */
+  @IsOptional()
+  @IsObject()
+  supplierDocumentPayment?: Record<string, unknown>;
+
+  /** Totales neto/IVA/total y tasa para el documento fiscal asociado (UI builder). */
+  @IsOptional()
+  @IsObject()
+  supplierFiscalAmounts?: Record<string, unknown>;
 }

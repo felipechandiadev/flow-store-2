@@ -7,6 +7,8 @@ import type { CompanyBankAccountItem } from "@/features/settings-branches/infras
 import type { SupplierPersonBankAccount } from "@/features/purchasing-suppliers/types/supplier.types";
 import { bankAccountOptionKey } from "@/features/purchasing-dte/lib/planned-payment-helpers";
 
+import type { Option } from "@/shared/components/Select";
+
 export type InvoicePlannedPaymentMethodUI = "CASH" | "TRANSFER" | "CHECK";
 
 export type InvoicePlannedPaymentLineState = {
@@ -17,7 +19,9 @@ export type InvoicePlannedPaymentLineState = {
   companyBankAccountKey: string | null;
   supplierBankAccountKey: string | null;
   chequeNumber: string;
-  /** Banco emisor del cheque (la propia empresa). */
+  /** Centro de acopio (efectivo); obligatorio en compras si `paymentMethod === "CASH"`. */
+  cashHubId?: string | null;
+  /** Legacy / API: banco del cheque; en UI se deriva de la cuenta empresa. */
   chequeBankName?: string;
   /** Nombre del girador (responsable que firma). */
   chequeDrawerName?: string;
@@ -39,6 +43,10 @@ export type InvoicePlannedPaymentLinesProps = {
   disabled: boolean;
   companyBankAccounts: CompanyBankAccountItem[];
   supplierBankAccounts: SupplierPersonBankAccount[];
+  /** Centros de acopio para pagos en efectivo (compras / recepción). */
+  cashHubOptions?: Option[];
+  /** Si es false, no se muestra el botón «+» (p. ej. pago único completado). */
+  allowAddLine?: boolean;
   lines: InvoicePlannedPaymentLineState[];
   onAddLine: () => void;
   onRemoveLine: (id: string) => void;
@@ -49,6 +57,8 @@ export function InvoicePlannedPaymentLines({
   disabled,
   companyBankAccounts,
   supplierBankAccounts,
+  cashHubOptions = [],
+  allowAddLine = true,
   lines,
   onAddLine,
   onRemoveLine,
@@ -67,16 +77,18 @@ export function InvoicePlannedPaymentLines({
     <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3" data-test-id="invoice-planned-payments">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">Pagos</h3>
-        <IconButton
-          type="button"
-          icon="Plus"
-          variant="outlined"
-          size="sm"
-          ariaLabel="Agregar línea de pago"
-          disabled={disabled}
-          onClick={onAddLine}
-          data-test-id="invoice-payment-add-line"
-        />
+        {allowAddLine ? (
+          <IconButton
+            type="button"
+            icon="Plus"
+            variant="outlined"
+            size="sm"
+            ariaLabel="Agregar línea de pago"
+            disabled={disabled}
+            onClick={onAddLine}
+            data-test-id="invoice-payment-add-line"
+          />
+        ) : null}
       </div>
       {lines.length === 0 ? (
         <p className="text-sm text-muted-foreground">Seleccione un proveedor para planificar pagos.</p>
@@ -133,6 +145,12 @@ export function InvoicePlannedPaymentLines({
                     onChange={(id) =>
                       onPatchLine(line.id, {
                         paymentMethod: (id ?? "CASH") as InvoicePlannedPaymentMethodUI,
+                        cashHubId:
+                          id === "CASH" && cashHubOptions[0]
+                            ? String(cashHubOptions[0].id)
+                            : id !== "CASH"
+                              ? null
+                              : line.cashHubId,
                       })
                     }
                     disabled={disabled}
@@ -172,6 +190,23 @@ export function InvoicePlannedPaymentLines({
                 </div>
               ) : null}
 
+              {line.paymentMethod === "CASH" && cashHubOptions.length > 0 ? (
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+                  <div className="min-w-0">
+                    <Select
+                      label="Centro de acopio (efectivo)"
+                      alwaysShowLabel
+                      placeholder="Seleccione…"
+                      options={cashHubOptions}
+                      value={line.cashHubId ?? null}
+                      onChange={(id) => onPatchLine(line.id, { cashHubId: id != null ? String(id) : null })}
+                      disabled={disabled}
+                      data-test-id={`invoice-payment-cash-hub-${idx}`}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
               {line.paymentMethod === "CHECK" ? (
                 <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                   <div className="min-w-0">
@@ -193,17 +228,6 @@ export function InvoicePlannedPaymentLines({
                       value={line.chequeNumber}
                       onChange={(e) => onPatchLine(line.id, { chequeNumber: e.target.value })}
                       disabled={disabled}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <TextField
-                      label="Banco emisor"
-                      value={line.chequeBankName ?? ""}
-                      onChange={(e) =>
-                        onPatchLine(line.id, { chequeBankName: e.target.value })
-                      }
-                      disabled={disabled}
-                      placeholder="Nombre del banco"
                     />
                   </div>
                   <div className="min-w-0">

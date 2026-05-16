@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import type { CustomerListRow } from "@/features/sales-customers/types/customer.types";
+import { documentTypeLabel } from "@/features/sales-customers/lib/customer-document-labels";
+import IconButton from "@/shared/components/IconButton/IconButton";
 import { CreateCustomerDialog } from "./CreateCustomerDialog";
+import { CustomerDetailDialog } from "./CustomerDetailDialog";
 
 type CustomersDataGridProps = {
   rows: CustomerListRow[];
@@ -21,17 +24,6 @@ function fmtClp(n: number): string {
   }).format(n);
 }
 
-function formatDateShort(iso?: string): string {
-  if (!iso) {
-    return "—";
-  }
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) {
-    return "—";
-  }
-  return d.toLocaleDateString("es-CL", { year: "numeric", month: "2-digit", day: "2-digit" });
-}
-
 export default function CustomersDataGrid({
   rows,
   total,
@@ -39,8 +31,25 @@ export default function CustomersDataGrid({
 }: CustomersDataGridProps) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
+  const [detailCustomerId, setDetailCustomerId] = useState<string | null>(null);
 
   const columns: DataGridColumn[] = useMemo(() => {
+    function CustomerActionsCell({ row }: { row: any }) {
+      const r = row as CustomerListRow;
+      return (
+        <div className="flex items-center justify-center" data-test-id={`customers-row-actions-${r.customerId}`}>
+          <IconButton
+            icon="MoreHorizontal"
+            variant="basicSecondary"
+            size="sm"
+            ariaLabel="Ver detalle del cliente"
+            onClick={() => setDetailCustomerId(r.customerId)}
+            data-test-id={`customers-row-detail-${r.customerId}`}
+          />
+        </div>
+      );
+    }
+
     const base: DataGridColumn[] = [
       {
         field: "displayName",
@@ -54,8 +63,18 @@ export default function CustomersDataGrid({
         field: "documentNumber",
         headerName: "Documento",
         sortable: false,
-        minWidth: 130,
+        width: 64,
+        minWidth: 64,
+        maxWidth: 80,
         valueGetter: ({ row }) => (row as CustomerListRow).documentNumber?.trim() || "—",
+      },
+      {
+        field: "documentType",
+        headerName: "Tipo doc.",
+        sortable: false,
+        width: 100,
+        minWidth: 88,
+        valueGetter: ({ row }) => documentTypeLabel((row as CustomerListRow).documentType),
       },
       {
         field: "email",
@@ -114,11 +133,14 @@ export default function CustomersDataGrid({
         ),
       },
       {
-        field: "createdAt",
-        headerName: "Alta",
+        field: "actions",
+        headerName: "",
+        width: 72,
+        minWidth: 72,
+        align: "center",
         sortable: false,
-        width: 110,
-        valueGetter: ({ row }) => formatDateShort((row as CustomerListRow).createdAt),
+        filterable: false,
+        actionComponent: CustomerActionsCell,
       },
     );
     return base;
@@ -141,12 +163,19 @@ export default function CustomersDataGrid({
         showSortButton={false}
         showFilterButton={false}
         onAddClick={() => setCreateOpen(true)}
+        pinActionsColumn
         data-test-id="customers-data-grid"
       />
       <CreateCustomerDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSuccess={onSuccess}
+        internalCreditEnabled={internalCreditEnabled}
+      />
+      <CustomerDetailDialog
+        open={detailCustomerId != null}
+        customerId={detailCustomerId}
+        onClose={() => setDetailCustomerId(null)}
         internalCreditEnabled={internalCreditEnabled}
       />
     </>

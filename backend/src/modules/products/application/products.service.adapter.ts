@@ -51,6 +51,7 @@ export class ProductsServiceAdapter {
       payload.description,
       payload.isActive !== false,
       payload.productType,
+      payload.brandId ?? null,
     );
     const created = await this.commandBus.execute(command);
     await this.syncMediaLinks(created.id, multimediaAssetIds);
@@ -68,6 +69,7 @@ export class ProductsServiceAdapter {
       payload.categoryId,
       payload.isActive,
       payload.productType,
+      payload.brandId,
     );
     await this.commandBus.execute(command);
     await this.syncMediaLinks(id, multimediaAssetIds);

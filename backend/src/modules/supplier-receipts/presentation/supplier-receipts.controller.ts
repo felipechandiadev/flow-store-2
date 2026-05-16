@@ -5,6 +5,7 @@ import { FindTransactionQuery } from '@modules/transactions/application/queries/
 import { TransactionType, PaymentStatus } from '@modules/transactions/domain/transaction.entity';
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
+import { SupplierFiscalDocumentPaymentAggregateService } from '@modules/transactions/application/services/supplier-fiscal-document-payment-aggregate.service';
 import {
   applyDteNumberToSupplierDocumentDto,
   normalizeDteNumberFromBody,
@@ -15,6 +16,7 @@ export class SupplierReceiptsController {
   constructor(
     private readonly queryBus: QueryBus,
     private readonly transactionsService: TransactionsService,
+    private readonly supplierDocumentPaymentAggregate: SupplierFiscalDocumentPaymentAggregateService,
   ) {}
 
   @Get()
@@ -43,6 +45,11 @@ export class SupplierReceiptsController {
         search,
       ),
     );
+  }
+
+  @Get(':id/payment-state')
+  async paymentState(@Param('id') id: string) {
+    return this.supplierDocumentPaymentAggregate.getAggregate(id);
   }
 
   @Get(':id')

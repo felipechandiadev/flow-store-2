@@ -56,6 +56,9 @@ export class PurchaseOrderRequest {
       ...(storageId ? { storageId } : {}),
       documentDate: input.documentDate,
       documentFolio: input.documentFolio?.trim() || undefined,
+      ...(input.notes != null && String(input.notes).trim() !== ""
+        ? { notes: String(input.notes).trim() }
+        : {}),
       ...(draft ? { saveAsDraft: true } : {}),
       lines: (input.lines ?? []).map((l) => ({
         productId: l.productId,

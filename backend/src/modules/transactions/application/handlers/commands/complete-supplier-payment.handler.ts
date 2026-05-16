@@ -39,9 +39,9 @@ export class CompleteSupplierPaymentCommandHandler implements ICommandHandler<Co
       throw new BadRequestException(`Payment ${command.paymentId} not found`);
     }
 
-    if (payment.transactionType !== TransactionType.PAYMENT_OUT) {
+    if (payment.transactionType !== TransactionType.SUPPLIER_PAYMENT) {
       throw new BadRequestException(
-        `Transaction ${command.paymentId} is not a PAYMENT_OUT`,
+        `Transaction ${command.paymentId} is not a SUPPLIER_PAYMENT`,
       );
     }
 
@@ -67,7 +67,7 @@ export class CompleteSupplierPaymentCommandHandler implements ICommandHandler<Co
 
     // Create payment execution in transaction
     const result = await this.dataSource.transaction(async (manager) => {
-      // 1. Update PAYMENT_OUT to CONFIRMED
+      // 1. Update SUPPLIER_PAYMENT to CONFIRMED
       const updatedMetadata = {
         ...(payment.metadata || {}),
         completedAt: new Date().toISOString(),
@@ -123,6 +123,8 @@ export class CompleteSupplierPaymentCommandHandler implements ICommandHandler<Co
             : `Pago ejecutado de ${payment.documentNumber}`,
           metadata: {
             origin: 'PAYMENT_COMPLETION',
+            sourcePaymentId: command.paymentId,
+            sourcePaymentDocNumber: payment.documentNumber,
             paymentOutId: command.paymentId,
             paymentOutDocNumber: payment.documentNumber,
             supplierBankAccount: command.supplierBankAccount,

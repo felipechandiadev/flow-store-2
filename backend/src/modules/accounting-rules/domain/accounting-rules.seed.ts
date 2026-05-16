@@ -57,7 +57,7 @@ export const ACCOUNTING_RULES_SEED = [
     name: 'Bank to Cash Transfer',
     companyId: 'PLACEHOLDER_COMPANY_ID',
     appliesTo: 'TRANSACTION',
-    transactionType: 'PAYMENT_OUT',
+    transactionType: 'BANK_TO_CASH_TRANSFER',
     expenseCategoryId: null,
     taxId: null,
     paymentMethod: 'TRANSFER',
@@ -237,10 +237,10 @@ export const ACCOUNTING_RULES_SEED = [
   },
 
   {
-    name: 'Payment Out (Supplier)',
+    name: 'Supplier payment (accounts payable)',
     companyId: 'PLACEHOLDER_COMPANY_ID',
     appliesTo: 'TRANSACTION',
-    transactionType: 'PAYMENT_OUT',
+    transactionType: 'SUPPLIER_PAYMENT',
     expenseCategoryId: null,
     taxId: null,
     paymentMethod: null,
@@ -250,6 +250,24 @@ export const ACCOUNTING_RULES_SEED = [
     isActive: true,
     metadata: {
       description: 'Pago a proveedor',
+      NOTE: 'El HABER será 1.1.01 (Caja) o 1.1.02 (Banco) según paymentMethod',
+    },
+  },
+
+  {
+    name: 'Payroll payment (remuneraciones por pagar)',
+    companyId: 'PLACEHOLDER_COMPANY_ID',
+    appliesTo: 'TRANSACTION',
+    transactionType: 'PAYROLL_PAYMENT',
+    expenseCategoryId: null,
+    taxId: null,
+    paymentMethod: null,
+    debitAccountCode: '2.2.01', // Remuneraciones por pagar
+    creditAccountCode: '1.1.02', // Banco / Caja
+    priority: 50,
+    isActive: true,
+    metadata: {
+      description: 'Pago de remuneraciones',
       NOTE: 'El HABER será 1.1.01 (Caja) o 1.1.02 (Banco) según paymentMethod',
     },
   },

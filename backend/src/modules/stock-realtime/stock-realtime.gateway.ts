@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { HttpException, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   ConnectedSocket,
@@ -50,9 +50,16 @@ export class StockRealtimeGateway implements OnGatewayInit {
       client.data.activeCompanyId = activeCompanyId;
       client.data.currentUser = currentUser;
     } catch (e) {
-      this.logger.warn(
-        `WS stock rechazado: ${e instanceof Error ? e.message : String(e)}`,
-      );
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.warn(`WS stock rechazado: ${msg}`);
+      const status = e instanceof HttpException ? e.getStatus() : null;
+      if (e instanceof UnauthorizedException || status === 401) {
+        try {
+          client.emit('auth_error', { reason: 'unauthorized', message: msg });
+        } catch {
+          // ignore emit failures on half-open socket
+        }
+      }
       client.disconnect(true);
     }
   }

@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  ValidateIf,
 } from 'class-validator';
 import { ProductType } from '../../domain/product.entity';
 
@@ -41,6 +42,11 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   brand?: string;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsUUID()
+  brandId?: string | null;
 
   @IsOptional()
   @IsString()

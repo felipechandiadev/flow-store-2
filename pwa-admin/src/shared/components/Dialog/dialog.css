@@ -17,6 +17,10 @@
   background-color: var(--color-background, #fff);
 }
 
+.fs-dialog__header.fs-dialog__header--transparent {
+  background-color: transparent;
+}
+
 /** Cuerpo con scroll en paper: min-height 0 evita el bug de flex+overflow. */
 .fs-dialog__body--paper {
   min-height: 0;

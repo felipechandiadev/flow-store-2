@@ -5,6 +5,7 @@ import { ProductCreatedEvent } from '../../../domain/events/product-created.even
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product, ProductType } from '../../../domain/product.entity';
+import { BrandsService } from '@modules/brands/application/brands.service';
 
 @CommandHandler(CreateProductCommand)
 export class CreateProductCommandHandler implements ICommandHandler<
@@ -17,16 +18,26 @@ export class CreateProductCommandHandler implements ICommandHandler<
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
     private readonly eventBus: EventBus,
+    private readonly brandsService: BrandsService,
   ) {}
 
   async execute(command: CreateProductCommand): Promise<Product> {
     this.logger.debug(`Creating product: ${command.name}`);
 
+    let brandLabel = command.brand;
+    let brandId: string | null = command.brandId ?? null;
+    if (brandId) {
+      const b = await this.brandsService.assertBrandInCurrentCompany(brandId);
+      brandLabel = b.name;
+      brandId = b.id;
+    }
+
     const product = this.productRepository.create({
       id: command.productId,
       name: command.name,
       categoryId: command.categoryId,
-      brand: command.brand,
+      brand: brandLabel,
+      brandId,
       description: command.description,
       isActive: command.isActive,
       productType: command.productType ?? ProductType.PHYSICAL,
@@ -38,7 +49,7 @@ export class CreateProductCommandHandler implements ICommandHandler<
       saved.id,
       saved.name,
       saved.categoryId,
-      saved.brand,
+      saved.brand ?? undefined,
     );
     event.aggregateVersion = 1;
     event.correlationId = saved.id;
@@ -52,6 +63,7 @@ export class CreateProductCommandHandler implements ICommandHandler<
       name: saved.name,
       categoryId: saved.categoryId,
       brand: saved.brand,
+      brandId: saved.brandId ?? null,
       description: saved.description,
       isActive: saved.isActive,
       productType: saved.productType,

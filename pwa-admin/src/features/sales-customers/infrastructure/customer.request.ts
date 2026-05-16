@@ -1,6 +1,12 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
-import type { CreateCustomerFormInput, CustomerListResult, CustomerListRow } from "../types/customer.types";
+import type {
+  CreateCustomerFormInput,
+  CustomerDetailView,
+  CustomerListResult,
+  CustomerListRow,
+  UpdateCustomerPayload,
+} from "../types/customer.types";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -39,6 +45,7 @@ function normalizeRow(raw: unknown): CustomerListRow | null {
     customerId,
     personId,
     displayName: o.displayName != null ? String(o.displayName) : "—",
+    documentType: o.documentType != null && String(o.documentType).trim() !== "" ? String(o.documentType) : null,
     documentNumber: o.documentNumber != null ? String(o.documentNumber) : null,
     email: o.email != null ? String(o.email) : null,
     phone: o.phone != null ? String(o.phone) : null,
@@ -61,6 +68,52 @@ function normalizeRow(raw: unknown): CustomerListRow | null {
     createdAt: o.createdAt != null ? String(o.createdAt) : undefined,
     updatedAt: o.updatedAt != null ? String(o.updatedAt) : undefined,
   };
+}
+
+function mapCustomerDetailFromJson(
+  c: Record<string, unknown>,
+  fallbackCustomerId: string,
+): CustomerDetailView {
+  return {
+    customerId: String(c.customerId ?? fallbackCustomerId),
+    personId: String(c.personId ?? ""),
+    personType: c.personType != null && String(c.personType).trim() !== "" ? String(c.personType) : null,
+    firstName: c.firstName != null ? String(c.firstName) : null,
+    lastName: c.lastName != null ? String(c.lastName) : null,
+    businessName: c.businessName != null ? String(c.businessName) : null,
+    displayName: c.displayName != null ? String(c.displayName) : "—",
+    documentType: c.documentType != null && String(c.documentType).trim() !== "" ? String(c.documentType) : null,
+    documentNumber: c.documentNumber != null ? String(c.documentNumber) : null,
+    email: c.email != null ? String(c.email) : null,
+    phone: c.phone != null ? String(c.phone) : null,
+    address: c.address != null ? String(c.address) : null,
+    creditLimit: Number(c.creditLimit) || 0,
+    usedCredit: Number(c.usedCredit) || 0,
+    availableCredit: Number(c.availableCredit) || 0,
+    paymentDayOfMonth:
+      typeof c.paymentDayOfMonth === "number" && Number.isFinite(c.paymentDayOfMonth)
+        ? c.paymentDayOfMonth
+        : c.paymentDayOfMonth != null
+          ? Number(c.paymentDayOfMonth)
+          : null,
+    isActive: c.isActive !== false,
+    createdAt: c.createdAt != null ? String(c.createdAt) : undefined,
+    updatedAt: c.updatedAt != null ? String(c.updatedAt) : undefined,
+  };
+}
+
+function parseHttpErrorMessage(data: Record<string, unknown>): string {
+  const m = data.message;
+  if (Array.isArray(m)) {
+    return m.map((x) => String(x)).join("; ");
+  }
+  if (typeof m === "string" && m.trim()) {
+    return m.trim();
+  }
+  if (typeof data.error === "string" && data.error.trim()) {
+    return data.error.trim();
+  }
+  return "No se pudo guardar los cambios.";
 }
 
 export class CustomerRequest {
@@ -95,6 +148,114 @@ export class CustomerRequest {
       total,
       customers,
     };
+  }
+
+  static async getById(customerId: string): Promise<CustomerDetailView | null> {
+    const id = customerId?.trim();
+    if (!id) {
+      return null;
+    }
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl(`customers/${encodeURIComponent(id)}`), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      return null;
+    }
+    const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    const raw = json?.customer;
+    if (!raw || typeof raw !== "object") {
+      return null;
+    }
+    return mapCustomerDetailFromJson(raw as Record<string, unknown>, id);
+  }
+
+  static async update(
+    customerId: string,
+    body: UpdateCustomerPayload,
+  ): Promise<{ success: true; customer: CustomerDetailView } | { success: false; error: string }> {
+    const id = customerId?.trim();
+    if (!id) {
+      return { success: false, error: "Cliente no especificado." };
+    }
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl(`customers/${encodeURIComponent(id)}`), {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      return { success: false, error: parseHttpErrorMessage(data) };
+    }
+    if (data.success === false) {
+      return { success: false, error: parseHttpErrorMessage(data) };
+    }
+    const raw = data.customer;
+    if (!raw || typeof raw !== "object") {
+      return { success: false, error: "Respuesta inválida del servidor." };
+    }
+    return { success: true, customer: mapCustomerDetailFromJson(raw as Record<string, unknown>, id) };
+  }
+
+  static async getPayments(customerId: string): Promise<Record<string, unknown>[]> {
+    const id = customerId?.trim();
+    if (!id) {
+      return [];
+    }
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl(`customers/${encodeURIComponent(id)}/payments`), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const arr = json.payments;
+    return Array.isArray(arr) ? arr : [];
+  }
+
+  static async getPurchases(customerId: string): Promise<Record<string, unknown>[]> {
+    const id = customerId?.trim();
+    if (!id) {
+      return [];
+    }
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl(`customers/${encodeURIComponent(id)}/purchases`), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const arr = json.purchases;
+    return Array.isArray(arr) ? arr : [];
+  }
+
+  static async getPendingQuotas(customerId: string): Promise<Record<string, unknown>[]> {
+    const id = customerId?.trim();
+    if (!id) {
+      return [];
+    }
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl(`customers/${encodeURIComponent(id)}/pending-quotas`), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const arr = json.quotas;
+    return Array.isArray(arr) ? arr : [];
   }
 
   static async create(

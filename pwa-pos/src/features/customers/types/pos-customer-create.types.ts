@@ -3,7 +3,7 @@ export type PosCreateCustomerInput = {
   personType: "NATURAL";
   firstName: string;
   lastName?: string;
-  documentType: "RUN" | "PASSPORT" | "OTHER";
+  documentType: "RUN" | "PASSPORT" | "DNI";
   documentNumber: string;
   email?: string;
   phone?: string;

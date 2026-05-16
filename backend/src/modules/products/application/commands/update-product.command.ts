@@ -11,6 +11,8 @@ export class UpdateProductCommand extends BaseCommand {
     public readonly categoryId?: string,
     public readonly isActive?: boolean,
     public readonly productType?: ProductType,
+    /** `null` limpia la marca; `undefined` no modifica. */
+    public readonly brandId?: string | null,
   ) {
     super();
   }

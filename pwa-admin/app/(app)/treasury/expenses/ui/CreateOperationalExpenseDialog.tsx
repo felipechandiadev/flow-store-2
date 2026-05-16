@@ -32,6 +32,7 @@ import {
   bankAccountOptionKey,
   parseYyyyMmDdLocal,
   parseClpAmountInput,
+  resolveChequeBankNameFromCompanyAccount,
   splitTotalAcrossLines,
   toYyyyMmDdLocal,
 } from "@/features/purchasing-dte/lib/planned-payment-helpers";
@@ -500,7 +501,7 @@ export function CreateOperationalExpenseDialog({
           chequeNumber: l.paymentMethod === "CHECK" ? String(l.chequeNumber).trim() : null,
           chequeBankName:
             l.paymentMethod === "CHECK"
-              ? (l.chequeBankName ?? "").trim() || null
+              ? resolveChequeBankNameFromCompanyAccount(l.companyBankAccountKey, companyBankAccounts, l.chequeBankName)
               : null,
           chequeDrawerName:
             l.paymentMethod === "CHECK"

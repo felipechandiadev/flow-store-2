@@ -168,7 +168,7 @@ export function PurchaseDocumentVariantSearchPanel({
 
   return (
     <aside
-      className="flex h-[80vh] min-h-0 w-full min-w-0 shrink-0 flex-col gap-3 rounded-xl border border-border bg-background p-3 lg:max-w-sm lg:basis-[22rem]"
+      className="flex min-h-0 w-full min-w-0 flex-1 shrink-0 flex-col gap-3 rounded-xl border border-border bg-background p-3 lg:h-full lg:max-h-none lg:min-h-0 lg:max-w-sm lg:flex-none lg:basis-[22rem]"
       data-test-id="purchase-document-search-panel"
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buscar productos</p>
@@ -185,6 +185,7 @@ export function PurchaseDocumentVariantSearchPanel({
         }}
         placeholder="Nombre, SKU, código, categoría…"
         alwaysShowLabel
+        density="compact"
         startAdornment={<Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />}
         data-test-id="purchase-doc-search-field"
         aria-busy={searchTextPending}

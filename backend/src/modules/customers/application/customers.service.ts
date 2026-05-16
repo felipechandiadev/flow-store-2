@@ -251,15 +251,21 @@ export class CustomersService {
 
     const creditInfo = await this.calculateAvailableCredit(customer.id);
 
+    const p = customer.person || null;
+
     return {
       customerId: customer.id,
       personId: customer.personId,
-      displayName: this.buildDisplayName(customer.person || null),
-      documentType: customer.person?.documentType || null,
-      documentNumber: customer.person?.documentNumber || null,
-      email: customer.person?.email || null,
-      phone: customer.person?.phone || null,
-      address: customer.person?.address || null,
+      personType: p?.type ?? null,
+      firstName: p?.firstName ?? null,
+      lastName: p?.lastName ?? null,
+      businessName: p?.businessName ?? null,
+      displayName: this.buildDisplayName(p),
+      documentType: p?.documentType || null,
+      documentNumber: p?.documentNumber || null,
+      email: p?.email || null,
+      phone: p?.phone || null,
+      address: p?.address || null,
       creditLimit: creditInfo.creditLimit,
       usedCredit: creditInfo.usedCredit,
       availableCredit: creditInfo.availableCredit,
@@ -313,6 +319,7 @@ export class CustomersService {
         customerId: c.id,
         personId: c.personId,
         displayName: this.buildDisplayName(c.person || null),
+        documentType: c.person?.documentType || null,
         documentNumber: c.person?.documentNumber || null,
         email: c.person?.email || null,
         phone: c.person?.phone || null,

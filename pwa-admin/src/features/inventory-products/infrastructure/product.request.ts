@@ -58,6 +58,19 @@ async function authHeaders(): Promise<HeadersInit> {
   return h;
 }
 
+function formatUnitRelation(u: unknown): string | null {
+  if (!u || typeof u !== "object") {
+    return null;
+  }
+  const r = u as Record<string, unknown>;
+  const sym = r.symbol != null && String(r.symbol).trim() ? String(r.symbol).trim() : "";
+  const nm = r.name != null && String(r.name).trim() ? String(r.name).trim() : "";
+  if (nm && sym) {
+    return `${nm} (${sym})`;
+  }
+  return sym || nm || null;
+}
+
 function normalizeVariant(v: unknown): ProductVariantGridRow | null {
   if (!v || typeof v !== "object") {
     return null;
@@ -167,6 +180,10 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
     unitOfMeasure = sym ? `${nm} (${sym})` : nm || null;
   }
 
+  const saleUnitLabel = formatUnitRelation(o.saleUnit) ?? unitOfMeasure;
+  const stockBaseUnitLabel = formatUnitRelation(o.stockBaseUnit);
+  const purchaseUnitLabel = formatUnitRelation(o.purchaseUnit);
+
   return {
     id,
     sku: sku || "—",
@@ -178,6 +195,9 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
     stockBaseQtyPerCountSaleUnit: parseOptQty(o.stockBaseQtyPerCountSaleUnit),
     stockBaseQtyPerCountPurchaseUnit: parseOptQty(o.stockBaseQtyPerCountPurchaseUnit),
     barcode: o.barcode != null && String(o.barcode).trim() ? String(o.barcode) : null,
+    saleUnitLabel,
+    stockBaseUnitLabel,
+    purchaseUnitLabel,
     unitOfMeasure,
     isActive: o.isActive !== false,
     basePrice: typeof o.basePrice === "number" ? o.basePrice : o.basePrice != null ? Number(o.basePrice) : undefined,
@@ -255,10 +275,15 @@ function normalizeProduct(row: unknown): ProductGridRow | null {
   const categoryName =
     categoryNameRaw != null && String(categoryNameRaw).trim() ? String(categoryNameRaw).trim() : null;
 
+  const brandIdRaw = o.brandId ?? o.brand_id;
+  const brandId =
+    brandIdRaw != null && String(brandIdRaw).trim() ? String(brandIdRaw).trim() : null;
+
   return {
     id,
     name,
     productType: o.productType != null && String(o.productType).trim() ? String(o.productType).trim() : null,
+    brandId,
     brand: o.brand != null && String(o.brand).trim() ? String(o.brand).trim() : null,
     description: o.description != null && String(o.description).trim() ? String(o.description).trim() : null,
     categoryId,
@@ -305,6 +330,7 @@ export class ProductRequest {
   static async create(body: {
     name: string;
     categoryId?: string;
+    brandId?: string | null;
     brand?: string;
     description?: string;
     productType?: string;
@@ -318,6 +344,9 @@ export class ProductRequest {
     };
     if (body.categoryId?.trim()) {
       payload.categoryId = body.categoryId.trim();
+    }
+    if (body.brandId != null && String(body.brandId).trim()) {
+      payload.brandId = String(body.brandId).trim();
     }
     if (body.brand?.trim()) {
       payload.brand = body.brand.trim();
@@ -364,6 +393,7 @@ export class ProductRequest {
     body: {
       name: string;
       categoryId?: string;
+      brandId?: string | null;
       brand?: string;
       description?: string;
       productType?: string;
@@ -378,6 +408,9 @@ export class ProductRequest {
     };
     if (body.categoryId?.trim()) {
       payload.categoryId = body.categoryId.trim();
+    }
+    if (body.brandId !== undefined) {
+      payload.brandId = body.brandId != null && String(body.brandId).trim() ? String(body.brandId).trim() : null;
     }
     if (body.brand?.trim()) {
       payload.brand = body.brand.trim();
@@ -694,7 +727,7 @@ export class ProductRequest {
     | {
         ok: true;
         variant: ProductVariantGridRow;
-        product: { id: string; name: string; productType: string | null; categoryName?: string | null };
+        product: { id: string; name: string; productType: string | null; categoryName?: string | null; brand?: string | null };
       }
     | { ok: false; error: string }
   > {
@@ -723,7 +756,16 @@ export class ProductRequest {
       const categoryName =
         prod?.category && typeof prod.category === "object"
           ? String((prod.category as Record<string, unknown>).name ?? "").trim() || null
+          : prod?.categoryName != null && String(prod.categoryName).trim()
+            ? String(prod.categoryName).trim()
+            : null;
+      const catalogBrand =
+        prod?.catalogBrand && typeof prod.catalogBrand === "object"
+          ? String((prod.catalogBrand as Record<string, unknown>).name ?? "").trim() || null
           : null;
+      const brandLegacy =
+        prod?.brand != null && String(prod.brand).trim() ? String(prod.brand).trim() : null;
+      const brand = catalogBrand ?? brandLegacy ?? null;
       const merged = { ...raw, productId: productId || raw.productId };
       const variant = normalizeVariant(merged);
       if (!variant) {
@@ -732,7 +774,7 @@ export class ProductRequest {
       return {
         ok: true,
         variant,
-        product: { id: productId, name: productName, productType, categoryName },
+        product: { id: productId, name: productName, productType, categoryName, brand },
       };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "Error de red" };

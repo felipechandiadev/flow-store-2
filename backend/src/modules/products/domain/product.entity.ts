@@ -13,6 +13,7 @@ import {
 import { Category } from '@modules/categories/domain/category.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
 import { ResultCenter } from '@modules/result-centers/domain/result-center.entity';
+import { Brand } from '@modules/brands/domain/brand.entity';
 
 export type ProductChangeHistoryTargetType = 'PRODUCT' | 'VARIANT';
 export type ProductChangeHistoryAction = 'CREATE' | 'UPDATE' | 'DELETE';
@@ -48,6 +49,9 @@ export enum ProductType {
   PHYSICAL = 'PHYSICAL',
   SERVICE = 'SERVICE',
   DIGITAL = 'DIGITAL',
+  MANUFACTURADO = 'MANUFACTURADO',
+  ELABORADO = 'ELABORADO',
+  PREPARADO = 'PREPARADO',
 }
 
 /**
@@ -74,7 +78,14 @@ export class Product {
   description?: string;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
-  brand?: string;
+  brand?: string | null;
+
+  @Column({ type: 'uuid', nullable: true, name: 'brand_id' })
+  brandId?: string | null;
+
+  @ManyToOne(() => Brand, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'brand_id' })
+  catalogBrand?: Brand | null;
 
   @Column({ type: 'enum', enum: ProductType, default: ProductType.PHYSICAL })
   productType!: ProductType;

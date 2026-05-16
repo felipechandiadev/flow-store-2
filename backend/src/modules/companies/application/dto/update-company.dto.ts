@@ -20,4 +20,14 @@ export class UpdateCompanyDto {
   @IsString()
   @MaxLength(14)
   rut?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  mail?: string;
 }

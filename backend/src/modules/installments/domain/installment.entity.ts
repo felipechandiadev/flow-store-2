@@ -21,6 +21,10 @@ import { Transaction } from '@modules/transactions/domain/transaction.entity';
  *
  * Esta tabla centraliza el control de tesorería y flujo de caja.
  *
+ * Convive con transacciones SUPPLIER_PAYMENT (compromisos/pagos hacia documento
+ * fiscal): evitar dos fuentes de verdad sin sincronizar — o bien el plan vive
+ * en cuotas y el pago ejecuta contra ellas, o las cuotas reflejan esos compromisos.
+ *
  * Casos de Uso:
  * ------------
  *

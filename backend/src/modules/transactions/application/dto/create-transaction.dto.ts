@@ -291,13 +291,6 @@ export class CreateTransactionDto {
   validate(): string[] {
     const errors: string[] = [];
 
-    // DEPRECATION: Rechazar nuevos PAYMENT_OUT
-    if (this.transactionType === TransactionType.PAYMENT_OUT) {
-      errors.push(
-        'PAYMENT_OUT está deprecado. Use SUPPLIER_PAYMENT o EXPENSE_PAYMENT según corresponda.',
-      );
-    }
-
     // Nested líneas deben ser instancias DTO; si no, validateSync falla con
     // "an unknown value was passed to the validate function" (objetos planos).
     if (this.lines?.length) {
@@ -338,6 +331,8 @@ export class CreateTransactionDto {
       TransactionType.SUPPLIER_GUIDE,
       TransactionType.SUPPLIER_CREDIT_NOTE,
       TransactionType.SUPPLIER_PAYMENT,
+      TransactionType.PAYROLL_PAYMENT,
+      TransactionType.BANK_TO_CASH_TRANSFER,
       TransactionType.EXPENSE_PAYMENT,
       TransactionType.CASH_DEPOSIT,
       TransactionType.CAPITAL_CONTRIBUTION,
@@ -346,7 +341,6 @@ export class CreateTransactionDto {
       TransactionType.CASH_SESSION_TO_HUB_TRANSFER,
       TransactionType.CASH_SESSION_DEPOSIT,
       TransactionType.PAYMENT_IN,
-      TransactionType.PAYMENT_OUT,
       TransactionType.PAYROLL,
       TransactionType.PAYMENT_EXECUTION,
     ];
@@ -396,19 +390,16 @@ export class CreateTransactionDto {
         }
         break;
 
-      case TransactionType.PAYMENT_OUT:
-        if (this.metadata?.bankToCashTransfer && !this.bankAccountKey) {
-          errors.push('bankToCashTransfer requiere bankAccountKey');
-        }
-        if (this.supplierId && !this.total) {
-          errors.push('Pago a proveedor requiere monto');
+      case TransactionType.BANK_TO_CASH_TRANSFER:
+        if (!this.bankAccountKey) {
+          errors.push('BANK_TO_CASH_TRANSFER requiere bankAccountKey');
         }
         break;
 
       case TransactionType.PAYMENT_EXECUTION:
         if (!this.relatedTransactionId) {
           errors.push(
-            'PAYMENT_EXECUTION requiere relatedTransactionId (PAYMENT_OUT)',
+            'PAYMENT_EXECUTION requiere relatedTransactionId (documento de pago origen)',
           );
         }
         if (!this.total) {
@@ -425,7 +416,7 @@ export class CreateTransactionDto {
         }
         if (!this.relatedTransactionId) {
           errors.push(
-            'SUPPLIER_PAYMENT requiere relatedTransactionId (PURCHASE)',
+            'SUPPLIER_PAYMENT requiere relatedTransactionId (compra o documento proveedor)',
           );
         }
         if (!this.total) {
@@ -433,6 +424,23 @@ export class CreateTransactionDto {
         }
         if (!this.paymentMethod) {
           errors.push('SUPPLIER_PAYMENT requiere paymentMethod');
+        }
+        break;
+
+      case TransactionType.PAYROLL_PAYMENT:
+        if (!this.employeeId) {
+          errors.push('PAYROLL_PAYMENT requiere employeeId');
+        }
+        if (!this.relatedTransactionId) {
+          errors.push(
+            'PAYROLL_PAYMENT requiere relatedTransactionId (liquidación PAYROLL u origen)',
+          );
+        }
+        if (!this.total) {
+          errors.push('PAYROLL_PAYMENT requiere monto');
+        }
+        if (!this.paymentMethod) {
+          errors.push('PAYROLL_PAYMENT requiere paymentMethod');
         }
         break;
 
@@ -668,7 +676,7 @@ export class CreateBankTransferDto {
     branchId: string,
   ): CreateTransactionDto {
     const dto = new CreateTransactionDto();
-    dto.transactionType = TransactionType.PAYMENT_OUT;
+    dto.transactionType = TransactionType.BANK_TO_CASH_TRANSFER;
     dto.branchId = branchId;
     dto.userId = userId;
     dto.bankAccountKey = this.bankAccountKey;

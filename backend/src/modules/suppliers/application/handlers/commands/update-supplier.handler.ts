@@ -7,6 +7,7 @@ import {
   SUPPLIERS_REPOSITORY,
 } from '../../ports/suppliers.repository.port';
 import { Supplier } from '../../../domain/supplier.entity';
+import { PersonsService } from '@modules/persons/application/persons.service';
 
 @CommandHandler(UpdateSupplierCommand)
 export class UpdateSupplierCommandHandler implements ICommandHandler<
@@ -19,6 +20,7 @@ export class UpdateSupplierCommandHandler implements ICommandHandler<
     @Inject(SUPPLIERS_REPOSITORY)
     private readonly repository: SuppliersRepositoryPort,
     private readonly eventBus: EventBus,
+    private readonly personsService: PersonsService,
   ) {}
 
   async execute(command: UpdateSupplierCommand): Promise<Supplier> {
@@ -31,6 +33,8 @@ export class UpdateSupplierCommandHandler implements ICommandHandler<
     if (!supplier) {
       throw new NotFoundException(`Supplier ${command.supplierId} not found`);
     }
+
+    const personId = supplier.personId;
 
     // Apply changes
     if (command.alias !== undefined) supplier.alias = command.alias;
@@ -45,6 +49,15 @@ export class UpdateSupplierCommandHandler implements ICommandHandler<
 
     // Save to repository
     const updated = await this.repository.update(command.supplierId, supplier);
+
+    if (
+      command.person &&
+      personId &&
+      typeof command.person === 'object' &&
+      Object.keys(command.person as object).length > 0
+    ) {
+      await this.personsService.update(personId, command.person);
+    }
 
     // Publish domain event
     const event = new SupplierUpdatedEvent(
@@ -65,6 +78,7 @@ export class UpdateSupplierCommandHandler implements ICommandHandler<
       `[${command.id}] Supplier ${command.supplierId} updated successfully`,
     );
 
-    return updated;
+    const withRelations = await this.repository.findOne(command.supplierId);
+    return withRelations ?? updated;
   }
 }

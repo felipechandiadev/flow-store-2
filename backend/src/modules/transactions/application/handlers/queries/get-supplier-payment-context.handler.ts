@@ -1,8 +1,12 @@
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { GetSupplierPaymentContextQuery } from '@modules/transactions/application/queries/get-supplier-payment-context.query';
+import {
+  TransactionStatus,
+  TransactionType,
+} from '@modules/transactions/domain/transaction.entity';
 import { TransactionOrmEntity } from '@modules/transactions/infrastructure/orm-mappers/transaction.orm-entity';
+import { GetSupplierPaymentContextQuery } from '@modules/transactions/application/queries/get-supplier-payment-context.query';
 
 export interface SupplierPaymentContextDto {
   supplierId: string;
@@ -83,26 +87,26 @@ export class GetSupplierPaymentContextQueryHandler implements IQueryHandler<GetS
       )
       .getRawMany();
 
-    // Calculate pending payment amount from PAYMENT_OUT transactions
-    const pendingPayments = await this.transactionRepository.manager
-      .createQueryBuilder()
-      .select([
-        'tx.id as paymentOutId',
-        'tx.amount',
-        'tx.status',
-        'tx.createdAt',
-        'tx.documentNumber',
-      ])
-      .from('transactions', 'tx')
+    const pendingPayments = await this.transactionRepository
+      .createQueryBuilder('tx')
+      .innerJoin('tx.branch', 'branch')
+      .select('tx.id', 'paymentOutId')
+      .addSelect('tx.total', 'amount')
+      .addSelect('tx.status', 'status')
+      .addSelect('tx.createdAt', 'createdAt')
+      .addSelect('tx.documentNumber', 'documentNumber')
       .where('tx.supplierId = :supplierId', { supplierId })
-      .andWhere("tx.transactionType = 'PAYMENT_OUT'")
-      .andWhere("tx.status = 'PENDING'")
-      .andWhere('tx.companyId = :companyId', { companyId })
+      .andWhere('tx.transactionType = :tt', {
+        tt: TransactionType.SUPPLIER_PAYMENT,
+      })
+      .andWhere('tx.status = :st', { st: TransactionStatus.DRAFT })
+      .andWhere('branch.companyId = :companyId', { companyId })
       .orderBy('tx.createdAt', 'ASC')
       .getRawMany();
 
     const pendingPaymentAmount = pendingPayments.reduce(
-      (sum, p: any) => sum + Number(p.amount || 0),
+      (sum, p: Record<string, unknown>) =>
+        sum + Number((p.amount as string | number) ?? 0),
       0,
     );
 
@@ -127,7 +131,7 @@ export class GetSupplierPaymentContextQueryHandler implements IQueryHandler<GetS
       pendingPaymentAmount,
       pendingPaymentTransactions: pendingPayments.map((p: any) => ({
         paymentOutId: p.paymentOutId,
-        amount: Number(p.amount),
+        amount: Number(p.amount ?? 0),
         status: p.status,
         createdAt: new Date(p.createdAt),
         documentNumber: p.documentNumber,

@@ -1,4 +1,12 @@
-import { Controller, Get, Query, Post, Body, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  Post,
+  Body,
+  Param,
+  BadRequestException,
+} from '@nestjs/common';
 import { ReceptionsService } from '../application/receptions.service';
 import { CreateReceptionDto } from '../application/dto/create-reception.dto';
 
@@ -14,6 +22,19 @@ export class ReceptionsController {
     const l = limit ? parseInt(limit, 10) : 25;
     const o = offset ? parseInt(offset, 10) : 0;
     return this.receptionsService.search({ limit: l, offset: o });
+  }
+
+  @Get('resolve')
+  async resolveBySupplierDocument(
+    @Query('supplierId') supplierId?: string,
+    @Query('documentRef') documentRef?: string,
+  ) {
+    const sid = String(supplierId ?? '').trim();
+    const ref = String(documentRef ?? '').trim();
+    if (!sid || !ref) {
+      throw new BadRequestException('supplierId and documentRef are required');
+    }
+    return this.receptionsService.getBySupplierDocumentRef(sid, ref);
   }
 
   @Get(':id')

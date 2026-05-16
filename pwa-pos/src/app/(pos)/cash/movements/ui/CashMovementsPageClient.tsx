@@ -28,7 +28,10 @@ function transactionTypeLabel(t: string): string {
     CASH_SESSION_WITHDRAWAL: "Retiro de efectivo",
     CASH_SESSION_TO_HUB_TRANSFER: "Transferencia a centro de acopio",
     PAYMENT_IN: "Cobro",
-    PAYMENT_OUT: "Pago",
+    SUPPLIER_PAYMENT: "Pago proveedor",
+    PAYROLL_PAYMENT: "Pago nómina",
+    EXPENSE_PAYMENT: "Pago gasto",
+    BANK_TO_CASH_TRANSFER: "Banco a caja",
     OPERATING_EXPENSE: "Gasto operativo",
     CASH_DEPOSIT: "Depósito en banco",
   };

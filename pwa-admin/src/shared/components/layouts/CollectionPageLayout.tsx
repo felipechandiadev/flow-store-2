@@ -283,7 +283,7 @@ function CollectionPageLayoutView({
                 {showSearch ? (
                   <div className="hidden items-center gap-2 sm:flex">
                     <TextField
-                      label=""
+                      label={searchLabel}
                       name={searchParamName}
                       value={searchInput}
                       onChange={handleSearchChange}

@@ -75,6 +75,7 @@ export class SuppliersServiceAdapter extends SuppliersService {
       dto.defaultPaymentTermDays,
       dto.isActive,
       dto.notes,
+      dto.person,
     );
 
     return this.commandBus.execute(command);

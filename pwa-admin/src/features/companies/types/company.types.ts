@@ -10,6 +10,8 @@ export interface CompanyDetail {
   nombreFantasia: string | null;
   businessActivity: string | null;
   rut: string;
+  address: string | null;
+  mail: string | null;
   defaultCurrency: string;
   isActive: boolean;
   createdAt?: string | null;
@@ -23,6 +25,8 @@ export interface CreateCompanyInput {
   rut: string;
   defaultCurrency?: string;
   isActive?: boolean;
+  address?: string | null;
+  mail?: string | null;
 }
 
 export interface UpdateCompanyInput {
@@ -31,4 +35,6 @@ export interface UpdateCompanyInput {
   businessActivity?: string | null;
   rut?: string;
   isActive?: boolean;
+  address?: string | null;
+  mail?: string | null;
 }

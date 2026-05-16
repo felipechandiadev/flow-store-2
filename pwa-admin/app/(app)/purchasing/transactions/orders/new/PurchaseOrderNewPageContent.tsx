@@ -22,6 +22,7 @@ export default async function PurchaseOrderNewPageContent({
         variantSearch={variantSearch}
         searchQuery={q}
         searchPage={page}
+        backToListHref="/purchasing/transactions/orders"
         onSavePurchaseOrder={createPurchaseOrderAction}
       />
     </div>

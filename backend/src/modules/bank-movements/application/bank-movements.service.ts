@@ -173,8 +173,8 @@ export class BankMovementsService {
     switch (transaction.transactionType) {
       case TransactionType.PAYMENT_IN:
         return 'CUSTOMER_PAYMENT';
-      case TransactionType.PAYMENT_OUT:
-        return 'SUPPLIER_PAYMENT';
+      case TransactionType.PAYROLL_PAYMENT:
+        return 'PAYROLL_PAYMENT';
       case TransactionType.SUPPLIER_PAYMENT:
         return 'SUPPLIER_PAYMENT';
       case TransactionType.EXPENSE_PAYMENT:
@@ -187,6 +187,8 @@ export class BankMovementsService {
         return 'CASH_DEPOSIT';
       case TransactionType.BANK_WITHDRAWAL_TO_SHAREHOLDER:
         return 'BANK_WITHDRAWAL_TO_SHAREHOLDER';
+      case TransactionType.BANK_TO_CASH_TRANSFER:
+        return 'BANK_TO_CASH_TRANSFER';
       default:
         return 'GENERAL';
     }
@@ -201,6 +203,7 @@ export class BankMovementsService {
       case 'CUSTOMER_PAYMENT':
       case 'CASH_DEPOSIT':
         return 'IN';
+      case 'PAYROLL_PAYMENT':
       case 'SUPPLIER_PAYMENT':
       case 'OPERATING_EXPENSE':
       case 'BANK_WITHDRAWAL_TO_SHAREHOLDER':

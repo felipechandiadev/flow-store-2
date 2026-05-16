@@ -11,6 +11,8 @@ import type { StorageListItem } from "@/features/inventory-storages/types/storag
 import type { SupplierGridRow } from "@/features/purchasing-suppliers/types/supplier.types";
 import type { CompanyBankAccountItem } from "@/features/settings-branches/infrastructure/company.request";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
+import type { CashHubRow } from "@/features/treasury-cash-hubs/types/cash-hub.types";
+import { listCashHubsForPurchasingAction } from "@/features/treasury-cash-hubs/actions/cash-hub.action";
 
 function pickDefaultBranchId(branches: BranchListItem[]): string {
   if (!branches.length) {
@@ -37,6 +39,7 @@ export type PurchaseDocumentReferenceState =
       taxes: TaxListItem[];
       branchId: string;
       companyBankAccounts: CompanyBankAccountItem[];
+      cashHubs: CashHubRow[];
     };
 
 /**
@@ -51,12 +54,13 @@ export function usePurchaseDocumentReferenceData(): PurchaseDocumentReferenceSta
 
     void (async () => {
       try {
-        const [suppliersResult, storages, taxes, branches, companyBankAccounts] = await Promise.all([
+        const [suppliersResult, storages, taxes, branches, companyBankAccounts, cashHubs] = await Promise.all([
           listSuppliersForGrid(),
           listStoragesForPage(),
           listTaxesForPage(),
           listBranchesForSettingsPage(),
           loadCompanyBankAccountsForPurchasingAction(),
+          listCashHubsForPurchasingAction(),
         ]);
         if (cancelled) {
           return;
@@ -68,6 +72,7 @@ export function usePurchaseDocumentReferenceData(): PurchaseDocumentReferenceSta
           taxes,
           branchId: pickDefaultBranchId(branches),
           companyBankAccounts,
+          cashHubs,
         });
       } catch (e) {
         if (cancelled) {

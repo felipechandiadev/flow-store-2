@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import type { SupplierGridRow } from "@/features/purchasing-suppliers/types/supplier.types";
+import IconButton from "@/shared/components/IconButton/IconButton";
 import { CreateSupplierDialog } from "./CreateSupplierDialog";
+import { SupplierDetailDialog } from "./SupplierDetailDialog";
 
 type SuppliersDataGridProps = {
   rows: SupplierGridRow[];
@@ -59,9 +61,26 @@ function documentLine(row: SupplierGridRow): string {
 export default function SuppliersDataGrid({ rows, total }: SuppliersDataGridProps) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
+  const [detailSupplierId, setDetailSupplierId] = useState<string | null>(null);
 
-  const columns: DataGridColumn[] = useMemo(
-    () => [
+  const columns: DataGridColumn[] = useMemo(() => {
+    function SupplierActionsCell({ row }: { row: unknown }) {
+      const r = row as SupplierGridRow;
+      return (
+        <div className="flex items-center justify-center" data-test-id={`suppliers-row-actions-${r.id}`}>
+          <IconButton
+            icon="MoreHorizontal"
+            variant="basicSecondary"
+            size="sm"
+            ariaLabel="Ver detalle del proveedor"
+            onClick={() => setDetailSupplierId(r.id)}
+            data-test-id={`suppliers-row-detail-${r.id}`}
+          />
+        </div>
+      );
+    }
+
+    return [
       {
         field: "displayName",
         headerName: "Nombre / Razón social",
@@ -112,9 +131,18 @@ export default function SuppliersDataGrid({ rows, total }: SuppliersDataGridProp
           </span>
         ),
       },
-    ],
-    [],
-  );
+      {
+        field: "actions",
+        headerName: "",
+        width: 72,
+        minWidth: 72,
+        align: "center",
+        sortable: false,
+        filterable: false,
+        actionComponent: SupplierActionsCell,
+      },
+    ];
+  }, []);
 
   const onSuccess = useCallback(async () => {
     await router.refresh();
@@ -133,9 +161,15 @@ export default function SuppliersDataGrid({ rows, total }: SuppliersDataGridProp
         showSortButton={false}
         showFilterButton={false}
         onAddClick={() => setCreateOpen(true)}
+        pinActionsColumn
         data-test-id="suppliers-data-grid"
       />
       <CreateSupplierDialog open={createOpen} onClose={() => setCreateOpen(false)} onSuccess={onSuccess} />
+      <SupplierDetailDialog
+        open={detailSupplierId != null}
+        supplierId={detailSupplierId}
+        onClose={() => setDetailSupplierId(null)}
+      />
     </>
   );
 }

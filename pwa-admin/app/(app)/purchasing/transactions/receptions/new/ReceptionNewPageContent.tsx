@@ -22,6 +22,7 @@ export default async function ReceptionNewPageContent({
         variantSearch={variantSearch}
         searchQuery={q}
         searchPage={page}
+        backToListHref="/purchasing/transactions/receptions"
         onSaveReception={createDirectReceptionAction}
       />
     </div>

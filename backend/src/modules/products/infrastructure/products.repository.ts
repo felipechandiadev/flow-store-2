@@ -19,6 +19,7 @@ export class ProductsRepository implements ProductsRepositoryPort {
       id: e.id,
       categoryId: e.categoryId,
       name: e.name,
+      brandId: e.brandId ?? null,
       description: e.description,
       brand: e.brand,
       productType: e.productType,
@@ -41,6 +42,7 @@ export class ProductsRepository implements ProductsRepositoryPort {
     e.name = d.name;
     e.description = d.description;
     e.brand = d.brand;
+    e.brandId = d.brandId ?? null;
     e.productType = d.productType;
     e.taxIds = d.taxIds;
     e.isActive = d.isActive;

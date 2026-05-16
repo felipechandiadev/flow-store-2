@@ -1,5 +1,6 @@
 import { BaseCommand } from '@shared/cqrs';
 import { SupplierType } from '../../domain/supplier.entity';
+import type { UpdatePersonDto } from '@modules/persons/application/dto/update-person.dto';
 
 export class UpdateSupplierCommand extends BaseCommand {
   constructor(
@@ -10,6 +11,7 @@ export class UpdateSupplierCommand extends BaseCommand {
     public readonly defaultPaymentTermDays?: number,
     public readonly isActive?: boolean,
     public readonly notes?: string,
+    public readonly person?: UpdatePersonDto,
   ) {
     super();
   }

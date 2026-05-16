@@ -1,15 +1,10 @@
 import type { ReactNode } from "react";
-import { TabPageLayout } from "@/shared/components/layouts";
-import { PurchasingTransactionsTabs } from "./ui/PurchasingTransactionsTabs";
 
-export default function PurchasingTransactionsLayout({ children }: { children: ReactNode }) {
+/** Rutas de transacciones: listados con pestañas en el route group purchasing-transactions-tabbed; rutas …/new sin pestañas. */
+export default function PurchasingTransactionsRootLayout({ children }: { children: ReactNode }) {
   return (
-    <TabPageLayout
-      tabs={<PurchasingTransactionsTabs />}
-      className="min-h-0"
-      data-test-id="purchasing-transactions-layout"
-    >
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-test-id="purchasing-transactions-root">
       {children}
-    </TabPageLayout>
+    </div>
   );
 }

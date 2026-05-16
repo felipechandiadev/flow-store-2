@@ -52,6 +52,8 @@ interface DialogProps {
   actionsJustify?: 'between' | 'start' | 'end' | 'center';
   // Show close button in the top-right corner
   showCloseButton?: boolean;
+  /** Sin fondo propio en la franja del título (misma superficie visual que el papel del diálogo). */
+  headerTransparent?: boolean;
   // Text for the close button (default: "cerrar")
   closeButtonText?: string;
   // Callback when close button is clicked (in addition to onClose)
@@ -135,6 +137,7 @@ const Dialog: React.FC<DialogProps> = ({
   hideActions = false,
   actionsJustify = 'between',
   showCloseButton = false,
+  headerTransparent = false,
   closeButtonText = 'cerrar',
   onCloseButtonClick,
   'data-test-id': dataTestId,
@@ -280,7 +283,11 @@ const Dialog: React.FC<DialogProps> = ({
         data-test-id={dataTestId || 'dialog-content'}
       >
         {title && title !== '' && (
-          <div className="fs-dialog__header flex items-center gap-2 border-b border-border/70 px-4 pt-4 pb-3">
+          <div
+            className={`fs-dialog__header flex items-center gap-2 border-b border-border/70 px-4 pt-4 pb-3${
+              headerTransparent ? ' fs-dialog__header--transparent' : ''
+            }`}
+          >
             <h2
               className="title m-0 flex-1 text-left text-lg font-semibold text-foreground"
               data-test-id="dialog-title"

@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+@import "./shared/components/TextField/textfield.css";
+@import "./styles/button.css";
+@import "./styles/print-forms.css";
+
+/**
+ * Tokens alineados con pwa-pos/src/app/globals.css (mismo patrón de tema).
+ */
+:root {
+  --font-geist-sans:
+    ui-sans-serif, system-ui, sans-serif, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
+    "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+
+  --color-primary: #1c2046;
+  --color-background: #ffffff;
+  --color-foreground: #131615;
+  --color-border: #c1c1c2;
+  --color-accent: #2563a8;
+  --color-secondary: #04c9e7;
+  --color-muted: #6b7280;
+  --color-muted-foreground: #6b7280;
+  --color-success: #4caf50;
+  --color-info: #2196f3;
+  --color-warning: #ffc107;
+  --color-error: #f44336;
+  --color-neutral: #f3f4f6;
+  --color-hover: color-mix(in srgb, var(--color-neutral) 65%, var(--color-background));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #0a0a0a;
+    --color-foreground: #ededed;
+    --color-border: #3f3f46;
+    --color-neutral: #27272a;
+  }
+}
+
+@layer base {
+  html {
+    font-family: var(--font-geist-sans);
+    color-scheme: light dark;
+    height: 100%;
+  }
+
+  body {
+    font-family: var(--font-geist-sans);
+    margin: 0;
+    min-height: 100%;
+    height: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 0.625rem 0.75rem 0.875rem;
+    box-sizing: border-box;
+    line-height: 1.45;
+    @apply bg-background text-foreground antialiased;
+  }
+
+  #root {
+    min-height: 100%;
+  }
+}
+
+@layer utilities {
+  .print-code {
+    @apply rounded bg-neutral/80 px-1.5 py-0.5 font-mono text-[0.85em];
+    background-color: color-mix(in srgb, var(--color-muted) 18%, var(--color-background));
+  }
+}
+
+@layer components {
+  /** Sección acordeón: sin redondeos, sólo divisor inferior */
+  details.print-acc {
+    border-radius: 0;
+  }
+
+  details.print-acc > summary .print-acc-chevron {
+    transition: transform 0.15s ease;
+  }
+  details.print-acc:not([open]) > summary .print-acc-chevron {
+    transform: rotate(-90deg);
+  }
+}

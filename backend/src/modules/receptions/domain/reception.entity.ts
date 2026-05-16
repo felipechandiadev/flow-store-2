@@ -67,7 +67,7 @@ export class Reception {
   @Column({ type: 'varchar', length: 128, nullable: true })
   dteNumber?: string;
 
-  /** `invoice` | `receipt` | `guide` | `other` — alineado con metadata `dte_type` en la transacción. */
+  /** `invoice` | `receipt` | `guide` | `other` — alineado con `document_type` en metadata de transacción de ingreso. */
   @Column({ type: 'varchar', length: 32, nullable: true })
   dteType?: string;
 

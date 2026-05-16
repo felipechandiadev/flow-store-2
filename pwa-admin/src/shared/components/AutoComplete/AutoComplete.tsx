@@ -26,6 +26,8 @@ interface AutoCompleteProps<T = Option> {
   disabled?: boolean;
   /** Etiqueta flotante siempre visible (útil con placeholder vacío o como selector). */
   alwaysShowLabel?: boolean;
+  /** Misma altura que `TextField` con `density="compact"` (~2rem). */
+  density?: "default" | "compact";
 }
 
 const AutoComplete = <T = Option,>({
@@ -41,6 +43,7 @@ const AutoComplete = <T = Option,>({
   getOptionValue,
   filterOption,
   alwaysShowLabel = false,
+  density = "default",
   ...props
 }: AutoCompleteProps<T>) => {
   // Helper functions with defaults for backward compatibility
@@ -73,6 +76,7 @@ const AutoComplete = <T = Option,>({
   /** Refs por instancia (evita colisiones entre múltiples AutoComplete en la página). */
   const itemRefsRef = useRef<Map<string | number, HTMLLIElement | null>>(new Map());
   const disabled = (props as any).disabled;
+  const isCompact = density === "compact";
 
   // Sync inputValue with value prop
   useEffect(() => {
@@ -126,10 +130,6 @@ const AutoComplete = <T = Option,>({
       const list = filteredOptions;
       const hasItems = list.length > 0;
 
-      // #region agent log
-      fetch('http://127.0.0.1:7499/ingest/88a9c382-e0ee-4ab4-9a5c-23a427cc624a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67a81e'},body:JSON.stringify({sessionId:'67a81e',runId:'pre-fix',hypothesisId:'H1',location:'AutoComplete.tsx:handleInputKeyDown',message:'keydown',data:{key:e.key,open,highlightedIndex,filteredLen:list.length,hasItems,disabled:!!disabled},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
-
       // Abrir con teclado aunque aún no esté abierto.
       if (!open) {
         if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter") {
@@ -171,9 +171,6 @@ const AutoComplete = <T = Option,>({
         if (highlightedIndex >= 0 && highlightedIndex < list.length) {
           e.preventDefault();
           e.stopPropagation();
-          // #region agent log
-          fetch('http://127.0.0.1:7499/ingest/88a9c382-e0ee-4ab4-9a5c-23a427cc624a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'67a81e'},body:JSON.stringify({sessionId:'67a81e',runId:'pre-fix',hypothesisId:'H1',location:'AutoComplete.tsx:handleInputKeyDown',message:'enter-select',data:{highlightedIndex,selectedValue:String(getValue(list[highlightedIndex]!))},timestamp:Date.now()})}).catch(()=>{});
-          // #endregion agent log
           handleSelect(list[highlightedIndex]!);
         }
       }
@@ -274,10 +271,17 @@ const AutoComplete = <T = Option,>({
     }
   };
 
+  const compactFloatCaption = (label?.trim() || placeholder?.trim() || "").trim();
+  const useCompactFloatingLabel =
+    isCompact &&
+    (Boolean(label?.trim()) || alwaysShowLabel || Boolean(placeholder?.trim()));
+
   return (
     <div className="fs-dropdown-container" ref={containerRef} data-test-id={props["data-test-id"] || "auto-complete-root"} data-has-options={options.length > 0 ? "true" : "false"}>
       <div
-        className="relative w-full border border-border rounded-md focus-within:border-primary"
+        className={`relative w-full rounded-md border border-border focus-within:border-primary ${
+          isCompact ? "flex h-8 min-h-8 max-h-8 min-w-0 items-center" : ""
+        }`.trim()}
         onFocusCapture={() => {
           if (disabled) {
             return;
@@ -296,7 +300,7 @@ const AutoComplete = <T = Option,>({
         tabIndex={-1}
       >
         <TextField
-          label={label || ""}
+          label={useCompactFloatingLabel ? compactFloatCaption : (label || "")}
           value={inputValue}
           onChange={e => {
             const newValue = e.target.value;
@@ -313,7 +317,12 @@ const AutoComplete = <T = Option,>({
           className="pr-20"
           variante="autocomplete"
           disabled={disabled}
-          alwaysShowLabel={alwaysShowLabel}
+          alwaysShowLabel={
+            useCompactFloatingLabel
+              ? alwaysShowLabel || !label?.trim()
+              : alwaysShowLabel
+          }
+          density={density}
         />
 
         {value && !disabled && (

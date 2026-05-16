@@ -22,7 +22,7 @@ import { CompletePaymentDto } from '../application/dto/complete-payment.dto';
 
 /**
  * Controller para pagos a proveedores (wrapper sobre CQRS)
- * Filtra automáticamente transacciones de tipo PAYMENT_OUT con supplierId
+ * Filtra transacciones SUPPLIER_PAYMENT con supplierId
  */
 @Controller('supplier-payments')
 export class SupplierPaymentsController {
@@ -33,7 +33,7 @@ export class SupplierPaymentsController {
 
   /**
    * GET /api/supplier-payments?limit=100&includeCancelled=false&includePaid=false
-   * Lista pagos a proveedores (transacciones PAYMENT_OUT)
+   * Lista pagos a proveedores (transacciones SUPPLIER_PAYMENT)
    *
    * Retorna formato compatible con DataGrid:
    * {
@@ -54,11 +54,10 @@ export class SupplierPaymentsController {
     const limitNum = parseInt(limit || '100', 10);
     const pageNum = parseInt(page || '1', 10);
 
-    // Construir query params para transacciones de tipo PAYMENT_OUT
     const searchQuery = new SearchTransactionsQuery(
       pageNum,
       limitNum,
-      TransactionType.PAYMENT_OUT, // type
+      TransactionType.SUPPLIER_PAYMENT,
       includePaid === 'false' ? TransactionStatus.DRAFT : undefined, // status
       undefined, // paymentMethod
       undefined, // branchId
@@ -122,10 +121,9 @@ export class SupplierPaymentsController {
    */
   @Post()
   async create(@Body() data: CreateTransactionDto) {
-    // Forzar tipo PAYMENT_OUT
     const dto = Object.assign(new CreateTransactionDto(), {
       ...data,
-      transactionType: TransactionType.PAYMENT_OUT,
+      transactionType: TransactionType.SUPPLIER_PAYMENT,
     });
 
     return this.commandBus.execute(new CreateTransactionCommand(dto));

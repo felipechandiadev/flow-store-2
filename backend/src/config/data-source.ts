@@ -26,6 +26,7 @@ import { Customer } from '@modules/customers/domain/customer.entity';
 import { Tax } from '@modules/taxes/domain/tax.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
 import { Category } from '@modules/categories/domain/category.entity';
+import { Brand } from '@modules/brands/domain/brand.entity';
 import { Supplier } from '@modules/suppliers/domain/supplier.entity';
 import { TreasuryAccount } from '@modules/treasury-accounts/domain/treasury-account.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
@@ -88,6 +89,12 @@ import { ProductVariantCountStockBridge1751000000000 } from '../migrations/17510
 import { PointOfSaleStorage1752000000000 } from '../migrations/1752000000000-PointOfSaleStorage';
 import { StockLevelThresholds1753000000000 } from '../migrations/1753000000000-StockLevelThresholds';
 import { ProductVariantShippingLogistics1753100000000 } from '../migrations/1753100000000-ProductVariantShippingLogistics';
+import { CompanyAddressMail1755000000000 } from '../migrations/1755000000000-CompanyAddressMail';
+import { BrandsAndProductBrandId1756000000000 } from '../migrations/1756000000000-BrandsAndProductBrandId';
+import { BrandsIdDefaultGenRandomUuid1756010000000 } from '../migrations/1756010000000-BrandsIdDefaultGenRandomUuid';
+import { ProductTypeManufacturadoElaboradoPreparado1756020000000 } from '../migrations/1756020000000-ProductTypeManufacturadoElaboradoPreparado';
+import { RemovePaymentOutTransactionTypes1756030000000 } from '../migrations/1756030000000-RemovePaymentOutTransactionTypes';
+import { PersonDocumentTypeDni1756040000000 } from '../migrations/1756040000000-PersonDocumentTypeDni';
 
 /**
  * DataSource usado por `typeorm` CLI (`migration:run`, `schema:log`, …).
@@ -121,6 +128,7 @@ export const AppDataSource = new DataSource({
     Tax,
     Unit,
     Category,
+    Brand,
     Supplier,
     TreasuryAccount,
     Storage,
@@ -184,6 +192,12 @@ export const AppDataSource = new DataSource({
     PointOfSaleStorage1752000000000,
     StockLevelThresholds1753000000000,
     ProductVariantShippingLogistics1753100000000,
+    CompanyAddressMail1755000000000,
+    BrandsAndProductBrandId1756000000000,
+    BrandsIdDefaultGenRandomUuid1756010000000,
+    ProductTypeManufacturadoElaboradoPreparado1756020000000,
+    RemovePaymentOutTransactionTypes1756030000000,
+    PersonDocumentTypeDni1756040000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',

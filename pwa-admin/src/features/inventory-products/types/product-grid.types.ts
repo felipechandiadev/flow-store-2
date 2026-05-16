@@ -1,3 +1,12 @@
+/** Valores de `ProductType` en API / catálogo admin. */
+export type CatalogProductType =
+  | "PHYSICAL"
+  | "SERVICE"
+  | "DIGITAL"
+  | "MANUFACTURADO"
+  | "ELABORADO"
+  | "PREPARADO";
+
 export type ProductPriceListItemRow = {
   priceListId: string;
   priceListName: string;
@@ -27,6 +36,12 @@ export type ProductVariantGridRow = {
   /** Stock base por 1 unidad de compra en conteo. */
   stockBaseQtyPerCountPurchaseUnit?: number | null;
   barcode?: string | null;
+  /** Etiqueta legible unidad de venta (si API envía `saleUnit` / `unit`). */
+  saleUnitLabel?: string | null;
+  /** Etiqueta unidad base de inventario. */
+  stockBaseUnitLabel?: string | null;
+  /** Etiqueta unidad de compra. */
+  purchaseUnitLabel?: string | null;
   unitOfMeasure?: string | null;
   isActive?: boolean;
   basePrice?: number;
@@ -61,7 +76,9 @@ export type ProductVariantGridRow = {
 export type ProductGridRow = {
   id: string;
   name: string;
-  productType?: "PHYSICAL" | "SERVICE" | "DIGITAL" | string | null;
+  productType?: CatalogProductType | string | null;
+  /** Catálogo de marcas (FK); null si solo hay texto legacy en `brand`. */
+  brandId: string | null;
   brand: string | null;
   description: string | null;
   categoryId: string | null;

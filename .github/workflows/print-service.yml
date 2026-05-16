@@ -1,0 +1,42 @@
+name: print-service
+
+on:
+  push:
+    paths:
+      - "print-service/**"
+      - ".github/workflows/print-service.yml"
+  pull_request:
+    paths:
+      - "print-service/**"
+      - ".github/workflows/print-service.yml"
+
+jobs:
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: print-service/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install frontend deps
+        working-directory: print-service
+        run: npm ci
+      - name: Build Vite frontend
+        working-directory: print-service
+        run: npm run build
+      - name: Cargo check (cross-target)
+        run: cargo check --target ${{ matrix.target }}

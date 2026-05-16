@@ -664,7 +664,10 @@ export async function recordPayment(
       break;
 
     case 'TRANSFER':
-      if (transaction.transactionType === 'PAYMENT_OUT') {
+      if (
+        transaction.transactionType === 'BANK_TO_CASH_TRANSFER' ||
+        transaction.metadata?.bankToCashTransfer === true
+      ) {
         await createBasicPosting(
           manager,
           transaction,
@@ -1218,8 +1221,15 @@ export async function postTransactionToLedger(
           let debitAccountId: string | undefined;
           let creditAccountId: string | undefined;
 
-          if (transaction.transactionType === TransactionType.PAYMENT_OUT) {
-            debitAccountId = accounts.find((a) => a.code === '2.1.01')?.id;
+          if (
+            transaction.transactionType === TransactionType.SUPPLIER_PAYMENT ||
+            transaction.transactionType === TransactionType.PAYROLL_PAYMENT
+          ) {
+            const liabilityCode =
+              transaction.transactionType === TransactionType.PAYROLL_PAYMENT
+                ? '2.2.01'
+                : '2.1.01';
+            debitAccountId = accounts.find((a) => a.code === liabilityCode)?.id;
             if (transaction.paymentMethod === 'CASH') {
               creditAccountId = accounts.find((a) => a.code === '1.1.01')?.id;
             } else if (transaction.paymentMethod === 'TRANSFER') {

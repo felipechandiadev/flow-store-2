@@ -9,6 +9,7 @@ export const config = {
     '/sales/:path*',
     '/purchasing/:path*',
     '/inventory/:path*',
+    '/catalog/:path*',
     '/accounting/:path*',
     '/treasury/:path*',
     '/hr/:path*',

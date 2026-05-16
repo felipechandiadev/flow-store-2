@@ -1078,7 +1078,10 @@ export class CashSessionsService {
         case TransactionType.CASH_SESSION_WITHDRAWAL:
         case TransactionType.CASH_SESSION_TO_HUB_TRANSFER:
         case TransactionType.OPERATING_EXPENSE:
-        case TransactionType.PAYMENT_OUT:
+        case TransactionType.SUPPLIER_PAYMENT:
+        case TransactionType.PAYROLL_PAYMENT:
+        case TransactionType.EXPENSE_PAYMENT:
+        case TransactionType.BANK_TO_CASH_TRANSFER:
         case TransactionType.SALE_RETURN:
           // Salidas de efectivo
           cashOut += total;

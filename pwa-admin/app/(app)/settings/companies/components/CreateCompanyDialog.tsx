@@ -25,6 +25,8 @@ export function CreateCompanyDialog({
   const [rut, setRut] = useState("");
   const [defaultCurrency, setDefaultCurrency] = useState("CLP");
   const [isActive, setIsActive] = useState(true);
+  const [address, setAddress] = useState("");
+  const [mail, setMail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -36,6 +38,8 @@ export function CreateCompanyDialog({
     setRut("");
     setDefaultCurrency("CLP");
     setIsActive(true);
+    setAddress("");
+    setMail("");
     setError(null);
   }, [open]);
 
@@ -55,6 +59,8 @@ export function CreateCompanyDialog({
           rut: rut.trim(),
           defaultCurrency: defaultCurrency.trim() || "CLP",
           isActive,
+          address: address.trim() || null,
+          mail: mail.trim() || null,
         });
         if (r.success) {
           onSuccess?.();
@@ -137,6 +143,23 @@ export function CreateCompanyDialog({
           onChange={(e) => setRut(e.target.value)}
           required
           data-test-id="company-create-rut"
+        />
+        <TextField
+          label="Correo (opcional)"
+          name="company-create-mail"
+          type="email"
+          value={mail}
+          onChange={(e) => setMail(e.target.value)}
+          data-test-id="company-create-mail"
+        />
+        <TextField
+          label="Dirección (opcional)"
+          name="company-create-address"
+          type="textarea"
+          rows={3}
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          data-test-id="company-create-address"
         />
         <TextField
           label="Moneda por defecto"

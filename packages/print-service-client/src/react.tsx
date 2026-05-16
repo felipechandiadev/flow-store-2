@@ -1,0 +1,529 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  PrintServiceConnection,
+  buildWebSocketUrl,
+  healthToVisual,
+  printServicePageRequiresTls,
+  readPrintServiceConfigFromStorage,
+  PRINT_SERVICE_CONFIG_CHANGED_EVENT,
+  PRINT_WS_CLOSE_REASON_SERVICE_STOPPED,
+  type HelloResponseData,
+  type PrinterHealthPayload,
+  type PrintAgentVisualStatus,
+  type PrintServiceNotification,
+  type PrintServiceWsCloseInfo,
+} from "./core";
+
+export type UsePrintServiceConnectionOptions = {
+  defaultHost?: string;
+  defaultPort?: number;
+  defaultWssPort?: number;
+  clientId?: string;
+  requiredPurposes?: string[];
+  /** Etiqueta de la app en el `hello` (p. ej. «Punto de venta»). */
+  appLabel?: string;
+  /** Nombre visible en el `hello` para la lista de sesiones del agente. */
+  userDisplayName?: string;
+  /**
+   * Si es false, no se apilan entradas en `notifications` (conexión, salud del agente, trabajos, etc.).
+   * El estado sigue en `visual`, `connected`, `lastError`. Pensado para el POS minimalista.
+   * @default true
+   */
+  enableInAppNotifications?: boolean;
+  /**
+   * Mensajes muy cortos ante cierre anómalo del WebSocket y **no encola ese fallo en `notifications`** (el POS usa estado visual +
+   * `lastError`; evita repetir cada reintento en la lista). Ayuda técnica larga solo en consola si `debug` está activo.
+   * Otros tipos (`invalid_token`, apagado del agente, trabajos) siguen pudiendo notificar con normalidad.
+   * @default false
+   */
+  briefWsErrorMessages?: boolean;
+  /**
+   * Si es true, escribe en consola del navegador eventos de conexión al agente local (host/puerto, open/close, errores, hello).
+   * No registra el valor del token.
+   */
+  debug?: boolean;
+};
+
+function newNotificationId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `n-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function describeWsCloseFailure(
+  ev: PrintServiceWsCloseInfo,
+  ctx?: { httpPageWithUserWss: boolean; wssPort: number },
+  brief?: boolean,
+): string {
+  const r = (ev.reason && String(ev.reason).trim()) || "";
+  if (brief) {
+    if (ev.code === 1006 && ctx?.httpPageWithUserWss === true) {
+      return "Sin impresión local: revisá TLS/WSS o que Print Service esté activo.";
+    }
+    if (ev.code === 1006) return "Print Service sin conexión.";
+    if (ev.code === 1002) return `Error de conexión (1002)${r ? `: ${r}` : ""}`;
+    if (ev.code === 1008) return `Conexión rechazada (1008)${r ? `: ${r}` : ""}`;
+    return r ? `Conexión perdida (${ev.code}): ${r}` : `Sin conexión (${ev.code}).`;
+  }
+  if (ev.code === 1006) {
+    const httpWssHint =
+      ctx?.httpPageWithUserWss === true
+        ? [
+            "Esta PWA está en HTTP y tenés «TLS/WSS» activado en los ajustes de impresión local: el navegador intenta wss:// y suele fallar (certificado no confiado o agente solo en WS).",
+            `Podés desactivar «TLS/WSS» en el menú de impresión para usar ws:// en el puerto WS (típicamente 14567), o abrir una vez https://127.0.0.1:${ctx.wssPort} y aceptar el certificado local.`,
+            "",
+          ].join(" ")
+        : "";
+    return [
+      httpWssHint,
+      "WebSocket no conectó o se cortó de forma anómala (código 1006).",
+      "Revisá: la app «Print Service» en ejecución (bandeja); host y puertos; desde HTTPS el navegador exige WSS (no ws://).",
+      "Si usás WSS, puede hacer falta abrir una vez https://127.0.0.1:PUERTO_WSS en el navegador y aceptar el certificado local.",
+      "En la app del agente, «orígenes permitidos» debe incluir el origen exacto de esta PWA (incluido https y el puerto).",
+      "Si el POS está en otro dispositivo (tablet/caja) y el agente en la PC, 127.0.0.1 en el navegador apunta al dispositivo del navegador, no a la PC: hoy el agente solo escucha en loopback de la máquina donde corre.",
+    ].join(" ");
+  }
+  if (ev.code === 1002) {
+    return `Error de protocolo WebSocket (1002)${r ? `: ${r}` : ""}.`;
+  }
+  if (ev.code === 1008) {
+    return `Conexión rechazada por política (1008)${r ? `: ${r}` : ""}.`;
+  }
+  return `WebSocket cerrado (código ${ev.code})${r ? `: ${r}` : ""}.`;
+}
+
+export type UsePrintServiceConnectionReturn = {
+  connected: boolean;
+  health: PrinterHealthPayload | null;
+  visual: PrintAgentVisualStatus;
+  lastError: string | null;
+  /** URL que intenta usar el cliente (diagnóstico). */
+  attemptedWsUrl: string | null;
+  reconnect: () => void;
+  notifications: PrintServiceNotification[];
+  unreadCount: number;
+  markNotificationsRead: () => void;
+  clearNotifications: () => void;
+};
+
+function printServiceDebugLog(message: string, detail?: Record<string, unknown>): void {
+  if (typeof console === "undefined" || typeof console.info !== "function") return;
+  if (detail && Object.keys(detail).length > 0) {
+    console.info("[FlowStore][print-service]", message, detail);
+  } else {
+    console.info("[FlowStore][print-service]", message);
+  }
+}
+
+export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions = {}): UsePrintServiceConnectionReturn {
+  const [tick, setTick] = useState(0);
+  const [connected, setConnected] = useState(false);
+  const [socketConnecting, setSocketConnecting] = useState(false);
+  const [health, setHealth] = useState<PrinterHealthPayload | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [attemptedWsUrl, setAttemptedWsUrl] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<PrintServiceNotification[]>([]);
+  const connRef = useRef<PrintServiceConnection | null>(null);
+  const retryRef = useRef(0);
+  const timerRef = useRef<number | null>(null);
+  const healthOverallRef = useRef<string | undefined>(undefined);
+  const lastWsErrorRef = useRef<{ msg: string; at: number }>({ msg: "", at: 0 });
+  /** Tras un cierre con `PRINT_WS_CLOSE_REASON_SERVICE_STOPPED`, el siguiente open emite aviso en el dropdown. */
+  const awaitingAgentRestartNotifyRef = useRef(false);
+  const debugRef = useRef(false);
+  debugRef.current = Boolean(opts.debug);
+
+  const envDefaults = useMemo(() => {
+    const g = globalThis as unknown as { process?: { env?: Record<string, string | undefined> } };
+    const env = g.process?.env ?? {};
+    return {
+      host: opts.defaultHost ?? env.NEXT_PUBLIC_PRINT_SERVICE_HOST ?? "127.0.0.1",
+      port: opts.defaultPort ?? Number(env.NEXT_PUBLIC_PRINT_SERVICE_PORT || "14567"),
+      wssPort: opts.defaultWssPort ?? Number(env.NEXT_PUBLIC_PRINT_SERVICE_WSS_PORT || "14568"),
+    };
+  }, [opts.defaultHost, opts.defaultPort, opts.defaultWssPort]);
+
+  /** Evita re-montar el WebSocket cuando el padre pasa `requiredPurposes={[...]}` inline (nueva ref cada render). */
+  const clientOptsKey = useMemo(() => {
+    const cid = opts.clientId ?? "pwa";
+    const purposes = (opts.requiredPurposes ?? []).join("\u0001");
+    const app = (opts.appLabel ?? "").trim();
+    const who = (opts.userDisplayName ?? "").trim();
+    return `${cid}\u0002${purposes}\u0002${app}\u0002${who}`;
+  }, [opts.clientId, (opts.requiredPurposes ?? []).join("\u0001"), opts.appLabel, opts.userDisplayName]);
+
+  const visual: PrintAgentVisualStatus = healthToVisual(connected, health, socketConnecting);
+
+  const pushNotification = useCallback((partial: Omit<PrintServiceNotification, "id" | "read" | "at">) => {
+    if (opts.enableInAppNotifications === false) return;
+    setNotifications((prev) =>
+      [
+        {
+          id: newNotificationId(),
+          at: Date.now(),
+          read: false,
+          ...partial,
+        },
+        ...prev,
+      ].slice(0, 50),
+    );
+  }, [opts.enableInAppNotifications]);
+
+  const markNotificationsRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, []);
+
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
+
+  const scheduleReconnect = useCallback(() => {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    const delay = Math.min(30_000, 1000 * 2 ** Math.min(retryRef.current, 5));
+    if (debugRef.current) {
+      printServiceDebugLog("reconnect_scheduled", {
+        delayMs: delay,
+        nextAttempt: retryRef.current + 1,
+      });
+    }
+    timerRef.current = window.setTimeout(() => {
+      retryRef.current += 1;
+      setTick((t: number) => t + 1);
+    }, delay);
+  }, []);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (
+        e.key === "printServiceHost" ||
+        e.key === "printServicePort" ||
+        e.key === "printServiceWssPort" ||
+        e.key === "printServiceUseTls" ||
+        e.key === "printServiceToken"
+      ) {
+        if (debugRef.current) {
+          printServiceDebugLog("storage_print_config_changed", { key: e.key, newValue: e.newValue ?? null });
+        }
+        setTick((t) => t + 1);
+      }
+    };
+    const onSameTabConfig = () => {
+      if (debugRef.current) {
+        printServiceDebugLog("print_config_changed_same_tab", {});
+      }
+      setTick((t) => t + 1);
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(PRINT_SERVICE_CONFIG_CHANGED_EVENT, onSameTabConfig);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(PRINT_SERVICE_CONFIG_CHANGED_EVENT, onSameTabConfig);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fromLs = readPrintServiceConfigFromStorage();
+    const host = fromLs.host || envDefaults.host;
+    const pageHttps = printServicePageRequiresTls();
+    /** HTTPS exige WSS (mixed content). En HTTP usamos `ws://` salvo que el usuario active «TLS/WSS» en ajustes (localStorage). `NEXT_PUBLIC_PRINT_SERVICE_USE_TLS` ya no fuerza WSS en HTTP: chocaba con el POS en `http://localhost:*` sin certificado aceptado. */
+    const useTls = pageHttps || fromLs.useTls;
+    const port = useTls ? fromLs.wssPort || envDefaults.wssPort : fromLs.port || envDefaults.port;
+    const tlsBecause = pageHttps ? "https_page" : fromLs.useTls ? "local_storage_printServiceUseTls" : "plain_ws";
+    const url = buildWebSocketUrl(host, port, useTls);
+    setAttemptedWsUrl(url);
+    const token = fromLs.token || undefined;
+
+    if (opts.debug) {
+      printServiceDebugLog("connect_start", {
+        url,
+        pageHttps,
+        useTls,
+        tlsBecause,
+        host,
+        port,
+        clientId: opts.clientId ?? "pwa",
+        requiredPurposes: opts.requiredPurposes ?? [],
+        hasToken: Boolean(token && String(token).trim()),
+        pwaOrigin: typeof window !== "undefined" ? window.location.origin : "",
+        ...(pageHttps || !fromLs.useTls
+          ? {}
+          : {
+              hint:
+                "Página HTTP con WSS activado en ajustes: desactivá «TLS/WSS» en el menú de impresión (ws:// puerto WS) o confiá el certificado en https://127.0.0.1:" +
+                String(fromLs.wssPort || envDefaults.wssPort),
+            }),
+      });
+    }
+
+    setSocketConnecting(true);
+    setConnected(false);
+    setHealth(null);
+    healthOverallRef.current = undefined;
+
+    const c = new PrintServiceConnection({
+      url,
+      token,
+      clientId: opts.clientId,
+      requiredPurposes: opts.requiredPurposes,
+      appLabel: opts.appLabel,
+      userDisplayName: opts.userDisplayName,
+      onOpen: () => {
+        if (opts.debug) {
+          printServiceDebugLog("ws_open", { url });
+        }
+        setSocketConnecting(false);
+        setConnected(true);
+        setLastError(null);
+        retryRef.current = 0;
+        if (awaitingAgentRestartNotifyRef.current && !cancelled) {
+          awaitingAgentRestartNotifyRef.current = false;
+          pushNotification({
+            level: "info",
+            message:
+              "El agente de impresión volvió a escuchar WS/WSS (volviste a habilitarlo en Print Service).",
+          });
+        }
+      },
+      onClose: (ev) => {
+        if (opts.debug) {
+          printServiceDebugLog("ws_close", {
+            url,
+            code: ev.code,
+            reason: ev.reason || "",
+            wasClean: ev.wasClean,
+          });
+        }
+        setSocketConnecting(false);
+        setConnected(false);
+        const stoppedFromAgentUi =
+          ev.code === 1000 &&
+          ev.wasClean &&
+          typeof ev.reason === "string" &&
+          ev.reason.includes(PRINT_WS_CLOSE_REASON_SERVICE_STOPPED);
+        if (stoppedFromAgentUi && !cancelled) {
+          awaitingAgentRestartNotifyRef.current = true;
+          pushNotification({
+            level: "info",
+            message:
+              "El agente detuvo WS/WSS desde su ventana (botón Energía). La POS seguirá reintentando la conexión.",
+          });
+        }
+
+        const abnormal = !stoppedFromAgentUi && (ev.code !== 1000 || !ev.wasClean);
+        if (abnormal && !cancelled) {
+          const briefErr = opts.briefWsErrorMessages === true;
+          const wssPortForHint = fromLs.wssPort || envDefaults.wssPort;
+          const hint =
+            describeWsCloseFailure(
+              ev,
+              {
+                httpPageWithUserWss: !pageHttps && useTls,
+                wssPort: wssPortForHint,
+              },
+              briefErr,
+            ) +
+            (briefErr || typeof window === "undefined"
+              ? ""
+              : ` Origen de esta PWA: ${window.location.origin}.`);
+          if (opts.debug && briefErr) {
+            printServiceDebugLog("ws_close_user_hint_long", {
+              code: ev.code,
+              reason: ev.reason ?? "",
+              wasClean: ev.wasClean,
+              url,
+              hintFull: describeWsCloseFailure(ev, {
+                httpPageWithUserWss: !pageHttps && useTls,
+                wssPort: wssPortForHint,
+              }),
+              origin:
+                typeof window !== "undefined" ? window.location.origin : undefined,
+            });
+          }
+          const detail = hint;
+          setLastError(detail);
+          const now = Date.now();
+          const prev = lastWsErrorRef.current;
+          if (!(prev.msg === detail && now - prev.at < 5000)) {
+            lastWsErrorRef.current = { msg: detail, at: now };
+            if (opts.briefWsErrorMessages !== true) {
+              pushNotification({ level: "error", message: detail });
+            }
+          }
+        }
+        if (!cancelled) scheduleReconnect();
+      },
+      onError: (m) => {
+        if (opts.debug) {
+          printServiceDebugLog("ws_or_protocol_error", { url, message: m });
+        }
+        setSocketConnecting(false);
+        const human =
+          m === "invalid_token"
+            ? "Token rechazado por el agente: dejá el campo token vacío en la POS (si el agente no usa token) o copiá el token exacto desde la app Print Service."
+            : m;
+        const now = Date.now();
+        const prev = lastWsErrorRef.current;
+        if (prev.msg === human && now - prev.at < 800) return;
+        lastWsErrorRef.current = { msg: human, at: now };
+        setLastError(human);
+        if (m !== "WebSocket error") {
+          pushNotification({ level: "error", message: human });
+        }
+      },
+      onHello: (d: HelloResponseData) => {
+        if (opts.debug) {
+          const ph = d.printerHealth;
+          printServiceDebugLog("hello_ok", {
+            serviceStatus: d.serviceStatus,
+            printerHealthOverall: ph?.overall,
+            printerHealthMessage: ph?.message,
+            purposesKeys: ph?.purposes ? Object.keys(ph.purposes) : [],
+          });
+        }
+        if (d.printerHealth) {
+          const p = d.printerHealth;
+          setHealth(p);
+          const o = p.overall;
+          const prev = healthOverallRef.current;
+          if (o && o !== prev && (o === "degraded" || o === "error")) {
+            pushNotification({
+              level: o === "error" ? "error" : "warn",
+              message: p.message ?? `Estado de impresoras: ${o}`,
+            });
+          }
+          if (o) healthOverallRef.current = o;
+        }
+      },
+      onPrinterHealth: (p) => {
+        setHealth(p);
+        const o = p.overall;
+        const prev = healthOverallRef.current;
+        if (o && o !== prev && (o === "degraded" || o === "error")) {
+          pushNotification({
+            level: o === "error" ? "error" : "warn",
+            message: p.message ?? `Estado de impresoras: ${o}`,
+          });
+        }
+        if (o) healthOverallRef.current = o;
+      },
+      onConfigChanged: () => {
+        pushNotification({
+          level: "info",
+          message: "El agente local actualizó la configuración de impresión.",
+        });
+      },
+      onPrintJobDone: (jobId) => {
+        pushNotification({
+          level: "info",
+          message: `Impresión finalizada correctamente (trabajo ${jobId}).`,
+        });
+      },
+      onPrintJobFailed: (jobId, error) => {
+        pushNotification({
+          level: "error",
+          message: `Fallo al imprimir (trabajo ${jobId}): ${error || "error desconocido"}`,
+        });
+      },
+    });
+    connRef.current = c;
+    c.connect();
+
+    return () => {
+      cancelled = true;
+      if (opts.debug) {
+        printServiceDebugLog("connect_cleanup", { url });
+      }
+      setSocketConnecting(false);
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+      c.disconnect();
+      connRef.current = null;
+    };
+  }, [
+    envDefaults.host,
+    envDefaults.port,
+    envDefaults.wssPort,
+    clientOptsKey,
+    scheduleReconnect,
+    tick,
+    opts.debug,
+    opts.enableInAppNotifications,
+    opts.briefWsErrorMessages,
+    opts.appLabel,
+    opts.userDisplayName,
+    pushNotification,
+  ]);
+
+  const reconnect = useCallback(() => {
+    if (debugRef.current) {
+      printServiceDebugLog("reconnect_manual");
+    }
+    retryRef.current = 0;
+    setTick((t: number) => t + 1);
+  }, []);
+
+  return {
+    connected,
+    health,
+    visual,
+    lastError,
+    attemptedWsUrl,
+    reconnect,
+    notifications,
+    unreadCount,
+    markNotificationsRead,
+    clearNotifications,
+  };
+}
+
+export type PrintServiceIndicatorProps = {
+  visual: PrintAgentVisualStatus;
+  title?: string;
+  href?: string;
+};
+
+export function PrintServiceIndicator({ visual, title, href }: PrintServiceIndicatorProps) {
+  const color =
+    visual === "ok"
+      ? "bg-emerald-500"
+      : visual === "degraded"
+        ? "bg-amber-500"
+        : visual === "error"
+          ? "bg-red-500"
+          : visual === "connecting"
+            ? "bg-amber-400 animate-pulse"
+            : "bg-neutral-400";
+  const label =
+    title ??
+    (visual === "ok"
+      ? "Impresión local: OK"
+      : visual === "degraded"
+        ? "Impresión local: revisar mapeos"
+        : visual === "error"
+          ? "Impresión local: error"
+          : visual === "connecting"
+            ? "Impresión local: conectando…"
+            : "Impresión local: desconectado");
+  const inner = (
+    <span
+      className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${color}`}
+      title={label}
+      aria-label={label}
+      role="img"
+    />
+  );
+  if (href) {
+    return (
+      <a href={href} className="inline-flex items-center rounded p-1 hover:bg-black/5 dark:hover:bg-white/10">
+        {inner}
+      </a>
+    );
+  }
+  return inner;
+}

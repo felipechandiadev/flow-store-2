@@ -67,8 +67,10 @@ const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '2.1.0';
 const APP_RELEASE = process.env.NEXT_PUBLIC_APP_RELEASE || '21-Diciembre-2025';
 
 /** Padding vertical reducido; mismo hover en padres, hojas e hijos (como el antiguo segundo nivel). */
-const MENU_ITEM_CLASSES =
+export const SIDE_BAR_MENU_ITEM_CLASSNAMES =
   "px-3 py-1 rounded text-foreground font-medium text-sm tracking-tighter transition-all duration-200 hover:bg-background/80 hover:backdrop-blur-sm hover:shadow-sm hover:text-secondary";
+
+const MENU_ITEM_CLASSES = SIDE_BAR_MENU_ITEM_CLASSNAMES;
 
 const SideBar: React.FC<SideBarProps> = ({
   menuItems,

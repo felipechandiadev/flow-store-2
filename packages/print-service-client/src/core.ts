@@ -1,0 +1,652 @@
+/** Protocol version sent to the local print agent (see docs/print_service_app_developer_guide_v2.md). */
+export const PRINT_PROTOCOL_VERSION = "2.1";
+
+/**
+ * Subcadena que el agente incluye en el close frame WebSocket al detener WS/WSS desde su UI (botón Energía).
+ * Debe coincidir con `WS_CLOSE_REASON_SERVICE_STOPPED` en `print-service/src-tauri/src/ws.rs`.
+ */
+export const PRINT_WS_CLOSE_REASON_SERVICE_STOPPED = "flowstore:service_stopped";
+
+export type PrintAgentVisualStatus = "off" | "connecting" | "ok" | "degraded" | "error";
+
+/**
+ * `localhost` suele resolverse a `::1` (IPv6) y el agente a veces solo escuchaba en `127.0.0.1` (IPv4) → conexión fallida.
+ * Forzamos IPv4 de loopback para coincidir con el listener por defecto; el servidor también puede escuchar en `[::1]`.
+ */
+export function normalizePrintAgentHost(host: string): string {
+  const t = (host || "").trim();
+  if (!t) return "127.0.0.1";
+  const lower = t.toLowerCase();
+  if (lower === "localhost" || lower === "::1" || lower === "[::1]") return "127.0.0.1";
+  return t;
+}
+
+export function buildWebSocketUrl(host: string, port: number, useTls: boolean): string {
+  const h = normalizePrintAgentHost(host);
+  const scheme = useTls ? "wss" : "ws";
+  return `${scheme}://${h}:${port}`;
+}
+
+export type PrinterHealthPayload = {
+  overall?: string;
+  message?: string;
+  purposes?: Record<
+    string,
+    {
+      status?: string;
+      printerName?: unknown;
+      reason?: unknown;
+    }
+  >;
+};
+
+export type HelloResponseData = {
+  serviceStatus?: {
+    status?: string;
+    connectedClients?: number;
+    sessions?: Array<{
+      connectionId?: string;
+      clientId?: string;
+      appLabel?: string;
+      userDisplayName?: string;
+      requiredPurposes?: string[];
+    }>;
+  };
+  printerHealth?: PrinterHealthPayload;
+};
+
+function randomId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `c${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+type PendingEntry = {
+  resolve: (v: unknown) => void;
+  reject: (e: Error) => void;
+};
+
+export type PrintServiceWsCloseInfo = {
+  code: number;
+  reason: string;
+  wasClean: boolean;
+};
+
+export type PrintServiceConnectionOptions = {
+  /** WebSocket URL e.g. ws://127.0.0.1:14567 */
+  url: string;
+  token?: string;
+  clientId?: string;
+  requiredPurposes?: string[];
+  /** Etiqueta de la app (p. ej. "Punto de venta", "Panel de administración"). */
+  appLabel?: string;
+  /** Nombre visible del usuario conectado. */
+  userDisplayName?: string;
+  onHello?: (data: HelloResponseData) => void;
+  onPrinterHealth?: (payload: PrinterHealthPayload) => void;
+  onServiceStatus?: (payload: unknown) => void;
+  onConfigChanged?: () => void;
+  onPrintJobDone?: (jobId: string) => void;
+  onPrintJobFailed?: (jobId: string, error: string) => void;
+  onOpen?: () => void;
+  onClose?: (info: PrintServiceWsCloseInfo) => void;
+  onError?: (message: string) => void;
+};
+
+export type PrintServiceDisconnectOptions = {
+  /**
+   * - `default`: si el socket sigue CONNECTING, programa un cierre (Chrome puede mostrar aviso).
+   * - `abandon`: solo limpia handlers; no fuerza `close()` en CONNECTING (probes / timeouts sin ruido).
+   */
+  ifConnecting?: "default" | "abandon";
+};
+
+/**
+ * WebSocket client: sends `hello`, then handles JSON lines (responses + server events).
+ */
+export class PrintServiceConnection {
+  private ws: WebSocket | null = null;
+  private readonly pending = new Map<string, PendingEntry>();
+  /** Si `disconnect()` ocurre en CONNECTING, aplazamos un `close()` duro para no dejar el socket colgado. */
+  private connectTeardownTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
+
+  constructor(private readonly opts: PrintServiceConnectionOptions) {}
+
+  /**
+   * Espera a `readyState === OPEN` (handshake listo). Útil en UI de prueba para no llamar
+   * `disconnect()` mientras sigue CONNECTING (Chrome loguea ruido si se cierra antes).
+   */
+  waitForOpen(timeoutMs = 20_000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let tickHandle: ReturnType<typeof globalThis.setTimeout> | null = null;
+      const finish = (kind: "open" | "closed" | "not_started" | "timeout") => {
+        if (settled) return;
+        settled = true;
+        if (tickHandle != null) {
+          globalThis.clearTimeout(tickHandle);
+          tickHandle = null;
+        }
+        if (kind === "open") resolve();
+        else if (kind === "closed") reject(new Error("closed_before_open"));
+        else if (kind === "not_started") reject(new Error("not_started"));
+        else reject(new Error("open_timeout"));
+      };
+      const deadline = Date.now() + timeoutMs;
+      const step = () => {
+        if (settled) return;
+        const ws = this.ws;
+        if (!ws) {
+          finish("not_started");
+          return;
+        }
+        const s = ws.readyState;
+        if (s === WebSocket.OPEN) {
+          finish("open");
+          return;
+        }
+        if (s === WebSocket.CLOSING || s === WebSocket.CLOSED) {
+          finish("closed");
+          return;
+        }
+        if (Date.now() >= deadline) {
+          finish("timeout");
+          return;
+        }
+        tickHandle = globalThis.setTimeout(step, 50);
+      };
+      step();
+    });
+  }
+
+  connect(): void {
+    if (this.connectTeardownTimer != null) {
+      globalThis.clearTimeout(this.connectTeardownTimer);
+      this.connectTeardownTimer = null;
+    }
+    try {
+      const ws = new WebSocket(this.opts.url);
+      this.ws = ws;
+      ws.onopen = () => {
+        this.opts.onOpen?.();
+        this.sendHello();
+      };
+      ws.onclose = (ev) => {
+        this.opts.onClose?.({
+          code: ev.code,
+          reason: ev.reason,
+          wasClean: ev.wasClean,
+        });
+        this.ws = null;
+        for (const [, p] of this.pending) {
+          p.reject(new Error("closed"));
+        }
+        this.pending.clear();
+      };
+      ws.onerror = () => {
+        this.opts.onError?.("WebSocket error");
+      };
+      ws.onmessage = (ev) => {
+        const text = typeof ev.data === "string" ? ev.data : "";
+        this.handleLine(text);
+      };
+    } catch (e) {
+      this.opts.onError?.(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  disconnect(opts?: PrintServiceDisconnectOptions): void {
+    const ifConnecting = opts?.ifConnecting ?? "default";
+    const ws = this.ws;
+    if (!ws) {
+      if (this.connectTeardownTimer != null) {
+        globalThis.clearTimeout(this.connectTeardownTimer);
+        this.connectTeardownTimer = null;
+      }
+      return;
+    }
+    this.ws = null;
+
+    for (const [, p] of this.pending) {
+      p.reject(new Error("closed"));
+    }
+    this.pending.clear();
+
+    const state = ws.readyState;
+
+    if (state === WebSocket.CONNECTING) {
+      if (ifConnecting === "abandon") {
+        if (this.connectTeardownTimer != null) {
+          globalThis.clearTimeout(this.connectTeardownTimer);
+          this.connectTeardownTimer = null;
+        }
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+        return;
+      }
+      // Cerrar aquí dispara en Chrome: "WebSocket is closed before the connection is established"
+      // (típico en cleanup de React / Strict Mode). Cerramos tras `open` o con timeout acotado.
+      ws.onmessage = null;
+      ws.onerror = null;
+      const prevOnClose = ws.onclose;
+      ws.onclose = (ev: CloseEvent) => {
+        if (this.connectTeardownTimer != null) {
+          globalThis.clearTimeout(this.connectTeardownTimer);
+          this.connectTeardownTimer = null;
+        }
+        prevOnClose?.call(ws, ev);
+      };
+      ws.onopen = () => {
+        if (this.connectTeardownTimer != null) {
+          globalThis.clearTimeout(this.connectTeardownTimer);
+          this.connectTeardownTimer = null;
+        }
+        try {
+          ws.close(1000, "client_disconnect");
+        } catch {
+          /* noop */
+        }
+      };
+      this.connectTeardownTimer = globalThis.setTimeout(() => {
+        this.connectTeardownTimer = null;
+        try {
+          if (ws.readyState === WebSocket.CONNECTING) {
+            ws.onopen = null;
+            ws.onclose = null;
+            ws.close();
+          }
+        } catch {
+          /* noop */
+        }
+      }, 800);
+      return;
+    }
+
+    if (this.connectTeardownTimer != null) {
+      globalThis.clearTimeout(this.connectTeardownTimer);
+      this.connectTeardownTimer = null;
+    }
+
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onerror = null;
+    ws.onclose = null;
+    if (state === WebSocket.OPEN || state === WebSocket.CLOSING) {
+      try {
+        ws.close(1000, "client_disconnect");
+      } catch {
+        /* noop */
+      }
+    }
+  }
+
+  ping(): Promise<unknown> {
+    return this.request("ping", {});
+  }
+
+  getPrinters(): Promise<unknown> {
+    return this.request("get_printers", {});
+  }
+
+  setPrinterMapping(purpose: string, printerName: string): Promise<unknown> {
+    return this.request("set_printer_mapping", { purpose, printerName });
+  }
+
+  /** Reemplaza todas las líneas de mapeo (failover por `sortOrder`). */
+  setMappingLines(
+    lines: Array<{
+      id: string;
+      purpose: string;
+      systemPrinterName: string;
+      sortOrder: number;
+      displayLabel?: string | null;
+    }>,
+  ): Promise<unknown> {
+    return this.request("set_mapping_lines", { lines });
+  }
+
+  getConfig(): Promise<unknown> {
+    return this.request("get_config", {});
+  }
+
+  /** Encola el PDF de prueba mínimo del agente (sin payload en el cliente). */
+  requestTestPrint(purpose?: string): Promise<unknown> {
+    return this.request("test_print", { purpose: purpose ?? "documents" });
+  }
+
+  /** Encola un PDF (base64) en el agente. Incluye metadatos opcionales acordados en protocolo 2.1. */
+  enqueuePrint(extra: Record<string, unknown>): Promise<unknown> {
+    return this.request("print", extra);
+  }
+
+  /**
+   * Igual que `enqueuePrint`, pero añade `printerDisplayLabel` según la elección del POS en localStorage
+   * (`readPosPurposePrinterAliasesFromStorage` / pantalla Impresión local).
+   */
+  enqueuePosPrint(extra: Record<string, unknown>): Promise<unknown> {
+    const purpose = typeof extra.purpose === "string" ? extra.purpose : "documents";
+    return this.enqueuePrint(mergePrinterDisplayLabelForPurposeIntoPrintExtras(purpose, { ...extra }));
+  }
+
+  private sendHello(): void {
+    const rid = randomId();
+    const body: Record<string, unknown> = {
+      version: PRINT_PROTOCOL_VERSION,
+      request_id: rid,
+      action: "hello",
+      client_id: this.opts.clientId ?? "pwa",
+    };
+    if (this.opts.token) body.token = this.opts.token;
+    if (this.opts.requiredPurposes?.length) {
+      body.requiredPurposes = this.opts.requiredPurposes;
+    }
+    if (this.opts.appLabel?.trim()) {
+      body.appLabel = this.opts.appLabel.trim();
+    }
+    if (this.opts.userDisplayName?.trim()) {
+      body.userDisplayName = this.opts.userDisplayName.trim();
+    }
+    this.sendRaw(body);
+  }
+
+  private sendRaw(obj: Record<string, unknown>): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    this.ws.send(JSON.stringify(obj));
+  }
+
+  private request(action: string, extra: Record<string, unknown>): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        reject(new Error("not_connected"));
+        return;
+      }
+      const rid = randomId();
+      this.pending.set(rid, { resolve, reject });
+      this.sendRaw({
+        version: PRINT_PROTOCOL_VERSION,
+        request_id: rid,
+        action,
+        client_id: this.opts.clientId ?? "pwa",
+        ...extra,
+      });
+      globalThis.setTimeout(() => {
+        const p = this.pending.get(rid);
+        if (p) {
+          this.pending.delete(rid);
+          p.reject(new Error("timeout"));
+        }
+      }, 8000);
+    });
+  }
+
+  private handleLine(text: string): void {
+    let msg: Record<string, unknown>;
+    try {
+      msg = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+    const event = typeof msg.event === "string" ? msg.event : undefined;
+    if (event === "printer_health") {
+      this.opts.onPrinterHealth?.((msg.payload ?? {}) as PrinterHealthPayload);
+      return;
+    }
+    if (event === "service_status") {
+      this.opts.onServiceStatus?.(msg.payload);
+      return;
+    }
+    if (event === "config_changed") {
+      this.opts.onConfigChanged?.();
+      return;
+    }
+    if (event === "print_job_done") {
+      const p = (msg.payload ?? {}) as { jobId?: string };
+      if (p.jobId) this.opts.onPrintJobDone?.(p.jobId);
+      return;
+    }
+    if (event === "print_job_failed") {
+      const p = (msg.payload ?? {}) as { jobId?: string; error?: string };
+      if (p.jobId) this.opts.onPrintJobFailed?.(p.jobId, p.error ?? "");
+      return;
+    }
+
+    const rid = typeof msg.request_id === "string" ? msg.request_id : undefined;
+    if (rid && this.pending.has(rid)) {
+      const entry = this.pending.get(rid)!;
+      this.pending.delete(rid);
+      if (msg.ok === false) {
+        entry.reject(new Error(String(msg.error ?? "error")));
+      } else {
+        entry.resolve(msg.data ?? {});
+      }
+      return;
+    }
+
+    /** p. ej. `hello` con token inválido: no entra en `pending` pero el servidor responde `ok: false`. */
+    if (msg.ok === false) {
+      this.opts.onError?.(String(msg.error ?? "error"));
+      return;
+    }
+
+    if (msg.ok === true && msg.data && typeof msg.data === "object") {
+      const d = msg.data as Record<string, unknown>;
+      if ("printerHealth" in d || "serviceStatus" in d) {
+        this.opts.onHello?.(d as HelloResponseData);
+      }
+    }
+  }
+}
+
+export function healthToVisual(
+  connected: boolean,
+  health: PrinterHealthPayload | null,
+  /** True mientras el WebSocket está en vuelo (antes de `onopen` / tras iniciar `connect`). */
+  socketConnecting = false,
+): PrintAgentVisualStatus {
+  if (!connected) {
+    if (socketConnecting) return "connecting";
+    return "off";
+  }
+  if (!health) return "connecting";
+  const o = health.overall;
+  if (o === "ok") return "ok";
+  if (o === "degraded") return "degraded";
+  return "error";
+}
+
+export type PrintServiceNotification = {
+  id: string;
+  at: number;
+  level: "info" | "warn" | "error";
+  message: string;
+  read: boolean;
+};
+
+const LS_HOST = "printServiceHost";
+const LS_PORT = "printServicePort";
+const LS_WSS_PORT = "printServiceWssPort";
+const LS_USE_TLS = "printServiceUseTls";
+const LS_TOKEN = "printServiceToken";
+
+/** Disparado en la misma pestaña tras `writePrintServiceConfigToStorage` (el evento `storage` solo cruza pestañas). */
+export const PRINT_SERVICE_CONFIG_CHANGED_EVENT = "flowstore:print-service-config-changed";
+
+export function readPrintServiceConfigFromStorage(): {
+  host: string;
+  port: number;
+  wssPort: number;
+  useTls: boolean;
+  token: string;
+} {
+  if (typeof window === "undefined") {
+    return { host: "127.0.0.1", port: 14567, wssPort: 14568, useTls: false, token: "" };
+  }
+  const host = localStorage.getItem(LS_HOST) || "127.0.0.1";
+  const port = Number(localStorage.getItem(LS_PORT) || "14567") || 14567;
+  const wssPort = Number(localStorage.getItem(LS_WSS_PORT) || "14568") || 14568;
+  const useTls = localStorage.getItem(LS_USE_TLS) === "1";
+  const token = (localStorage.getItem(LS_TOKEN) || "").trim();
+  return { host, port, wssPort, useTls, token };
+}
+
+export function writePrintServiceConfigToStorage(cfg: {
+  host: string;
+  port: number;
+  wssPort: number;
+  useTls: boolean;
+  token: string;
+}): void {
+  localStorage.setItem(LS_HOST, cfg.host);
+  localStorage.setItem(LS_PORT, String(cfg.port));
+  localStorage.setItem(LS_WSS_PORT, String(cfg.wssPort));
+  localStorage.setItem(LS_USE_TLS, cfg.useTls ? "1" : "0");
+  localStorage.setItem(LS_TOKEN, cfg.token.trim());
+  if (typeof globalThis.window !== "undefined") {
+    globalThis.window.dispatchEvent(new CustomEvent(PRINT_SERVICE_CONFIG_CHANGED_EVENT));
+  }
+}
+
+/** Elección del POS: impresora por alias (definida en el agente) para tickets / documentos. Solo localStorage. */
+const LS_POS_TICKETS_ALIAS = "printPosPurposeTicketsAlias";
+const LS_POS_DOCUMENTS_ALIAS = "printPosPurposeDocumentsAlias";
+
+export function readPosPurposePrinterAliasesFromStorage(): {
+  ticketsAlias: string;
+  documentsAlias: string;
+} {
+  if (typeof window === "undefined") {
+    return { ticketsAlias: "", documentsAlias: "" };
+  }
+  return {
+    ticketsAlias: (localStorage.getItem(LS_POS_TICKETS_ALIAS) || "").trim(),
+    documentsAlias: (localStorage.getItem(LS_POS_DOCUMENTS_ALIAS) || "").trim(),
+  };
+}
+
+export function writePosPurposePrinterAliasesToStorage(aliases: {
+  ticketsAlias?: string;
+  documentsAlias?: string;
+}): void {
+  if (typeof window === "undefined") return;
+  if (aliases.ticketsAlias !== undefined) {
+    const t = aliases.ticketsAlias.trim();
+    if (t) localStorage.setItem(LS_POS_TICKETS_ALIAS, t);
+    else localStorage.removeItem(LS_POS_TICKETS_ALIAS);
+  }
+  if (aliases.documentsAlias !== undefined) {
+    const t = aliases.documentsAlias.trim();
+    if (t) localStorage.setItem(LS_POS_DOCUMENTS_ALIAS, t);
+    else localStorage.removeItem(LS_POS_DOCUMENTS_ALIAS);
+  }
+}
+
+/**
+ * Añade `printerDisplayLabel` al payload de `print` según el propósito y la elección guardada en el POS.
+ * No persiste nada en el agente: solo indica qué línea (alias) usar para este trabajo.
+ */
+export function mergePrinterDisplayLabelForPurposeIntoPrintExtras(
+  purpose: string,
+  extra: Record<string, unknown>,
+): Record<string, unknown> {
+  const { ticketsAlias, documentsAlias } = readPosPurposePrinterAliasesFromStorage();
+  const p = (purpose || "documents").trim().toLowerCase();
+  let lbl = "";
+  if (p === "tickets") lbl = ticketsAlias;
+  else if (p === "documents") lbl = documentsAlias;
+  if (!lbl) return extra;
+  return { ...extra, printerDisplayLabel: lbl };
+}
+
+/** Solo páginas HTTPS exigen WSS (mixed content). En `http://localhost` usamos WS salvo que el usuario active «Usar WSS» en el panel. */
+export function printServicePageRequiresTls(): boolean {
+  return typeof window !== "undefined" && window.location.protocol === "https:";
+}
+
+export type PrintServiceProbeResult = {
+  ok: boolean;
+  url: string;
+  error?: string;
+  /** Tiempo hasta `onopen` (handshake WebSocket listo). */
+  latencyMs?: number;
+};
+
+/**
+ * Comprueba si hay un endpoint WebSocket accesible (handshake completo).
+ * Útil en tests, scripts o diagnóstico; no valida el protocolo `hello` del agente.
+ */
+export function probePrintServiceReachable(options: {
+  /** Si se indica, se usa tal cual (p. ej. en tests con puerto efímero). */
+  url?: string;
+  host?: string;
+  port?: number;
+  wssPort?: number;
+  useTls?: boolean;
+  token?: string;
+  timeoutMs?: number;
+} = {}): Promise<PrintServiceProbeResult> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (r: PrintServiceProbeResult) => {
+      if (settled) return;
+      settled = true;
+      resolve(r);
+    };
+
+    const timeoutMs = options.timeoutMs ?? 5000;
+    let url: string;
+    if (options.url) {
+      url = options.url;
+    } else {
+      const fromLs = typeof window !== "undefined" ? readPrintServiceConfigFromStorage() : null;
+      const host = (options.host ?? fromLs?.host ?? "127.0.0.1").trim();
+      const pageHttps = typeof window !== "undefined" && printServicePageRequiresTls();
+      const useTls = options.useTls ?? (pageHttps || Boolean(fromLs?.useTls));
+      const portNum = useTls
+        ? (options.wssPort ?? fromLs?.wssPort ?? 14568)
+        : (options.port ?? fromLs?.port ?? 14567);
+      url = buildWebSocketUrl(host, portNum, useTls);
+    }
+
+    const fromLs = typeof window !== "undefined" ? readPrintServiceConfigFromStorage() : null;
+    const tokenRaw = (options.token ?? fromLs?.token ?? "").trim();
+
+    const t0 = Date.now();
+    let timer: ReturnType<typeof globalThis.setTimeout> | null = null;
+    const clearTimer = () => {
+      if (timer != null) {
+        globalThis.clearTimeout(timer);
+        timer = null;
+      }
+    };
+
+    const c = new PrintServiceConnection({
+      url,
+      token: tokenRaw || undefined,
+      clientId: "probe",
+      onOpen: () => {
+        clearTimer();
+        finish({ ok: true, url, latencyMs: Date.now() - t0 });
+        globalThis.queueMicrotask(() => c.disconnect());
+      },
+      onError: (msg) => {
+        clearTimer();
+        finish({ ok: false, url, error: msg });
+        c.disconnect({ ifConnecting: "abandon" });
+      },
+      onClose: () => {
+        clearTimer();
+      },
+    });
+
+    timer = globalThis.setTimeout(() => {
+      timer = null;
+      c.disconnect({ ifConnecting: "abandon" });
+      finish({ ok: false, url, error: "timeout" });
+    }, timeoutMs);
+
+    c.connect();
+  });
+}

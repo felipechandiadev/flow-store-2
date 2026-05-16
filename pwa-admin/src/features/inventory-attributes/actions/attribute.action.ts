@@ -14,7 +14,7 @@ import type {
   UpdateAttributeResult,
 } from "../types/attribute.types";
 
-const PATH = "/inventory/attributes";
+const PATH = "/catalog/attributes";
 
 function revalidateAttributesRoute() {
   revalidatePath(PATH, "page");

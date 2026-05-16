@@ -305,7 +305,7 @@ export class LedgerEntriesService {
     }
 
     if (
-      transaction.transactionType === TransactionType.PAYMENT_OUT &&
+      transaction.transactionType === TransactionType.SUPPLIER_PAYMENT &&
       transaction.supplierId
     ) {
       const supplierDebt = await this.getPersonBalance(
@@ -318,6 +318,26 @@ export class LedgerEntriesService {
         errors.push({
           code: 'PAYMENT_EXCEEDS_DEBT',
           message: `Payment exceeds supplier debt. Payment: ${transaction.total}, Debt: ${supplierDebt}`,
+          severity: 'ERROR',
+          phase: 'VALIDATION',
+        });
+      }
+    }
+
+    if (
+      transaction.transactionType === TransactionType.PAYROLL_PAYMENT &&
+      transaction.employeeId
+    ) {
+      const employeeDebt = await this.getPersonBalance(
+        transaction.employeeId,
+        'EMPLOYEE',
+        transaction.branchId,
+      );
+
+      if (transaction.total > employeeDebt) {
+        errors.push({
+          code: 'PAYMENT_EXCEEDS_DEBT',
+          message: `Payment exceeds payroll liability. Payment: ${transaction.total}, Debt: ${employeeDebt}`,
           severity: 'ERROR',
           phase: 'VALIDATION',
         });
@@ -747,7 +767,7 @@ export class LedgerEntriesService {
    * - DEBE: Cuenta por pagar específica (2.2.01 Remuneraciones, 2.2.02 AFP, etc.)
    * - HABER: Cuenta de efectivo (1.1.01 Caja o 1.1.02 Banco)
    *
-   * La cuenta por pagar se identifica usando el metadata.payrollLineType del PAYMENT_OUT original.
+   * La cuenta por pagar se identifica usando el metadata.payrollLineType del pago origen (SUPPLIER_PAYMENT / legado).
    *
    * Ejemplo:
    * - Pago de remuneración $90,000:

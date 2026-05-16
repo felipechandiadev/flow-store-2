@@ -3,6 +3,7 @@
 import React from 'react';
 import Dialog from '@/shared/components/Dialog';
 import { Button } from '@/shared/components/Button';
+import IconButton from '@/shared/components/IconButton/IconButton';
 import { usePrint } from './usePrint';
 import { PrintDialogProps } from './PrintDialog.types';
 import styles from './PrintDialog.module.css';
@@ -16,6 +17,7 @@ export const PrintDialog: React.FC<PrintDialogProps> = ({
   disablePrint = false,
   printLoading = false,
   showPrintButton = true,
+  printIconButton = false,
   size = 'md',
   customSize,
   maxWidth,
@@ -51,18 +53,33 @@ export const PrintDialog: React.FC<PrintDialogProps> = ({
         {/* Botones de acción */}
           <div className={styles.actions}>
             {extraActions && <div className={styles.extraActions}>{extraActions}</div>}
-          {showPrintButton && (
-            <Button
-              variant="primary"
-              disabled={disablePrint}
-              loading={printLoading}
-              onClick={() => {
-                handlePrint();
-              }}
-            >
-              {printLoading ? 'Cargando análisis...' : '🖨️ Imprimir'}
-            </Button>
-          )}
+          {showPrintButton &&
+            (printIconButton ? (
+              <IconButton
+                icon="Printer"
+                variant="basicSecondary"
+                size="md"
+                disabled={disablePrint}
+                isLoading={printLoading}
+                title="Imprimir"
+                ariaLabel="Imprimir"
+                onClick={() => {
+                  handlePrint();
+                }}
+                data-test-id="print-dialog-print"
+              />
+            ) : (
+              <Button
+                variant="primary"
+                disabled={disablePrint}
+                loading={printLoading}
+                onClick={() => {
+                  handlePrint();
+                }}
+              >
+                {printLoading ? 'Cargando análisis...' : '🖨️ Imprimir'}
+              </Button>
+            ))}
         </div>
       </div>
     </Dialog>

@@ -7,6 +7,7 @@ import { useImageWithPlaceholder } from '@/shared/hooks/useImageWithPlaceholder'
 import CompanySwitcher from '@/features/companies/components/CompanySwitcher';
 import SideBar, { SideBarMenuItem } from './SideBar';
 import { StockAlertsDropdown } from '@/features/inventory-stock/ui/StockAlertsDropdown';
+import { PrintServiceIndicator, usePrintServiceConnection } from "@flowstore/print-service-client";
 
 export type { SideBarMenuItem };
 // TODO: Implement NotificationBell and useNotificationsSocket when notifications feature is created
@@ -97,6 +98,13 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
     fromProps
     || (typeof session?.user?.name === 'string' ? session.user.name.trim() : '')
     || '';
+
+  const printService = usePrintServiceConnection({
+    clientId: "pwa-admin",
+    requiredPurposes: ["documents", "reports"],
+    appLabel: "Panel de administración",
+    userDisplayName: personName || undefined,
+  });
 
   return (
     <SideBarContext.Provider value={{ open, close, isOpen: showSidebar, expanded: sidebarExpanded, setExpanded: setSidebarExpanded }}>
@@ -190,6 +198,8 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
               ) : null}
               <CompanySwitcher fallbackCompanyLabel={companySwitcherFallbackLabel} />
             </div>
+
+            <PrintServiceIndicator visual={printService.visual} href="/settings/local-printing" />
 
             <StockAlertsDropdown />
 

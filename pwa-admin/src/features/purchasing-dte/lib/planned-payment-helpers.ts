@@ -11,6 +11,26 @@ export function bankAccountOptionKey(a: BankLike, index: number): string {
   return `idx-${index}-${a.bankName}-${a.accountNumber}`;
 }
 
+/** Para cheques: el banco se toma de la cuenta empresa seleccionada; `fallback` cubre datos legacy. */
+export function resolveChequeBankNameFromCompanyAccount(
+  companyBankAccountKey: string | null | undefined,
+  companyBankAccounts: CompanyBankAccountItem[],
+  fallback?: string | null,
+): string | null {
+  const key = companyBankAccountKey != null ? String(companyBankAccountKey).trim() : "";
+  if (key) {
+    const idx = companyBankAccounts.findIndex((a, i) => bankAccountOptionKey(a, i) === key);
+    if (idx >= 0) {
+      const n = companyBankAccounts[idx]?.bankName?.trim();
+      if (n) {
+        return n;
+      }
+    }
+  }
+  const f = fallback != null ? String(fallback).trim() : "";
+  return f || null;
+}
+
 /** Fecha local YYYY-MM-DD (sin UTC shift). */
 export function toYyyyMmDdLocal(d: Date): string {
   const y = d.getFullYear();

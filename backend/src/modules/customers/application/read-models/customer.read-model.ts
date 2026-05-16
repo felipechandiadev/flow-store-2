@@ -21,7 +21,7 @@ export interface CustomerReadModel {
   firstName?: string;
   lastName?: string;
   businessName?: string;
-  documentType: 'DNI' | 'CUIT' | 'CUIL' | 'PASSPORT' | 'OTHER';
+  documentType: 'DNI' | 'CUIT' | 'CUIL' | 'PASSPORT' | 'RUN' | 'RUT';
   documentNumber: string;
   email?: string;
   phone?: string;

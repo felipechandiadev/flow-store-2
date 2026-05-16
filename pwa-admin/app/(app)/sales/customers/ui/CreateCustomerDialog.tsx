@@ -12,7 +12,7 @@ import type { CreateCustomerFormInput } from "@/features/sales-customers/types/c
 const DOC_OPTIONS: Option[] = [
   { id: "RUN", label: "RUN" },
   { id: "PASSPORT", label: "Pasaporte" },
-  { id: "OTHER", label: "Otro" },
+  { id: "DNI", label: "DNI" },
 ];
 
 const PAYMENT_DAY_OPTIONS: Option[] = [
@@ -40,7 +40,7 @@ export function CreateCustomerDialog({
 }: CreateCustomerDialogProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [documentType, setDocumentType] = useState<"RUN" | "PASSPORT" | "OTHER">("RUN");
+  const [documentType, setDocumentType] = useState<"RUN" | "PASSPORT" | "DNI">("RUN");
   const [documentNumber, setDocumentNumber] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -184,15 +184,15 @@ export function CreateCustomerDialog({
           placeholder="Tipo de documento"
           options={DOC_OPTIONS}
           value={documentType}
-          onChange={(v) => setDocumentType((v != null ? String(v) : "RUN") as "RUN" | "PASSPORT" | "OTHER")}
+          onChange={(v) => setDocumentType((v != null ? String(v) : "RUN") as "RUN" | "PASSPORT" | "DNI")}
           required
           data-test-id="customer-create-doc-type"
         />
 
         <TextField
-          label={documentType === "RUN" ? "RUN" : "Número de documento"}
+          label={documentType === "RUN" ? "RUN" : documentType === "DNI" ? "DNI" : "Número de documento"}
           name="customer-document-number"
-          type={documentType === "RUN" ? "dni" : "text"}
+          type={documentType === "RUN" || documentType === "DNI" ? "dni" : "text"}
           value={documentNumber}
           onChange={(e) => setDocumentNumber(e.target.value)}
           required

@@ -19,6 +19,10 @@ export type PurchaseReturnListResult = {
   limit: number;
 };
 
+export type CreatePurchaseReturnResult =
+  | { success: true; id?: string; data?: unknown }
+  | { success: false; error: string };
+
 export type CreatePurchaseReturnInput = {
   branchId: string;
   /** Lo rellena la server action desde la sesión si se omite. */

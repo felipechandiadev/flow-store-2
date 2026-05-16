@@ -176,19 +176,25 @@ export const TRANSACTION_TYPE_OPTIONS: TransactionTypeOption[] = [
       "Registra un cobro (ingreso) asociado a una venta o cuenta por cobrar. Usualmente referencia la transacción origen vía relatedTransactionId.",
   },
   {
-    id: "PAYMENT_OUT",
-    label: "Pago (deprecated)",
+    id: "BANK_TO_CASH_TRANSFER",
+    label: "Giro banco a caja",
     category: "Pagos y cobros",
     description:
-      "Tipo de pago genérico en desuso. Se recomienda usar SUPPLIER_PAYMENT o EXPENSE_PAYMENT según el caso.",
-    deprecated: true,
+      "Mueve fondos desde cuenta bancaria de la empresa hacia caja (tesorería interna). No representa pago a proveedor ni a tercero.",
+  },
+  {
+    id: "PAYROLL_PAYMENT",
+    label: "Pago de remuneraciones",
+    category: "Pagos y cobros",
+    description:
+      "Pago contra obligación de remuneraciones (empleado). Requiere employeeId y relatedTransactionId hacia la liquidación PAYROLL.",
   },
   {
     id: "SUPPLIER_PAYMENT",
     label: "Pago a proveedor",
     category: "Pagos y cobros",
     description:
-      "Pago de una compra a proveedor. Requiere supplierId y normalmente relatedTransactionId apuntando a la PURCHASE.",
+      "Compromiso o pago a proveedor. Requiere supplierId y relatedTransactionId hacia PURCHASE o documento fiscal proveedor (factura/boleta).",
   },
   {
     id: "EXPENSE_PAYMENT",

@@ -94,7 +94,9 @@ export class InstallmentService {
       case InstallmentSourceType.PAYROLL:
         return TransactionType.PAYMENT_EXECUTION;
       default:
-        return TransactionType.PAYMENT_OUT;
+        throw new BadRequestException(
+          `InstallmentSourceType no soportado para tipo de pago: ${sourceType}`,
+        );
     }
   }
 

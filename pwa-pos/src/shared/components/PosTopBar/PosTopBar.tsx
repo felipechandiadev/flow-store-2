@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
-import { BadgeCheck, Building2, ImageOff, Image as ImageIcon, Store, User } from "lucide-react";
+import { BadgeCheck, Building2, ImageOff, Image as ImageIcon, Store, User, Wifi, WifiOff } from "lucide-react";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import { StockAlertsDropdown } from "@/features/inventory-stock/ui/StockAlertsDropdown";
+import { PrintServiceTopBarDropdown, usePrintServiceConnection } from "@flowstore/print-service-client";
 
 export type PosTopBarProps = {
   pointOfSaleName?: string | null;
@@ -49,6 +50,19 @@ export default function PosTopBar({
   const title = "FlowStore";
   const subtitle = "Punto de venta";
   const logoSrc = "/logo.png";
+
+  const printServiceDebug =
+    process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_PRINT_SERVICE_DEBUG === "1";
+
+  const printService = usePrintServiceConnection({
+    clientId: "pwa-pos",
+    requiredPurposes: ["tickets", "documents"],
+    appLabel: "Punto de venta",
+    userDisplayName: effectivePerson || undefined,
+    debug: printServiceDebug,
+    enableInAppNotifications: true,
+    briefWsErrorMessages: true,
+  });
 
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [logoLoaded, setLogoLoaded] = useState(false);
@@ -280,14 +294,58 @@ export default function PosTopBar({
               onClick={() => router.push("/cash/closing")}
               data-test-id="pos-topbar-cash-closing"
             />
-            <IconButton
-              icon="LogOut"
-              variant="basic"
-              size="md"
-              ariaLabel="Cerrar sesión"
-              onClick={() => signOut({ callbackUrl: "/" })}
-              data-test-id="pos-topbar-logout"
-            />
+            <div className="relative flex shrink-0 items-center gap-2 overflow-visible pt-px" data-test-id="pos-topbar-session-print">
+              <PrintServiceTopBarDropdown
+                panelVariant="pos"
+                connected={printService.connected}
+                health={printService.health}
+                visual={printService.visual}
+                lastError={printService.lastError}
+                attemptedWsUrl={printService.attemptedWsUrl}
+                reconnect={printService.reconnect}
+                notifications={printService.notifications}
+                unreadCount={printService.unreadCount}
+                markNotificationsRead={printService.markNotificationsRead}
+                clearNotifications={printService.clearNotifications}
+                renderLocalAgentStatus={({ connected }) => {
+                  const label = connected
+                    ? "Conectado al servicio local de impresión"
+                    : "Sin conexión al servicio local de impresión";
+                  return (
+                    <span
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center"
+                      title={label}
+                      aria-label={label}
+                      role="img"
+                    >
+                      {connected ? (
+                        <Wifi
+                          className="shrink-0 text-emerald-600 dark:text-emerald-400"
+                          size={24}
+                          strokeWidth={2.25}
+                          aria-hidden
+                        />
+                      ) : (
+                        <WifiOff
+                          className="shrink-0 text-red-600 dark:text-red-400"
+                          size={24}
+                          strokeWidth={2.25}
+                          aria-hidden
+                        />
+                      )}
+                    </span>
+                  );
+                }}
+              />
+              <IconButton
+                icon="LogOut"
+                variant="basic"
+                size="md"
+                ariaLabel="Cerrar sesión"
+                onClick={() => signOut({ callbackUrl: "/" })}
+                data-test-id="pos-topbar-logout"
+              />
+            </div>
           </nav>
         </div>
       </div>

@@ -12,7 +12,8 @@ export interface SearchProductsResult {
   id: string;
   name: string;
   productType?: string;
-  brand?: string;
+  brand?: string | null;
+  brandId?: string | null;
   description?: string;
   categoryId?: string | null;
   categoryName?: string | null;
@@ -65,10 +66,11 @@ export class SearchProductsQueryHandler implements IQueryHandler<
     const qb = this.productRepository
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.category', 'category')
+      .leftJoinAndSelect('p.catalogBrand', 'catalogBrand')
       .where('p.deletedAt IS NULL');
 
     if (query.query) {
-      qb.andWhere('(p.name LIKE :q OR p.brand LIKE :q)', {
+      qb.andWhere('(p.name LIKE :q OR p.brand LIKE :q OR catalogBrand.name LIKE :q)', {
         q: `%${query.query}%`,
       });
     }
@@ -126,7 +128,8 @@ export class SearchProductsQueryHandler implements IQueryHandler<
       id: p.id,
       name: p.name,
       productType: p.productType,
-      brand: p.brand,
+      brand: p.catalogBrand?.name ?? p.brand,
+      brandId: p.brandId ?? null,
       description: p.description,
       categoryId: p.categoryId ?? null,
       categoryName: p.category?.name ?? null,

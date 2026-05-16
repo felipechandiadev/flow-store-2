@@ -17,7 +17,7 @@ const PERSON_TYPE_OPTIONS: Option[] = [
 const DOC_NATURAL_OPTIONS: Option[] = [
   { id: "RUN", label: "RUN" },
   { id: "PASSPORT", label: "Pasaporte" },
-  { id: "OTHER", label: "Otro" },
+  { id: "DNI", label: "DNI" },
 ];
 
 const SUPPLIER_TYPE_OPTIONS: Option[] = [
@@ -90,10 +90,16 @@ export function CreateSupplierDialog({ open, onClose, onSuccess }: CreateSupplie
   };
 
   const useDniField =
-    personType === "COMPANY" || (personType === "NATURAL" && documentType === "RUN");
+    personType === "COMPANY" || (personType === "NATURAL" && (documentType === "RUN" || documentType === "DNI"));
 
   const documentNumberLabel =
-    personType === "COMPANY" ? "RUT" : documentType === "RUN" ? "RUN" : "Número de documento";
+    personType === "COMPANY"
+      ? "RUT"
+      : documentType === "RUN"
+        ? "RUN"
+        : documentType === "DNI"
+          ? "DNI"
+          : "Número de documento";
 
   const handleSubmit = () => {
     setError(null);

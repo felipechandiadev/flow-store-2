@@ -41,15 +41,18 @@ describe('CustomersServiceAdapter', () => {
   });
 
   it('should dispatch UpdateCustomerCommand and map response', async () => {
-    const now = new Date();
-    commandBus.execute.mockResolvedValueOnce({
-      id: 'customer-1',
+    commandBus.execute.mockResolvedValueOnce({});
+    const full = {
+      customerId: 'customer-1',
+      personId: 'p1',
+      displayName: 'Jane Doe',
       creditLimit: 500,
       paymentDayOfMonth: 20,
-      notes: 'updated',
       isActive: true,
-      updatedAt: now,
-    });
+      usedCredit: 0,
+      availableCredit: 500,
+    };
+    customersCore.findOne.mockResolvedValueOnce(full);
 
     const result = await service.update('customer-1', {
       creditLimit: 500,
@@ -67,17 +70,8 @@ describe('CustomersServiceAdapter', () => {
       notes: 'updated',
       isActive: true,
     });
-    expect(result).toEqual({
-      success: true,
-      customer: {
-        customerId: 'customer-1',
-        creditLimit: 500,
-        paymentDayOfMonth: 20,
-        notes: 'updated',
-        isActive: true,
-        updatedAt: now,
-      },
-    });
+    expect(customersCore.findOne).toHaveBeenCalledWith('customer-1');
+    expect(result).toEqual({ success: true, customer: full });
   });
 
   it('should dispatch DeleteCustomerCommand', async () => {

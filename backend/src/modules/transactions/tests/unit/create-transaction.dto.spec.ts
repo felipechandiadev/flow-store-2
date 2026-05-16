@@ -9,24 +9,54 @@ import {
 
 describe('CreateTransactionDto', () => {
   describe('validate()', () => {
-    it('should reject PAYMENT_OUT as deprecated', () => {
+    it('should accept BANK_TO_CASH_TRANSFER with bankAccountKey', () => {
       const dto = new CreateTransactionDto();
-      dto.transactionType = TransactionType.PAYMENT_OUT;
+      dto.transactionType = TransactionType.BANK_TO_CASH_TRANSFER;
       dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
       dto.userId = '123e4567-e89b-12d3-a456-426614174000';
       dto.pointOfSaleId = '123e4567-e89b-12d3-a456-426614174000';
       dto.subtotal = 100;
       dto.total = 100;
-      dto.paymentMethod = PaymentMethod.CASH;
+      dto.paymentMethod = PaymentMethod.TRANSFER;
+      dto.bankAccountKey = 'bank-key-1';
 
       const errors = dto.validate();
 
-      expect(errors).toContain(
-        'PAYMENT_OUT está deprecado. Use SUPPLIER_PAYMENT o EXPENSE_PAYMENT según corresponda.',
-      );
+      expect(errors.length).toBe(0);
     });
 
-    it('should accept SUPPLIER_PAYMENT as replacement for PAYMENT_OUT', () => {
+    it('should reject BANK_TO_CASH_TRANSFER without bankAccountKey', () => {
+      const dto = new CreateTransactionDto();
+      dto.transactionType = TransactionType.BANK_TO_CASH_TRANSFER;
+      dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.userId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.pointOfSaleId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.subtotal = 100;
+      dto.total = 100;
+      dto.paymentMethod = PaymentMethod.TRANSFER;
+
+      const errors = dto.validate();
+
+      expect(errors).toContain('BANK_TO_CASH_TRANSFER requiere bankAccountKey');
+    });
+
+    it('should reject PAYROLL_PAYMENT without employeeId', () => {
+      const dto = new CreateTransactionDto();
+      dto.transactionType = TransactionType.PAYROLL_PAYMENT;
+      dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.userId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.pointOfSaleId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.subtotal = 100;
+      dto.total = 100;
+      dto.paymentMethod = PaymentMethod.TRANSFER;
+      dto.relatedTransactionId = '123e4567-e89b-12d3-a456-426614174000';
+
+      const errors = dto.validate();
+
+      expect(errors).toContain('PAYROLL_PAYMENT requiere employeeId');
+    });
+
+    it('should accept SUPPLIER_PAYMENT with supplier and related document', () => {
       const dto = new CreateTransactionDto();
       dto.transactionType = TransactionType.SUPPLIER_PAYMENT;
       dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
@@ -40,11 +70,10 @@ describe('CreateTransactionDto', () => {
 
       const errors = dto.validate();
 
-      expect(errors).not.toContain('PAYMENT_OUT está deprecado');
       expect(errors.length).toBe(0);
     });
 
-    it('should accept EXPENSE_PAYMENT as replacement for PAYMENT_OUT', () => {
+    it('should accept EXPENSE_PAYMENT with expense category', () => {
       const dto = new CreateTransactionDto();
       dto.transactionType = TransactionType.EXPENSE_PAYMENT;
       dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
@@ -57,7 +86,6 @@ describe('CreateTransactionDto', () => {
 
       const errors = dto.validate();
 
-      expect(errors).not.toContain('PAYMENT_OUT está deprecado');
       expect(errors.length).toBe(0);
     });
 

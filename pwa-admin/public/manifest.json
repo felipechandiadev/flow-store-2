@@ -65,7 +65,7 @@
       "name": "Productos",
       "short_name": "Productos",
       "description": "Catálogo de productos",
-      "url": "/inventory/products",
+      "url": "/catalog/products",
       "icons": [{ "src": "/icons/shortcut-dashboard.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]

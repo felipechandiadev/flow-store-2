@@ -65,6 +65,8 @@ export type CompanyDetails = {
   nombreFantasia: string | null;
   businessActivity: string | null;
   rut: string | null;
+  address: string | null;
+  mail: string | null;
   defaultCurrency: string;
   /** ISO 8601 o `null` */
   fiscalYearStart: string | null;
@@ -78,6 +80,8 @@ export type UpdateCompanyGeneralInput = {
   nombreFantasia?: string;
   businessActivity?: string;
   rut?: string;
+  address?: string | null;
+  mail?: string | null;
 };
 
 export type AddCompanyBankAccountInput = {
@@ -95,6 +99,8 @@ type CompanyApiResponse = {
   nombreFantasia?: string | null;
   businessActivity?: string | null;
   rut?: string | null;
+  address?: string | null;
+  mail?: string | null;
   defaultCurrency?: string;
   fiscalYearStart?: string | null;
   isActive?: boolean;
@@ -164,6 +170,9 @@ function mapCompanyResponse(data: CompanyApiResponse): CompanyDetails | null {
         ? String(data.businessActivity)
         : null,
     rut: data.rut != null && String(data.rut).trim() !== "" ? String(data.rut) : null,
+    address:
+      data.address != null && String(data.address).trim() !== "" ? String(data.address).trim() : null,
+    mail: data.mail != null && String(data.mail).trim() !== "" ? String(data.mail).trim() : null,
     defaultCurrency: data.defaultCurrency != null && String(data.defaultCurrency).trim() !== "" ? String(data.defaultCurrency) : "CLP",
     fiscalYearStart: parseFiscalYearStart(data.fiscalYearStart != null ? String(data.fiscalYearStart) : null),
     isActive: data.isActive !== false,

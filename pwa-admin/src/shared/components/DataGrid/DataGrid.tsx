@@ -232,7 +232,7 @@ const DataGrid: React.FC<DataGridProps> = ({
     <div className={containerClasses} style={{ height: typeof height === 'number' ? `${height}px` : height }} data-test-id={dataTestId || "data-grid-root"}>
       {/* Header */}
       <Header
-        title={title ?? ''} 
+        title={title} 
         filterMode={filterMode} 
         onToggleFilterMode={toggleFilterMode}
         columns={columns}

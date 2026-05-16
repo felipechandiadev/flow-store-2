@@ -39,6 +39,8 @@ export interface CompanyDetail {
   nombreFantasia: string | null;
   businessActivity: string | null;
   rut: string | null;
+  address: string | null;
+  mail: string | null;
   defaultCurrency: string;
   fiscalYearStart?: Date;
   isActive: boolean;
@@ -95,6 +97,8 @@ export class CompaniesService {
         nombreFantasia: null,
         businessActivity: null,
         rut: null,
+        address: null,
+        mail: null,
         defaultCurrency: 'CLP',
         isActive: true,
         bankAccounts: [],
@@ -117,6 +121,8 @@ export class CompaniesService {
       rut,
       defaultCurrency: data.defaultCurrency?.trim() || 'CLP',
       isActive: data.isActive !== false,
+      address: data.address?.trim() ? data.address.trim() : null,
+      mail: data.mail?.trim() ? data.mail.trim() : null,
     });
     const saved = await this.companyRepository.save(company);
     return this.toDetail(saved);
@@ -151,6 +157,14 @@ export class CompaniesService {
     }
     if (data.rut !== undefined) {
       company.rut = data.rut.trim();
+    }
+    if (data.address !== undefined) {
+      const v = data.address.trim();
+      company.address = v === '' ? null : v;
+    }
+    if (data.mail !== undefined) {
+      const v = data.mail.trim();
+      company.mail = v === '' ? null : v;
     }
     if ((data as any).isActive !== undefined) {
       company.isActive = !!(data as any).isActive;
@@ -519,6 +533,8 @@ export class CompaniesService {
       nombreFantasia: company.nombreFantasia ?? null,
       businessActivity: company.businessActivity ?? null,
       rut: company.rut,
+      address: company.address?.trim() ? company.address.trim() : null,
+      mail: company.mail?.trim() ? company.mail.trim() : null,
       defaultCurrency: company.defaultCurrency,
       fiscalYearStart: company.fiscalYearStart,
       isActive: company.isActive,

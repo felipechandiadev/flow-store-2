@@ -15,14 +15,14 @@ type ErrorBoundaryProps = {
  * render, manteniendo el `AppShellLayoutClient` (sidebar, topbar) montado.
  *
  * Detecta cuando el error es por sesión expirada (401 / "Sesión inválida"
- * o "Token de autenticación inválido o ausente") para mostrar un mensaje
- * dedicado con un CTA que limpia la sesión y vuelve al login. Para
- * cualquier otro error, muestra un fallback genérico con la posibilidad
- * de reintentar y revisar detalles técnicos.
+ * o "Token de autenticación inválido o ausente"): se cierra la sesión y se
+ * redirige automáticamente al login (`/`).
  */
 export default function AppGroupError({ error, reset }: ErrorBoundaryProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+
+  const isUnauthorized = useMemo(() => isUnauthorizedError(error), [error]);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production') {
@@ -30,7 +30,25 @@ export default function AppGroupError({ error, reset }: ErrorBoundaryProps) {
     }
   }, [error]);
 
-  const isUnauthorized = useMemo(() => isUnauthorizedError(error), [error]);
+  /** 401 / sesión inválida: cerrar sesión NextAuth y llevar al login (`/`) sin paso manual. */
+  useEffect(() => {
+    if (!isUnauthorized) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        await signOut({ callbackUrl: '/', redirect: true });
+      } catch {
+        if (!cancelled && typeof window !== 'undefined') {
+          window.location.assign('/');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isUnauthorized]);
 
   if (isUnauthorized) {
     return (
@@ -43,7 +61,7 @@ export default function AppGroupError({ error, reset }: ErrorBoundaryProps) {
               viewBox="0 0 24 24"
               strokeWidth={1.8}
               stroke="currentColor"
-              className="h-6 w-6"
+              className="h-6 w-6 animate-pulse"
               aria-hidden="true"
             >
               <path
@@ -53,12 +71,9 @@ export default function AppGroupError({ error, reset }: ErrorBoundaryProps) {
               />
             </svg>
           </div>
-          <h2 className="mb-2 text-xl font-semibold text-amber-900">
-            Tu sesión expiró
-          </h2>
+          <h2 className="mb-2 text-xl font-semibold text-amber-900">Tu sesión expiró</h2>
           <p className="mb-6 text-sm leading-relaxed text-amber-800">
-            Por seguridad, debes volver a iniciar sesión para continuar
-            usando el panel.
+            Redirigiendo al inicio de sesión…
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Button
@@ -68,19 +83,19 @@ export default function AppGroupError({ error, reset }: ErrorBoundaryProps) {
               onClick={async () => {
                 setSigningOut(true);
                 try {
-                  await signOut({ callbackUrl: '/' });
+                  await signOut({ callbackUrl: '/', redirect: true });
+                } catch {
+                  if (typeof window !== 'undefined') {
+                    window.location.assign('/');
+                  }
                 } finally {
                   setSigningOut(false);
                 }
               }}
             >
-              Volver a iniciar sesión
+              Ir al login ahora
             </Button>
-            <Button
-              variant="outlined"
-              onClick={() => reset()}
-              disabled={signingOut}
-            >
+            <Button variant="outlined" onClick={() => reset()} disabled={signingOut}>
               Reintentar
             </Button>
           </div>
@@ -163,12 +178,18 @@ function isUnauthorizedError(error: Error & { digest?: string }): boolean {
   const message = (error?.message ?? '').toString();
   if (!message) return false;
   const lower = message.toLowerCase();
+  const structured401 =
+    lower.includes('"statuscode":401') ||
+    lower.includes('statuscode":401') ||
+    lower.includes('statuscode: 401') ||
+    lower.includes('statuscode:401') ||
+    lower.includes('"status":401') ||
+    lower.includes('http 401');
   return (
     lower.includes('sesión inválida') ||
     lower.includes('sesion invalida') ||
     lower.includes('token de autenticación') ||
-    lower.includes('"statuscode":401') ||
-    lower.includes('http 401') ||
-    lower.includes('unauthorized')
+    lower.includes('unauthorized') ||
+    structured401
   );
 }

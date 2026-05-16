@@ -34,8 +34,8 @@ const TODAY = () => new Date().toISOString().slice(0, 10);
 
 const OUTGOING_TRANSACTION_TYPES = new Set<TransactionType>([
   TransactionType.SUPPLIER_PAYMENT,
+  TransactionType.PAYROLL_PAYMENT,
   TransactionType.EXPENSE_PAYMENT,
-  TransactionType.PAYMENT_OUT,
   TransactionType.OPERATING_EXPENSE,
   TransactionType.PAYMENT_EXECUTION,
   TransactionType.BANK_WITHDRAWAL_TO_SHAREHOLDER,

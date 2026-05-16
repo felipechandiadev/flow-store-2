@@ -20,6 +20,7 @@ import { Customer } from '@modules/customers/domain/customer.entity';
 import { Tax } from '@modules/taxes/domain/tax.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
 import { Category } from '@modules/categories/domain/category.entity';
+import { Brand } from '@modules/brands/domain/brand.entity';
 import { Supplier } from '@modules/suppliers/domain/supplier.entity';
 import { TreasuryAccount } from '@modules/treasury-accounts/domain/treasury-account.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
@@ -97,6 +98,7 @@ export const typeOrmConfig = (
       Tax,
       Unit,
       Category,
+      Brand,
       Supplier,
       TreasuryAccount,
       Storage,

@@ -22,12 +22,16 @@ export function CompanyGeneralSection({ company, onSaved }: Props) {
   const [nombreFantasia, setNombreFantasia] = useState(company.nombreFantasia ?? "");
   const [rut, setRut] = useState(company.rut ?? "");
   const [businessActivity, setBusinessActivity] = useState(company.businessActivity ?? "");
+  const [address, setAddress] = useState(company.address ?? "");
+  const [mail, setMail] = useState(company.mail ?? "");
 
   const syncFromCompany = useCallback(() => {
     setRazonSocial(company.razonSocial);
     setNombreFantasia(company.nombreFantasia ?? "");
     setRut(company.rut ?? "");
     setBusinessActivity(company.businessActivity ?? "");
+    setAddress(company.address ?? "");
+    setMail(company.mail ?? "");
   }, [company]);
 
   useEffect(() => {
@@ -49,6 +53,8 @@ export function CompanyGeneralSection({ company, onSaved }: Props) {
         nombreFantasia: nombreFantasia.trim(),
         rut: rut.trim(),
         businessActivity: businessActivity.trim(),
+        address: address.trim() || null,
+        mail: mail.trim() || null,
       });
       if (!r.success) {
         setError(r.error);
@@ -135,6 +141,33 @@ export function CompanyGeneralSection({ company, onSaved }: Props) {
           className="min-w-0"
           data-test-id="settings-company-field-business-activity"
         />
+        <TextField
+          label="Correo"
+          placeholder="contacto@empresa.cl"
+          type="email"
+          name="company-mail"
+          value={mail}
+          onChange={(e) => setMail(e.target.value)}
+          readOnly={readOnly}
+          disabled={busy}
+          className="min-w-0"
+          data-test-id="settings-company-field-mail"
+        />
+        <div className="min-w-0 md:col-span-2">
+          <TextField
+            label="Dirección"
+            placeholder="Calle, número, comuna, ciudad"
+            type="textarea"
+            rows={3}
+            name="company-address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            readOnly={readOnly}
+            disabled={busy}
+            className="min-w-0 w-full"
+            data-test-id="settings-company-field-address"
+          />
+        </div>
       </div>
 
       <div className="mt-6 flex justify-end">

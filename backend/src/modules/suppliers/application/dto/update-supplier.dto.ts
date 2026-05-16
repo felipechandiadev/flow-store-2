@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   IsOptional,
   IsUUID,
@@ -6,11 +7,12 @@ import {
   IsEnum,
   IsNumber,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
-import { CreateSupplierDto } from './create-supplier.dto';
 import { SupplierType } from '../../domain/supplier.entity';
+import { UpdatePersonDto } from '@modules/persons/application/dto/update-person.dto';
 
-export class UpdateSupplierDto implements Partial<CreateSupplierDto> {
+export class UpdateSupplierDto {
   @IsOptional()
   @IsUUID()
   personId?: string;
@@ -35,4 +37,10 @@ export class UpdateSupplierDto implements Partial<CreateSupplierDto> {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Actualización parcial de la persona vinculada al proveedor. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdatePersonDto)
+  person?: UpdatePersonDto;
 }

@@ -19,6 +19,8 @@ interface SelectProps {
   required?: boolean;
   name?: string;
   variant?: 'default' | 'minimal';
+  /** Misma altura que `TextField` con `density="compact"` (~2rem). */
+  density?: "default" | "compact";
   ["data-test-id"]?: string;
   allowClear?: boolean;
   disabled?: boolean;
@@ -27,7 +29,8 @@ interface SelectProps {
   alwaysShowLabel?: boolean;
 }
 
-const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = null, onChange, required = false, name, variant = 'default', allowClear = false, disabled = false, className = '', alwaysShowLabel = false, ...props }) => {
+const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = null, onChange, required = false, name, variant = 'default', density = "default", allowClear = false, disabled = false, className = '', alwaysShowLabel = false, ...props }) => {
+  const isCompact = density === "compact";
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -118,30 +121,48 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
 
   const hasValue = value !== null && value !== undefined;
   const hasClear = allowClear && hasValue;
+  const shrinkMinimal = focused || hasValue || alwaysShowLabel;
+  const showMinimalCompactFloat =
+    isCompact && variant === "minimal" && (Boolean(label?.trim()) || alwaysShowLabel);
+  const minimalFloatCaption = (label?.trim() || placeholder?.trim() || "").trim();
 
   return (
-    <div className="fs-dropdown-container" ref={containerRef}>
+    <div className={`fs-dropdown-container ${className}`.trim()} ref={containerRef}>
       {variant === 'minimal' ? (
-        // Variante Minimal: Contenedor compacto con icono de despliegue
-        <div
-          className={`relative w-full cursor-pointer select-none ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`.trim()}
-          onFocus={() => !disabled && setFocused(true)}
-          onBlur={() => {
-            if (!isSelecting) {
-              setTimeout(() => setOpen(false), 150);
-            }
-            setFocused(false);
-          }}
-          onClick={() => !disabled && setOpen(!open)}
-          tabIndex={disabled ? -1 : 0}
-          data-test-id={props["data-test-id"] || "select-root"}
-          data-has-options={options.length > 0 ? 'true' : 'false'}
-          role="combobox"
-          aria-expanded={open}
-          aria-required={required}
-          aria-invalid={required && (value === null || value === undefined)}
-          aria-controls="select-list"
-        >
+        <>
+          <div
+            className={`relative w-full cursor-pointer select-none ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`.trim()}
+            onFocus={() => !disabled && setFocused(true)}
+            onBlur={() => {
+              if (!isSelecting) {
+                setTimeout(() => setOpen(false), 150);
+              }
+              setFocused(false);
+            }}
+            onClick={() => !disabled && setOpen(!open)}
+            tabIndex={disabled ? -1 : 0}
+            data-test-id={props["data-test-id"] || "select-root"}
+            data-has-options={options.length > 0 ? 'true' : 'false'}
+            role="combobox"
+            aria-expanded={open}
+            aria-required={required}
+            aria-invalid={required && (value === null || value === undefined)}
+            aria-controls="select-list"
+          >
+          {showMinimalCompactFloat ? (
+            <span
+              className={
+                `pointer-events-none absolute left-2.5 z-10 rounded-sm bg-background px-0.5 font-medium leading-tight text-foreground transition-all duration-200 ease-in-out ` +
+                (shrinkMinimal
+                  ? "top-[2px] -translate-y-1/2 text-[10px] opacity-100"
+                  : "top-2.5 text-[10px] opacity-0")
+              }
+              aria-hidden
+            >
+              {minimalFloatCaption || "\u00a0"}
+              {required ? <span className="ml-0.5 text-red-500">*</span> : null}
+            </span>
+          ) : null}
           {/* Input oculto para validación HTML nativa */}
           <input
             type="text"
@@ -155,12 +176,18 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
           />
 
           <div
-            className={`flex min-h-10 items-center rounded-md border border-border bg-background px-3 py-2 text-sm transition-colors ${
+            className={`flex items-center rounded-md border border-border bg-background transition-colors ${
+              isCompact
+                ? "h-8 min-h-8 max-h-8 box-border px-2.5 py-0 text-[0.8125rem] leading-5"
+                : "min-h-10 px-3 py-2 text-sm"
+            } ${
               focused ? 'border-primary ring-2 ring-primary/20' : 'hover:border-border/80'
             } ${disabled ? 'bg-muted text-muted-foreground' : ''} ${hasClear ? 'pr-12' : 'pr-8'}`.trim()}
           >
             <span
-              className={`min-h-[1.25rem] flex-1 truncate text-sm font-light leading-normal ${
+              className={`flex-1 truncate font-light leading-normal ${
+                isCompact ? "min-h-[1.125rem] text-[0.8125rem]" : "min-h-[1.25rem] text-sm"
+              } ${
                 hasValue ? 'text-foreground' : 'text-muted-foreground'
               }`}
               style={hasValue ? { color: 'var(--color-foreground)' } : undefined}
@@ -229,27 +256,30 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
             ))}
           </DropdownList>
         </div>
+        </>
       ) : (
-        // Variante Default: Con iconos
-        <div
-          className={`relative w-full border border-border rounded-md focus-within:border-primary ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`.trim()}
-          onFocus={() => !disabled && setFocused(true)}
-          onBlur={() => {
-            if (!isSelecting) {
-              setTimeout(() => setOpen(false), 150);
-            }
-            setFocused(false);
-          }}
-          onClick={() => !disabled && setOpen(!open)}
-          tabIndex={disabled ? -1 : 0}
-          data-test-id={props["data-test-id"] || "select-root"}
-          data-has-options={options.length > 0 ? 'true' : 'false'}
-          role="combobox"
-          aria-expanded={open}
-          aria-required={required}
-          aria-invalid={required && (value === null || value === undefined)}
-          aria-controls="select-list"
-        >
+        <>
+          <div
+            className={`relative w-full rounded-md border border-border focus-within:border-primary ${
+              isCompact ? "flex h-8 min-h-8 max-h-8 min-w-0 items-center" : ""
+            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`.trim()}
+            onFocus={() => !disabled && setFocused(true)}
+            onBlur={() => {
+              if (!isSelecting) {
+                setTimeout(() => setOpen(false), 150);
+              }
+              setFocused(false);
+            }}
+            onClick={() => !disabled && setOpen(!open)}
+            tabIndex={disabled ? -1 : 0}
+            data-test-id={props["data-test-id"] || "select-root"}
+            data-has-options={options.length > 0 ? 'true' : 'false'}
+            role="combobox"
+            aria-expanded={open}
+            aria-required={required}
+            aria-invalid={required && (value === null || value === undefined)}
+            aria-controls="select-list"
+          >
           {/* Input oculto para validación HTML nativa */}
           <input
             type="text"
@@ -275,6 +305,7 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
             readOnly={true}
             disabled={disabled}
             alwaysShowLabel={alwaysShowLabel}
+            density={density}
           />
         
           {allowClear && value !== null && value !== undefined && (
@@ -341,6 +372,7 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
             ))}
           </DropdownList>
         </div>
+        </>
       )}
     </div>
   );

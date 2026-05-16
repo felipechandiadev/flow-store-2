@@ -5,6 +5,7 @@ import { ProductUpdatedEvent } from '../../../domain/events/product-updated.even
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '../../../domain/product.entity';
+import { BrandsService } from '@modules/brands/application/brands.service';
 
 @CommandHandler(UpdateProductCommand)
 export class UpdateProductCommandHandler implements ICommandHandler<
@@ -17,6 +18,7 @@ export class UpdateProductCommandHandler implements ICommandHandler<
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
     private readonly eventBus: EventBus,
+    private readonly brandsService: BrandsService,
   ) {}
 
   async execute(command: UpdateProductCommand): Promise<Product> {
@@ -35,11 +37,24 @@ export class UpdateProductCommandHandler implements ICommandHandler<
     if (command.name !== undefined) product.name = command.name;
     if (command.description !== undefined)
       product.description = command.description;
-    if (command.brand !== undefined) product.brand = command.brand;
     if (command.categoryId !== undefined)
       product.categoryId = command.categoryId;
     if (command.isActive !== undefined) product.isActive = command.isActive;
     if (command.productType !== undefined) product.productType = command.productType;
+
+    if (command.brandId !== undefined) {
+      if (command.brandId == null || command.brandId === '') {
+        product.brandId = null;
+        product.brand =
+          command.brand !== undefined ? (command.brand?.trim() ? command.brand.trim() : null) : null;
+      } else {
+        const b = await this.brandsService.assertBrandInCurrentCompany(command.brandId);
+        product.brandId = b.id;
+        product.brand = b.name;
+      }
+    } else if (command.brand !== undefined) {
+      product.brand = command.brand;
+    }
 
     const updated = await this.productRepository.save(product);
 
@@ -66,6 +81,7 @@ export class UpdateProductCommandHandler implements ICommandHandler<
       name: updated.name,
       categoryId: updated.categoryId,
       brand: updated.brand,
+      brandId: updated.brandId ?? null,
       description: updated.description,
       isActive: updated.isActive,
       productType: updated.productType,

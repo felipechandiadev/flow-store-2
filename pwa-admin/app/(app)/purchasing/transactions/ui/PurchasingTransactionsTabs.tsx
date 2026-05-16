@@ -8,9 +8,7 @@ const BASE = "/purchasing/transactions";
 
 const items = [
   { url: `${BASE}/receptions`, label: "Recepciones" },
-  { url: `${BASE}/receptions/new`, label: "Nueva recepción" },
   { url: `${BASE}/orders`, label: "Órdenes de compra" },
-  { url: `${BASE}/orders/new`, label: "Nueva orden" },
   { url: `${BASE}/purchase-returns`, label: "Devoluciones proveedor" },
 ];
 

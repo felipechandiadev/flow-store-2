@@ -33,12 +33,13 @@ export class GetAllProductsQueryHandler implements IQueryHandler<
 
     const qb = this.productRepository
       .createQueryBuilder('product')
+      .leftJoinAndSelect('product.catalogBrand', 'catalogBrand')
       .where('product.deletedAt IS NULL');
 
     if (query.search && query.search.trim().length > 0) {
       const q = `%${query.search.trim().toLowerCase()}%`;
       qb.andWhere(
-        '(LOWER(product.name) LIKE :q OR LOWER(product.brand) LIKE :q OR LOWER(product.description) LIKE :q)',
+        '(LOWER(product.name) LIKE :q OR LOWER(product.brand) LIKE :q OR LOWER(product.description) LIKE :q OR LOWER(catalogBrand.name) LIKE :q)',
         { q },
       );
     }
@@ -59,7 +60,8 @@ export class GetAllProductsQueryHandler implements IQueryHandler<
           id: e.id,
           name: e.name,
           categoryId: e.categoryId,
-          brand: e.brand,
+          brand: e.catalogBrand?.name ?? e.brand,
+          brandId: e.brandId ?? null,
           description: e.description,
           isActive: e.isActive,
           productType: e.productType,

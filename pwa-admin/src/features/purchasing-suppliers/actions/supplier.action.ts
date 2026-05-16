@@ -2,16 +2,45 @@
 
 import { revalidatePath } from "next/cache";
 import { SupplierRequest } from "../infrastructure/supplier.request";
-import type { SupplierGridRow } from "../types/supplier.types";
+import type { SupplierDetailView, SupplierGridRow, UpdateSupplierPayload } from "../types/supplier.types";
 
 const SUPPLIERS_PATH = "/purchasing/suppliers";
+
+export async function getSupplierDetailAction(
+  supplierId: string,
+): Promise<{ success: true; supplier: SupplierDetailView } | { success: false; error: string }> {
+  const id = supplierId?.trim();
+  if (!id) {
+    return { success: false, error: "Proveedor no especificado." };
+  }
+  const supplier = await SupplierRequest.getById(id);
+  if (!supplier) {
+    return { success: false, error: "No se pudo cargar el proveedor." };
+  }
+  return { success: true, supplier };
+}
+
+export async function updateSupplierAction(
+  supplierId: string,
+  payload: UpdateSupplierPayload,
+): Promise<{ success: true; supplier: SupplierDetailView } | { success: false; error: string }> {
+  const id = supplierId?.trim();
+  if (!id) {
+    return { success: false, error: "Proveedor no especificado." };
+  }
+  const r = await SupplierRequest.update(id, payload);
+  if (r.success) {
+    revalidatePath(SUPPLIERS_PATH, "page");
+  }
+  return r;
+}
 
 export type CreateSupplierFormInput = {
   personType: "NATURAL" | "COMPANY";
   firstName?: string;
   lastName?: string;
   businessName?: string;
-  documentType: "RUN" | "RUT" | "PASSPORT" | "OTHER";
+  documentType: "RUN" | "RUT" | "PASSPORT" | "DNI";
   documentNumber: string;
   email?: string;
   phone?: string;

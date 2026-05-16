@@ -5,6 +5,8 @@ export type CustomerListRow = {
   customerId: string;
   personId: string;
   displayName: string;
+  /** Tipo de documento de identidad (`Person.documentType`). */
+  documentType?: string | null;
   documentNumber?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -27,11 +29,49 @@ export type CustomerListResult = {
   internalCreditEnabled?: boolean;
 };
 
+/** Detalle GET `/customers/:id` (`customer` en el JSON). */
+export type CustomerDetailView = {
+  customerId: string;
+  personId: string;
+  /** `Person.type` (p. ej. NATURAL, COMPANY). */
+  personType?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  businessName?: string | null;
+  displayName: string;
+  documentType?: string | null;
+  documentNumber?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  creditLimit: number;
+  usedCredit: number;
+  availableCredit: number;
+  paymentDayOfMonth?: number | null;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+/** Cuerpo PUT `/customers/:id` para datos mostrados en resumen (persona + cliente). */
+export type UpdateCustomerPayload = {
+  creditLimit?: number;
+  paymentDayOfMonth?: 5 | 10 | 15 | 20 | 25 | 30;
+  firstName?: string;
+  lastName?: string;
+  businessName?: string;
+  documentType?: "RUN" | "RUT" | "PASSPORT" | "DNI";
+  documentNumber?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+};
+
 export type CreateCustomerFormInput = {
   personType: "NATURAL";
   firstName: string;
   lastName?: string;
-  documentType: "RUN" | "PASSPORT" | "OTHER";
+  documentType: "RUN" | "PASSPORT" | "DNI";
   documentNumber: string;
   email?: string;
   phone?: string;

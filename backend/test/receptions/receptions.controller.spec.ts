@@ -392,22 +392,22 @@ describe('ReceptionsController - Integration Tests', () => {
             receptionType: 'direct',
             storageId: 'storage-1',
             supplierId: 'supplier-1',
-            dte_number: null,
-            dte_type: null,
+            reference: 'REF-123',
+            document_type: null,
           }),
           externalReference: 'REF-123',
         }),
       );
     });
 
-    it('incluye dte_number y dte_type en metadata cuando se envían', async () => {
+    it('incluye reference y document_type en metadata cuando se envían', async () => {
       const createData = {
         storageId: 'storage-1',
         branchId: 'branch-1',
         userId: 'user-1',
         supplierId: 'supplier-1',
-        dteNumber: 'T-123456',
-        dteType: 'receipt' as const,
+        reference: 'T-123456',
+        documentType: 'receipt' as const,
         lines: [
           {
             productName: 'Producto Test',
@@ -423,8 +423,8 @@ describe('ReceptionsController - Integration Tests', () => {
       expect(mockTransactionsService.createTransaction).toHaveBeenCalledWith(
         expect.objectContaining({
           metadata: expect.objectContaining({
-            dte_number: 'T-123456',
-            dte_type: 'receipt',
+            reference: 'T-123456',
+            document_type: 'receipt',
           }),
           externalReference: 'T-123456',
         }),

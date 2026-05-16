@@ -17,6 +17,7 @@ import { PRODUCTS_REPOSITORY } from './application/ports/products.repository.por
 import { PRICE_LIST_ITEMS_REPOSITORY } from '@modules/price-list-items/application/ports/price-list-items.repository.port';
 import { TypeOrmPriceListItemsRepository } from '@modules/price-list-items/infrastructure/repositories/typeorm-price-list-items.repository';
 import { MultimediaModule } from '@modules/multimedia/multimedia.module';
+import { BrandsModule } from '@modules/brands/brands.module';
 
 // Handlers
 import { CreateProductCommandHandler } from './application/handlers/commands/create-product.handler';
@@ -39,6 +40,7 @@ import { SearchProductsQueryHandler } from './application/handlers/queries/searc
     ]),
     CqrsModule,
     MultimediaModule,
+    BrandsModule,
   ],
   controllers: [ProductsController],
   providers: [

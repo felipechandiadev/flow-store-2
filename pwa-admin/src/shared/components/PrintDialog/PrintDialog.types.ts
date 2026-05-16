@@ -12,6 +12,8 @@ export interface PrintDialogProps {
   disablePrint?: boolean;
   printLoading?: boolean;
   showPrintButton?: boolean;
+  /** Si es true, el botón de imprimir es un `IconButton` (variante básica secundaria) en lugar del botón de texto. */
+  printIconButton?: boolean;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'custom';
   customSize?: Partial<Record<'xs' | 'sm' | 'md' | 'lg' | 'xl', number>>;
   maxWidth?: number | string;

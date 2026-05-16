@@ -6,6 +6,8 @@ export type CreatePurchaseOrderLineInput = {
   quantity: number;
   unitPrice: number;
   taxIds: string[];
+  /** Solo UI / impresión; no se envía al API de creación de OC. */
+  attributeValues?: Record<string, string>;
 };
 
 export type CreatePurchaseOrderInput = {
@@ -16,6 +18,8 @@ export type CreatePurchaseOrderInput = {
   storageId?: string;
   documentDate: string;
   documentFolio?: string;
+  /** Notas de la transacción (columna `notes` en la OC). */
+  notes?: string | null;
   lines: CreatePurchaseOrderLineInput[];
   /** Si es true, estado DRAFT y se permiten borrador sin proveedor ni líneas. */
   saveAsDraft?: boolean;

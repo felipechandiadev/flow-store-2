@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   ValidateNested,
   ValidateIf,
   IsNumber,
@@ -74,6 +75,11 @@ export class CreatePurchaseOrderDto {
   @IsOptional()
   @IsString()
   documentFolio?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32000)
+  notes?: string;
 
   @IsOptional()
   @ValidateNested({ each: true })

@@ -15,7 +15,7 @@ import type {
   UpdateCategoryResult,
 } from "../types/category.types";
 
-const PATH = "/inventory/categories";
+const PATH = "/catalog/categories";
 
 function revalidateCategoriesRoute() {
   revalidatePath(PATH, "page");

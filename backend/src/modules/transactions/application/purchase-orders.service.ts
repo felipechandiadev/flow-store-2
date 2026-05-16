@@ -110,6 +110,10 @@ export class PurchaseOrdersService {
     tx.amountPaid = 0;
     tx.documentType = 'Orden de compra';
     tx.documentFolio = dto.documentFolio?.trim() || undefined;
+    const notesTrim = dto.notes?.trim();
+    if (notesTrim) {
+      tx.notes = notesTrim;
+    }
     tx.lines = linesOut;
     tx.metadata = {
       documentDate: dto.documentDate,

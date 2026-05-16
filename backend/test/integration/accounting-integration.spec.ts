@@ -366,7 +366,7 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
           totalDeductions: 170000,
           netPayment: 830000,
         },
-      } as Transaction;
+      } as unknown as Transaction;
 
       // ACT: Generar asientos
       const result = await service.generateEntriesForTransaction(
@@ -553,7 +553,7 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
         metadata: {
           costOfGoods: 300000, // Costo de las mercaderías vendidas
         },
-      } as Transaction;
+      } as unknown as Transaction;
 
       // ACT
       const result = await service.generateEntriesForTransaction(
@@ -643,7 +643,7 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
         amountPaid: 0,
         createdAt: new Date('2026-02-21'),
         lines: [],
-      } as Transaction;
+      } as unknown as Transaction;
 
       // ACT
       const result = await service.generateEntriesForTransaction(
@@ -719,7 +719,7 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
         amountPaid: 0,
         createdAt: new Date('2026-02-21'),
         lines: [],
-      } as Transaction;
+      } as unknown as Transaction;
 
       // ACT
       const result = await service.generateEntriesForTransaction(
@@ -749,7 +749,7 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
 
   /**
    * ========================================================================
-   * TEST 5: PAGO A PROVEEDOR (PAYMENT_OUT)
+   * TEST 5: PAGO A PROVEEDOR (SUPPLIER_PAYMENT)
    * ========================================================================
    *
    * TABLA DE ASIENTOS ESPERADOS:
@@ -760,13 +760,13 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
    * │ 1.1.02  │ Banco                        │            │ 1,500,000  │
    * └─────────┴──────────────────────────────┴────────────┴────────────┘
    */
-  describe('5. PAGO A PROVEEDOR (PAYMENT_OUT)', () => {
+  describe('5. PAGO A PROVEEDOR (SUPPLIER_PAYMENT)', () => {
     it('debe generar asientos para pago a proveedor por transferencia', async () => {
       const paymentOutRules: AccountingRule[] = [
         {
           id: 'rule-payment-out',
           companyId: 'company-1',
-          transactionType: TransactionType.PAYMENT_OUT,
+          transactionType: TransactionType.SUPPLIER_PAYMENT,
           paymentMethod: PaymentMethod.TRANSFER,
           appliesTo: RuleScope.TRANSACTION,
           debitAccountId: 'acc-2.1.01', // CxP Proveedores (reducimos deuda)
@@ -783,7 +783,7 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
       const paymentOutTransaction: Transaction = {
         id: 'tx-payment-out-001',
         documentNumber: 'PAGO-001',
-        transactionType: TransactionType.PAYMENT_OUT,
+        transactionType: TransactionType.SUPPLIER_PAYMENT,
         status: TransactionStatus.CONFIRMED,
         branchId: 'branch-1',
         userId: 'user-1',
@@ -796,7 +796,7 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
         amountPaid: 1500000,
         createdAt: new Date('2026-02-21'),
         lines: [],
-      } as Transaction;
+      } as unknown as Transaction;
 
       // ACT
       const result = await service.generateEntriesForTransaction(
@@ -873,7 +873,7 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
         amountPaid: 500000,
         createdAt: new Date('2026-02-21'),
         lines: [],
-      } as Transaction;
+      } as unknown as Transaction;
 
       // ACT
       const result = await service.generateEntriesForTransaction(
@@ -949,7 +949,7 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
         amountPaid: 150000,
         createdAt: new Date('2026-02-21'),
         lines: [],
-      } as Transaction;
+      } as unknown as Transaction;
 
       // ACT
       const result = await service.generateEntriesForTransaction(
@@ -979,7 +979,7 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
 
   /**
    * ========================================================================
-   * TEST 8: PAGO DE REMUNERACIÓN (PAYMENT_OUT a empleado)
+   * TEST 8: PAGO DE REMUNERACIÓN (PAYROLL_PAYMENT)
    * ========================================================================
    *
    * TABLA DE ASIENTOS ESPERADOS:
@@ -993,16 +993,13 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
    * Nota: Este asiento se genera cuando se PAGA la remuneración previamente
    * registrada. El gasto ya fue reconocido en el asiento de PAYROLL.
    */
-  describe('8. PAGO DE REMUNERACIÓN (PAYMENT_OUT)', () => {
+  describe('8. PAGO DE REMUNERACIÓN (PAYROLL_PAYMENT)', () => {
     it('debe generar asientos para pago de remuneración por banco', async () => {
       const payrollPaymentRules: AccountingRule[] = [
         {
           id: 'rule-payroll-payment',
           companyId: 'company-1',
-          transactionType: TransactionType.PAYMENT_OUT,
-          paymentMethod: PaymentMethod.TRANSFER,
-          appliesTo: RuleScope.TRANSACTION,
-          debitAccountId: 'acc-2.2.01', // Remuneraciones por pagar
+          transactionType: TransactionType.PAYROLL_PAYMENT,
           creditAccountId: 'acc-1.1.02', // Banco
           priority: 10,
           isActive: true,
@@ -1016,11 +1013,12 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
       const payrollPaymentTransaction: Transaction = {
         id: 'tx-payroll-payment-001',
         documentNumber: 'PAGO-REM-001',
-        transactionType: TransactionType.PAYMENT_OUT,
+        transactionType: TransactionType.PAYROLL_PAYMENT,
         status: TransactionStatus.CONFIRMED,
         branchId: 'branch-1',
         userId: 'user-1',
         employeeId: 'emp-001',
+        companyId: 'company-1',
         total: 830000,
         subtotal: 830000,
         taxAmount: 0,
@@ -1032,7 +1030,7 @@ describe('Accounting Integration Tests - Motor Contable E2E', () => {
         metadata: {
           relatedPayrollId: 'tx-payroll-001',
         },
-      } as Transaction;
+      } as unknown as Transaction;
 
       // ACT
       const result = await service.generateEntriesForTransaction(

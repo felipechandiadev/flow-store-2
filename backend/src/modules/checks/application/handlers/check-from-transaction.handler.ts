@@ -15,8 +15,8 @@ const INCOMING_PAYMENT_TX_TYPES = new Set<TransactionType>([
 
 const OUTGOING_PAYMENT_TX_TYPES = new Set<TransactionType>([
   TransactionType.SUPPLIER_PAYMENT,
+  TransactionType.PAYROLL_PAYMENT,
   TransactionType.EXPENSE_PAYMENT,
-  TransactionType.PAYMENT_OUT,
   TransactionType.OPERATING_EXPENSE,
   TransactionType.PAYMENT_EXECUTION,
   TransactionType.BANK_WITHDRAWAL_TO_SHAREHOLDER,

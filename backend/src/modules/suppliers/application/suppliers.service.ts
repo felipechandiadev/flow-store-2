@@ -64,7 +64,8 @@ export class SuppliersService {
   async update(id: string, dto: UpdateSupplierDto): Promise<Supplier> {
     const supplier = await this.findOne(id);
     this.logger.log(`Updating supplier ${id}`);
-    return this.repository.update(id, dto);
+    const { person: _person, ...rest } = dto;
+    return this.repository.update(id, rest as Partial<Supplier>);
   }
 
   async remove(id: string): Promise<void> {

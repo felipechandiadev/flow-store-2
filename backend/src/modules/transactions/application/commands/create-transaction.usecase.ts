@@ -51,6 +51,19 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
       );
     }
 
+    if (
+      dto.transactionType === TransactionType.SUPPLIER_PAYMENT &&
+      dto.relatedTransactionId
+    ) {
+      await this.assertSupplierPaymentParent(dto);
+    }
+    if (
+      dto.transactionType === TransactionType.PAYROLL_PAYMENT &&
+      dto.relatedTransactionId
+    ) {
+      await this.assertPayrollPaymentParent(dto);
+    }
+
     // Paso Pre-transacción: Obtener branch y companyId fuera de la transacción
     const branch = await this.branchRepository.findOne({
       where: { id: dto.branchId },
@@ -103,7 +116,10 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
           dto.transactionType === TransactionType.PURCHASE_ORDER &&
           dto.transactionStatus === TransactionStatus.DRAFT
             ? TransactionStatus.DRAFT
-            : TransactionStatus.CONFIRMED;
+            : dto.transactionType === TransactionType.SUPPLIER_PAYMENT &&
+                dto.transactionStatus === TransactionStatus.DRAFT
+              ? TransactionStatus.DRAFT
+              : TransactionStatus.CONFIRMED;
 
         const transactionData: any = {
           documentNumber,
@@ -227,4 +243,54 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
     return savedTx;
   }
 
+  private async assertSupplierPaymentParent(
+    dto: CreateTransactionDto,
+  ): Promise<void> {
+    const parent = await this.transactionsRepository.findOne({
+      where: { id: dto.relatedTransactionId! },
+    });
+    if (!parent) {
+      throw new BadRequestException(
+        'SUPPLIER_PAYMENT: relatedTransactionId no existe',
+      );
+    }
+    const allowed: TransactionType[] = [
+      TransactionType.PURCHASE,
+      TransactionType.SUPPLIER_INVOICE,
+      TransactionType.SUPPLIER_RECEIPT,
+      TransactionType.SUPPLIER_HONORARIUM_RECEIPT,
+    ];
+    if (!allowed.includes(parent.transactionType)) {
+      throw new BadRequestException(
+        `SUPPLIER_PAYMENT: documento origen inválido (${parent.transactionType})`,
+      );
+    }
+    if (
+      parent.supplierId &&
+      dto.supplierId &&
+      parent.supplierId !== dto.supplierId
+    ) {
+      throw new BadRequestException(
+        'SUPPLIER_PAYMENT: supplierId no coincide con el documento origen',
+      );
+    }
+  }
+
+  private async assertPayrollPaymentParent(
+    dto: CreateTransactionDto,
+  ): Promise<void> {
+    const parent = await this.transactionsRepository.findOne({
+      where: { id: dto.relatedTransactionId! },
+    });
+    if (!parent) {
+      throw new BadRequestException(
+        'PAYROLL_PAYMENT: relatedTransactionId no existe',
+      );
+    }
+    if (parent.transactionType !== TransactionType.PAYROLL) {
+      throw new BadRequestException(
+        `PAYROLL_PAYMENT: el origen debe ser PAYROLL (actual: ${parent.transactionType})`,
+      );
+    }
+  }
 }

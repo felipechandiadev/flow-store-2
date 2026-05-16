@@ -21,6 +21,7 @@ import { AccountingAccount } from '@modules/accounting-accounts/domain/accountin
 import { AccountingRule } from '@modules/accounting-rules/domain/accounting-rule.entity';
 import { AccountingRuleLine } from '@modules/accounting-rules/domain/accounting-rule-line.entity';
 import { Product } from '@modules/products/domain/product.entity';
+import { Brand } from '@modules/brands/domain/brand.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
@@ -57,6 +58,7 @@ import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
       AccountingRule,
       AccountingRuleLine,
       Product,
+      Brand,
       ProductVariant,
       PriceListItem,
       Storage,

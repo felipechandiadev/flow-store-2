@@ -1,0 +1,457 @@
+"use client";
+
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import Dialog from "@/shared/components/Dialog/Dialog";
+import Alert from "@/shared/components/Alert/Alert";
+import { Button } from "@/shared/components/Button";
+import { TextField } from "@/shared/components/TextField/TextField";
+import Switch from "@/shared/components/Switch/Switch";
+import { Select, type Option } from "@/shared/components/Select";
+import { createProductAction, createProductVariantAction } from "@/features/inventory-products/actions/product.action";
+import { listCategoriesForPage } from "@/features/inventory-categories/actions/category.action";
+import { listBrandsForPage } from "@/features/catalog-brands/actions/brand.action";
+import { listUnitsForPage } from "@/features/inventory-units/actions/unit.action";
+import { listPriceListsForPage } from "@/features/sales-price-lists/actions/price-list.action";
+import { listTaxesForPage } from "@/features/accounting-taxes/actions/tax.action";
+import type { TaxListItem } from "@/features/accounting-taxes/types/tax.types";
+import { deriveBasePriceFromPriceRows, roundMoneyInt } from "@/features/inventory-products/domain/price-tax-math";
+import { createVariantPriceRow } from "./VariantPriceRowsEditor";
+import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
+import { MultimediaUploader } from "@/shared/components/FileUploader/MultimediaUploader";
+import { uploadMultimediaForEntityAction } from "@/features/multimedia/actions/multimedia.action";
+import type { MultimediaEntityType } from "@/features/multimedia/types/multimedia.types";
+import type { CatalogProductType } from "@/features/inventory-products/types/product-grid.types";
+import { CATALOG_PRODUCT_TYPE_SELECT_OPTIONS, normalizeCatalogProductType } from "./catalog-product-type-options";
+
+async function uploadFilesToEntity(
+  files: File[],
+  entityType: MultimediaEntityType,
+  entityId: string,
+): Promise<string | null> {
+  if (files.length === 0 || !entityId.trim()) {
+    return null;
+  }
+  let markPrimary = true;
+  for (const file of files) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("entityType", entityType);
+    form.append("entityId", entityId.trim());
+    form.append("isPrimary", markPrimary ? "true" : "false");
+    markPrimary = false;
+    const r = await uploadMultimediaForEntityAction(form);
+    if (!r.success) {
+      return r.error;
+    }
+  }
+  return null;
+}
+
+/** IVA por defecto del catálogo (misma lógica que CreateProductVariantDialog). */
+function catalogDefaultIvaTaxIds(taxes: TaxListItem[]): string[] {
+  const iva = taxes.filter((t) => t.isActive && t.taxType === "IVA");
+  const defaults = iva.filter((t) => t.isDefault).map((t) => t.id);
+  if (defaults.length > 0) {
+    return defaults;
+  }
+  return iva[0]?.id != null ? [iva[0].id] : [];
+}
+
+/** SKU único para la primera variante creada automáticamente al crear el producto. */
+function buildInitialSku(productName: string, productId: string): string {
+  const slug =
+    productName
+      .trim()
+      .replace(/[^\w\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 48) || "ITEM";
+  const idPart = productId.replace(/-/g, "").slice(0, 8);
+  const rand = Math.random().toString(36).slice(2, 8);
+  const sku = `${slug}-${idPart}-${rand}`;
+  return sku.length <= 100 ? sku : sku.slice(0, 100);
+}
+
+export type CreateProductDialogProps = {
+  open: boolean;
+  onClose: () => void;
+  onSuccess?: () => void | Promise<void>;
+};
+
+export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductDialogProps) {
+  const router = useRouter();
+  const [phase, setPhase] = useState<"form" | "media">("form");
+  const [newProductId, setNewProductId] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [brandId, setBrandId] = useState<string | null>(null);
+  const [description, setDescription] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [categoryOptions, setCategoryOptions] = useState<Option[]>([]);
+  const [brandOptions, setBrandOptions] = useState<Option[]>([]);
+  const [productType, setProductType] = useState<CatalogProductType>("PHYSICAL");
+  const [isActive, setIsActive] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const [variantPrepLoading, setVariantPrepLoading] = useState(false);
+  const [variantPrepError, setVariantPrepError] = useState<string | null>(null);
+  /** Archivos elegidos en el formulario (se suben tras crear el producto al nivel producto). */
+  const [stagedProductFiles, setStagedProductFiles] = useState<File[]>([]);
+  /** Reinicia previews internos de `MultimediaUploader` al abrir el diálogo. */
+  const [mediaStagingKey, setMediaStagingKey] = useState(0);
+  /** Errores de subida tras crear el producto (no bloquean el alta). */
+  const [postCreateUploadError, setPostCreateUploadError] = useState<string | null>(null);
+
+  const runEnsureFirstVariant = useCallback(
+    async (
+      productId: string,
+      productName: string,
+      type: CatalogProductType,
+    ): Promise<string | null> => {
+      setVariantPrepError(null);
+      try {
+        const [units, priceLists, taxes] = await Promise.all([
+          listUnitsForPage(),
+          listPriceListsForPage(),
+          listTaxesForPage(),
+        ]);
+        const defaultUnit = units.find((u) => u.active) ?? null;
+        if (!defaultUnit) {
+          setVariantPrepError(
+            "No hay unidad de medida activa. Cree una en Inventario → Unidades antes de crear productos.",
+          );
+          return null;
+        }
+        const activePriceLists = priceLists.filter((p) => p.isActive);
+        const defaultPriceListId =
+          activePriceLists.find((p) => p.isDefault)?.id ?? activePriceLists[0]?.id ?? null;
+        if (!defaultPriceListId) {
+          setVariantPrepError("No hay lista de precios activa.");
+          return null;
+        }
+        const defaultIva = catalogDefaultIvaTaxIds(taxes);
+        const row = createVariantPriceRow(defaultIva, defaultPriceListId);
+        const basePrice = deriveBasePriceFromPriceRows([row]);
+        if (basePrice === null || !row.priceListId?.trim()) {
+          setVariantPrepError("No se pudo preparar precios para la variante inicial.");
+          return null;
+        }
+        const priceListItems = [
+          {
+            priceListId: row.priceListId.trim(),
+            netPrice: roundMoneyInt(row.net),
+            grossPrice: roundMoneyInt(row.gross),
+            taxIds: row.taxIds.length > 0 ? row.taxIds : undefined,
+          },
+        ];
+        const sku = buildInitialSku(productName, productId);
+        const isService = type === "SERVICE";
+        const r = await createProductVariantAction({
+          productId,
+          sku,
+          barcode: null,
+          basePrice,
+          unitId: defaultUnit.id,
+          isActive: true,
+          priceListItems,
+          pmp: 0,
+          trackInventory: !isService,
+          allowNegativeStock: false,
+          minimumStock: 0,
+          maximumStock: 0,
+          reorderPoint: 0,
+        });
+        if (r.success) {
+          return r.id;
+        }
+        setVariantPrepError(r.error);
+        return null;
+      } catch {
+        setVariantPrepError("No se pudo crear la variante inicial.");
+        return null;
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setPhase("form");
+    setNewProductId(null);
+    setVariantPrepLoading(false);
+    setVariantPrepError(null);
+    setStagedProductFiles([]);
+    setMediaStagingKey((k) => k + 1);
+    setPostCreateUploadError(null);
+    setName("");
+    setBrandId(null);
+    setDescription("");
+    setCategoryId(null);
+    setProductType("PHYSICAL");
+    setIsActive(true);
+    setError(null);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const [cats, brands] = await Promise.all([listCategoriesForPage(), listBrandsForPage()]);
+      if (cancelled) {
+        return;
+      }
+      setCategoryOptions(cats.map((c) => ({ id: c.id, label: c.name })));
+      const activeBrands = brands.filter((b) => b.isActive);
+      setBrandOptions(activeBrands.map((b) => ({ id: b.id, label: b.name })));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const handleClose = () => {
+    setPhase("form");
+    setNewProductId(null);
+    setVariantPrepLoading(false);
+    setVariantPrepError(null);
+    setStagedProductFiles([]);
+    setMediaStagingKey((k) => k + 1);
+    setPostCreateUploadError(null);
+    setName("");
+    setBrandId(null);
+    setDescription("");
+    setCategoryId(null);
+    setProductType("PHYSICAL");
+    setIsActive(true);
+    setError(null);
+    onClose();
+  };
+
+  const handleSubmit = () => {
+    if (phase !== "form") {
+      return;
+    }
+    setError(null);
+    setPostCreateUploadError(null);
+    startTransition(() => {
+      void (async () => {
+        const r = await createProductAction({
+          name: name.trim(),
+          categoryId: categoryId?.trim() || undefined,
+          brandId: brandId?.trim() ? brandId.trim() : null,
+          description: description.trim() || undefined,
+          productType,
+          isActive,
+        });
+        if (!r.success) {
+          setError(r.error);
+          return;
+        }
+        setNewProductId(r.id);
+        setVariantPrepError(null);
+        setVariantPrepLoading(true);
+        setPhase("media");
+
+        try {
+          if (stagedProductFiles.length > 0) {
+            const upErr = await uploadFilesToEntity(stagedProductFiles, "product", r.id);
+            if (upErr) {
+              setPostCreateUploadError(upErr);
+            }
+          }
+          await runEnsureFirstVariant(r.id, name.trim(), productType);
+          await router.refresh();
+        } finally {
+          setVariantPrepLoading(false);
+        }
+      })();
+    });
+  };
+
+  const handleFinalizeMedia = () => {
+    startTransition(() => {
+      void (async () => {
+        await onSuccess?.();
+        handleClose();
+      })();
+    });
+  };
+
+  const canSubmit = phase === "form" && name.trim().length > 0 && !isPending;
+  const canFinalize = phase === "media" && !isPending && !variantPrepLoading;
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      title={phase === "media" ? "Imágenes del producto" : "Crear producto"}
+      size="lg"
+      scroll="paper"
+      maxHeight="min(90vh, 720px)"
+      data-test-id="product-create-dialog"
+      alertArea={
+        <>
+          {error ? (
+            <Alert variant="error" data-test-id="product-create-error">
+              {error}
+            </Alert>
+          ) : null}
+          {phase === "media" && variantPrepError ? (
+            <Alert variant="error" data-test-id="product-create-variant-prep-error">
+              {variantPrepError}
+            </Alert>
+          ) : null}
+          {phase === "media" && postCreateUploadError ? (
+            <Alert variant="warning" data-test-id="product-create-upload-warning">
+              No se pudieron subir todos los archivos elegidos: {postCreateUploadError}
+            </Alert>
+          ) : null}
+        </>
+      }
+      actions={
+        phase === "media" ? (
+          <>
+            <Button variant="outlined" size="md" onClick={handleClose} disabled={isPending} data-test-id="product-create-cancel">
+              Cerrar
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleFinalizeMedia}
+              disabled={!canFinalize}
+              data-test-id="product-create-finish-media"
+              title={variantPrepLoading ? "Creando la variante inicial…" : undefined}
+            >
+              Listo
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="outlined" size="md" onClick={handleClose} disabled={isPending} data-test-id="product-create-cancel">
+              Cancelar
+            </Button>
+            <Button variant="primary" size="md" onClick={handleSubmit} disabled={!canSubmit} data-test-id="product-create-submit">
+              Crear
+            </Button>
+          </>
+        )
+      }
+    >
+      {phase === "media" && newProductId ? (
+        <div className="flex w-full min-w-0 flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            Producto creado. Los archivos elegidos en el formulario ya se enviaron cuando fue posible. Puede añadir más con el
+            uploader de <span className="font-medium text-foreground">colección</span> abajo. La multimedia por variante se
+            gestiona al crear o editar una variante desde la grilla.
+          </p>
+          <EntityMultimediaPanel
+            entityType="product"
+            entityId={newProductId}
+            title="Imágenes del producto"
+            collectionOnly
+            onChanged={() => router.refresh()}
+          />
+          {variantPrepLoading ? (
+            <p className="text-sm text-muted-foreground" data-test-id="product-create-variant-prep-loading">
+              Creando variante inicial (SKU y precios)…
+            </p>
+          ) : null}
+        </div>
+      ) : (
+      <div className="flex w-full min-w-0 flex-col gap-4">
+        <TextField
+          label="Nombre"
+          name="product-create-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Nombre"
+          required
+          data-test-id="product-create-name"
+        />
+        <Select
+          label="Tipo"
+          name="product-create-type"
+          placeholder="Seleccione tipo"
+          options={CATALOG_PRODUCT_TYPE_SELECT_OPTIONS}
+          value={productType}
+          onChange={(id) => setProductType(normalizeCatalogProductType(id == null ? "PHYSICAL" : String(id)))}
+          data-test-id="product-create-type"
+        />
+        {productType === "SERVICE" ? (
+          <div className="rounded-lg border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
+            Este producto es un <span className="font-medium text-foreground">servicio</span>. Si consume insumos, defina
+            la <span className="font-medium text-foreground">receta (BOM)</span> en{" "}
+            <span className="font-medium text-foreground">Inventario → Productos</span>: expanda el producto, elija la
+            variante y use <span className="font-medium text-foreground">Receta (BOM)</span>.
+          </div>
+        ) : null}
+        <Select
+          label="Categoría"
+          name="product-create-category"
+          placeholder="Sin categoría"
+          options={categoryOptions}
+          value={categoryId}
+          onChange={(id) => setCategoryId(id == null ? null : String(id))}
+          allowClear
+          data-test-id="product-create-category"
+        />
+        <Select
+          label="Marca"
+          name="product-create-brand"
+          placeholder="Sin marca"
+          options={brandOptions}
+          value={brandId}
+          onChange={(id) => setBrandId(id == null ? null : String(id))}
+          allowClear
+          data-test-id="product-create-brand"
+        />
+        <TextField
+          label="Descripción"
+          name="product-create-description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Descripción"
+          rows={3}
+          data-test-id="product-create-description"
+        />
+
+        <div
+          className="rounded-lg border border-border bg-muted/10 p-3"
+          data-test-id="product-create-form-multimedia"
+        >
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Multimedia</p>
+          <MultimediaUploader
+            key={`create-staged-product-${mediaStagingKey}`}
+            uploadPath="create-product:staging-product"
+            variant="collection"
+            label=""
+            buttonType="icon"
+            accept="image/*,video/*"
+            maxFiles={12}
+            maxSize={9}
+            aspectRatio="16:9"
+            previewSize="sm"
+            disabled={isPending}
+            onChange={setStagedProductFiles}
+          />
+        </div>
+
+        <div className="pt-1">
+          <Switch
+            checked={isActive}
+            onChange={setIsActive}
+            label="Activo en catálogo"
+            labelPosition="right"
+            data-test-id="product-create-active"
+          />
+        </div>
+      </div>
+      )}
+    </Dialog>
+  );
+}

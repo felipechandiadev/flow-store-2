@@ -100,9 +100,9 @@ backend/
 
 | Módulo | Tipo Transacción | Reglas | Validaciones |
 |--------|------------------|--------|-------------|
-| **A. Banking** | PAYMENT_IN, BANK_WITHDRAWAL, PAYMENT_OUT, CASH_DEPOSIT | 4 | V1, V2 |
+| **A. Banking** | PAYMENT_IN, BANK_WITHDRAWAL, BANK_TO_CASH_TRANSFER, CASH_DEPOSIT | 4 | V1, V2 |
 | **B. Sales** | SALE, PAYMENT_IN | 6 | V4 |
-| **C. Purchasing** | PURCHASE, PAYMENT_OUT | 5 | V4 |
+| **C. Purchasing** | PURCHASE, SUPPLIER_PAYMENT | 5 | V4 |
 | **D. Operations** | OPERATING_EXPENSE, PAYROLL | 2 | - |
 | **E. Inventory** | TRANSFER_OUT/IN, ADJUSTMENT_IN/OUT | 3 | - |
 | **F. Cash Sessions** | CASH_SESSION_* | 6 | V2 |
@@ -210,7 +210,7 @@ Balance: DEBE 1,190 = HABER 1,190 ✅
 ```json
 POST /transactions
 {
-  "transactionType": "PAYMENT_OUT",
+  "transactionType": "BANK_TO_CASH_TRANSFER",
   "metadata": {"bankToCashTransfer": true},
   "paymentMethod": "TRANSFER",
   "total": 2000000,
@@ -339,7 +339,7 @@ curl -X GET "http://localhost:3000/ledger-entries/balance-sheet?asOfDate=2026-02
 **Solución**:
 1. Depositar más efectivo en banco
 2. POST /transactions CASH_DEPOSIT primero
-3. Luego reintentar PAYMENT_OUT
+3. Luego reintentar BANK_TO_CASH_TRANSFER (o SUPPLIER_PAYMENT según el caso)
 
 ---
 

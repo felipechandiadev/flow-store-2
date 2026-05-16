@@ -1,5 +1,7 @@
-import { Inject, BadRequestException } from '@nestjs/common';
+import { Inject, BadRequestException, ConflictException } from '@nestjs/common';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { UpdateCustomerCommand } from '../../commands/update-customer.command';
 import {
   CustomersRepositoryPort,
@@ -7,12 +9,15 @@ import {
 } from '../../ports/customers.repository.port';
 import { CustomerUpdatedEvent } from '@modules/customers/domain/events/customer-updated.event';
 import { CompaniesService } from '@modules/companies/application/companies.service';
+import { Person, PersonType } from '@modules/persons/domain/person.entity';
 
 @CommandHandler(UpdateCustomerCommand)
 export class UpdateCustomerHandler implements ICommandHandler<UpdateCustomerCommand> {
   constructor(
     @Inject(CUSTOMERS_REPOSITORY)
     private readonly customerRepository: CustomersRepositoryPort,
+    @InjectRepository(Person)
+    private readonly personRepository: Repository<Person>,
     private readonly eventBus: EventBus,
     private readonly companiesService: CompaniesService,
   ) {}
@@ -24,12 +29,25 @@ export class UpdateCustomerHandler implements ICommandHandler<UpdateCustomerComm
       paymentDayOfMonth,
       notes,
       isActive,
+      firstName,
+      lastName,
+      businessName,
+      documentType,
+      documentNumber,
+      email,
+      phone,
+      address,
       userId,
     } = command;
 
-    const customer = await this.customerRepository.findById(customerId);
+    const customer = await this.customerRepository.findByIdWithPerson(customerId);
     if (!customer) {
       throw new Error('Cliente no encontrado');
+    }
+
+    const person = customer.person;
+    if (!person) {
+      throw new Error('Cliente sin persona asociada');
     }
 
     if (creditLimit !== undefined) {
@@ -44,19 +62,81 @@ export class UpdateCustomerHandler implements ICommandHandler<UpdateCustomerComm
       }
     }
 
-    const updateData: Partial<any> = {};
-    if (creditLimit !== undefined) updateData.creditLimit = creditLimit;
+    const customerUpdate: Record<string, unknown> = {};
+    if (creditLimit !== undefined) customerUpdate.creditLimit = creditLimit;
     if (paymentDayOfMonth !== undefined)
-      updateData.paymentDayOfMonth = paymentDayOfMonth;
-    if (notes !== undefined) updateData.notes = notes;
-    if (isActive !== undefined) updateData.isActive = isActive;
+      customerUpdate.paymentDayOfMonth = paymentDayOfMonth;
+    if (notes !== undefined) customerUpdate.notes = notes;
+    if (isActive !== undefined) customerUpdate.isActive = isActive;
 
-    const updatedCustomer = await this.customerRepository.update(
-      customerId,
-      updateData,
-    );
+    const isNatural = person.type === PersonType.NATURAL;
 
-    // Emit domain event
+    let personTouched = false;
+
+    if (firstName !== undefined) {
+      const v = firstName.trim();
+      if (isNatural && v.length === 0) {
+        throw new BadRequestException('El nombre es obligatorio.');
+      }
+      person.firstName = v;
+      personTouched = true;
+    }
+    if (lastName !== undefined) {
+      person.lastName = lastName.trim() || undefined;
+      personTouched = true;
+    }
+    if (businessName !== undefined) {
+      person.businessName = businessName.trim() || undefined;
+      personTouched = true;
+    }
+    if (documentType !== undefined) {
+      person.documentType = documentType as any;
+      personTouched = true;
+    }
+    if (documentNumber !== undefined) {
+      const nextDoc = documentNumber.trim() || undefined;
+      if (nextDoc && nextDoc !== (person.documentNumber || '')) {
+        const dup = await this.personRepository.findOne({
+          where: {
+            documentNumber: nextDoc,
+            companyId: customer.companyId,
+          },
+        });
+        if (dup && dup.id !== person.id) {
+          throw new ConflictException(
+            'Ya existe otro registro con ese número de documento.',
+          );
+        }
+      }
+      person.documentNumber = nextDoc;
+      personTouched = true;
+    }
+    if (email !== undefined) {
+      person.email = email.trim() || undefined;
+      personTouched = true;
+    }
+    if (phone !== undefined) {
+      person.phone = phone.trim() || undefined;
+      personTouched = true;
+    }
+    if (address !== undefined) {
+      person.address = address.trim() || undefined;
+      personTouched = true;
+    }
+
+    if (personTouched) {
+      await this.personRepository.save(person);
+    }
+
+    if (Object.keys(customerUpdate).length > 0) {
+      await this.customerRepository.update(customerId, customerUpdate as any);
+    }
+
+    const updatedCustomer = await this.customerRepository.findById(customerId);
+    if (!updatedCustomer) {
+      throw new Error('Cliente no encontrado tras actualizar');
+    }
+
     this.eventBus.publish(new CustomerUpdatedEvent(customerId, userId));
 
     return updatedCustomer;

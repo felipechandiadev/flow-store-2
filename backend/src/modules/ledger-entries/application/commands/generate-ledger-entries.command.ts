@@ -209,7 +209,7 @@ export class GenerateLedgerEntriesCommandHandler implements ICommandHandler<Gene
     }
 
     if (
-      transaction.transactionType === TransactionType.PAYMENT_OUT &&
+      transaction.transactionType === TransactionType.SUPPLIER_PAYMENT &&
       transaction.supplierId
     ) {
       const supplierDebt = await this.getPersonBalance(
@@ -221,6 +221,25 @@ export class GenerateLedgerEntriesCommandHandler implements ICommandHandler<Gene
         errors.push({
           code: 'PAYMENT_EXCEEDS_DEBT',
           message: `Payment exceeds supplier debt. Payment: ${transaction.total}, Debt: ${supplierDebt}`,
+          severity: 'ERROR',
+          phase: 'VALIDATION',
+        });
+      }
+    }
+
+    if (
+      transaction.transactionType === TransactionType.PAYROLL_PAYMENT &&
+      transaction.employeeId
+    ) {
+      const employeeDebt = await this.getPersonBalance(
+        transaction.employeeId,
+        'EMPLOYEE',
+        transaction.branchId!,
+      );
+      if (transaction.total > employeeDebt) {
+        errors.push({
+          code: 'PAYMENT_EXCEEDS_DEBT',
+          message: `Payment exceeds payroll liability. Payment: ${transaction.total}, Debt: ${employeeDebt}`,
           severity: 'ERROR',
           phase: 'VALIDATION',
         });

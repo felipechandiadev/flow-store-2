@@ -15,7 +15,7 @@ import type { PosCreateCustomerInput } from "@/features/customers/types/pos-cust
 const DOC_OPTIONS: Option[] = [
   { id: "RUN", label: "RUN" },
   { id: "PASSPORT", label: "Pasaporte" },
-  { id: "OTHER", label: "Otro" },
+  { id: "DNI", label: "DNI" },
 ];
 
 const PAYMENT_DAY_OPTIONS: Option[] = [
@@ -42,7 +42,7 @@ export type PosCreateCustomerDialogProps = {
 export function PosCreateCustomerDialog({ open, onClose, onSuccess }: PosCreateCustomerDialogProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [documentType, setDocumentType] = useState<"RUN" | "PASSPORT" | "OTHER">("RUN");
+  const [documentType, setDocumentType] = useState<"RUN" | "PASSPORT" | "DNI">("RUN");
   const [documentNumber, setDocumentNumber] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -165,14 +165,14 @@ export function PosCreateCustomerDialog({ open, onClose, onSuccess }: PosCreateC
           placeholder="Tipo de documento"
           options={DOC_OPTIONS}
           value={documentType}
-          onChange={(v) => setDocumentType((v != null ? String(v) : "RUN") as "RUN" | "PASSPORT" | "OTHER")}
+          onChange={(v) => setDocumentType((v != null ? String(v) : "RUN") as "RUN" | "PASSPORT" | "DNI")}
           required
         />
 
         <TextField
-          label={documentType === "RUN" ? "RUN" : "Número de documento"}
+          label={documentType === "RUN" ? "RUN" : documentType === "DNI" ? "DNI" : "Número de documento"}
           name="pos-customer-document-number"
-          type={documentType === "RUN" ? "dni" : "text"}
+          type={documentType === "RUN" || documentType === "DNI" ? "dni" : "text"}
           value={documentNumber}
           onChange={(e) => setDocumentNumber(e.target.value)}
           required

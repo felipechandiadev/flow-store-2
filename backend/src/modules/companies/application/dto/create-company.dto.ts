@@ -27,4 +27,14 @@ export class CreateCompanyDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  mail?: string | null;
 }

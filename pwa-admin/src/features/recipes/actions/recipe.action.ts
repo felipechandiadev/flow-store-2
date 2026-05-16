@@ -6,7 +6,7 @@ import type { PurchasingVariantSearchResult } from "@/features/purchasing-docume
 import { RecipeRequest, type CreateRecipePayload } from "../infrastructure/recipe.request";
 import type { RecipeDto, RecipeTypeDto } from "../types/recipe.types";
 
-const PRODUCTS_PATH = "/inventory/products";
+const PRODUCTS_PATH = "/catalog/products";
 
 /** Misma API que recepciones / órdenes de compra (`product-variants/purchasing-search`). */
 export async function searchRecipeVariantCatalogAction(

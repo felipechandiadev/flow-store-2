@@ -29,6 +29,12 @@ export class Company {
   @Column({ name: 'rut', type: 'varchar', length: 14, unique: true })
   rut!: string;
 
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  address?: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  mail?: string | null;
+
   @Column({ type: 'varchar', length: 10, default: 'CLP' })
   defaultCurrency!: string;
 

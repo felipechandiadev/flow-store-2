@@ -4,6 +4,7 @@ export type PurchaseOrderGridRow = {
   documentFolio: string | null;
   status: string;
   supplierName: string;
+  supplierDocumentNumber: string | null;
   branchName: string;
   documentDate: string | null;
   subtotal: number;

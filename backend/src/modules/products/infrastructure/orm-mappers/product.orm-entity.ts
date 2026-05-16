@@ -40,6 +40,9 @@ export enum ProductType {
   PHYSICAL = 'PHYSICAL',
   SERVICE = 'SERVICE',
   DIGITAL = 'DIGITAL',
+  MANUFACTURADO = 'MANUFACTURADO',
+  ELABORADO = 'ELABORADO',
+  PREPARADO = 'PREPARADO',
 }
 
 @Entity('products')
@@ -58,6 +61,9 @@ export class ProductOrmEntity {
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   brand?: string;
+
+  @Column({ type: 'uuid', nullable: true, name: 'brand_id' })
+  brandId?: string | null;
 
   @Column({ type: 'varchar', length: 50, default: ProductType.PHYSICAL })
   productType!: ProductType;

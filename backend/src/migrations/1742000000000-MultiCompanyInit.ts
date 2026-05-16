@@ -75,9 +75,11 @@ export class MultiCompanyInit1742000000000 implements MigrationInterface {
     if (existing.length > 0) {
       defaultCompanyId = existing[0].id;
     } else {
+      /** RUT placeholder ≤14 chars (`companies.rut` es varchar(14)). */
+      const autoRut = `T${Date.now().toString(36)}`.slice(0, 14).toUpperCase();
       const inserted: Array<{ id: string }> = await queryRunner.query(
         `INSERT INTO companies (razon_social, rut, "defaultCurrency", "isActive")
-         VALUES ('Empresa por defecto', 'AUTO-${Date.now()}', 'CLP', true)
+         VALUES ('Empresa por defecto', '${autoRut}', 'CLP', true)
          RETURNING id`,
       );
       defaultCompanyId = inserted[0].id;
@@ -209,15 +211,43 @@ export class MultiCompanyInit1742000000000 implements MigrationInterface {
         );
       }
 
-      // Operadores: empresa por defecto. Admins: NULL.
+      /** Definición actual del CHECK (puede venir de synchronize o de 1749000000000). */
+      const usersRoleCompanyChkDef: Array<{ def: string | null }> =
+        await queryRunner.query(
+          `SELECT pg_get_constraintdef(c.oid) AS def
+           FROM pg_constraint c
+           JOIN pg_class t ON t.oid = c.conrelid
+           JOIN pg_namespace n ON n.oid = t.relnamespace
+           WHERE n.nspname = current_schema()
+             AND t.relname = 'users'
+             AND c.conname = 'users_role_company_chk'
+             AND c.contype = 'c'`,
+        );
+      const usesSuperAdminCompanyRule = (
+        usersRoleCompanyChkDef[0]?.def ?? ''
+      )
+        .toUpperCase()
+        .includes('SUPER_ADMIN');
+
       await queryRunner.query(
         `UPDATE "users" SET "company_id" = $1
            WHERE "rol" = 'OPERATOR' AND "company_id" IS NULL`,
         [defaultCompanyId],
       );
-      await queryRunner.query(
-        `UPDATE "users" SET "company_id" = NULL WHERE "rol" = 'ADMIN'`,
-      );
+
+      if (usesSuperAdminCompanyRule) {
+        // Misma regla que `User` + 1749000000000: ADMIN/OPERATOR con empresa; solo SUPER_ADMIN sin empresa.
+        await queryRunner.query(
+          `UPDATE "users" SET "company_id" = $1
+             WHERE "rol" = 'ADMIN' AND "company_id" IS NULL`,
+          [defaultCompanyId],
+        );
+      } else {
+        // Modelo legacy antes de SUPER_ADMIN: admins "globales" con company_id NULL.
+        await queryRunner.query(
+          `UPDATE "users" SET "company_id" = NULL WHERE "rol" = 'ADMIN'`,
+        );
+      }
 
       const usersFk: Array<{ exists: boolean }> = await queryRunner.query(
         `SELECT EXISTS (

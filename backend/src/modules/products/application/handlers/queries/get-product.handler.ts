@@ -24,6 +24,7 @@ export class GetProductQueryHandler implements IQueryHandler<
 
     const product = await this.productRepository.findOne({
       where: { id: query.productId, deletedAt: null as any },
+      relations: ['category', 'catalogBrand'],
     });
 
     if (!product) {
@@ -37,7 +38,8 @@ export class GetProductQueryHandler implements IQueryHandler<
       id: product.id,
       name: product.name,
       categoryId: product.categoryId,
-      brand: product.brand,
+      brand: product.catalogBrand?.name ?? product.brand,
+      brandId: product.brandId ?? null,
       description: product.description,
       isActive: product.isActive,
       productType: product.productType,

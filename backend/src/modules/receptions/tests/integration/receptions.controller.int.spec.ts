@@ -91,33 +91,64 @@ describe('ReceptionsController (Integration)', () => {
     );
   });
 
-  it('should accept dteNumber and dteType on createDirect', async () => {
+  it('should accept reference and documentType on createDirect', async () => {
     await request(app.getHttpServer())
       .post('/receptions/direct')
       .send({
         storageId: '11111111-1111-4111-8111-111111111111',
         branchId: '22222222-2222-4222-8222-222222222222',
-        dteNumber: 'FOLIO-999',
-        dteType: 'invoice',
+        reference: 'FOLIO-999',
+        documentType: 'invoice',
         lines: [{ quantity: 1, unitPrice: 10 }],
       })
       .expect(201);
 
     expect(service.createDirect).toHaveBeenCalledWith(
       expect.objectContaining({
-        dteNumber: 'FOLIO-999',
-        dteType: 'invoice',
+        reference: 'FOLIO-999',
+        documentType: 'invoice',
       }),
     );
   });
 
-  it('should reject invalid dteType on createDirect', async () => {
+  it('should accept supplierDocumentPayment and supplierFiscalAmounts on createDirect', async () => {
     await request(app.getHttpServer())
       .post('/receptions/direct')
       .send({
         storageId: '11111111-1111-4111-8111-111111111111',
         branchId: '22222222-2222-4222-8222-222222222222',
-        dteType: 'not-a-dte',
+        documentType: 'invoice',
+        lines: [{ quantity: 1, unitPrice: 10 }],
+        supplierDocumentPayment: {
+          mode: 'PENDING',
+          paidLines: [],
+          scheduledLines: [],
+        },
+        supplierFiscalAmounts: {
+          subtotalNeto: 10,
+          taxAmount: 0,
+          total: 10,
+          taxId: null,
+          taxRatePct: 0,
+        },
+      })
+      .expect(201);
+
+    expect(service.createDirect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        supplierDocumentPayment: expect.objectContaining({ mode: 'PENDING' }),
+        supplierFiscalAmounts: expect.objectContaining({ total: 10 }),
+      }),
+    );
+  });
+
+  it('should reject invalid documentType on createDirect', async () => {
+    await request(app.getHttpServer())
+      .post('/receptions/direct')
+      .send({
+        storageId: '11111111-1111-4111-8111-111111111111',
+        branchId: '22222222-2222-4222-8222-222222222222',
+        documentType: 'not-a-dte',
         lines: [{ quantity: 1, unitPrice: 10 }],
       })
       .expect(400);
@@ -125,20 +156,20 @@ describe('ReceptionsController (Integration)', () => {
     expect(service.createDirect).not.toHaveBeenCalled();
   });
 
-  it('should accept dteType other on createDirect', async () => {
+  it('should accept documentType other on createDirect', async () => {
     await request(app.getHttpServer())
       .post('/receptions/direct')
       .send({
         storageId: '11111111-1111-4111-8111-111111111111',
         branchId: '22222222-2222-4222-8222-222222222222',
-        dteType: 'other',
+        documentType: 'other',
         lines: [{ quantity: 1, unitPrice: 10 }],
       })
       .expect(201);
 
     expect(service.createDirect).toHaveBeenCalledWith(
       expect.objectContaining({
-        dteType: 'other',
+        documentType: 'other',
       }),
     );
   });

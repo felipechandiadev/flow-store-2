@@ -36,20 +36,26 @@ export class CustomersServiceAdapter {
       updateData.paymentDayOfMonth,
       updateData.notes,
       updateData.isActive,
+      updateData.firstName,
+      updateData.lastName,
+      updateData.businessName,
+      updateData.documentType,
+      updateData.documentNumber,
+      updateData.email,
+      updateData.phone,
+      updateData.address,
     );
 
-    const result = await this.commandBus.execute(command);
+    await this.commandBus.execute(command);
+
+    const full = await this.customersCore.findOne(customerId);
+    if (!full) {
+      return { success: false, error: 'Cliente no encontrado tras actualizar.' };
+    }
 
     return {
       success: true,
-      customer: {
-        customerId: result.id,
-        creditLimit: result.creditLimit,
-        paymentDayOfMonth: result.paymentDayOfMonth,
-        notes: result.notes,
-        isActive: result.isActive,
-        updatedAt: result.updatedAt,
-      },
+      customer: full,
     };
   }
 

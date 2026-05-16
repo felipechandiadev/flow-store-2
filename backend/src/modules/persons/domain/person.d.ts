@@ -7,7 +7,7 @@ export declare enum DocumentType {
   RUN = 'RUN',
   RUT = 'RUT',
   PASSPORT = 'PASSPORT',
-  OTHER = 'OTHER',
+  DNI = 'DNI',
 }
 export declare enum AccountTypeName {
   CUENTA_CORRIENTE = 'Cuenta Corriente',

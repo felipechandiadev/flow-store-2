@@ -9,6 +9,8 @@ export type CompanyDetails = {
   rut?: string | null;
   businessActivity?: string | null;
   defaultCurrency?: string | null;
+  address?: string | null;
+  mail?: string | null;
   /**
    * URL de logo de marca (absoluta o relativa al dominio del POS).
    * Se intenta leer desde `settings` del backend (`logoUrl`, `posLogoUrl`, `brand.logoUrl`).
@@ -32,6 +34,8 @@ type CompanyApiResponse = {
   rut?: string | null;
   businessActivity?: string | null;
   defaultCurrency?: string | null;
+  address?: string | null;
+  mail?: string | null;
   settings?: unknown;
   bankAccounts?: unknown[] | null;
 };
@@ -118,6 +122,12 @@ export class CompanyRequest {
         data.defaultCurrency != null && String(data.defaultCurrency).trim() !== ""
           ? String(data.defaultCurrency).trim()
           : null;
+      const address =
+        data.address != null && String(data.address).trim() !== ""
+          ? String(data.address).trim()
+          : null;
+      const mail =
+        data.mail != null && String(data.mail).trim() !== "" ? String(data.mail).trim() : null;
 
       return {
         id: data.id != null && String(data.id).trim() !== "" ? String(data.id).trim() : null,
@@ -129,6 +139,8 @@ export class CompanyRequest {
         rut,
         businessActivity,
         defaultCurrency,
+        address,
+        mail,
         logoUrl: extractCompanyLogoUrl(data.settings),
         bankAccounts: normalizeBankAccounts(data.bankAccounts),
       };

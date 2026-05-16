@@ -2,17 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { ProductRequest } from "../infrastructure/product.request";
-import type { ProductGridRow } from "../types/product-grid.types";
+import type { CatalogProductType, ProductGridRow } from "../types/product-grid.types";
 
-const PRODUCTS_PATH = "/inventory/products";
-const PRODUCT_VARIANT_DETAIL_PATH_PREFIX = "/inventory/products/variants";
+const PRODUCTS_PATH = "/catalog/products";
+const PRODUCT_VARIANT_DETAIL_PATH_PREFIX = "/catalog/products/variants";
 
 export type CreateProductFormInput = {
   name: string;
   categoryId?: string;
+  brandId?: string | null;
   brand?: string;
   description?: string;
-  productType?: "PHYSICAL" | "SERVICE" | "DIGITAL";
+  productType?: CatalogProductType;
   metadata?: Record<string, unknown>;
   isActive?: boolean;
 };
@@ -21,9 +22,11 @@ export type UpdateProductFormInput = {
   id: string;
   name: string;
   categoryId?: string;
+  /** null quita la marca del catálogo en el producto. */
+  brandId: string | null;
   brand?: string;
   description?: string;
-  productType?: "PHYSICAL" | "SERVICE" | "DIGITAL";
+  productType?: CatalogProductType;
   metadata?: Record<string, unknown>;
   isActive?: boolean;
 };
@@ -167,6 +170,7 @@ export async function createProductAction(input: CreateProductFormInput): Promis
   const r = await ProductRequest.create({
     name,
     categoryId: input.categoryId?.trim() || undefined,
+    brandId: input.brandId != null && String(input.brandId).trim() ? String(input.brandId).trim() : null,
     brand: input.brand?.trim() || undefined,
     description: input.description?.trim() || undefined,
     productType: input.productType,
@@ -191,6 +195,7 @@ export async function updateProductAction(input: UpdateProductFormInput): Promis
   const r = await ProductRequest.update(id, {
     name,
     categoryId: input.categoryId?.trim() || undefined,
+    brandId: input.brandId,
     brand: input.brand?.trim() || undefined,
     description: input.description?.trim() || undefined,
     productType: input.productType,
@@ -456,6 +461,203 @@ export async function updateProductVariantLogisticsAction(
     packageHeightCm: input.packageHeightCm ?? null,
     volumetricDivisorK: input.volumetricDivisorK ?? null,
   };
+  const r = await ProductRequest.patchVariantFields(trimmedId, body);
+  if (r.success) {
+    revalidatePath(PRODUCTS_PATH, "page");
+    revalidatePath(`${PRODUCT_VARIANT_DETAIL_PATH_PREFIX}/${encodeURIComponent(trimmedId)}`, "page");
+  }
+  return r;
+}
+
+export type UpdateProductVariantIdentityPartialInput = {
+  productId: string;
+  sku: string;
+  barcode: string | null;
+  unitId: string;
+  stockBaseUnitId: string;
+  purchaseUnitId: string;
+  stockBaseQtyPerCountSaleUnit?: number;
+  stockBaseQtyPerCountPurchaseUnit?: number;
+  attributeValues?: Record<string, string>;
+  isActive: boolean;
+};
+
+/** Actualiza solo identidad / UDM / atributos vía `PUT product-variants/:id` parcial. */
+export async function updateProductVariantIdentityPartialAction(
+  variantId: string,
+  input: UpdateProductVariantIdentityPartialInput,
+): Promise<UpdateProductVariantResult> {
+  const trimmedId = variantId?.trim() ?? "";
+  const productId = input.productId?.trim() ?? "";
+  const sku = input.sku?.trim() ?? "";
+  const unitId = input.unitId?.trim() ?? "";
+  const stockBaseUnitId = input.stockBaseUnitId?.trim() ?? "";
+  const purchaseUnitId = input.purchaseUnitId?.trim() ?? "";
+  if (!trimmedId) {
+    return { success: false, error: "Variante no válida" };
+  }
+  if (!productId) {
+    return { success: false, error: "Producto no válido" };
+  }
+  if (!sku) {
+    return { success: false, error: "El SKU es obligatorio" };
+  }
+  if (!unitId || !stockBaseUnitId || !purchaseUnitId) {
+    return { success: false, error: "Las unidades de venta, stock y compra son obligatorias" };
+  }
+
+  let attributeValuesToSend: Record<string, string> | undefined;
+  if (input.attributeValues != null && typeof input.attributeValues === "object") {
+    const cleaned: Record<string, string> = {};
+    for (const [k, v] of Object.entries(input.attributeValues)) {
+      const key = k.trim();
+      if (!key) {
+        continue;
+      }
+      const val = v == null ? "" : String(v).trim();
+      if (val === "") {
+        continue;
+      }
+      cleaned[key] = val;
+    }
+    if (Object.keys(cleaned).length > 0) {
+      attributeValuesToSend = cleaned;
+    }
+  }
+
+  const body: Record<string, unknown> = {
+    productId,
+    sku,
+    barcode: input.barcode?.trim() ? input.barcode.trim() : null,
+    unitId,
+    saleUnitId: unitId,
+    stockBaseUnitId,
+    purchaseUnitId,
+    isActive: input.isActive !== false,
+  };
+  if (input.stockBaseQtyPerCountSaleUnit != null) {
+    body.stockBaseQtyPerCountSaleUnit = input.stockBaseQtyPerCountSaleUnit;
+  }
+  if (input.stockBaseQtyPerCountPurchaseUnit != null) {
+    body.stockBaseQtyPerCountPurchaseUnit = input.stockBaseQtyPerCountPurchaseUnit;
+  }
+  if (attributeValuesToSend != null) {
+    body.attributeValues = attributeValuesToSend;
+  }
+
+  const r = await ProductRequest.patchVariantFields(trimmedId, body);
+  if (r.success) {
+    revalidatePath(PRODUCTS_PATH, "page");
+    revalidatePath(`${PRODUCT_VARIANT_DETAIL_PATH_PREFIX}/${encodeURIComponent(trimmedId)}`, "page");
+  }
+  return r;
+}
+
+export type UpdateProductVariantPricingPartialInput = {
+  productId: string;
+  basePrice: number;
+  pmp: number;
+  priceListItems: CreateProductVariantPriceListItemInput[];
+};
+
+/** Actualiza precios por lista, precio de referencia y PMP vía `PUT` parcial. */
+export async function updateProductVariantPricingPartialAction(
+  variantId: string,
+  input: UpdateProductVariantPricingPartialInput,
+): Promise<UpdateProductVariantResult> {
+  const trimmedId = variantId?.trim() ?? "";
+  const productId = input.productId?.trim() ?? "";
+  if (!trimmedId) {
+    return { success: false, error: "Variante no válida" };
+  }
+  if (!productId) {
+    return { success: false, error: "Producto no válido" };
+  }
+  const items = input.priceListItems;
+  if (!Array.isArray(items) || items.length === 0) {
+    return {
+      success: false,
+      error: "Debe indicar al menos un precio asociado a una lista de precios.",
+    };
+  }
+  const basePrice = typeof input.basePrice === "number" && Number.isFinite(input.basePrice) ? input.basePrice : 0;
+  if (basePrice < 0) {
+    return { success: false, error: "El precio de referencia no puede ser negativo" };
+  }
+  const pmpToSend = Math.max(0, Math.round(Number(input.pmp ?? 0)));
+  if (!Number.isFinite(pmpToSend)) {
+    return { success: false, error: "El PMP no es válido." };
+  }
+  const seen = new Set<string>();
+  for (const it of items) {
+    const lid = it.priceListId?.trim() ?? "";
+    if (!lid) {
+      return { success: false, error: "Cada precio por lista debe tener una lista de precios." };
+    }
+    if (seen.has(lid)) {
+      return { success: false, error: "No puede repetir la misma lista de precios en más de una fila." };
+    }
+    seen.add(lid);
+    const net = Math.round(Number(it.netPrice));
+    const gross = Math.round(Number(it.grossPrice));
+    if (!Number.isFinite(net) || net < 0 || !Number.isFinite(gross) || gross < 0) {
+      return { success: false, error: "Los precios deben ser enteros mayores o iguales a 0." };
+    }
+  }
+
+  const body: Record<string, unknown> = {
+    productId,
+    basePrice,
+    pmp: pmpToSend,
+    priceListItems: items.map((item) => ({
+      priceListId: item.priceListId.trim(),
+      netPrice: Math.round(Number(item.netPrice)) || 0,
+      grossPrice: Math.round(Number(item.grossPrice)) || 0,
+      taxIds: Array.isArray(item.taxIds) && item.taxIds.length > 0 ? item.taxIds : undefined,
+    })),
+  };
+
+  const r = await ProductRequest.patchVariantFields(trimmedId, body);
+  if (r.success) {
+    revalidatePath(PRODUCTS_PATH, "page");
+    revalidatePath(`${PRODUCT_VARIANT_DETAIL_PATH_PREFIX}/${encodeURIComponent(trimmedId)}`, "page");
+  }
+  return r;
+}
+
+export type UpdateProductVariantInventoryPartialInput = {
+  trackInventory: boolean;
+  allowNegativeStock: boolean;
+  minimumStock: number;
+  maximumStock: number;
+  reorderPoint: number;
+  weight?: number | null;
+  weightUnit?: string | null;
+};
+
+/** Actualiza flags y umbrales de inventario (y peso referencia legacy) vía `PUT` parcial. */
+export async function updateProductVariantInventoryPartialAction(
+  variantId: string,
+  input: UpdateProductVariantInventoryPartialInput,
+): Promise<UpdateProductVariantResult> {
+  const trimmedId = variantId?.trim() ?? "";
+  if (!trimmedId) {
+    return { success: false, error: "Variante no válida" };
+  }
+  const body: Record<string, unknown> = {
+    trackInventory: input.trackInventory,
+    allowNegativeStock: input.allowNegativeStock,
+    minimumStock: Math.max(0, Math.round(Number(input.minimumStock) || 0)),
+    maximumStock: Math.max(0, Math.round(Number(input.maximumStock) || 0)),
+    reorderPoint: Math.max(0, Math.round(Number(input.reorderPoint) || 0)),
+  };
+  if (input.weight !== undefined) {
+    body.weight = input.weight;
+  }
+  if (input.weightUnit !== undefined && input.weightUnit !== null) {
+    body.weightUnit = input.weightUnit;
+  }
+
   const r = await ProductRequest.patchVariantFields(trimmedId, body);
   if (r.success) {
     revalidatePath(PRODUCTS_PATH, "page");

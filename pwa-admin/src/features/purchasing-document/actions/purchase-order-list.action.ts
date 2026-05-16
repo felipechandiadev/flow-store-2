@@ -28,6 +28,16 @@ function supplierNameFromRow(tx: Record<string, unknown>): string {
   return full || "—";
 }
 
+function supplierDocumentNumberFromRow(tx: Record<string, unknown>): string | null {
+  const s = asRecord(tx.supplier);
+  const p = (s ? asRecord(s.person) ?? asRecord(s.supplierPerson) : null) ?? null;
+  if (!p) {
+    return null;
+  }
+  const raw = p.documentNumber != null ? String(p.documentNumber).trim() : "";
+  return raw || null;
+}
+
 function branchNameFromRow(tx: Record<string, unknown>): string {
   const b = asRecord(tx.branch);
   if (!b) {
@@ -74,6 +84,7 @@ function normalizePurchaseOrderRow(raw: unknown): PurchaseOrderGridRow | null {
     documentFolio: df || null,
     status: tx.status != null ? String(tx.status) : "",
     supplierName: supplierNameFromRow(tx),
+    supplierDocumentNumber: supplierDocumentNumberFromRow(tx),
     branchName: branchNameFromRow(tx),
     documentDate,
     subtotal,

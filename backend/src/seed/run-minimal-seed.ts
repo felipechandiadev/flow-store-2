@@ -45,6 +45,7 @@ import {
 } from '@modules/expense-categories/domain/expense-category-operational-group.enum';
 import { assertValidChileCompanyRut } from '@shared/utils/chile-company-rut.util';
 import { Product, ProductType } from '@modules/products/domain/product.entity';
+import { Brand } from '@modules/brands/domain/brand.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { appendPmpHistory } from '@modules/product-variants/application/helpers/pmp-history';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
@@ -425,7 +426,7 @@ const SEED_SUPPLIERS: readonly {
       type: PersonType.NATURAL,
       firstName: 'Andrea',
       lastName: 'Rojas',
-      documentType: DocumentType.OTHER,
+      documentType: DocumentType.DNI,
       documentNumber: 'PROV-AR-001',
       phone: '+56 9 4321 1000',
       address: 'Pasaje Las Flores 120, Chillán',
@@ -683,7 +684,7 @@ const SEED_CUSTOMERS: readonly {
       type: PersonType.NATURAL,
       firstName: 'Valentina',
       lastName: 'Sánchez',
-      documentType: DocumentType.OTHER,
+      documentType: DocumentType.DNI,
       documentNumber: 'CUST-VS-001',
       phone: '+56 9 4444 1212',
     },
@@ -691,7 +692,7 @@ const SEED_CUSTOMERS: readonly {
       creditLimit: 100000,
       paymentDayOfMonth: 20,
       isActive: true,
-      notes: 'Documento OTHER (validar campo opcional documentType).',
+      notes: 'Documento DNI (validar campo opcional documentType).',
     },
   },
 ] as const;
@@ -863,6 +864,58 @@ async function ensureProductVariantShippingColumns(
   console.log('✅ Columnas product_variants (logística / envío) verificadas.');
 }
 
+/**
+ * Tabla `brands` y columna `products.brand_id` + FK (migración 1756000000000).
+ * Idempotente: permite correr el seed sin haber ejecutado migraciones antes.
+ */
+async function ensureBrandsTableAndProductBrandId(dataSource: DataSource): Promise<void> {
+  await dataSource.query(`
+    CREATE TABLE IF NOT EXISTS brands (
+      id uuid NOT NULL DEFAULT gen_random_uuid(),
+      company_id uuid NOT NULL,
+      name character varying(255) NOT NULL,
+      description text,
+      is_active boolean NOT NULL DEFAULT true,
+      created_at TIMESTAMP NOT NULL DEFAULT now(),
+      updated_at TIMESTAMP NOT NULL DEFAULT now(),
+      deleted_at TIMESTAMP,
+      CONSTRAINT "PK_brands" PRIMARY KEY (id)
+    );
+  `);
+  await dataSource.query(`
+    ALTER TABLE brands
+    ALTER COLUMN id SET DEFAULT gen_random_uuid();
+  `);
+  await dataSource.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "uq_brands_company_name"
+    ON brands (company_id, name)
+    WHERE deleted_at IS NULL;
+  `);
+  await dataSource.query(`
+    CREATE INDEX IF NOT EXISTS "idx_brands_company_id" ON brands (company_id);
+  `);
+  await dataSource.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS brand_id uuid;
+  `);
+  await dataSource.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'FK_products_brand'
+      ) THEN
+        ALTER TABLE products
+        ADD CONSTRAINT "FK_products_brand"
+        FOREIGN KEY (brand_id) REFERENCES brands(id)
+        ON DELETE SET NULL ON UPDATE NO ACTION;
+      END IF;
+    END $$;
+  `);
+  await dataSource.query(`
+    CREATE INDEX IF NOT EXISTS "idx_products_brand_id" ON products (brand_id);
+  `);
+  console.log('✅ Tabla brands y columna products.brand_id verificadas.');
+}
+
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(MinimalSeedModule, {
     logger: ['error', 'warn', 'log'],
@@ -950,6 +1003,7 @@ async function bootstrap() {
     await ensurePointsOfSaleStorageColumn(dataSource);
     await ensureStockLevelThresholdColumns(dataSource);
     await ensureProductVariantShippingColumns(dataSource);
+    await ensureBrandsTableAndProductBrandId(dataSource);
     const personRepo = dataSource.getRepository(Person);
     const companyRepo = dataSource.getRepository(Company);
     const taxRepo = dataSource.getRepository(Tax);
@@ -981,6 +1035,10 @@ async function bootstrap() {
     const businessActivity =
       process.env.SEED_BUSINESS_ACTIVITY || 'Comercio al por menor';
     const rut = process.env.SEED_COMPANY_RUT || '11.111.111-1';
+    const companyAddress =
+      process.env.SEED_COMPANY_ADDRESS || 'Av. Principal 123, Santiago';
+    const companyMail =
+      process.env.SEED_COMPANY_MAIL || 'contacto@flowstore.local';
 
     assertValidChileCompanyRut(rut, 'SEED_COMPANY_RUT');
 
@@ -993,6 +1051,8 @@ async function bootstrap() {
         nombreFantasia,
         businessActivity,
         rut,
+        address: companyAddress,
+        mail: companyMail,
         defaultCurrency: 'CLP',
         isActive: true,
       });
@@ -1004,6 +1064,8 @@ async function bootstrap() {
       company.razonSocial = razonSocial;
       company.nombreFantasia = nombreFantasia;
       company.businessActivity = businessActivity;
+      company.address = companyAddress;
+      company.mail = companyMail;
       await companyRepo.save(company);
       console.log(
         `✅ Empresa ya existía: id=${company.id} razonSocial='${company.razonSocial}' rut='${company.rut}' (datos básicos actualizados)`,
@@ -2004,6 +2066,7 @@ async function bootstrap() {
     const productRepo = dataSource.getRepository(Product);
     const variantRepo = dataSource.getRepository(ProductVariant);
     const priceListItemRepo = dataSource.getRepository(PriceListItem);
+    const brandRepo = dataSource.getRepository(Brand);
 
     type SeedVariantUom = {
       stock: SeedUnitKey;
@@ -2384,6 +2447,32 @@ async function bootstrap() {
       },
     ];
 
+    const seedBrandNames = [
+      ...new Set(
+        seedDemoProducts.map((d) => d.brand?.trim()).filter((x): x is string => Boolean(x && x.length > 0)),
+      ),
+    ].sort((a, b) => a.localeCompare(b, 'es'));
+
+    const brandIdByName = new Map<string, string>();
+    for (const nm of seedBrandNames) {
+      let b = await brandRepo.findOne({
+        where: { companyId: company.id, name: nm },
+      });
+      if (!b) {
+        b = brandRepo.create({
+          companyId: company.id,
+          name: nm,
+          description: null,
+          isActive: true,
+        });
+        b = await brandRepo.save(b);
+        console.log(`✅ Marca demo creada: «${nm}» id=${b.id}`);
+      } else {
+        console.log(`✅ Marca demo ya existía: «${nm}» id=${b.id}`);
+      }
+      brandIdByName.set(nm, b.id);
+    }
+
     const upsertPriceListItem = async (args: {
       priceListId: string;
       productId: string;
@@ -2423,6 +2512,7 @@ async function bootstrap() {
       const productPayload = {
         name: def.name,
         brand: def.brand,
+        brandId: def.brand?.trim() ? brandIdByName.get(def.brand.trim()) ?? null : null,
         description: def.description,
         productType: def.productType,
         categoryId: def.categoryId,

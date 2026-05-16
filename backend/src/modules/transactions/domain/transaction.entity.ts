@@ -55,11 +55,12 @@ import { Installment } from '@modules/installments/domain/installment.entity';
  *    INVENTORY_BLOCK: Bloqueo por calidad/calibración
  *    INVENTORY_UNBLOCK: Liberación de bloqueos
  *
- * 4. PAGOS Y COBROS (4 tipos)
+ * 4. PAGOS Y COBROS
  *    PAYMENT_IN: Cobro de cliente (venta a plazo)
- *    PAYMENT_OUT: ⚠️ DEPRECADO - usar SUPPLIER_PAYMENT o EXPENSE_PAYMENT
- *    SUPPLIER_PAYMENT: Pago a proveedor por PURCHASE
+ *    SUPPLIER_PAYMENT: Compromiso o ejecución de pago a proveedor (vinculado a compra / factura / boleta proveedor)
+ *    PAYROLL_PAYMENT: Compromiso o ejecución de pago de remuneraciones (empleado / liquidación)
  *    EXPENSE_PAYMENT: Pago de gastos operativos
+ *    BANK_TO_CASH_TRANSFER: Giro banco → caja (tesorería interna; antes metadata.bankToCashTransfer sobre PAYMENT_OUT)
  *
  * 5. NÓMINA Y REMUNERACIONES (2 tipos)
  *    PAYROLL: Liquidación de nómina (genera CxP por salarios)
@@ -120,9 +121,11 @@ export enum TransactionType {
 
   // Pagos y Cobros
   PAYMENT_IN = 'PAYMENT_IN',
-  PAYMENT_OUT = 'PAYMENT_OUT', // ⚠️ DEPRECADO
   SUPPLIER_PAYMENT = 'SUPPLIER_PAYMENT',
+  PAYROLL_PAYMENT = 'PAYROLL_PAYMENT',
   EXPENSE_PAYMENT = 'EXPENSE_PAYMENT',
+  /** Banco → caja (tesorería); no es pago a tercero. */
+  BANK_TO_CASH_TRANSFER = 'BANK_TO_CASH_TRANSFER',
 
   // Nómina
   PAYROLL = 'PAYROLL',

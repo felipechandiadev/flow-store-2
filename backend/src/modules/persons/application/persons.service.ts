@@ -147,7 +147,7 @@ export class PersonsService {
 
     if (row.documentType === DocumentType.RUT) {
       throw new BadRequestException(
-        'El RUT corresponde a empresa. Cambie el tipo a empresa o use RUN, pasaporte u otro documento.',
+        'El RUT corresponde a empresa. Cambie el tipo a empresa o use RUN, pasaporte o DNI.',
       );
     }
   }

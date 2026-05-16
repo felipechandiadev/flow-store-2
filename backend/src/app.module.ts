@@ -24,6 +24,7 @@ import { AccountingAccountsModule } from './modules/accounting-accounts/accounti
 import { AccountingRulesModule } from './modules/accounting-rules/accounting-rules.module';
 import { AutomationModule } from './modules/automation/automation.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { BrandsModule } from './modules/brands/brands.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { ShareholdersModule } from './modules/shareholders/shareholders.module';
 import { UnitsModule } from './modules/units/units.module';
@@ -119,6 +120,7 @@ import { PromotionsModule } from './modules/promotions/promotions.module';
     AccountingPeriodsModule,
     AccountBalancesModule,
     CategoriesModule,
+    BrandsModule,
     ResultCentersModule,
     OrganizationalUnitsModule,
     OperationalExpensesModule,

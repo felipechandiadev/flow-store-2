@@ -426,24 +426,20 @@ export const TextField: React.FC<TextFieldProps> = ({
     readOnly && variante === "autocomplete" && !disabled ? "cursor-pointer" : "";
 
   const isTextArea = type === "textarea" || typeof rows === "number";
-  const showStaticLabel = isCompact && Boolean(label?.trim());
   const compactInputClass = isCompact ? "fs-text-field__input--compact" : "";
+  /** Select/AutoComplete compact sin etiqueta: el padre limita altura a ~2rem. */
+  const comboCompactSingleRow =
+    isCompact && variante === "autocomplete" && !label?.trim();
+  const showFloatingLabel = Boolean(label?.trim());
 
   return (
     <div
-      className={`${variante === "autocomplete" ? "relative w-full" : "fs-text-field"} ${showStaticLabel ? "flex min-w-0 flex-col gap-1" : ""}`.trim()}
+      className={`${variante === "autocomplete" ? "relative w-full" : "fs-text-field"} ${comboCompactSingleRow ? "flex min-h-0 min-w-0 flex-1 items-stretch" : ""}`.trim()}
     >
-      {showStaticLabel ? (
-        <label
-          className="text-[11px] font-medium leading-tight text-foreground"
-          htmlFor={inputDomId}
-          data-test-id="text-field-static-label"
-        >
-          {label}
-          {required ? <span className="ml-1 text-red-500">*</span> : null}
-        </label>
-      ) : null}
-      <div className={`relative ${className}`} data-test-id="text-field-root">
+      <div
+        className={`relative ${className} ${comboCompactSingleRow ? "flex min-h-0 min-w-0 flex-1 items-center" : ""}`.trim()}
+        data-test-id="text-field-root"
+      >
       {hasStartSymbol && (
         <span
           ref={startLeadingRef}
@@ -505,7 +501,7 @@ export const TextField: React.FC<TextFieldProps> = ({
           {...props}
         />
       ) : (
-        <div className="relative">
+        <div className={comboCompactSingleRow ? "relative min-h-0 min-w-0 flex-1" : "relative"}>
           <input
             id={inputDomId}
             ref={inputRef}
@@ -588,16 +584,25 @@ export const TextField: React.FC<TextFieldProps> = ({
       {placeholderColor && placeholderClassRef.current && (
         <style>{`input.${placeholderClassRef.current}::placeholder, textarea.${placeholderClassRef.current}::placeholder { color: ${placeholderColor} }`}</style>
       )}
-      {!isCompact ? (
-      <label
-        className={`absolute left-3 -top-1 pointer-events-none transition-all duration-300 ease-in-out px-1 font-medium text-xs text-foreground rounded-md bg-background` +
-          (shrink ? " -translate-y-1 scale-90 opacity-100" : " opacity-0")}
-        onClick={() => inputRef.current?.focus()}
-        data-test-id="text-field-label"
-      >
-        {label}
-        {required && <span className="text-red-500 ml-1">*</span>}
-      </label>
+      {showFloatingLabel ? (
+        <label
+          className={
+            `pointer-events-none absolute z-10 rounded-md bg-background font-medium text-foreground transition-all duration-300 ease-in-out ` +
+            (isCompact
+              ? `left-2.5 px-0.5 text-[10px] leading-tight ` +
+                (shrink
+                  ? "top-[2px] -translate-y-1/2 scale-[0.92] opacity-100"
+                  : "top-2.5 opacity-0")
+              : `left-3 -top-1 px-1 text-xs ` +
+                (shrink ? "-translate-y-1 scale-90 opacity-100" : "opacity-0"))
+          }
+          onClick={() => inputRef.current?.focus()}
+          htmlFor={inputDomId}
+          data-test-id="text-field-label"
+        >
+          {label}
+          {required ? <span className="ml-1 text-red-500">*</span> : null}
+        </label>
       ) : null}
       {typeof endSymbol === "string" && endSymbol.length > 0 && (
         <span

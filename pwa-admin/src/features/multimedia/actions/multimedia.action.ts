@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { MultimediaRequest } from "../infrastructure/multimedia.request";
 import type { MultimediaAssetListItem, MultimediaEntityType } from "../types/multimedia.types";
 
-const PRODUCTS_PATH = "/inventory/products";
+const PRODUCTS_PATH = "/catalog/products";
 const SETTINGS_COMPANY_PATH = "/settings/company";
 
 const ENTITY_TYPES: MultimediaEntityType[] = ["product", "product-variant", "company"];

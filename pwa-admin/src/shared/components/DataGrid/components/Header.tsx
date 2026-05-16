@@ -12,7 +12,7 @@ import type { DataGridColumn } from '../DataGrid';
 import Dialog from '@/shared/components/Dialog';
 
 interface HeaderProps {
-  title: string;
+  title?: string;
   filterMode?: boolean;
   onToggleFilterMode?: () => void;
   columns?: DataGridColumn[];
@@ -125,13 +125,11 @@ const Header: React.FC<HeaderProps> = ({
             />
           </div>
         )}
-        
-        {/* Title */}
-        <div className="whitespace-nowrap text-lg font-semibold text-foreground">
-          {title}
-        </div>
-
-        {/* Header Actions Slot - componentes externos como filtros, centrados en el espacio disponible */}
+        {title?.trim() ? (
+          <div className="min-w-0 shrink-0 whitespace-nowrap text-lg font-semibold text-foreground">
+            {title.trim()}
+          </div>
+        ) : null}
         {headerActions && (
           <div className="hidden sm:flex flex-1 items-center justify-center gap-3" data-test-id="header-actions-slot">
             {headerActions}
@@ -160,7 +158,7 @@ const Header: React.FC<HeaderProps> = ({
           {showSearch && (
             <div className="flex items-center gap-2">
               <TextField
-                label=""
+                label="Buscar"
                 name="datagrid-search"
                 value={searchInput}
                 onChange={handleChange}

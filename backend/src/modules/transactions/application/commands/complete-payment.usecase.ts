@@ -53,9 +53,12 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       throw new BadRequestException(`Payment ${paymentId} not found`);
     }
 
-    if (payment.transactionType !== TransactionType.PAYMENT_OUT) {
+    if (
+      payment.transactionType !== TransactionType.SUPPLIER_PAYMENT &&
+      payment.transactionType !== TransactionType.PAYROLL_PAYMENT
+    ) {
       throw new BadRequestException(
-        `Transaction ${paymentId} is not a PAYMENT_OUT`,
+        `Transaction ${paymentId} is not a completable supplier or payroll payment`,
       );
     }
 
@@ -68,7 +71,7 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       throw new ConflictException(`Payment ${paymentId} has no pending amount`);
     }
 
-    // 1. Actualizar PAYMENT_OUT
+    // 1. Actualizar documento de pago (SUPPLIER_PAYMENT / PAYROLL_PAYMENT)
     const updatedMetadata = {
       ...(payment.metadata || {}),
       completedAt: new Date().toISOString(),
@@ -109,7 +112,7 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       status: TransactionStatus.CONFIRMED,
       branchId: payment.branchId,
       userId: payment.userId,
-      relatedTransactionId: paymentId, // Enlace al PAYMENT_OUT original
+      relatedTransactionId: paymentId, // Enlace al pago origen (SUPPLIER_PAYMENT / PAYROLL_PAYMENT)
       supplierId: payment.supplierId,
       employeeId: payment.employeeId,
       total: payment.total,
@@ -125,12 +128,14 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
         : `Pago ejecutado de ${payment.documentNumber}`,
       metadata: {
         origin: 'PAYMENT_COMPLETION',
+        sourcePaymentId: paymentId,
+        sourcePaymentDocNumber: payment.documentNumber,
         paymentOutId: paymentId,
         paymentOutDocNumber: payment.documentNumber,
         supplierBankAccount: data.supplierBankAccount,
         companyBankAccount: data.companyBankAccount,
         completedAt: new Date().toISOString(),
-        // Copiar metadata crítico desde PAYMENT_OUT para contabilidad
+        // Copiar metadata crítico desde el pago origen para contabilidad
         payrollLineType: payment.metadata?.payrollLineType,
         payrollTransactionId: payment.metadata?.payrollTransactionId,
       },
@@ -140,7 +145,7 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       await this.transactionsRepository.save(paymentExecution);
 
     this.logger.log(
-      `Created PAYMENT_EXECUTION ${savedExecution.id} for PAYMENT_OUT ${paymentId}. Doc: ${executionDocNumber}`,
+      `Created PAYMENT_EXECUTION ${savedExecution.id} for payment ${paymentId}. Doc: ${executionDocNumber}`,
     );
 
     // 3. Emitir evento para generar asientos contables
@@ -166,7 +171,7 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       );
     }
 
-    // 4. Retornar PAYMENT_OUT actualizado
+    // 4. Retornar el pago origen actualizado
     return this.findOne(paymentId);
   }
 

@@ -13,6 +13,7 @@ import { useSession } from "next-auth/react";
 import { io, type Socket } from "socket.io-client";
 
 import type { StockUpdatedPayload } from "../lib/stock-alert-copy";
+import { isUnauthorizedResponse, signOutSessionExpired } from "@/lib/auth/sign-out-session-expired";
 
 export type { StockUpdatedPayload };
 
@@ -78,7 +79,14 @@ export function StockRealtimeProvider({ children }: { children: React.ReactNode 
           headers,
           credentials: "include",
         });
-        if (!res.ok || cancelled) {
+        if (cancelled) {
+          return;
+        }
+        if (isUnauthorizedResponse(res)) {
+          signOutSessionExpired();
+          return;
+        }
+        if (!res.ok) {
           return;
         }
         const json = (await res.json()) as { items?: StockUpdatedPayload[] };
@@ -127,6 +135,10 @@ export function StockRealtimeProvider({ children }: { children: React.ReactNode 
           headers,
           credentials: "include",
         });
+        if (isUnauthorizedResponse(res)) {
+          signOutSessionExpired();
+          return;
+        }
         if (!res.ok) {
           return;
         }
@@ -151,12 +163,32 @@ export function StockRealtimeProvider({ children }: { children: React.ReactNode 
       setLastStockEvents((prev) => [row, ...prev].slice(0, 50));
     };
 
+    const onAuthError = () => {
+      signOutSessionExpired();
+    };
+
+    const onConnectError = (err: Error) => {
+      const m = (err?.message ?? "").toLowerCase();
+      if (
+        m.includes("401") ||
+        m.includes("unauthorized") ||
+        m.includes("sesión inválida") ||
+        m.includes("sesion invalida")
+      ) {
+        signOutSessionExpired();
+      }
+    };
+
     socket.on("connect", onConnect);
     socket.on("stock:updated", onStockUpdated);
+    socket.on("auth_error", onAuthError);
+    socket.on("connect_error", onConnectError);
 
     return () => {
       socket.off("connect", onConnect);
       socket.off("stock:updated", onStockUpdated);
+      socket.off("auth_error", onAuthError);
+      socket.off("connect_error", onConnectError);
       socket.disconnect();
       socketRef.current = null;
     };

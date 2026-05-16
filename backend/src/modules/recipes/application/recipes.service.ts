@@ -1,10 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { Recipe } from '../domain/recipe.entity';
 import { RecipeLine } from '../domain/recipe-line.entity';
 import { CreateRecipeDto } from './dto/create-recipe.dto';
 import { UpdateRecipeDto } from './dto/update-recipe.dto';
+
+const RECIPE_ALLOWED_PRODUCT_TYPES = new Set([
+  'SERVICE',
+  'MANUFACTURADO',
+  'PREPARADO',
+  'ELABORADO',
+]);
 
 @Injectable()
 export class RecipesService {
@@ -13,6 +25,8 @@ export class RecipesService {
     private readonly recipeRepo: Repository<Recipe>,
     @InjectRepository(RecipeLine)
     private readonly recipeLineRepo: Repository<RecipeLine>,
+    @InjectRepository(ProductVariant)
+    private readonly variantRepo: Repository<ProductVariant>,
   ) {}
 
   async list(outputVariantId?: string) {
@@ -33,6 +47,28 @@ export class RecipesService {
   }
 
   async create(dto: CreateRecipeDto) {
+    const outputId = dto.outputVariantId?.trim();
+    if (!outputId) {
+      throw new BadRequestException('outputVariantId es obligatorio.');
+    }
+    const variant = await this.variantRepo.findOne({
+      where: { id: outputId },
+      relations: ['product'],
+    });
+    if (!variant?.product) {
+      throw new BadRequestException(
+        'Variante de salida no encontrada o sin producto asociado.',
+      );
+    }
+    const pt = String(variant.product?.productType ?? 'PHYSICAL')
+      .trim()
+      .toUpperCase();
+    if (!RECIPE_ALLOWED_PRODUCT_TYPES.has(pt)) {
+      throw new BadRequestException(
+        'Solo productos tipo servicio, manufacturado, preparado o elaborado pueden tener receta (BOM).',
+      );
+    }
+
     const recipe = this.recipeRepo.create({
       outputVariantId: dto.outputVariantId,
       type: dto.type,
