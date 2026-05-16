@@ -18,7 +18,7 @@ function httpsPageForLocalTlsCert(wssUrl: string): string | null {
   }
 }
 
-/** Círculo de “hay no leídas”: mismo color que el texto del tema, sin borde. */
+/** Círculo de “hay no leídas”: gris del tema, sin borde. */
 const PRINT_SERVICE_UNREAD_DOT_CSS: CSSProperties = {
   position: "absolute",
   top: 6,
@@ -27,8 +27,8 @@ const PRINT_SERVICE_UNREAD_DOT_CSS: CSSProperties = {
   height: 7.168,
   borderRadius: "50%",
   boxSizing: "border-box",
-  backgroundColor: "var(--color-foreground, #131615)",
-  boxShadow: "0 1px 3px rgb(0 0 0 / 0.35)",
+  backgroundColor: "var(--color-muted, #9ca3af)",
+  boxShadow: "0 1px 2px rgb(0 0 0 / 0.2)",
   zIndex: 1000,
   pointerEvents: "none",
   display: "block",
@@ -295,7 +295,7 @@ export function PrintServiceTopBarDropdown({
             {!connected && !lastError ? (
               <ul className="mt-2 list-inside list-disc space-y-1 text-[11px] leading-snug text-muted-foreground">
                 <li>
-                  La app <strong className="font-medium text-foreground">Print Service</strong> (Tauri) debe estar en ejecución en{" "}
+                  La app <strong className="font-medium text-foreground">KaiPrinters</strong> debe estar en ejecución en{" "}
                   <strong className="font-medium text-foreground">esta misma máquina</strong> que el navegador del POS.
                 </li>
                 <li>El puerto WS en el agente debe coincidir con el de la URL (por defecto 14567).</li>

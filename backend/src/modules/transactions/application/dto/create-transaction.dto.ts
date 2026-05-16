@@ -343,6 +343,7 @@ export class CreateTransactionDto {
       TransactionType.PAYMENT_IN,
       TransactionType.PAYROLL,
       TransactionType.PAYMENT_EXECUTION,
+      TransactionType.BACKORDER,
     ];
     if (requirePositive.includes(this.transactionType) && !poDraft) {
       if (this.subtotal < 0.01) {
@@ -568,6 +569,32 @@ export class CreateTransactionDto {
         }
         if (!this.lines || this.lines.length === 0) {
           errors.push('SUPPLIER_CREDIT_NOTE requiere al menos una línea');
+        }
+        break;
+      }
+
+      case TransactionType.BACKORDER: {
+        if (!this.customerId) {
+          errors.push('BACKORDER requiere customerId');
+        }
+        if (!this.lines || this.lines.length === 0) {
+          errors.push('BACKORDER requiere al menos una línea');
+        }
+        const bo = this.metadata?.backorder;
+        if (!bo || typeof bo !== 'object') {
+          errors.push('BACKORDER requiere metadata.backorder');
+          break;
+        }
+        const dep = Number((bo as { depositAmount?: unknown }).depositAmount);
+        if (!Number.isFinite(dep) || dep < 0.01) {
+          errors.push(
+            'BACKORDER requiere metadata.backorder.depositAmount (> 0)',
+          );
+        }
+        if (dep > this.total + 0.01) {
+          errors.push(
+            'BACKORDER: anticipo (depositAmount) no puede superar el total del documento',
+          );
         }
         break;
       }

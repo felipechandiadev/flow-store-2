@@ -171,6 +171,16 @@ export class TransactionsController {
     ]);
   }
 
+  @Get('backorders')
+  @ApiOperation({
+    summary: 'Encargos / reservas (BACKORDER)',
+    description:
+      'Solo transacciones `BACKORDER`. Mismos query params que GET /transactions; se ignoran `type` y `types`.',
+  })
+  async listBackorders(@Query() query: SearchTransactionsDto) {
+    return this.executeTransactionSearch(query, [TransactionType.BACKORDER]);
+  }
+
   @Get('journal')
   @ApiOperation({
     summary: 'Get transaction journal',

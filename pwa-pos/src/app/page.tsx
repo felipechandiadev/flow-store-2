@@ -135,15 +135,15 @@ export default function LoginPage() {
         <div className="mb-6 flex flex-col items-center text-center">
           <img
             src="/logo.png"
-            alt="FlowStore"
+            alt="KaiStore"
             className="h-20 w-20 object-contain"
           />
           <div className="mt-3 flex w-full max-w-full flex-col items-center gap-0 leading-none">
             <span className="block text-2xl font-bold leading-tight tracking-tight text-foreground">
-              FlowStore
+              KaiStore
             </span>
-            <span className="-mt-px block text-xs font-normal leading-tight text-muted-foreground sm:text-sm">
-              Punto de Venta
+            <span className="-mt-px block text-[11px] font-normal leading-tight text-muted-foreground sm:text-xs">
+              POS
             </span>
             <p
               className="mt-3 flex max-w-full items-center justify-center gap-1.5 text-sm font-medium text-foreground"

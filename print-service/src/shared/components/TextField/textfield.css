@@ -52,7 +52,7 @@
 .fs-text-field__input:focus {
   outline: none;
   border-color: transparent;
-  box-shadow: 0 0 0 1px var(--color-primary, #1c2046);
+  box-shadow: 0 0 0 1px var(--color-primary, #002b59);
 }
 
 /* Comboboxes (Select/AutoComplete): el borde va en el contenedor; el input no debe duplicar marco. */

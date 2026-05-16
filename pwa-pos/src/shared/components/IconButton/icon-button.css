@@ -20,7 +20,7 @@
 }
 
 .fs-icon-button:focus-visible {
-  outline: 2px solid var(--color-accent, #2563a8);
+  outline: 2px solid var(--color-accent, #0a7cad);
   outline-offset: 2px;
 }
 
@@ -32,25 +32,25 @@
 
 /* Contained (relleno) */
 .fs-icon-button--contained-primary {
-  background-color: var(--color-primary, #1c2046);
+  background-color: var(--color-primary, #002b59);
   color: var(--color-background, #ffffff);
   border-color: transparent;
 }
 .fs-icon-button--contained-primary:hover:not(:disabled) {
-  background-color: var(--color-accent, #2563a8);
+  background-color: var(--color-accent, #0a7cad);
 }
 .fs-icon-button--contained-primary:active:not(:disabled) {
-  background-color: var(--color-primary, #1c2046);
+  background-color: var(--color-primary, #002b59);
   filter: brightness(0.92);
 }
 
 .fs-icon-button--contained-secondary {
-  background-color: var(--color-secondary, #04c9e7);
+  background-color: var(--color-secondary, #35e3ff);
   color: var(--color-background, #ffffff);
   border-color: transparent;
 }
 .fs-icon-button--contained-secondary:hover:not(:disabled) {
-  background-color: var(--color-accent, #2563a8);
+  background-color: var(--color-accent, #0a7cad);
 }
 .fs-icon-button--contained-secondary:active:not(:disabled) {
   filter: brightness(0.95);
@@ -59,20 +59,20 @@
 /* Text: icono a color de marca, hover suave */
 .fs-icon-button--text {
   background-color: transparent;
-  color: var(--color-primary, #1c2046);
+  color: var(--color-primary, #002b59);
   border-color: transparent;
 }
 .fs-icon-button--text:hover:not(:disabled) {
   background-color: color-mix(
     in srgb,
-    var(--color-primary, #1c2046) 12%,
+    var(--color-primary, #002b59) 12%,
     var(--color-background, #ffffff) 88%
   );
 }
 .fs-icon-button--text:active:not(:disabled) {
   background-color: color-mix(
     in srgb,
-    var(--color-primary, #1c2046) 20%,
+    var(--color-primary, #002b59) 20%,
     var(--color-background, #ffffff) 80%
   );
 }
@@ -97,15 +97,15 @@
 /* Basic secondary (tablas, cards, acciones secundarias): hover sin fondo, solo color */
 .fs-icon-button--basic-secondary {
   background-color: transparent;
-  color: var(--color-secondary, #04c9e7);
+  color: var(--color-secondary, #35e3ff);
   border-color: transparent;
 }
 .fs-icon-button--basic-secondary:hover:not(:disabled) {
-  color: var(--color-primary, #1c2046);
+  color: var(--color-primary, #002b59);
   background-color: transparent;
 }
 .fs-icon-button--basic-secondary:active:not(:disabled) {
-  color: var(--color-primary, #1c2046);
+  color: var(--color-primary, #002b59);
   background-color: transparent;
   opacity: 0.88;
 }
@@ -113,20 +113,20 @@
 /* Outlined */
 .fs-icon-button--outlined {
   background-color: transparent;
-  color: var(--color-primary, #1c2046);
-  border-color: var(--color-primary, #1c2046);
+  color: var(--color-primary, #002b59);
+  border-color: var(--color-primary, #002b59);
 }
 .fs-icon-button--outlined:hover:not(:disabled) {
   background-color: color-mix(
     in srgb,
-    var(--color-primary, #1c2046) 10%,
+    var(--color-primary, #002b59) 10%,
     var(--color-background, #ffffff) 90%
   );
 }
 .fs-icon-button--outlined:active:not(:disabled) {
   background-color: color-mix(
     in srgb,
-    var(--color-primary, #1c2046) 18%,
+    var(--color-primary, #002b59) 18%,
     var(--color-background, #ffffff) 82%
   );
 }

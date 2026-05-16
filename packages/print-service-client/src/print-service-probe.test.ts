@@ -53,7 +53,7 @@ describe("probePrintServiceReachable", () => {
   });
 });
 
-describe("Agente Print Service local (opcional)", () => {
+describe("Agente KaiPrinters local (opcional)", () => {
   /**
    * `probePrintServiceReachable` usa `WebSocket` global: en Node (Vitest) no manda `Origin`
    * y el agente Tauri rechaza el handshake (403). Aquí usamos `ws` con Origin de PWA típica.
@@ -66,7 +66,7 @@ describe("Agente Print Service local (opcional)", () => {
         const ws = new WebSocket("ws://127.0.0.1:14567", { origin });
         const t = setTimeout(() => {
           ws.terminate();
-          reject(new Error("timeout: ¿Print Service en marcha y puerto 14567?"));
+          reject(new Error("timeout: ¿KaiPrinters en marcha y puerto 14567?"));
         }, 8000);
         ws.once("open", () => {
           clearTimeout(t);

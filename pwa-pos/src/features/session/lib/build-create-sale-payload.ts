@@ -36,6 +36,7 @@ export type CreateSaleApiBody = {
   amountPaid?: number;
   changeAmount?: number;
   customerId?: string;
+  metadata?: Record<string, unknown>;
   promotionSnapshot?: Array<{
     promotionId: string;
     promotionCode: string;

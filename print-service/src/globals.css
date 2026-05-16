@@ -16,12 +16,13 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
 
-  --color-primary: #1c2046;
+  --color-primary: #002b59;
   --color-background: #ffffff;
   --color-foreground: #131615;
   --color-border: #c1c1c2;
-  --color-accent: #2563a8;
-  --color-secondary: #04c9e7;
+  --color-active: #0a7cad;
+  --color-accent: #0a7cad;
+  --color-secondary: #35e3ff;
   --color-muted: #6b7280;
   --color-muted-foreground: #6b7280;
   --color-success: #4caf50;
@@ -78,6 +79,16 @@
   /** Sección acordeón: sin redondeos, sólo divisor inferior */
   details.print-acc {
     border-radius: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  /** Evita que la tabla ancha de «Cola» ensanche el acordeón cerrado */
+  details.print-acc:not([open]) > :not(summary) {
+    display: none !important;
+    overflow: hidden;
+    max-width: 100%;
   }
 
   details.print-acc > summary .print-acc-chevron {

@@ -61,9 +61,9 @@ function describeWsCloseFailure(
   const r = (ev.reason && String(ev.reason).trim()) || "";
   if (brief) {
     if (ev.code === 1006 && ctx?.httpPageWithUserWss === true) {
-      return "Sin impresión local: revisá TLS/WSS o que Print Service esté activo.";
+      return "Sin impresión local: revisá TLS/WSS o que KaiPrinters esté activo.";
     }
-    if (ev.code === 1006) return "Print Service sin conexión.";
+    if (ev.code === 1006) return "KaiPrinters sin conexión.";
     if (ev.code === 1002) return `Error de conexión (1002)${r ? `: ${r}` : ""}`;
     if (ev.code === 1008) return `Conexión rechazada (1008)${r ? `: ${r}` : ""}`;
     return r ? `Conexión perdida (${ev.code}): ${r}` : `Sin conexión (${ev.code}).`;
@@ -80,7 +80,7 @@ function describeWsCloseFailure(
     return [
       httpWssHint,
       "WebSocket no conectó o se cortó de forma anómala (código 1006).",
-      "Revisá: la app «Print Service» en ejecución (bandeja); host y puertos; desde HTTPS el navegador exige WSS (no ws://).",
+      "Revisá: la app «KaiPrinters» en ejecución (bandeja); host y puertos; desde HTTPS el navegador exige WSS (no ws://).",
       "Si usás WSS, puede hacer falta abrir una vez https://127.0.0.1:PUERTO_WSS en el navegador y aceptar el certificado local.",
       "En la app del agente, «orígenes permitidos» debe incluir el origen exacto de esta PWA (incluido https y el puerto).",
       "Si el POS está en otro dispositivo (tablet/caja) y el agente en la PC, 127.0.0.1 en el navegador apunta al dispositivo del navegador, no a la PC: hoy el agente solo escucha en loopback de la máquina donde corre.",
@@ -112,9 +112,9 @@ export type UsePrintServiceConnectionReturn = {
 function printServiceDebugLog(message: string, detail?: Record<string, unknown>): void {
   if (typeof console === "undefined" || typeof console.info !== "function") return;
   if (detail && Object.keys(detail).length > 0) {
-    console.info("[FlowStore][print-service]", message, detail);
+    console.info("[KaiPrinters]", message, detail);
   } else {
-    console.info("[FlowStore][print-service]", message);
+    console.info("[KaiPrinters]", message);
   }
 }
 
@@ -287,7 +287,7 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
           pushNotification({
             level: "info",
             message:
-              "El agente de impresión volvió a escuchar WS/WSS (volviste a habilitarlo en Print Service).",
+              "El agente de impresión volvió a escuchar WS/WSS (volviste a habilitarlo en KaiPrinters).",
           });
         }
       },
@@ -366,7 +366,7 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
         setSocketConnecting(false);
         const human =
           m === "invalid_token"
-            ? "Token rechazado por el agente: dejá el campo token vacío en la POS (si el agente no usa token) o copiá el token exacto desde la app Print Service."
+            ? "Token rechazado por el agente: dejá el campo token vacío en la POS (si el agente no usa token) o copiá el token exacto desde KaiPrinters."
             : m;
         const now = Date.now();
         const prev = lastWsErrorRef.current;

@@ -5,6 +5,7 @@ import type { PosProductSearchItem } from "@/features/pos-products/types/pos-pro
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import { readCartClient, writeCartClient, type LoadedQuotationMeta } from "./cart-storage";
+import type { BackorderDepositConfig } from "./types/backorder-deposit.types";
 import type { PosSaleCustomer } from "@/features/customers/types/pos-customer.types";
 import type { PosPaymentLine } from "./pos-payment.types";
 import { applyPromotions } from "@/features/promotions/lib/discount-engine";
@@ -43,6 +44,12 @@ type PosCartContextValue = {
   setLoadedQuotation: React.Dispatch<
     React.SetStateAction<LoadedQuotationMeta | null>
   >;
+  /** Abono de encargo (backorder) definido antes del pago. */
+  backorderDeposit: BackorderDepositConfig | null;
+  setBackorderDeposit: React.Dispatch<
+    React.SetStateAction<BackorderDepositConfig | null>
+  >;
+  clearBackorderDeposit: () => void;
   // ── Promociones ───────────────────────────────────────────────────
   /** Promociones efectivas cargadas desde el backend para este POS. */
   effectivePromotions: EffectivePromotion[];
@@ -100,6 +107,8 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
   const [payments, setPayments] = useState<PosPaymentLine[]>([]);
   const [loadedQuotation, setLoadedQuotation] =
     useState<LoadedQuotationMeta | null>(null);
+  const [backorderDeposit, setBackorderDeposit] =
+    useState<BackorderDepositConfig | null>(null);
   const [scope, setScope] = useState<{ pointOfSaleId: string; priceListId: string } | null>(null);
 
   // ── Promociones ─────────────────────────────────────────────────
@@ -119,22 +128,25 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       setSaleCustomer(null);
       setPayments([]);
       setLoadedQuotation(null);
+      setBackorderDeposit(null);
       setReady(true);
       return;
     }
-    const { lines: loadedLines, customer, quotation } = readCartClient(s);
+    const { lines: loadedLines, customer, quotation, backorderDeposit: loadedDeposit } =
+      readCartClient(s);
     setLines(loadedLines);
     setSaleCustomer(customer);
     setPayments([]);
     setLoadedQuotation(quotation);
+    setBackorderDeposit(loadedDeposit);
     setReady(true);
   }, []);
 
   // Persist on change (only after initial load).
   useEffect(() => {
     if (!ready || !scope) return;
-    writeCartClient(scope, lines, saleCustomer, loadedQuotation);
-  }, [lines, saleCustomer, loadedQuotation, ready, scope]);
+    writeCartClient(scope, lines, saleCustomer, loadedQuotation, backorderDeposit);
+  }, [lines, saleCustomer, loadedQuotation, backorderDeposit, ready, scope]);
 
   // If POS context changes (e.g. price list changed in settings), reload cart scope.
   useEffect(() => {
@@ -148,13 +160,16 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
         setSaleCustomer(null);
         setPayments([]);
         setLoadedQuotation(null);
+        setBackorderDeposit(null);
         return;
       }
-      const { lines: nextLines, customer, quotation } = readCartClient(s);
+      const { lines: nextLines, customer, quotation, backorderDeposit: nextDeposit } =
+        readCartClient(s);
       setLines(nextLines);
       setSaleCustomer(customer);
       setPayments([]);
       setLoadedQuotation(quotation);
+      setBackorderDeposit(nextDeposit);
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -203,11 +218,16 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     setLines(next);
   }, []);
 
+  const clearBackorderDeposit = useCallback(() => {
+    setBackorderDeposit(null);
+  }, []);
+
   const clear = useCallback(() => {
     setLines([]);
     setPayments([]);
     setSaleCustomer(null);
     setLoadedQuotation(null);
+    setBackorderDeposit(null);
     setManualSelections([]);
     setAppliedPromotions([]);
     setOrderDiscount(0);
@@ -360,6 +380,9 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       setPayments,
       loadedQuotation,
       setLoadedQuotation,
+      backorderDeposit,
+      setBackorderDeposit,
+      clearBackorderDeposit,
       effectivePromotions,
       manualSelections,
       appliedPromotions,
@@ -383,6 +406,8 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       saleCustomer,
       payments,
       loadedQuotation,
+      backorderDeposit,
+      clearBackorderDeposit,
       effectivePromotions,
       manualSelections,
       appliedPromotions,

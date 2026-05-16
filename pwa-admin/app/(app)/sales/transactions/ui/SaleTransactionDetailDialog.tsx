@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog";
 import { Button } from "@/shared/components/Button";
 import Alert from "@/shared/components/Alert/Alert";
 import Badge from "@/shared/components/Badge/Badge";
+import IconButton from "@/shared/components/IconButton/IconButton";
+import { getCompanyDetailsAction } from "@/features/settings-company/actions/company.action";
 import { getSaleTransactionDetailAction } from "@/features/sales-transactions/actions/sale-transaction-detail.action";
+import { printBackorderDocument } from "@/features/sales-transactions/print/backorder-document-print";
+import { mapBackorderDetailToPrintData } from "@/features/sales-transactions/print/map-backorder-detail-to-print-data";
 import type { SaleTransactionDetail } from "@/features/sales-transactions/types/sale-transaction-detail.types";
 import {
   SALES_PAYMENT_METHOD_LABEL,
@@ -56,6 +60,24 @@ export default function SaleTransactionDetailDialog({
   const [detail, setDetail] = useState<SaleTransactionDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
+
+  const isBackorder = detail?.transactionType === "BACKORDER";
+
+  const handlePrintBackorder = useCallback(async () => {
+    if (!detail || detail.transactionType !== "BACKORDER") return;
+    setPrinting(true);
+    setError(null);
+    try {
+      const company = await getCompanyDetailsAction();
+      const printData = mapBackorderDetailToPrintData(detail, company);
+      printBackorderDocument(printData);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo imprimir el encargo");
+    } finally {
+      setPrinting(false);
+    }
+  }, [detail]);
 
   useEffect(() => {
     if (!open || !transactionId?.trim()) {
@@ -95,7 +117,22 @@ export default function SaleTransactionDetailDialog({
       scroll="paper"
       maxHeight="min(85vh, 720px)"
       showCloseButton
-      hideActions
+      hideActions={!isBackorder || loading}
+      actionsJustify="end"
+      actions={
+        isBackorder && !loading ? (
+          <IconButton
+            icon="Printer"
+            variant="basicSecondary"
+            size="md"
+            ariaLabel="Imprimir documento de encargo"
+            isLoading={printing}
+            disabled={printing}
+            onClick={() => void handlePrintBackorder()}
+            data-test-id="backorder-detail-print"
+          />
+        ) : undefined
+      }
       data-test-id="sale-transaction-detail-dialog"
     >
       <div className="flex flex-col gap-4 p-4">
@@ -159,6 +196,40 @@ export default function SaleTransactionDetailDialog({
                 <span className="font-medium text-muted-foreground">Notas: </span>
                 {detail.notes}
               </div>
+            ) : null}
+
+            {detail.transactionType === "BACKORDER" ? (
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-2 rounded-md border border-border bg-muted/20 p-3 text-sm sm:grid-cols-4">
+                <div>
+                  <dt className="text-muted-foreground">Abono</dt>
+                  <dd className="font-semibold tabular-nums">
+                    {formatMoney(detail.backorderDepositAmount ?? detail.amountPaid)}
+                    {detail.backorderDepositPercent != null &&
+                    detail.backorderDepositPercent > 0
+                      ? ` (${detail.backorderDepositPercent}%)`
+                      : ""}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Saldo pendiente</dt>
+                  <dd className="font-semibold tabular-nums">
+                    {formatMoney(
+                      detail.backorderPendingBalance ??
+                        Math.max(0, detail.total - detail.amountPaid),
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Estado reserva</dt>
+                  <dd className="font-medium">
+                    {detail.backorderReservationStatus ?? "OPEN"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Total pedido</dt>
+                  <dd className="font-semibold tabular-nums">{formatMoney(detail.total)}</dd>
+                </div>
+              </dl>
             ) : null}
 
             <div className="overflow-auto rounded-md border border-border">
@@ -241,9 +312,13 @@ export default function SaleTransactionDetailDialog({
 
             <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
               <span>
-                Pagado:{" "}
+                {detail.transactionType === "BACKORDER" ? "Abono registrado" : "Pagado"}:{" "}
                 <strong className="text-foreground tabular-nums">
-                  {formatMoney(detail.amountPaid)}
+                  {formatMoney(
+                    detail.transactionType === "BACKORDER"
+                      ? (detail.backorderDepositAmount ?? detail.amountPaid)
+                      : detail.amountPaid,
+                  )}
                 </strong>
               </span>
               {detail.changeAmount != null && detail.changeAmount > 0 ? (
@@ -258,11 +333,13 @@ export default function SaleTransactionDetailDialog({
           </>
         ) : null}
 
-        <div className="flex justify-end border-t border-border pt-3">
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cerrar
-          </Button>
-        </div>
+        {!isBackorder ? (
+          <div className="flex justify-end border-t border-border pt-3">
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Cerrar
+            </Button>
+          </div>
+        ) : null}
       </div>
     </Dialog>
   );

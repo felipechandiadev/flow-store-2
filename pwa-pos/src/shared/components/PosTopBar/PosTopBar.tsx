@@ -47,8 +47,8 @@ export default function PosTopBar({
   const effectiveRole = userRole?.trim() ? roleLabel(userRole) : "";
   const router = useRouter();
 
-  const title = "FlowStore";
-  const subtitle = "Punto de venta";
+  const title = "KaiStore";
+  const subtitle = "POS";
   const logoSrc = "/logo.png";
 
   const printServiceDebug =
@@ -57,7 +57,7 @@ export default function PosTopBar({
   const printService = usePrintServiceConnection({
     clientId: "pwa-pos",
     requiredPurposes: ["tickets", "documents"],
-    appLabel: "Punto de venta",
+    appLabel: "KaiStore POS",
     userDisplayName: effectivePerson || undefined,
     debug: printServiceDebug,
     enableInAppNotifications: true,
@@ -155,7 +155,7 @@ export default function PosTopBar({
               ) : null}
             </div>
 
-            {/* A la derecha del bloque FlowStore / Punto de venta: empresa/PV + usuario/rol.
+            {/* A la derecha del bloque KaiStore / Punto de venta: empresa/PV + usuario/rol.
                 Los cuatro elementos comparten exactamente la misma tipografía y
                 tamaño de ícono (estilo "detalle" del rol y PV); la jerarquía
                 visual entre "ancla" (empresa / persona) y "subtítulo" (PV /

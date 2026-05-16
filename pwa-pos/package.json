@@ -1,6 +1,6 @@
 {
-  "name": "pwa-pos",
-  "version": "0.1.0",
+  "name": "kai-pwa-pos",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3022",

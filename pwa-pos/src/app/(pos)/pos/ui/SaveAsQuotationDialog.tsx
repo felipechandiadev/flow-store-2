@@ -2,20 +2,33 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Dialog, TextField } from "@/shared/admin-shared";
+import { DocumentPrintModeToggle } from "@/features/pos-print/ui/DocumentPrintModeToggle";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import { createQuotationPosAction } from "@/features/quotations/actions/quotations-pos.action";
+import {
+  buildQuotationDocumentHtml,
+  printPosQuotationDocument,
+} from "@/features/quotations/lib/quotation-document-print";
 import {
   buildQuotationReceiptHtml,
   printPosQuotationReceipt,
   type QuotationReceiptPrintInput,
 } from "@/features/quotations/lib/quotation-receipt-print";
 import { getCompanyDetailsAction } from "@/features/company/actions/company.action";
+import { getPosDocumentPrintMode } from "@flowstore/print-service-client";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   onSaved?: () => void;
+};
+
+type QuotationPrintMode = "ticket" | "document";
+
+type SavedQuotationPrintState = {
+  input: QuotationReceiptPrintInput;
+  printMode: QuotationPrintMode;
 };
 
 function formatMoney(n: number) {
@@ -30,39 +43,53 @@ export function SaveAsQuotationDialog({ open, onClose, onSaved }: Props) {
   const cart = usePosCart();
   const [validityDays, setValidityDays] = useState("15");
   const [notes, setNotes] = useState("");
+  const [printMode, setPrintMode] = useState<QuotationPrintMode>("ticket");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** Datos listos para imprimir / vista previa (mismo payload que la impresora). */
-  const [receiptInput, setReceiptInput] = useState<QuotationReceiptPrintInput | null>(null);
+  const [savedPrint, setSavedPrint] = useState<SavedQuotationPrintState | null>(null);
   const printedQuotationIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open) {
-      setError(null);
-      setReceiptInput(null);
-      setBusy(false);
-      setNotes("");
-      setValidityDays("15");
-      printedQuotationIdRef.current = null;
+      const id = window.setTimeout(() => {
+        setError(null);
+        setSavedPrint(null);
+        setBusy(false);
+        setNotes("");
+        setValidityDays("15");
+        setPrintMode("ticket");
+        printedQuotationIdRef.current = null;
+      }, 0);
+      return () => clearTimeout(id);
     }
+    setPrintMode(getPosDocumentPrintMode("quotation"));
   }, [open]);
 
   useEffect(() => {
-    const input = receiptInput;
+    const input = savedPrint?.input;
+    const mode = savedPrint?.printMode;
     const q = input?.quotation;
-    if (!input || !q?.id) return;
+    if (!input || !q?.id || !mode) return;
     if (printedQuotationIdRef.current === q.id) return;
     printedQuotationIdRef.current = q.id;
     const t = window.setTimeout(() => {
-      printPosQuotationReceipt(input);
+      if (mode === "document") {
+        printPosQuotationDocument(input);
+      } else {
+        printPosQuotationReceipt(input);
+      }
     }, 400);
     return () => clearTimeout(t);
-  }, [receiptInput]);
+  }, [savedPrint]);
 
   const previewSrcDoc = useMemo(() => {
-    if (!receiptInput || typeof window === "undefined") return null;
-    return buildQuotationReceiptHtml(receiptInput, window.location.origin);
-  }, [receiptInput]);
+    if (!savedPrint || typeof window === "undefined") return null;
+    const origin = window.location.origin;
+    return savedPrint.printMode === "document"
+      ? buildQuotationDocumentHtml(savedPrint.input)
+      : buildQuotationReceiptHtml(savedPrint.input, origin);
+  }, [savedPrint]);
 
   const totals = cart.lines.reduce(
     (acc, l) => {
@@ -145,16 +172,19 @@ export function SaveAsQuotationDialog({ open, onClose, onSaved }: Props) {
     }
     const company = await getCompanyDetailsAction();
     const ctxAfter = readPosContextClient();
-    setReceiptInput({
-      quotation: res.quotation,
-      company,
-      branchName: ctxAfter?.branchName ?? null,
-      pointOfSaleName: ctxAfter?.pointOfSaleName ?? null,
+    setSavedPrint({
+      input: {
+        quotation: res.quotation,
+        company,
+        branchName: ctxAfter?.branchName ?? null,
+        pointOfSaleName: ctxAfter?.pointOfSaleName ?? null,
+      },
+      printMode,
     });
   }
 
   function closeAndClear() {
-    if (receiptInput) {
+    if (savedPrint) {
       cart.clear();
       onSaved?.();
     }
@@ -162,20 +192,25 @@ export function SaveAsQuotationDialog({ open, onClose, onSaved }: Props) {
   }
 
   function handleReprint() {
-    if (receiptInput) printPosQuotationReceipt(receiptInput);
+    if (!savedPrint) return;
+    if (savedPrint.printMode === "document") {
+      printPosQuotationDocument(savedPrint.input);
+    } else {
+      printPosQuotationReceipt(savedPrint.input);
+    }
   }
 
-  const q = receiptInput?.quotation;
+  const q = savedPrint?.input.quotation;
 
   return (
     <Dialog
       open={open}
       onClose={closeAndClear}
       title="Guardar como cotización"
-      size={receiptInput ? "lg" : "sm"}
+      size={savedPrint ? "lg" : "sm"}
       alertArea={error ? <Alert variant="error">{error}</Alert> : undefined}
       actions={
-        receiptInput ? (
+        savedPrint ? (
           <>
             <Button type="button" variant="outlined" onClick={handleReprint}>
               Imprimir de nuevo
@@ -209,18 +244,37 @@ export function SaveAsQuotationDialog({ open, onClose, onSaved }: Props) {
       actionsJustify="between"
       data-test-id="pos-save-quotation-dialog"
     >
-      {receiptInput && q ? (
+      {savedPrint && q ? (
         <div className="grid gap-3 text-sm">
           <p>La cotización se generó correctamente.</p>
+          <p className="text-xs text-muted-foreground">
+            Formato de impresión:{" "}
+            <span className="font-medium text-foreground">
+              {savedPrint.printMode === "document" ? "Documento (hoja)" : "Ticket (80 mm)"}
+            </span>
+            .
+          </p>
           <div
-            className="mx-auto max-h-[min(55vh,520px)] w-full max-w-[min(100%,420px)] overflow-auto rounded-lg border border-border bg-zinc-100 p-2 shadow-inner dark:bg-zinc-950"
+            className={`mx-auto max-h-[min(55vh,520px)] w-full overflow-auto rounded-lg border border-border bg-transparent p-2 ${
+              savedPrint.printMode === "document"
+                ? "max-w-[min(100%,720px)]"
+                : "max-w-[min(100%,420px)]"
+            }`}
             data-test-id="pos-save-quotation-receipt-preview-wrap"
           >
             {previewSrcDoc ? (
               <iframe
-                title="Vista previa cotización 80 mm"
+                title={
+                  savedPrint.printMode === "document"
+                    ? "Vista previa cotización documento"
+                    : "Vista previa cotización 80 mm"
+                }
                 srcDoc={previewSrcDoc}
-                className="mx-auto block min-h-[320px] w-[80mm] max-w-full border-0 bg-white"
+                className={`mx-auto block border-0 bg-white ${
+                  savedPrint.printMode === "document"
+                    ? "min-h-[480px] w-full max-w-[210mm]"
+                    : "min-h-[320px] w-[80mm] max-w-full"
+                }`}
                 data-test-id="pos-save-quotation-receipt-preview-iframe"
               />
             ) : (
@@ -253,6 +307,11 @@ export function SaveAsQuotationDialog({ open, onClose, onSaved }: Props) {
               </div>
             ) : null}
           </div>
+          <DocumentPrintModeToggle
+            value={printMode}
+            onChange={setPrintMode}
+            data-test-id="pos-save-quotation-print-mode"
+          />
           <TextField
             label="Vigencia (días)"
             type="number"

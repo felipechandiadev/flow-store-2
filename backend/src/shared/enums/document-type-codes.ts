@@ -17,6 +17,7 @@ export const DOCUMENT_TYPE_CODES: Record<TransactionType, string> = {
   [TransactionType.SUPPLIER_CREDIT_NOTE]: 'NCP',
   [TransactionType.CUSTOMER_ORDER]: 'PCL',
   [TransactionType.QUOTATION]: 'COT',
+  [TransactionType.BACKORDER]: 'ECG',
   [TransactionType.SERVICE_ORDER]: 'OTS',
   [TransactionType.PRODUCTION_BATCH]: 'LPR',
   [TransactionType.TRANSFER_OUT]: 'TSO',

@@ -5,7 +5,7 @@ import "./globals.css";
 import AuthProvider from '@/providers/AuthProvider';
 import ErrorHandlerProvider from '@/providers/ErrorHandlerProvider';
 
-const THEME_COLOR = "#1C2046";
+const THEME_COLOR = "#002B59";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,13 +18,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  manifest: "/manifest.json",
-  applicationName: "FlowStore Admin",
-  title: "FlowStore | Panel de Administración",
-  description: "Administrador de tienda Flow Store",
+  applicationName: "KaiStore Administración",
+  title: "KaiStore Administración",
+  description: "Panel de administración KaiStore",
   appleWebApp: {
     capable: true,
-    title: "FlowStore | Panel de Administración",
+    title: "KaiStore Administración",
     statusBarStyle: "default",
   },
   icons: {
@@ -61,7 +60,7 @@ export default function RootLayout({
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="FlowStore | Panel de Administración" />
+        <meta name="apple-mobile-web-app-title" content="KaiStore Administración" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} min-h-full flex flex-col`}>
         <AuthProvider>

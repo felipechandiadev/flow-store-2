@@ -79,7 +79,7 @@ pub async fn run_ws_loop(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<
     let addr: SocketAddr = format!("127.0.0.1:{port}").parse()?;
     let listener = TcpListener::bind(addr).await.map_err(|e| {
         eprintln!(
-            "[FlowStore Print Service] ERROR: no se pudo abrir WebSocket en {addr} — {e}. \
+            "[KaiPrinters] ERROR: no se pudo abrir WebSocket en {addr} — {e}. \
              ¿Otro proceso usa el puerto {port}? En `lsof` la columna COMMAND suele verse cortada (p. ej. «print-ser» = nombre del binario, p. ej. `print-service`). \
              Para ver el nombre completo: `lsof +c0 -nP -iTCP:{port} -sTCP:LISTEN`. Podés cerrar esa instancia o cambiar el puerto WS en la app."
         );
@@ -87,7 +87,7 @@ pub async fn run_ws_loop(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<
     })?;
     tracing::info!(%addr, "WebSocket listening");
     eprintln!(
-        "[FlowStore Print Service] WebSocket (WS) activo: ws://127.0.0.1:{port}/  (y [::1]:{port} si está habilitado)"
+        "[KaiPrinters] WebSocket (WS) activo: ws://127.0.0.1:{port}/  (y [::1]:{port} si está habilitado)"
     );
     loop {
         tokio::select! {
@@ -138,7 +138,7 @@ where
             tracing::warn!(
                 client_origin = ?origin,
                 allowed_origins_json = %origins,
-                "websocket handshake rejected (403): add this page origin to allowed_origins_json in the Print Service app"
+                "websocket handshake rejected (403): add this page origin to allowed_origins_json in KaiPrinters"
             );
             Err(http::Response::builder()
                 .status(403)

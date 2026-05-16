@@ -1,13 +1,16 @@
 'use client'
 import React, { useState, useContext } from 'react';
 import { useSession } from 'next-auth/react';
-import { ImageOff, Image as ImageIcon } from 'lucide-react';
+import { ImageOff, Image as ImageIcon, Wifi, WifiOff } from 'lucide-react';
 import IconButton from '@/shared/components/IconButton';
 import { useImageWithPlaceholder } from '@/shared/hooks/useImageWithPlaceholder';
 import CompanySwitcher from '@/features/companies/components/CompanySwitcher';
 import SideBar, { SideBarMenuItem } from './SideBar';
 import { StockAlertsDropdown } from '@/features/inventory-stock/ui/StockAlertsDropdown';
-import { PrintServiceIndicator, usePrintServiceConnection } from "@flowstore/print-service-client";
+import {
+  PrintServiceTopBarDropdown,
+  usePrintServiceConnection,
+} from "@flowstore/print-service-client";
 
 export type { SideBarMenuItem };
 // TODO: Implement NotificationBell and useNotificationsSocket when notifications feature is created
@@ -17,13 +20,13 @@ export type { SideBarMenuItem };
 // import UserProfileDropdown from 'TopBar/UserProfileDropdown';
 
 interface TopBarProps {
-  /** Nombre de producto / marca (ej. FlowStore). */
+  /** Nombre de producto / marca (ej. KaiStore). */
   title: string;
   /** Nombre de fantasía: a la derecha del nombre de usuario, separado por un punto (color secondary). */
   companyTradeName?: string | null;
   /** ADMIN: etiqueta de empresa si la sesión aún no incluye `companies` (ver `CompanySwitcher`). */
   companySwitcherFallbackLabel?: string | null;
-  /** Línea secundaria bajo el título: tipografía más pequeña y color suave (ej. «Panel de administración»). */
+  /** Línea secundaria bajo el título: tipografía más pequeña y color suave (ej. «Administración»). */
   subtitle?: string;
   logoSrc: string;
   menuItems: SideBarMenuItem[];
@@ -99,11 +102,18 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
     || (typeof session?.user?.name === 'string' ? session.user.name.trim() : '')
     || '';
 
+  const printServiceDebug =
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_PRINT_SERVICE_DEBUG === "1";
+
   const printService = usePrintServiceConnection({
     clientId: "pwa-admin",
     requiredPurposes: ["documents", "reports"],
-    appLabel: "Panel de administración",
+    appLabel: "KaiStore Administración",
     userDisplayName: personName || undefined,
+    debug: printServiceDebug,
+    enableInAppNotifications: true,
+    briefWsErrorMessages: true,
   });
 
   return (
@@ -199,9 +209,56 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
               <CompanySwitcher fallbackCompanyLabel={companySwitcherFallbackLabel} />
             </div>
 
-            <PrintServiceIndicator visual={printService.visual} href="/settings/local-printing" />
-
             <StockAlertsDropdown />
+
+            <div
+              className="relative flex shrink-0 items-center overflow-visible pt-px"
+              data-test-id="top-bar-print-service"
+            >
+              <PrintServiceTopBarDropdown
+                settingsHref="/settings/local-printing"
+                panelVariant="pos"
+                connected={printService.connected}
+                health={printService.health}
+                visual={printService.visual}
+                lastError={printService.lastError}
+                attemptedWsUrl={printService.attemptedWsUrl}
+                reconnect={printService.reconnect}
+                notifications={printService.notifications}
+                unreadCount={printService.unreadCount}
+                markNotificationsRead={printService.markNotificationsRead}
+                clearNotifications={printService.clearNotifications}
+                renderLocalAgentStatus={({ connected }) => {
+                  const label = connected
+                    ? "Conectado al servicio local de impresión"
+                    : "Sin conexión al servicio local de impresión";
+                  return (
+                    <span
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center"
+                      title={label}
+                      aria-label={label}
+                      role="img"
+                    >
+                      {connected ? (
+                        <Wifi
+                          className="shrink-0 text-emerald-600 dark:text-emerald-400"
+                          size={24}
+                          strokeWidth={2.25}
+                          aria-hidden
+                        />
+                      ) : (
+                        <WifiOff
+                          className="shrink-0 text-red-600 dark:text-red-400"
+                          size={24}
+                          strokeWidth={2.25}
+                          aria-hidden
+                        />
+                      )}
+                    </span>
+                  );
+                }}
+              />
+            </div>
 
             {/* Notification Bell - TODO: Implement when notifications feature is ready */}
             {/* <div className="mr-4">

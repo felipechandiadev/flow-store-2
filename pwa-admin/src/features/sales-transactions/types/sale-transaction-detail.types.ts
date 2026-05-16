@@ -32,5 +32,10 @@ export type SaleTransactionDetail = {
   userFullName: string | null;
   userUserName: string | null;
   customerLabel: string | null;
+  customerDocument: string | null;
   lines: SaleTransactionDetailLine[];
+  backorderDepositAmount: number | null;
+  backorderDepositPercent: number | null;
+  backorderReservationStatus: string | null;
+  backorderPendingBalance: number | null;
 };

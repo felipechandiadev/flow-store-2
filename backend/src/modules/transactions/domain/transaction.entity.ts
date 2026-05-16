@@ -108,6 +108,13 @@ export enum TransactionType {
   PRODUCTION_BATCH = 'PRODUCTION_BATCH',
   /** Cotización: estructura de carrito sin efecto contable ni stock. */
   QUOTATION = 'QUOTATION',
+  /**
+   * Reserva / backorder: pedido de cliente sin stock, con **anticipo**
+   * (`metadata.backorder.depositAmount`) reutilizable luego como medio de pago.
+   * Detalle en líneas como venta; **no descuenta inventario** por sí sola.
+   * @see `TransactionBackorderMetadata` en `transaction-backorder.metadata.ts`
+   */
+  BACKORDER = 'BACKORDER',
 
   // Movimientos de Inventario
   TRANSFER_OUT = 'TRANSFER_OUT',
@@ -331,6 +338,11 @@ export class Transaction {
   @Column({ type: 'text', nullable: true })
   notes?: string;
 
+  /**
+   * JSON libre por tipo. Convenciones:
+   * - `QUOTATION`: `metadata.quotation` (vigencia, conversión, …)
+   * - `BACKORDER`: `metadata.backorder` — ver `TransactionBackorderMetadata`
+   */
   @Column({ type: 'json', nullable: true })
   metadata?: Record<string, any>;
 
@@ -448,5 +460,11 @@ export class Transaction {
     return transaction as Transaction;
   }
 }
+
+export type {
+  BackorderReservationStatus,
+  TransactionBackorderCustomerSnapshot,
+  TransactionBackorderMetadata,
+} from './transaction-backorder.metadata';
 
 (globalThis as any).Transaction = Transaction;

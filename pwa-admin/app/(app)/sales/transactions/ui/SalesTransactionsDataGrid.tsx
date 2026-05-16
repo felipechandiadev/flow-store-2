@@ -17,10 +17,10 @@ import SaleTransactionDetailDialog from "./SaleTransactionDetailDialog";
 type SalesTransactionsDataGridProps = {
   rows: SalesTransactionListRow[];
   total: number;
-  /** Título del listado (p. ej. «Ventas» vs «Devoluciones cliente»). */
-  title?: string;
   /** Sufijo opcional para `data-test-id` cuando hay varias grillas. */
   testIdSuffix?: string;
+  /** Columnas extra para encargos (abono / total pedido). */
+  variant?: "default" | "backorder";
 };
 
 function formatMoney(amount: number): string {
@@ -55,8 +55,8 @@ function statusBadgeVariant(status: SalesPaymentStatus): BadgeVariant {
 export default function SalesTransactionsDataGrid({
   rows,
   total,
-  title = "Ventas",
   testIdSuffix = "",
+  variant = "default",
 }: SalesTransactionsDataGridProps) {
   const [detailTxId, setDetailTxId] = useState<string | null>(null);
 
@@ -161,9 +161,32 @@ export default function SalesTransactionsDataGrid({
         valueGetter: ({ row }) =>
           (row as SalesTransactionListRow).pointOfSaleName ?? "—",
       },
+      ...(variant === "backorder"
+        ? [
+            {
+              field: "backorderDepositAmount",
+              headerName: "Abono",
+              sortable: false,
+              width: 120,
+              align: "right" as const,
+              valueGetter: ({ row }: { row: unknown }) => {
+                const r = row as SalesTransactionListRow;
+                const deposit =
+                  r.backorderDepositAmount != null && r.backorderDepositAmount > 0
+                    ? r.backorderDepositAmount
+                    : r.amountPaid;
+                const pct =
+                  r.backorderPercent != null && r.backorderPercent > 0
+                    ? ` (${r.backorderPercent}%)`
+                    : "";
+                return `${formatMoney(deposit)}${pct}`;
+              },
+            },
+          ]
+        : []),
       {
         field: "total",
-        headerName: "Total",
+        headerName: variant === "backorder" ? "Total pedido" : "Total",
         sortable: false,
         width: 130,
         align: "right",
@@ -181,7 +204,7 @@ export default function SalesTransactionsDataGrid({
         actionComponent: SalesTransactionActionsCell,
       },
     ];
-  }, [openDetail]);
+  }, [openDetail, variant]);
 
   const gridTestId =
     testIdSuffix.trim().length > 0
@@ -191,7 +214,6 @@ export default function SalesTransactionsDataGrid({
   return (
     <>
       <DataGrid
-        title={title}
         columns={columns}
         rows={rows}
         totalRows={total}

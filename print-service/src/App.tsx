@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ChevronDown } from "lucide-react";
@@ -6,6 +7,9 @@ import { SwitchField } from "./components/SwitchField";
 import IconButton from "./shared/components/IconButton/IconButton";
 import { Select } from "./shared/components/Select";
 import SharedTextField from "./shared/components/TextField/TextField";
+
+const APP_NAME = "KaiPrinters";
+const APP_COPYRIGHT = "Felipe Chandía Castillo © 2026";
 
 const PURPOSES = [
   { id: "documents", label: "Documentos" },
@@ -123,6 +127,7 @@ function serializeOriginLines(lines: OriginLineRow[]): string {
 }
 
 export default function App() {
+  const [appVersion, setAppVersion] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [localLines, setLocalLines] = useState<MappingLineRow[]>([]);
   const [originLines, setOriginLines] = useState<OriginLineRow[]>([]);
@@ -144,7 +149,7 @@ export default function App() {
   /** Solo mostramos acciones en la fila del summary cuando el `<details>` está expandido */
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
   const [originsDetailsOpen, setOriginsDetailsOpen] = useState(false);
-  const [printersDetailsOpen, setPrintersDetailsOpen] = useState(true);
+  const [printersDetailsOpen, setPrintersDetailsOpen] = useState(false);
 
   const applyDashboardFull = useCallback((d: DashboardPayload) => {
     setDashboard(d);
@@ -214,6 +219,12 @@ export default function App() {
     },
     [applyDashboardFull, mergeDashboardLive],
   );
+
+  useEffect(() => {
+    void getVersion()
+      .then(setAppVersion)
+      .catch(() => setAppVersion(null));
+  }, []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -387,12 +398,14 @@ export default function App() {
   }
 
   return (
-    <div className="relative mx-auto max-w-[400px] pb-4">
+    <div className="relative mx-auto max-w-[400px] min-w-0 overflow-x-hidden pb-4">
       <header
         className="sticky top-0 z-50 -mx-[0.75rem] -mt-[0.625rem] mb-0 flex items-center gap-2 border-border border-b bg-background/95 px-[0.75rem] pt-[0.625rem] pb-3 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
-        aria-label="Estado del servicio"
+        aria-label="Estado del servicio de impresión"
       >
-        <span className="min-w-0 flex-1 text-sm font-semibold tracking-tight">Estado del servicio</span>
+        <span className="min-w-0 flex-1 text-sm font-semibold tracking-tight">
+          Estado del servicio de impresión
+        </span>
         <IconButton
           type="button"
           icon="Power"
@@ -416,8 +429,8 @@ export default function App() {
         />
       </header>
 
-      <div className="divide-y divide-border [&>*]:px-1">
-        <details className="print-acc py-3">
+      <div className="min-w-0 divide-y divide-border [&>*]:min-w-0 [&>*]:max-w-full [&>*]:px-1">
+        <details className="print-acc min-w-0 max-w-full overflow-hidden py-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 py-2 font-semibold [&::-webkit-details-marker]:hidden">
           <ChevronDown className="print-acc-chevron h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden />
           <span className="text-sm">Clientes conectados</span>
@@ -443,7 +456,7 @@ export default function App() {
       </details>
 
       <details
-        className="print-acc py-3"
+        className="print-acc min-w-0 max-w-full overflow-hidden py-3"
         open={configDetailsOpen}
         onToggle={(e) => setConfigDetailsOpen(e.currentTarget.open)}
       >
@@ -524,7 +537,7 @@ export default function App() {
       </details>
 
       <details
-        className="print-acc py-3"
+        className="print-acc min-w-0 max-w-full overflow-hidden py-3"
         open={originsDetailsOpen}
         onToggle={(e) => setOriginsDetailsOpen(e.currentTarget.open)}
       >
@@ -617,7 +630,7 @@ export default function App() {
       </details>
 
       <details
-        className="print-acc py-3"
+        className="print-acc min-w-0 max-w-full overflow-hidden py-3"
         open={printersDetailsOpen}
         onToggle={(e) => setPrintersDetailsOpen(e.currentTarget.open)}
       >
@@ -654,9 +667,7 @@ export default function App() {
           ) : null}
         </summary>
         <div className="space-y-2 py-2">
-          {localLines.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Sin líneas. Agregá una con +.</p>
-          ) : (
+          {localLines.length > 0 ? (
             <div className="divide-y divide-border">
               {localLines.map((line) => {
               const purposeOpts = PURPOSES.map(({ id, label }) => ({ id, label }));
@@ -672,7 +683,7 @@ export default function App() {
               return (
                 <div key={line.id} className="flex flex-col gap-3 py-3">
                   <Select
-                    label="Propósito"
+                    placeholder="Propósito"
                     density="compact"
                     value={line.purpose}
                     onChange={(id) =>
@@ -684,9 +695,8 @@ export default function App() {
                     name={`purpose-${line.id}`}
                   />
                   <Select
-                    label="Impresora del sistema"
+                    placeholder="Impresora del sistema"
                     density="compact"
-                    placeholder="Seleccionar"
                     value={line.systemPrinterName || null}
                     onChange={(pid) =>
                       setLocalLines((rows) =>
@@ -697,10 +707,11 @@ export default function App() {
                     name={`printer-${line.id}`}
                   />
                   <SharedTextField
-                    label="Alias"
+                    label=""
                     name={`alias-${line.id}`}
                     type="text"
                     density="compact"
+                    placeholder="Alias"
                     required
                     value={line.displayLabel ?? ""}
                     onChange={(e) =>
@@ -733,15 +744,15 @@ export default function App() {
               );
             })}
             </div>
-          )}
+          ) : null}
         </div>
       </details>
 
-      <details className="print-acc py-3">
-        <summary className="flex cursor-pointer list-none items-center gap-2 py-2 font-semibold [&::-webkit-details-marker]:hidden">
+      <details className="print-acc min-w-0 max-w-full overflow-hidden py-3">
+        <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 py-2 font-semibold [&::-webkit-details-marker]:hidden">
           <ChevronDown className="print-acc-chevron h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden />
-          <span className="text-sm">Cola</span>
-          <span className="ml-auto flex items-center gap-1.5">
+          <span className="min-w-0 text-sm">Cola</span>
+          <span className="ml-auto flex shrink-0 items-center gap-1.5">
             <span className="text-xs font-normal text-muted-foreground">{jobs.length}</span>
             {jobs.length > 0 ? (
               <IconButton
@@ -760,8 +771,8 @@ export default function App() {
             ) : null}
           </span>
         </summary>
-        <div className="-mx-0.5 max-w-full overflow-x-auto overflow-y-visible py-2 [scrollbar-gutter:stable]">
-          <table className="min-w-max w-full border-collapse text-[0.7rem]">
+        <div className="min-w-0 w-full overflow-x-auto py-2">
+          <table className="w-max min-w-full border-collapse text-[0.7rem]">
             <thead>
               <tr className="border-b border-border bg-neutral/50">
                 <th
@@ -817,6 +828,19 @@ export default function App() {
           </table>
         </div>
       </details>
+
+        <footer className="py-4 text-center text-[0.7rem] text-muted-foreground">
+          <img
+            src="/logo.png"
+            alt=""
+            width={56}
+            height={56}
+            className="mx-auto mb-2 h-14 w-14 object-contain"
+            aria-hidden
+          />
+          <p className="font-medium text-foreground">{APP_NAME}{appVersion ? ` ${appVersion}` : ""}</p>
+          <p>{APP_COPYRIGHT}</p>
+        </footer>
       </div>
     </div>
   );

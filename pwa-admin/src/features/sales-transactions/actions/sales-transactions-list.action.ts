@@ -16,3 +16,9 @@ export async function listCustomerSaleReturnsAction(
 ) {
   return SalesTransactionsListRequest.listCustomerReturns(params);
 }
+
+export async function listBackordersAction(
+  params: ListSalesTransactionsParams = {},
+) {
+  return SalesTransactionsListRequest.listBackorders(params);
+}

@@ -1,5 +1,5 @@
 /**
- * Genera iconos PWA y favicons desde `public/logo.png` (contain + fondo blanco).
+ * Genera iconos PWA desde `public/logo.png` y favicons del navegador desde `public/fav.png`.
  * Requisitos: sharp, png-to-ico (devDependencies).
  *
  * Uso: node scripts/generate-pwa-icons.mjs
@@ -12,15 +12,15 @@ import pngToIco from "png-to-ico";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
-const src = path.join(root, "public", "logo.png");
+const logoSrc = path.join(root, "public", "logo.png");
+const favSrc = path.join(root, "public", "fav.png");
 const publicDir = path.join(root, "public");
 const iconsDir = path.join(publicDir, "icons");
-const appDir = path.join(root, "app");
 
 const WHITE = { r: 255, g: 255, b: 255, alpha: 1 };
 
-async function rasterContain(size) {
-  return sharp(src)
+async function rasterContain(source, size) {
+  return sharp(source)
     .resize(size, size, {
       fit: "contain",
       position: "center",
@@ -30,11 +30,19 @@ async function rasterContain(size) {
     .toBuffer();
 }
 
+/** Favicon: arte cuadrado (fav.png); cover evita bandas blancas en tamaños chicos. */
+async function rasterFavicon(source, size) {
+  return sharp(source)
+    .resize(size, size, { fit: "cover", position: "center" })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+}
+
 /** Icono maskable: logo ~72% del lado, centrado sobre lienzo blanco (zona segura). */
-async function rasterMaskable(size) {
+async function rasterMaskable(source, size) {
   const inner = Math.round(size * 0.72);
   const padding = Math.floor((size - inner) / 2);
-  const body = await sharp(src)
+  const body = await sharp(source)
     .resize(inner, inner, {
       fit: "contain",
       position: "center",
@@ -54,8 +62,12 @@ async function rasterMaskable(size) {
 }
 
 async function main() {
-  if (!fs.existsSync(src)) {
-    console.error(`Missing source: ${src}`);
+  if (!fs.existsSync(logoSrc)) {
+    console.error(`Missing source: ${logoSrc}`);
+    process.exit(1);
+  }
+  if (!fs.existsSync(favSrc)) {
+    console.error(`Missing favicon source: ${favSrc}`);
     process.exit(1);
   }
 
@@ -63,24 +75,22 @@ async function main() {
 
   const [b16, b32, b48, fav32, apple180, a192, a512, m192, m512, tile150, logo1024, shortcut192] =
     await Promise.all([
-      rasterContain(16),
-      rasterContain(32),
-      rasterContain(48),
-      rasterContain(32),
-      rasterContain(180),
-      rasterContain(192),
-      rasterContain(512),
-      rasterMaskable(192),
-      rasterMaskable(512),
-      rasterContain(150),
-      rasterContain(1024),
-      rasterContain(192),
+      rasterFavicon(favSrc, 16),
+      rasterFavicon(favSrc, 32),
+      rasterFavicon(favSrc, 48),
+      rasterFavicon(favSrc, 32),
+      rasterContain(logoSrc, 180),
+      rasterContain(logoSrc, 192),
+      rasterContain(logoSrc, 512),
+      rasterMaskable(logoSrc, 192),
+      rasterMaskable(logoSrc, 512),
+      rasterContain(logoSrc, 150),
+      rasterContain(logoSrc, 1024),
+      rasterContain(logoSrc, 192),
     ]);
 
   const ico = await pngToIco([b16, b32, b48]);
-  fs.writeFileSync(path.join(appDir, "favicon.ico"), ico);
-  fs.writeFileSync(path.join(appDir, "icon.png"), fav32);
-  fs.writeFileSync(path.join(appDir, "apple-icon.png"), apple180);
+  fs.writeFileSync(path.join(publicDir, "favicon.ico"), ico);
 
   fs.writeFileSync(path.join(publicDir, "favicon-16x16.png"), b16);
   fs.writeFileSync(path.join(publicDir, "favicon-32x32.png"), b32);
@@ -94,9 +104,8 @@ async function main() {
   fs.writeFileSync(path.join(iconsDir, "shortcut-dashboard.png"), shortcut192);
   fs.writeFileSync(path.join(iconsDir, "shortcut-pos.png"), shortcut192);
 
-  console.log(
-    "Wrote app/favicon.ico, app/icon.png, app/apple-icon.png + public PWA assets (from public/logo.png).",
-  );
+  console.log("Favicons (fav.png): public/favicon.ico, public/favicon-*.png");
+  console.log("PWA / apple (logo.png): public/android-chrome-*, apple-touch-icon, etc.");
 }
 
 main().catch((e) => {

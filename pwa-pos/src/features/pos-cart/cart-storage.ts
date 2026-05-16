@@ -1,5 +1,6 @@
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
 import type { PosSaleCustomer } from "@/features/customers/types/pos-customer.types";
+import type { BackorderDepositConfig } from "@/features/pos-cart/types/backorder-deposit.types";
 import type { ResolvedLineDiscount } from "@/features/promotions/lib/discount-engine.types";
 
 const CART_STORAGE_VERSION = 1;
@@ -28,6 +29,7 @@ type StoredCart = {
   }>;
   customer?: PosSaleCustomer | null;
   quotation?: LoadedQuotationMeta | null;
+  backorderDeposit?: BackorderDepositConfig | null;
 };
 
 function parseDiscount(value: unknown): ResolvedLineDiscount | null {
@@ -59,19 +61,33 @@ function keyFor(input: { pointOfSaleId: string; priceListId: string }) {
   return `${CART_KEY_PREFIX}${CART_STORAGE_VERSION}.${input.pointOfSaleId}.${input.priceListId}`;
 }
 
+function parseBackorderDeposit(value: unknown): BackorderDepositConfig | null {
+  if (!value || typeof value !== "object") return null;
+  const o = value as Partial<BackorderDepositConfig>;
+  const percent = Number(o.percent);
+  const amount = Number(o.amount);
+  if (!Number.isFinite(percent) || !Number.isFinite(amount)) return null;
+  if (percent < 1 || amount < 1) return null;
+  return {
+    percent: Math.min(100, Math.round(percent)),
+    amount: Math.round(amount),
+  };
+}
+
 export function readCartClient(input: { pointOfSaleId: string; priceListId: string }): {
   lines: PosCartLine[];
   customer: PosSaleCustomer | null;
   quotation: LoadedQuotationMeta | null;
+  backorderDeposit: BackorderDepositConfig | null;
 } {
   if (typeof window === "undefined")
-    return { lines: [], customer: null, quotation: null };
+    return { lines: [], customer: null, quotation: null, backorderDeposit: null };
   try {
     const raw = window.localStorage.getItem(keyFor(input));
-    if (!raw) return { lines: [], customer: null, quotation: null };
+    if (!raw) return { lines: [], customer: null, quotation: null, backorderDeposit: null };
     const parsed = JSON.parse(raw) as StoredCart;
     if (!parsed || parsed.v !== CART_STORAGE_VERSION || !Array.isArray(parsed.lines)) {
-      return { lines: [], customer: null, quotation: null };
+      return { lines: [], customer: null, quotation: null, backorderDeposit: null };
     }
     const lines = parsed.lines
       .map((l) => {
@@ -123,9 +139,11 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
           }
         : null;
 
-    return { lines, customer, quotation };
+    const backorderDeposit = parseBackorderDeposit(parsed.backorderDeposit);
+
+    return { lines, customer, quotation, backorderDeposit };
   } catch {
-    return { lines: [], customer: null, quotation: null };
+    return { lines: [], customer: null, quotation: null, backorderDeposit: null };
   }
 }
 
@@ -134,6 +152,7 @@ export function writeCartClient(
   lines: PosCartLine[],
   customer: PosSaleCustomer | null = null,
   quotation: LoadedQuotationMeta | null = null,
+  backorderDeposit: BackorderDepositConfig | null = null,
 ): void {
   if (typeof window === "undefined") return;
   try {
@@ -148,6 +167,7 @@ export function writeCartClient(
       })),
       customer: customer ?? null,
       quotation: quotation ?? null,
+      backorderDeposit: backorderDeposit ?? null,
     };
     window.localStorage.setItem(keyFor(input), JSON.stringify(payload));
   } catch {

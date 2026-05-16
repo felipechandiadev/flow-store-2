@@ -40,6 +40,7 @@ const MOVEMENT_DIRECTION: Record<TransactionType, MovementDirection | null> = {
   [TransactionType.SERVICE_ORDER]: null,
   [TransactionType.PRODUCTION_BATCH]: null,
   [TransactionType.QUOTATION]: null,
+  [TransactionType.BACKORDER]: null,
   [TransactionType.TRANSFER_OUT]: 'OUT',
   [TransactionType.TRANSFER_IN]: 'IN',
   [TransactionType.ADJUSTMENT_IN]: 'IN',

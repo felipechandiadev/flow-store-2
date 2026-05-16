@@ -95,6 +95,7 @@ import { BrandsIdDefaultGenRandomUuid1756010000000 } from '../migrations/1756010
 import { ProductTypeManufacturadoElaboradoPreparado1756020000000 } from '../migrations/1756020000000-ProductTypeManufacturadoElaboradoPreparado';
 import { RemovePaymentOutTransactionTypes1756030000000 } from '../migrations/1756030000000-RemovePaymentOutTransactionTypes';
 import { PersonDocumentTypeDni1756040000000 } from '../migrations/1756040000000-PersonDocumentTypeDni';
+import { BackorderTransactionType1756050000000 } from '../migrations/1756050000000-BackorderTransactionType';
 
 /**
  * DataSource usado por `typeorm` CLI (`migration:run`, `schema:log`, …).
@@ -198,6 +199,7 @@ export const AppDataSource = new DataSource({
     ProductTypeManufacturadoElaboradoPreparado1756020000000,
     RemovePaymentOutTransactionTypes1756030000000,
     PersonDocumentTypeDni1756040000000,
+    BackorderTransactionType1756050000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',

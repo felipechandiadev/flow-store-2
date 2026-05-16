@@ -22,7 +22,7 @@
 }
 
 .fs-print-switch__track--on {
-  background-color: var(--color-primary, #1c2046);
+  background-color: var(--color-primary, #002b59);
   opacity: 1;
 }
 
@@ -43,7 +43,7 @@
 }
 
 .fs-print-switch input:focus-visible + .fs-print-switch__track {
-  box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-primary, #1c2046);
+  box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-primary, #002b59);
 }
 
 .fs-print-switch input {

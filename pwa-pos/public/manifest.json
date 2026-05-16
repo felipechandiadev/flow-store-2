@@ -1,13 +1,13 @@
 {
-  "name": "FlowStore - POS",
-  "short_name": "FlowStore POS",
-  "description": "Punto de venta (PWA) para Flow Store",
+  "name": "KaiStore POS",
+  "short_name": "KaiStore POS",
+  "description": "Punto de venta KaiStore (PWA)",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
-  "theme_color": "#1C2046",
+  "theme_color": "#002B59",
   "lang": "es-CL",
   "icons": [
     {

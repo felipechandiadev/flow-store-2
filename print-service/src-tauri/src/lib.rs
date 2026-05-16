@@ -16,7 +16,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 use serde_json::json;
 use state::{AppState, ListenerControl};
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::Emitter;
 use tauri::Manager;
@@ -432,8 +432,8 @@ pub fn run() {
             }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                tracing::info!("cierre de ventana principal: salida completa (se liberan puertos WS/WSS)");
-                window.app_handle().exit(0);
+                tracing::info!("cierre de ventana principal: ocultar (el servicio sigue en segundo plano)");
+                let _ = window.hide();
             }
         })
         .setup(|app| {
@@ -473,7 +473,7 @@ pub fn run() {
 
             let mut tray = TrayIconBuilder::with_id("print_tray")
                 .menu(&menu)
-                .tooltip("FlowStore Print Service")
+                .tooltip("KaiPrinters")
                 .show_menu_on_left_click(true)
                 .on_menu_event(move |app, event| {
                     if event.id == "open" {
@@ -508,6 +508,40 @@ pub fn run() {
             }
 
             tray.build(&handle).map_err(|e| format!("tray: {e}"))?;
+
+            #[cfg(target_os = "macos")]
+            {
+                let version = env!("CARGO_PKG_VERSION");
+                let about = PredefinedMenuItem::about(
+                    &handle,
+                    None,
+                    Some(AboutMetadata {
+                        name: Some("KaiPrinters".into()),
+                        version: Some(version.into()),
+                        authors: Some(vec!["Felipe Chandía Castillo".into()]),
+                        ..Default::default()
+                    }),
+                )
+                .map_err(|e| format!("about menu: {e}"))?;
+                let hide = PredefinedMenuItem::hide(&handle, None).map_err(|e| format!("hide: {e}"))?;
+                let hide_others = PredefinedMenuItem::hide_others(&handle, None)
+                    .map_err(|e| format!("hide_others: {e}"))?;
+                let quit =
+                    PredefinedMenuItem::quit(&handle, None).map_err(|e| format!("quit menu: {e}"))?;
+                let sep1 =
+                    PredefinedMenuItem::separator(&handle).map_err(|e| format!("sep: {e}"))?;
+                let sep2 =
+                    PredefinedMenuItem::separator(&handle).map_err(|e| format!("sep: {e}"))?;
+                let app_menu = Submenu::with_items(
+                    &handle,
+                    "KaiPrinters",
+                    true,
+                    &[&about, &sep1, &hide, &hide_others, &sep2, &quit],
+                )
+                .map_err(|e| format!("app menu: {e}"))?;
+                let menu = Menu::with_items(&handle, &[&app_menu]).map_err(|e| format!("menu: {e}"))?;
+                app.set_menu(menu).map_err(|e| format!("set_menu: {e}"))?;
+            }
 
             Ok(())
         })

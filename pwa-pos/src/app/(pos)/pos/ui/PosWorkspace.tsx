@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readPosContextClient, type PosContextV1 } from "@/features/session/lib/pos-context-storage";
 import { Button, IconButton } from "@/shared/admin-shared";
-import { FileUp } from "lucide-react";
+import { ArrowUpFromLine, Package } from "lucide-react";
 import PosProductSearchPanel, { POS_PRODUCT_SEARCH_PANEL_HEIGHT_VH } from "./PosProductSearchPanel";
 import PosCartLineCard from "./PosCartLineCard";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { LoadQuotationDialog } from "./LoadQuotationDialog";
+import { BackorderDepositDialog } from "./BackorderDepositDialog";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(
@@ -22,6 +23,7 @@ export default function PosWorkspace() {
   const [priceListId, setPriceListId] = useState("");
   const cart = usePosCart();
   const [loadQuotationOpen, setLoadQuotationOpen] = useState(false);
+  const [backorderDepositOpen, setBackorderDepositOpen] = useState(false);
 
   useEffect(() => {
     const c = readPosContextClient();
@@ -43,6 +45,34 @@ export default function PosWorkspace() {
 
   const addProduct = useCallback((item: any) => cart.addItem(item), [cart]);
 
+  const totals = useMemo(
+    () =>
+      cart.lines.reduce(
+        (acc, l) => {
+          const q = Number(l.quantity) || 0;
+          const net = (Number(l.unitPrice) || 0) * q;
+          const gross = (Number(l.unitPriceWithTax) || 0) * q;
+          acc.net += net;
+          acc.gross += gross;
+          return acc;
+        },
+        { net: 0, gross: 0 },
+      ),
+    [cart.lines],
+  );
+  const taxes = Math.max(0, totals.gross - totals.net);
+  const lineDiscountsTotal = useMemo(
+    () => cart.lines.reduce((acc, l) => acc + (l.discount?.discountAmount ?? 0), 0),
+    [cart.lines],
+  );
+  const saleTotal = Math.max(0, totals.gross - lineDiscountsTotal - (cart.orderDiscount ?? 0));
+
+  useEffect(() => {
+    if (cart.lines.length > 0 || !cart.backorderDeposit) return;
+    const id = window.setTimeout(() => cart.clearBackorderDeposit(), 0);
+    return () => clearTimeout(id);
+  }, [cart.lines.length, cart.backorderDeposit, cart.clearBackorderDeposit]);
+
   if (!ctx?.priceListId) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-sm text-zinc-500">
@@ -50,19 +80,6 @@ export default function PosWorkspace() {
       </div>
     );
   }
-
-  const totals = cart.lines.reduce(
-    (acc, l) => {
-      const q = Number(l.quantity) || 0;
-      const net = (Number(l.unitPrice) || 0) * q;
-      const gross = (Number(l.unitPriceWithTax) || 0) * q;
-      acc.net += net;
-      acc.gross += gross;
-      return acc;
-    },
-    { net: 0, gross: 0 },
-  );
-  const taxes = Math.max(0, totals.gross - totals.net);
 
   return (
     <div className="grid min-h-[calc(100dvh-6rem)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-stretch">
@@ -81,16 +98,46 @@ export default function PosWorkspace() {
         data-test-id="pos-cart-panel"
       >
         <div className="flex shrink-0 items-start justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <Button
               variant="outlined"
               size="sm"
               onClick={() => setLoadQuotationOpen(true)}
               data-test-id="pos-load-quotation-btn"
+              className="shrink-0"
             >
-              <FileUp size={14} className="shrink-0" aria-hidden />
+              <ArrowUpFromLine size={14} className="shrink-0" aria-hidden />
               <span>Cotización</span>
             </Button>
+            <Button
+              variant="outlined"
+              size="sm"
+              onClick={() => setBackorderDepositOpen(true)}
+              disabled={cart.lines.length === 0 || saleTotal <= 0}
+              title={
+                cart.lines.length === 0
+                  ? "Agregue ítems al carrito"
+                  : "Definir abono de encargo"
+              }
+              data-test-id="pos-cart-backorder-btn"
+              className="shrink-0"
+            >
+              <Package size={14} className="shrink-0" aria-hidden />
+              <span>Encargo</span>
+            </Button>
+            {cart.backorderDeposit ? (
+              <span
+                className="max-w-[min(100%,10rem)] truncate text-xs font-semibold tabular-nums text-primary"
+                title={`Abono ${cart.backorderDeposit.percent}% · ${formatMoney(cart.backorderDeposit.amount)}`}
+                data-test-id="pos-cart-backorder-deposit-summary"
+              >
+                {formatMoney(cart.backorderDeposit.amount)}
+                <span className="font-normal text-muted-foreground">
+                  {" "}
+                  ({cart.backorderDeposit.percent}%)
+                </span>
+              </span>
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <p className="text-xs text-zinc-500" data-test-id="pos-cart-items-count">
@@ -187,6 +234,14 @@ export default function PosWorkspace() {
       <LoadQuotationDialog
         open={loadQuotationOpen}
         onClose={() => setLoadQuotationOpen(false)}
+      />
+
+      <BackorderDepositDialog
+        open={backorderDepositOpen}
+        onClose={() => setBackorderDepositOpen(false)}
+        saleTotal={saleTotal}
+        initial={cart.backorderDeposit}
+        onConfirm={(config) => cart.setBackorderDeposit(config)}
       />
     </div>
   );

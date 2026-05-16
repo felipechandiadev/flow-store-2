@@ -44,7 +44,6 @@ export default async function Page({
         <SalesTransactionsDataGrid
           rows={rows}
           total={total}
-          title="Devoluciones cliente"
           testIdSuffix="returns"
         />
       </Suspense>

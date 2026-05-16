@@ -42,10 +42,10 @@ export default function AppShellLayoutClient({ children }: { children: React.Rea
     <StockRealtimeProvider>
       <div className="flex h-screen overflow-hidden flex-col">
         <TopBar
-        title="FlowStore"
+        title="KaiStore"
         companyTradeName={companyTradeName}
         companySwitcherFallbackLabel={adminCompanySwitcherFallback}
-        subtitle="Panel de administración"
+        subtitle="Administración"
         logoSrc="/logo.png"
         menuItems={mainMenuItems}
         onOpenChangePassword={() => setIsDialogOpen(true)}

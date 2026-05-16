@@ -41,15 +41,15 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center mb-6">
           <img
             src="/logo.png"
-            alt="FlowStore"
+            alt="KaiStore"
             className="h-20 w-20 object-contain"
           />
           <div className="mt-3 flex flex-col gap-0 leading-none">
             <span className="block text-2xl font-bold leading-tight tracking-tight text-foreground">
-              FlowStore
+              KaiStore
             </span>
-            <span className="-mt-px block text-xs font-normal leading-tight text-muted">
-              Panel de administración
+            <span className="-mt-px block text-[11px] font-normal leading-tight text-muted sm:text-xs">
+              Administración
             </span>
           </div>
         </div>

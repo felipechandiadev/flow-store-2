@@ -17,6 +17,7 @@ export const DOCUMENT_PREFIXES: Record<TransactionType, string> = {
   [TransactionType.SUPPLIER_CREDIT_NOTE]: 'NOTA-CREDITO-PROVEEDOR-',
   [TransactionType.CUSTOMER_ORDER]: 'PEDIDO-CLIENTE-',
   [TransactionType.QUOTATION]: 'COTIZACION-',
+  [TransactionType.BACKORDER]: 'ENCARGO-',
   [TransactionType.SERVICE_ORDER]: 'OT-SERVICIO-',
   [TransactionType.PRODUCTION_BATCH]: 'LOTE-PRODUCCION-',
   [TransactionType.TRANSFER_OUT]: 'TRANSFERENCIA-SALIDA-',

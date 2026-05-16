@@ -32,8 +32,8 @@ function fmtMillion(n: number) {
   return `${n.toFixed(1)} M`;
 }
 
-const primary = "var(--color-primary, #1c2046)";
-const secondary = "var(--color-secondary, #04c9e7)";
+const primary = "var(--color-primary, #002b59)";
+const secondary = "var(--color-secondary, #35e3ff)";
 const muted = "var(--color-muted, #6b7280)";
 const border = "var(--color-border, #c1c1c2)";
 

@@ -15,6 +15,7 @@ import { OpeningTransactionDto } from '../application/dto/opening-transaction.dt
 import { GetCashSessionsDto } from '../application/dto/get-cash-sessions.dto';
 import { OpenCashSessionDto } from '../application/dto/open-cash-session.dto';
 import { CreateSaleDto } from '../application/dto/create-sale.dto';
+import { CreateBackorderDto } from '../application/dto/create-backorder.dto';
 import { RegisterCashMovementDto } from '../application/dto/register-cash-movement.dto';
 import { CloseCashSessionDto } from '../application/dto/close-cash-session.dto';
 import { DepositCashFromHubBodyDto } from '../application/dto/deposit-cash-from-hub.dto';
@@ -88,6 +89,11 @@ export class CashSessionsController {
   @Post('sales')
   async createSale(@Body() createSaleDto: CreateSaleDto) {
     return this.salesService.createSale(createSaleDto);
+  }
+
+  @Post('backorders')
+  async createBackorder(@Body() createBackorderDto: CreateBackorderDto) {
+    return this.salesService.createBackorder(createBackorderDto);
   }
 
   @Post(':id/cash-deposits-from-hub')

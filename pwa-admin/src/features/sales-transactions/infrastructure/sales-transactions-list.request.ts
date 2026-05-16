@@ -74,7 +74,10 @@ function toNumber(value: unknown): number {
 }
 
 async function fetchSalesTransactionsList(
-  path: "transactions/sales" | "transactions/customer-returns",
+  path:
+    | "transactions/sales"
+    | "transactions/customer-returns"
+    | "transactions/backorders",
   params: ListSalesTransactionsParams,
 ): Promise<
   | { success: true; data: SalesTransactionsListResult }
@@ -189,6 +192,15 @@ function normalizeRow(raw: unknown): SalesTransactionListRow | null {
       : typeof o.type === "string" && o.type.trim()
         ? o.type.trim()
         : "";
+  const meta =
+    o.metadata && typeof o.metadata === "object"
+      ? (o.metadata as Record<string, unknown>)
+      : null;
+  const bo =
+    meta?.backorder && typeof meta.backorder === "object"
+      ? (meta.backorder as Record<string, unknown>)
+      : null;
+  const depositFromMeta = bo ? toNumber(bo.depositAmount) : 0;
   return {
     id,
     documentNumber:
@@ -196,6 +208,17 @@ function normalizeRow(raw: unknown): SalesTransactionListRow | null {
     transactionType: txType,
     status: (o.status as SalesPaymentStatus) ?? "CONFIRMED",
     total: toNumber(o.total),
+    amountPaid: toNumber(o.amountPaid),
+    backorderDepositAmount:
+      txType === "BACKORDER" && depositFromMeta > 0
+        ? depositFromMeta
+        : txType === "BACKORDER"
+          ? toNumber(o.amountPaid)
+          : null,
+    backorderPercent:
+      bo && Number.isFinite(Number(bo.depositPercent))
+        ? Math.round(Number(bo.depositPercent))
+        : null,
     paymentMethod: (o.paymentMethod as SalesPaymentMethod) ?? "CASH",
     branchName:
       branch && typeof branch.name === "string" && branch.name.trim()
@@ -218,6 +241,11 @@ export class SalesTransactionsListRequest {
   /** Solo devoluciones de venta a cliente (`SALE_RETURN`) — `GET /transactions/customer-returns`. */
   static listCustomerReturns(params: ListSalesTransactionsParams = {}) {
     return fetchSalesTransactionsList("transactions/customer-returns", params);
+  }
+
+  /** Solo encargos / reservas (`BACKORDER`) — `GET /transactions/backorders`. */
+  static listBackorders(params: ListSalesTransactionsParams = {}) {
+    return fetchSalesTransactionsList("transactions/backorders", params);
   }
 
   /** Alias de `listSales` (compatibilidad). */

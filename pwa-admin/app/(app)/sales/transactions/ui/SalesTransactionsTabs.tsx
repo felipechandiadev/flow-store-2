@@ -1,21 +1,18 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useMemo } from "react";
 import Tabs from "@/shared/components/Tabs";
-
-const BASE = "/sales/transactions";
-
-const items = [
-  { url: `${BASE}/sales`, label: "Ventas" },
-  { url: `${BASE}/customer-returns`, label: "Devoluciones cliente" },
-  { url: `${BASE}/quotations`, label: "Cotizaciones" },
-  { url: `${BASE}/payments`, label: "Pagos recibidos" },
-];
+import {
+  SALES_TRANSACTIONS_TAB_ITEMS,
+  salesTransactionsActiveTabUrl,
+} from "../sales-transactions-tabs.config";
 
 export function SalesTransactionsTabs() {
   const pathname = usePathname();
-  const activeTab =
-    items.find((tab) => pathname === tab.url || pathname.startsWith(`${tab.url}/`))?.url ??
-    `${BASE}/sales`;
-  return <Tabs items={items} activeTab={activeTab} />;
+  const activeTab = useMemo(
+    () => salesTransactionsActiveTabUrl(pathname),
+    [pathname],
+  );
+  return <Tabs items={[...SALES_TRANSACTIONS_TAB_ITEMS]} activeTab={activeTab} />;
 }

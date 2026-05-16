@@ -10,6 +10,11 @@ import type { PosContextV1 } from "@/features/session/lib/pos-context-storage";
 import type { EffectivePaymentMethod } from "@/features/pos-payment-methods/types/effective-payment-method.types";
 import type { AppliedSnapshot } from "@/features/promotions/lib/discount-engine.types";
 import type { LoadedQuotationMeta } from "@/features/pos-cart/cart-storage";
+import { getPosDocumentPrintMode } from "@flowstore/print-service-client";
+import {
+  buildPosSaleDocumentHtml,
+  printPosSaleDocument,
+} from "@/features/pos-print/lib/pos-sale-document-print";
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
 
 const FALLBACK_METHOD_LABEL: Record<PosPaymentMethodId, string> = {
@@ -78,16 +83,28 @@ export type PosSaleReceiptPromotion = {
   amount: number;
 };
 
+export type PosSaleReceiptDocumentKind = "sale" | "backorder";
+
+export type PosSaleReceiptBackorder = {
+  percent: number;
+  depositAmount: number;
+  orderTotal: number;
+};
+
 export type PosSaleReceiptData = {
   /** Folio interno de la venta (`documentNumber` de la transacción cuando existe). */
   folio: string;
   issuedAtIso: string;
+  documentKind: PosSaleReceiptDocumentKind;
+  backorder?: PosSaleReceiptBackorder | null;
   company: {
     razonSocial: string;
     nombreFantasia: string | null;
     rut: string | null;
     businessActivity: string | null;
     logoUrl: string | null;
+    address?: string | null;
+    mail?: string | null;
   };
   pos: {
     pointOfSaleName: string | null;
@@ -134,6 +151,8 @@ export type PosSaleReceiptSnapshotInput = {
   loadedQuotation: LoadedQuotationMeta | null;
   /** Si la venta ya se registró en backend, el folio/documento oficial (p. ej. `transaction.documentNumber`). */
   saleFolio?: string | null;
+  documentKind?: PosSaleReceiptDocumentKind;
+  backorder?: PosSaleReceiptBackorder | null;
 };
 
 function paymentLabel(
@@ -229,15 +248,21 @@ export function buildPosSaleReceiptSnapshot(input: PosSaleReceiptSnapshotInput):
       detail: paymentDetail(p, input.company),
     }));
 
+  const documentKind = input.documentKind ?? "sale";
+
   return {
     folio,
     issuedAtIso,
+    documentKind,
+    backorder: input.backorder ?? null,
     company: {
       razonSocial: c?.razonSocial?.trim() || "Empresa",
       nombreFantasia: c?.nombreFantasia?.trim() ? c.nombreFantasia.trim() : null,
       rut: c?.rut?.trim() ? c.rut.trim() : null,
       businessActivity: c?.businessActivity?.trim() ? c.businessActivity.trim() : null,
       logoUrl: c?.logoUrl?.trim() ? c.logoUrl.trim() : null,
+      address: c?.address?.trim() ? c.address.trim() : null,
+      mail: c?.mail?.trim() ? c.mail.trim() : null,
     },
     pos: {
       pointOfSaleName: input.posContext?.pointOfSaleName?.trim() || null,
@@ -264,8 +289,10 @@ export function buildPosSaleReceiptSnapshot(input: PosSaleReceiptSnapshotInput):
 }
 
 export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string): string {
+  const isBackorder = data.documentKind === "backorder";
   const logo = resolveReceiptLogoUrl(data.company.logoUrl, origin);
   const displayName = data.company.nombreFantasia || data.company.razonSocial;
+  const receiptHeading = isBackorder ? "ENCARGO" : "Detalle de Venta";
 
   const lineRows = data.lines
     .map((l) => {
@@ -299,6 +326,20 @@ export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string
       return `<div class="row"><span>${escapeHtml(p.label)}</span><span>${formatMoney(p.amount)}</span></div>${det}`;
     })
     .join("");
+
+  const bo = data.backorder;
+  const backorderHeaderLine =
+    isBackorder && bo
+      ? `<p class="center muted">Abono: ${formatMoney(bo.depositAmount)}${bo.percent > 0 ? ` · ${bo.percent}%` : ""}</p>`
+      : "";
+
+  const paymentsSection =
+    payRows || data.totals.change > 0.01
+      ? `<div class="sep"></div>
+         <div class="section-title">Pagos</div>
+         ${payRows}
+         ${data.totals.change > 0.01 ? `<div class="row"><span>Vuelto</span><span>${formatMoney(data.totals.change)}</span></div>` : ""}`
+      : "";
 
   const cust = data.customer;
   const custBlock =
@@ -354,10 +395,11 @@ export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string
   <div class="sep"></div>
   <p class="center muted">Folio: ${escapeHtml(data.folio)}</p>
   <p class="center muted">${escapeHtml(formatDateTime(data.issuedAtIso))}</p>
+  ${backorderHeaderLine}
   ${custBlock}
   ${quotBlock}
   <div class="sep"></div>
-  <div class="section-title" style="text-transform:none">Detalle de Venta</div>
+  <div class="section-title" style="text-transform:none">${escapeHtml(receiptHeading)}</div>
   <table class="lines" role="presentation">${lineRows}</table>
   ${promoRows ? `<div class="sep"></div><div class="section-title">Promociones</div>${promoRows}` : ""}
   <div class="sep"></div>
@@ -365,13 +407,16 @@ export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string
   <div class="row"><span>Impuestos</span><span>${formatMoney(data.totals.taxes)}</span></div>
   ${data.totals.lineDiscounts > 0.01 ? `<div class="row"><span>Descuentos línea</span><span>−${formatMoney(data.totals.lineDiscounts)}</span></div>` : ""}
   ${data.totals.orderDiscount > 0.01 ? `<div class="row"><span>Descuento orden</span><span>−${formatMoney(data.totals.orderDiscount)}</span></div>` : ""}
-  <div class="row tot"><span>TOTAL</span><span>${formatMoney(data.totals.total)}</span></div>
+  ${
+    isBackorder && data.backorder
+      ? `<div class="row"><span>Total pedido</span><span>${formatMoney(data.backorder.orderTotal)}</span></div>
+         <div class="row tot"><span>Abono</span><span>${formatMoney(data.backorder.depositAmount)}</span></div>
+         <div class="row"><span>Saldo pendiente</span><span>${formatMoney(Math.max(0, data.backorder.orderTotal - data.backorder.depositAmount))}</span></div>`
+      : `<div class="row tot"><span>TOTAL</span><span>${formatMoney(data.totals.total)}</span></div>`
+  }
+  ${paymentsSection}
   <div class="sep"></div>
-  <div class="section-title">Pagos</div>
-  ${payRows}
-  ${data.totals.change > 0.01 ? `<div class="row"><span>Vuelto</span><span>${formatMoney(data.totals.change)}</span></div>` : ""}
-  <div class="sep"></div>
-  <p class="center muted" style="margin-top:10px;">Gracias por su compra</p>
+  <p class="center muted" style="margin-top:10px;">${isBackorder ? "Comprobante de abono de encargo" : "Gracias por su compra"}</p>
   <div class="sep"></div>
   <div class="barcode-wrap">${receiptBarcodeSvgString(data.folio)}</div>
 </div>
@@ -433,13 +478,31 @@ type DialogProps = {
  * Tras confirmar la venta: vista previa tipo ticket 80 mm, impresión automática
  * y acción para reimprimir antes de volver al POS.
  */
+function resolveSalePrintMode(data: PosSaleReceiptData) {
+  const kind = data.documentKind === "backorder" ? "backorder" : "sale";
+  return getPosDocumentPrintMode(kind);
+}
+
+function printSaleByMode(data: PosSaleReceiptData) {
+  if (resolveSalePrintMode(data) === "document") {
+    printPosSaleDocument(data);
+  } else {
+    printPosSaleReceipt(data);
+  }
+}
+
 export function PosSaleReceiptDialog({ open, data, onClose }: DialogProps) {
   const autoPrintForFolioRef = useRef<string | null>(null);
 
+  const printMode = data ? resolveSalePrintMode(data) : "ticket";
+  const isDocument = printMode === "document";
+
   const previewSrcDoc = useMemo(() => {
     if (!data || typeof window === "undefined") return null;
-    return buildPosSaleReceiptHtml(data, window.location.origin);
-  }, [data]);
+    return isDocument
+      ? buildPosSaleDocumentHtml(data)
+      : buildPosSaleReceiptHtml(data, window.location.origin);
+  }, [data, isDocument]);
 
   useEffect(() => {
     if (!open || !data) {
@@ -449,23 +512,26 @@ export function PosSaleReceiptDialog({ open, data, onClose }: DialogProps) {
     if (autoPrintForFolioRef.current === data.folio) return;
     autoPrintForFolioRef.current = data.folio;
     const t = window.setTimeout(() => {
-      printPosSaleReceipt(data);
+      printSaleByMode(data);
     }, 350);
     return () => clearTimeout(t);
   }, [open, data]);
 
   if (!data) return null;
 
+  const dialogTitle =
+    data.documentKind === "backorder" ? "Encargo registrado" : "Venta registrada";
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title="Venta registrada"
+      title={dialogTitle}
       size="lg"
       data-test-id="pos-payment-success-dialog"
       actions={
         <>
-          <Button type="button" variant="outlined" onClick={() => printPosSaleReceipt(data)}>
+          <Button type="button" variant="outlined" onClick={() => printSaleByMode(data)}>
             Imprimir de nuevo
           </Button>
           <Button type="button" variant="primary" onClick={onClose}>
@@ -474,20 +540,34 @@ export function PosSaleReceiptDialog({ open, data, onClose }: DialogProps) {
         </>
       }
     >
-      <div
-        className="mx-auto max-h-[min(55vh,520px)] w-full max-w-[min(100%,420px)] overflow-auto rounded-lg border border-border bg-zinc-100 p-2 shadow-inner dark:bg-zinc-950"
-        data-test-id="pos-sale-receipt-preview-wrap"
-      >
-        {previewSrcDoc ? (
-          <iframe
-            title="Vista previa ticket 80 mm"
-            srcDoc={previewSrcDoc}
-            className="mx-auto block min-h-[320px] w-[80mm] max-w-full border-0 bg-white"
-            data-test-id="pos-sale-receipt-preview-iframe"
-          />
-        ) : (
-          <p className="p-4 text-center text-sm text-muted-foreground">Preparando vista previa…</p>
-        )}
+      <div className="grid gap-2 text-sm">
+        <p className="text-xs text-muted-foreground">
+          Formato:{" "}
+          <span className="font-medium text-foreground">
+            {isDocument ? "Documento (hoja)" : "Ticket (80 mm)"}
+          </span>
+        </p>
+        <div
+          className={`mx-auto max-h-[min(55vh,520px)] w-full overflow-auto rounded-lg border border-border bg-transparent p-2 ${
+            isDocument ? "max-w-[min(100%,720px)]" : "max-w-[min(100%,420px)]"
+          }`}
+          data-test-id="pos-sale-receipt-preview-wrap"
+        >
+          {previewSrcDoc ? (
+            <iframe
+              title={isDocument ? "Vista previa documento" : "Vista previa ticket 80 mm"}
+              srcDoc={previewSrcDoc}
+              className={`mx-auto block border-0 bg-white ${
+                isDocument
+                  ? "min-h-[480px] w-full max-w-[210mm]"
+                  : "min-h-[320px] w-[80mm] max-w-full"
+              }`}
+              data-test-id="pos-sale-receipt-preview-iframe"
+            />
+          ) : (
+            <p className="p-4 text-center text-sm text-muted-foreground">Preparando vista previa…</p>
+          )}
+        </div>
       </div>
     </Dialog>
   );

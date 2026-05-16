@@ -1,13 +1,14 @@
 {
-  "name": "FlowStore - Panel de administración",
-  "short_name": "FlowStore Admin",
-  "description": "Administrador de tienda Flow Store",
+  "id": "kaistore-admin",
+  "name": "KaiStore Administración",
+  "short_name": "KaiStore",
+  "description": "Panel de administración KaiStore",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
-  "theme_color": "#1C2046",
+  "theme_color": "#002B59",
   "lang": "es-CL",
   "icons": [
     {

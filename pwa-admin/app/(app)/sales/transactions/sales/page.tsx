@@ -41,12 +41,7 @@ export default async function Page({
           </div>
         }
       >
-        <SalesTransactionsDataGrid
-          rows={rows}
-          total={total}
-          title="Ventas"
-          testIdSuffix="sales"
-        />
+        <SalesTransactionsDataGrid rows={rows} total={total} testIdSuffix="sales" />
       </Suspense>
       {!res.success ? (
         <p

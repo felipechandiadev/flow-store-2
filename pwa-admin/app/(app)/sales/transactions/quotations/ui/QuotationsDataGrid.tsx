@@ -170,7 +170,6 @@ export default function QuotationsDataGrid({
   return (
     <>
       <DataGrid
-        title="Cotizaciones"
         columns={columns}
         rows={rows}
         totalRows={total}

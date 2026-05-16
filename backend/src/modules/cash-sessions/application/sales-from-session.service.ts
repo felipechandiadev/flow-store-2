@@ -24,6 +24,8 @@ import { ProductVariant } from '@modules/product-variants/domain/product-variant
 import { Unit } from '@modules/units/domain/unit.entity';
 import { VariantQuantityConversionService } from '@modules/product-variants/application/variant-quantity-conversion.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
+import { CreateBackorderDto } from './dto/create-backorder.dto';
+import type { TransactionBackorderMetadata } from '@modules/transactions/domain/transaction-backorder.metadata';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
 import {
   CreateTransactionDto,
@@ -37,6 +39,13 @@ import { Promotion } from '@modules/promotions/domain/promotion.entity';
 import { PromotionRedemption } from '@modules/promotions/domain/promotion-redemption.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
+
+type PosCommercialRegisterConfig = {
+  transactionType: TransactionType.SALE | TransactionType.BACKORDER;
+  skipStockCheck: boolean;
+  backorderDepositAmount?: number;
+  backorderDepositPercent?: number;
+};
 
 /**
  * SalesFromSessionService - Single Responsibility: Sale Transaction Creation
@@ -169,6 +178,38 @@ export class SalesFromSessionService {
    * 9. Retornar transacción con asientos
    */
   async createSale(createSaleDto: CreateSaleDto) {
+    return this.registerPosCommercial(createSaleDto, {
+      transactionType: TransactionType.SALE,
+      skipStockCheck: false,
+    });
+  }
+
+  /**
+   * Encargo / reserva: transacción BACKORDER (no SALE), sin movimiento de stock.
+   * Líneas y promociones como venta; `amountPaid` = abono cobrado.
+   */
+  async createBackorder(createBackorderDto: CreateBackorderDto) {
+    if (!createBackorderDto.customerId?.trim()) {
+      throw new BadRequestException('El encargo requiere un cliente');
+    }
+    const deposit = Math.round(
+      Number(createBackorderDto.backorderDepositAmount) || 0,
+    );
+    if (deposit < 1) {
+      throw new BadRequestException('El abono del encargo debe ser mayor que cero');
+    }
+    return this.registerPosCommercial(createBackorderDto, {
+      transactionType: TransactionType.BACKORDER,
+      skipStockCheck: true,
+      backorderDepositAmount: deposit,
+      backorderDepositPercent: createBackorderDto.backorderDepositPercent,
+    });
+  }
+
+  private async registerPosCommercial(
+    createSaleDto: CreateSaleDto,
+    config: PosCommercialRegisterConfig,
+  ) {
     const {
       userName,
       pointOfSaleId,
@@ -629,48 +670,52 @@ export class SalesFromSessionService {
         effectiveStorageId = chosen?.id;
       }
 
-      const qtyNeedByVariant = new Map<string, number>();
-      for (const tl of transactionLines) {
-        const vid = tl.productVariantId as string | undefined;
-        if (!vid) continue;
-        const q = Number(tl.quantityInBase) || 0;
-        if (q <= 0) continue;
-        qtyNeedByVariant.set(vid, (qtyNeedByVariant.get(vid) ?? 0) + q);
-      }
-      const variantIdsToCheck = [...qtyNeedByVariant.keys()];
-      if (effectiveStorageId && variantIdsToCheck.length > 0) {
-        const variantsToCheck = await manager.getRepository(ProductVariant).find({
-          where: { id: In(variantIdsToCheck) },
-          select: ['id', 'sku', 'trackInventory', 'allowNegativeStock'],
-        });
-        for (const v of variantsToCheck) {
-          if (!v.trackInventory || v.allowNegativeStock) continue;
-          const need = qtyNeedByVariant.get(v.id) ?? 0;
-          const sl = await manager.getRepository(StockLevel).findOne({
-            where: {
-              productVariantId: v.id,
-              storageId: effectiveStorageId,
-            },
-          });
-          const avail = Number(sl?.availableStock ?? 0);
-          if (need > avail) {
-            throw new BadRequestException(
-              `Stock insuficiente en sala de venta para ${v.sku ?? v.id}: se requieren ${need} (unidad base), disponible ${avail}.`,
-            );
+      if (!config.skipStockCheck) {
+        const qtyNeedByVariant = new Map<string, number>();
+        for (const tl of transactionLines) {
+          const vid = tl.productVariantId as string | undefined;
+          if (!vid) continue;
+          const q = Number(tl.quantityInBase) || 0;
+          if (q <= 0) continue;
+          qtyNeedByVariant.set(vid, (qtyNeedByVariant.get(vid) ?? 0) + q);
+        }
+        const variantIdsToCheck = [...qtyNeedByVariant.keys()];
+        if (effectiveStorageId && variantIdsToCheck.length > 0) {
+          const variantsToCheck = await manager
+            .getRepository(ProductVariant)
+            .find({
+              where: { id: In(variantIdsToCheck) },
+              select: ['id', 'sku', 'trackInventory', 'allowNegativeStock'],
+            });
+          for (const v of variantsToCheck) {
+            if (!v.trackInventory || v.allowNegativeStock) continue;
+            const need = qtyNeedByVariant.get(v.id) ?? 0;
+            const sl = await manager.getRepository(StockLevel).findOne({
+              where: {
+                productVariantId: v.id,
+                storageId: effectiveStorageId,
+              },
+            });
+            const avail = Number(sl?.availableStock ?? 0);
+            if (need > avail) {
+              throw new BadRequestException(
+                `Stock insuficiente en sala de venta para ${v.sku ?? v.id}: se requieren ${need} (unidad base), disponible ${avail}.`,
+              );
+            }
           }
         }
-      }
 
-      const hasStockLines = transactionLines.some((l) => l.productVariantId);
-      if (hasStockLines && !effectiveStorageId) {
-        this.logger.error(
-          `Venta sin storageId: POS=${pointOfSaleId} branch=${pointOfSale.branchId ?? 'null'}. ` +
-            `UpdateStock omitirá el descuento de inventario.`,
-        );
-        throw new BadRequestException(
-          'No hay almacén para descontar stock en esta sucursal. Marque un almacén como predeterminado ' +
-            '(Inventario → Almacenes) o envíe storageId en la venta.',
-        );
+        const hasStockLines = transactionLines.some((l) => l.productVariantId);
+        if (hasStockLines && !effectiveStorageId) {
+          this.logger.error(
+            `Venta sin storageId: POS=${pointOfSaleId} branch=${pointOfSale.branchId ?? 'null'}. ` +
+              `UpdateStock omitirá el descuento de inventario.`,
+          );
+          throw new BadRequestException(
+            'No hay almacén para descontar stock en esta sucursal. Marque un almacén como predeterminado ' +
+              '(Inventario → Almacenes) o envíe storageId en la venta.',
+          );
+        }
       }
 
       // ✅ DELEGAR: Usar TransactionsService.createTransaction() para generar asientos
@@ -680,39 +725,74 @@ export class SalesFromSessionService {
       // 3. Asientos contables automáticos (revenue, receivable, COGS, inventory)
       // 4. Audit trail completo
       // construir DTO de transacción usando la clase para que métodos como validate() existan
+      const isBackorder = config.transactionType === TransactionType.BACKORDER;
+      const depositAmount = config.backorderDepositAmount ?? 0;
+      const paidForTx = isBackorder
+        ? depositAmount
+        : amountPaid || total;
+
+      const rawSnap = (metadata as { backorderCustomerSnapshot?: unknown } | undefined)
+        ?.backorderCustomerSnapshot;
+      const customerSnapshot =
+        rawSnap && typeof rawSnap === 'object'
+          ? ({
+              name:
+                typeof (rawSnap as { name?: unknown }).name === 'string'
+                  ? (rawSnap as { name: string }).name
+                  : null,
+              document:
+                typeof (rawSnap as { document?: unknown }).document === 'string'
+                  ? (rawSnap as { document: string }).document
+                  : null,
+              phone:
+                typeof (rawSnap as { phone?: unknown }).phone === 'string'
+                  ? (rawSnap as { phone: string }).phone
+                  : null,
+            } satisfies TransactionBackorderMetadata['customerSnapshot'])
+          : undefined;
+
+      const backorderMeta: TransactionBackorderMetadata | undefined = isBackorder
+        ? {
+            reservationStatus: 'OPEN',
+            depositAmount,
+            depositConsumedAmount: 0,
+            ...(config.backorderDepositPercent != null &&
+            Number.isFinite(config.backorderDepositPercent)
+              ? { depositPercent: Math.round(config.backorderDepositPercent) }
+              : {}),
+            ...(customerSnapshot ? { customerSnapshot } : {}),
+          }
+        : undefined;
+
       const dto = new CreateTransactionDto();
       Object.assign(dto, {
-        transactionType: TransactionType.SALE,
+        transactionType: config.transactionType,
         branchId: pointOfSale.branchId,
         userId: user.id,
         pointOfSaleId: pointOfSale.id,
         cashSessionId: cashSession.id,
-        storageId: effectiveStorageId,
+        storageId: isBackorder ? undefined : effectiveStorageId,
         customerId: customerId || undefined,
         subtotal,
         taxAmount,
         discountAmount,
         total,
         paymentMethod: finalPaymentMethod,
-        amountPaid: amountPaid || total,
+        amountPaid: paidForTx,
         changeAmount: changeAmount || 0,
         externalReference: externalReference || undefined,
         notes: notes || undefined,
         bankAccountKey: bankAccountKey || undefined,
         metadata: {
           ...metadata,
+          ...(backorderMeta ? { backorder: backorderMeta } : {}),
           paymentDetails: paymentsUsed.length > 0 ? paymentsUsed : undefined,
           paymentSnapshots:
             paymentSnapshots.length > 0 ? paymentSnapshots : undefined,
           paymentSnapshot:
             paymentSnapshots.length === 1 ? paymentSnapshots[0] : undefined,
-          /**
-           * Flag explícito para reportes/UI. También se puede inferir
-           * con `paymentSnapshots.length > 1`. Existe porque ya no
-           * marcamos `paymentMethod = MIXED`.
-           */
           isMixedPayment,
-          storageId: effectiveStorageId || undefined,
+          storageId: isBackorder ? undefined : effectiveStorageId || undefined,
           promotionSnapshot:
             serverAppliedPromotions.length > 0
               ? serverAppliedPromotions

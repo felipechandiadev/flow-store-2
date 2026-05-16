@@ -26,7 +26,6 @@ import { PosCreateCustomerDialog } from "@/features/customers/ui/PosCreateCustom
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import type { EffectivePaymentMethod } from "@/features/pos-payment-methods/types/effective-payment-method.types";
 import { getEffectivePosPaymentMethodsAction } from "@/features/pos-payment-methods/actions/payment-methods-pos.action";
-import { PosPromotionsPanel } from "@/features/promotions/ui/PosPromotionsPanel";
 import { getCompanyDetailsAction } from "@/features/company/actions/company.action";
 import type { CompanyDetails } from "@/features/company/infrastructure/company.request";
 import { SaveAsQuotationDialog } from "@/app/(pos)/pos/ui/SaveAsQuotationDialog";
@@ -35,9 +34,10 @@ import {
   buildPosSaleReceiptSnapshot,
   type PosSaleReceiptData,
 } from "@/app/(pos)/pos/payment/ui/PosSaleReceiptDialog";
+import { createBackorderFromPosAction } from "@/features/session/actions/create-backorder.action";
 import { createSaleFromPosAction } from "@/features/session/actions/create-sale.action";
+import { buildCreateBackorderClientPayload } from "@/features/session/lib/build-create-backorder-payload";
 import { buildCreateSaleClientPayload } from "@/features/session/lib/build-create-sale-payload";
-import { Save } from "lucide-react";
 
 /**
  * Alto de los paneles de la pantalla de cobro respecto al viewport (`vh`).
@@ -125,6 +125,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     appliedPromotions,
     orderDiscount,
     loadedQuotation,
+    backorderDeposit,
   } = cart;
   const saleTitleId = useId();
   const [addOpen, setAddOpen] = useState(false);
@@ -296,9 +297,13 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   );
   const discounts = lineDiscountsTotal + (cart.orderDiscount ?? 0);
   const saleTotal = Math.max(0, totals.gross - discounts);
+  const isEncargoMode = Boolean(backorderDeposit && backorderDeposit.amount >= 1);
+  const amountToPay = isEncargoMode
+    ? Math.round(backorderDeposit!.amount)
+    : saleTotal;
 
   useEffect(() => {
-    if (!cart.ready || saleTotal <= 0) return;
+    if (!cart.ready || amountToPay <= 0) return;
     if (!effectiveLoaded) return;
     setPayments((prev) => {
       if (prev.length > 0) return prev;
@@ -325,26 +330,26 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         },
       ];
     });
-  }, [cart.ready, saleTotal, payments.length, setPayments, effectiveLoaded, effectiveMethods]);
+  }, [cart.ready, amountToPay, payments.length, setPayments, effectiveLoaded, effectiveMethods]);
 
   const appliedTotal = useMemo(() => payments.reduce((a, p) => a + p.amount, 0), [payments]);
   const nonCashTotal = useMemo(
     () => payments.filter((p) => p.type !== "CASH").reduce((a, p) => a + p.amount, 0),
     [payments],
   );
-  const remaining = Math.max(0, saleTotal - appliedTotal);
-  const overpay = Math.max(0, appliedTotal - saleTotal);
+  const remaining = Math.max(0, amountToPay - appliedTotal);
+  const overpay = Math.max(0, appliedTotal - amountToPay);
 
   useEffect(() => {
-    if (nonCashTotal > saleTotal + 0.01) return;
+    if (nonCashTotal > amountToPay + 0.01) return;
     setPaymentMethodsAlert((prev) => (prev === NON_CASH_LIMIT_MSG ? "" : prev));
-  }, [nonCashTotal, saleTotal]);
+  }, [nonCashTotal, amountToPay]);
 
   useEffect(() => {
     if (!addOpen) return;
-    if (nonCashTotal > saleTotal + 0.01) return;
+    if (nonCashTotal > amountToPay + 0.01) return;
     setAddAlert((prev) => (prev === NON_CASH_LIMIT_MSG ? "" : prev));
-  }, [addOpen, nonCashTotal, saleTotal]);
+  }, [addOpen, nonCashTotal, amountToPay]);
 
   /**
    * Decide si una línea debe mostrar el campo "Referencia".
@@ -406,7 +411,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       setAddAlert("Selecciona la cuenta bancaria destino para la transferencia.");
       return;
     }
-    if (enumType !== "CASH" && nonCashTotal + amt > saleTotal + 0.01) {
+    if (enumType !== "CASH" && nonCashTotal + amt > amountToPay + 0.01) {
       setAddAlert(NON_CASH_LIMIT_MSG);
       return;
     }
@@ -440,7 +445,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     setPayments,
     bankAccountOptions.length,
     nonCashTotal,
-    saleTotal,
+    amountToPay,
   ]);
 
   const removePayment = useCallback(
@@ -465,7 +470,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         const others = prev
           .filter((p) => p.id !== id && p.type !== "CASH")
           .reduce((a, p) => a + p.amount, 0);
-        const maxAllowed = Math.max(0, Math.round(saleTotal - others));
+        const maxAllowed = Math.max(0, Math.round(amountToPay - others));
         const clamped = Math.min(next, maxAllowed);
         if (next > maxAllowed + 0.01) {
           nonCashOverflow = true;
@@ -478,7 +483,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         });
       }
     },
-    [saleTotal, setPayments],
+    [amountToPay, setPayments],
   );
 
   /** Deja el monto en cero (el medio sigue en la lista; no se considera usado hasta cargar monto). */
@@ -500,14 +505,14 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         const othersNonCash = prev
           .filter((p) => p.id !== id && p.type !== "CASH")
           .reduce((a, p) => a + p.amount, 0);
-        const maxAllowed = Math.max(0, Math.round(saleTotal - othersNonCash));
+        const maxAllowed = Math.max(0, Math.round(amountToPay - othersNonCash));
         const othersAll = prev.filter((p) => p.id !== id).reduce((a, p) => a + p.amount, 0);
-        const gap = Math.max(0, Math.round(saleTotal - othersAll));
+        const gap = Math.max(0, Math.round(amountToPay - othersAll));
         const next = Math.min(maxAllowed, gap);
         return prev.map((p) => (p.id === id ? { ...p, amount: next } : p));
       });
     },
-    [saleTotal, setPayments],
+    [amountToPay, setPayments],
   );
 
   const updatePaymentLineReference = useCallback(
@@ -568,12 +573,12 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   }, [payments.length]);
 
   const paymentStatusLabel = useMemo(() => {
-    if (saleTotal <= 0) return "Sin total";
+    if (amountToPay <= 0) return "Sin total";
     if (payments.length === 0) return "Sin pagos";
     if (overpay > 0) return "Pago con vuelto";
     if (remaining <= 0.01) return "Pago completo";
     return "Monto insuficiente";
-  }, [saleTotal, remaining, overpay, payments.length]);
+  }, [amountToPay, remaining, overpay, payments.length]);
 
   const paymentStatusTone =
     payments.length > 0 && (overpay > 0 || remaining <= 0.01)
@@ -589,17 +594,32 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         ? "bg-red-100/70 text-red-900 dark:bg-red-900/30 dark:text-red-100"
         : "bg-slate-100/80 text-slate-900 dark:bg-slate-800/40 dark:text-slate-100";
 
+  const hasSaleCustomer = Boolean(customer?.customerId?.trim());
+
   const canConfirm =
     cart.lines.length > 0 &&
-    saleTotal > 0 &&
+    amountToPay > 0 &&
     payments.length > 0 &&
-    remaining <= 0.01;
+    remaining <= 0.01 &&
+    (!isEncargoMode || hasSaleCustomer);
+
+  const confirmPaymentDisabled = !canConfirm || confirmLoading;
+  const confirmPaymentTitle =
+    isEncargoMode && !hasSaleCustomer
+      ? "Selecciona un cliente para confirmar el encargo"
+      : "Confirmar pago";
 
   const validateConfirm = (): string => {
     if (cart.lines.length === 0) return "El carrito está vacío.";
-    if (saleTotal <= 0) return "El total debe ser mayor que cero.";
+    if (isEncargoMode && !hasSaleCustomer) {
+      return "Selecciona un cliente para confirmar el encargo.";
+    }
+    if (isEncargoMode && !backorderDeposit) {
+      return "Define el abono de encargo en el carrito del POS.";
+    }
+    if (amountToPay <= 0) return "El total debe ser mayor que cero.";
     if (payments.length === 0) return "Agrega al menos un método de pago.";
-    if (nonCashTotal > saleTotal + 0.01) {
+    if (nonCashTotal > amountToPay + 0.01) {
       return NON_CASH_LIMIT_MSG;
     }
     if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar.";
@@ -644,21 +664,41 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       return;
     }
 
-    const salePayload = buildCreateSaleClientPayload({
-      pointOfSaleId,
-      cashSessionId,
-      cartLines: cart.lines,
-      payments,
-      customer,
-      appliedPromotions,
-      appliedTotal,
-      overpay,
-    });
+    const confirmRes = isEncargoMode
+      ? await (async () => {
+          if (!backorderDeposit) {
+            return { success: false as const, message: "Define el abono de encargo en el carrito." };
+          }
+          const backorderPayload = buildCreateBackorderClientPayload({
+            pointOfSaleId,
+            cashSessionId,
+            cartLines: cart.lines,
+            payments,
+            customer,
+            appliedPromotions,
+            appliedTotal,
+            overpay,
+            backorderDepositAmount: backorderDeposit.amount,
+            backorderDepositPercent: backorderDeposit.percent,
+          });
+          return createBackorderFromPosAction(backorderPayload);
+        })()
+      : await createSaleFromPosAction(
+          buildCreateSaleClientPayload({
+            pointOfSaleId,
+            cashSessionId,
+            cartLines: cart.lines,
+            payments,
+            customer,
+            appliedPromotions,
+            appliedTotal,
+            overpay,
+          }),
+        );
 
-    const saleRes = await createSaleFromPosAction(salePayload);
-    if (!saleRes.success) {
+    if (!confirmRes.success) {
       setConfirmLoading(false);
-      setPageAlert(saleRes.message);
+      setPageAlert(confirmRes.message);
       return;
     }
 
@@ -691,7 +731,16 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       },
       methodsById,
       loadedQuotation,
-      saleFolio: saleRes.documentNumber,
+      saleFolio: confirmRes.documentNumber,
+      documentKind: isEncargoMode ? "backorder" : "sale",
+      backorder:
+        isEncargoMode && backorderDeposit
+          ? {
+              percent: backorderDeposit.percent,
+              depositAmount: Math.round(backorderDeposit.amount),
+              orderTotal: saleTotal,
+            }
+          : null,
     });
     setReceiptData(snapshot);
     setConfirmLoading(false);
@@ -747,7 +796,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <h1 id={saleTitleId} className="text-base font-semibold text-foreground">
-              Venta en curso
+              {isEncargoMode ? "Encargo en curso" : "Venta en curso"}
             </h1>
             <p className="truncate text-sm text-muted-foreground">
               Cliente: <span className="font-medium text-foreground">{customerLabel}</span>
@@ -762,7 +811,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           <div className="flex min-w-28 flex-col rounded-lg bg-slate-100/80 px-3 py-1.5 dark:bg-slate-800/40">
             <span className="text-xs text-slate-600 dark:text-slate-300">Total a pagar</span>
             <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
-              {formatMoney(saleTotal)}
+              {formatMoney(amountToPay)}
             </span>
           </div>
           <div className="flex min-w-28 flex-col rounded-lg bg-sky-100/70 px-3 py-1.5 dark:bg-sky-900/30">
@@ -799,17 +848,18 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         </div>
 
         <div className="hidden shrink-0 lg:block">
-          <Button
-            type="button"
-            variant="primary"
+          <IconButton
+            icon="CircleDollarSign"
+            variant="containedPrimary"
             size="lg"
-            disabled={!canConfirm || confirmLoading}
-            loading={confirmLoading}
+            className="shrink-0"
+            ariaLabel="Confirmar pago"
+            title={confirmPaymentTitle}
+            disabled={confirmPaymentDisabled}
+            isLoading={confirmLoading}
             onClick={() => void handleConfirm()}
             data-test-id="pos-payment-confirm-desktop"
-          >
-            Confirmar pago
-          </Button>
+          />
         </div>
       </header>
 
@@ -825,24 +875,27 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         <section
           className="flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-sm"
           style={{ height: `${POS_PAYMENT_PANEL_HEIGHT_VH}vh` }}
-          aria-label="Resumen de carrito"
+          aria-label={isEncargoMode ? "Resumen de encargo" : "Resumen de carrito"}
           data-test-id="pos-payment-cart-summary"
         >
-          <div className="flex shrink-0 items-center justify-between gap-3">
-            <h2 className="min-w-0 text-sm font-semibold text-foreground">Resumen de venta</h2>
-            <Button
-              type="button"
-              variant="outlined"
-              size="sm"
-              onClick={openSaveQuotation}
-              disabled={cart.lines.length === 0}
-              title={cart.lines.length === 0 ? "Agregue ítems al carrito" : "Guardar como cotización"}
-              data-test-id="pos-payment-save-quotation-btn"
-              className="shrink-0"
-            >
-              <Save size={14} className="shrink-0" aria-hidden />
-              <span>Cotización</span>
-            </Button>
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+            <h2 className="min-w-0 text-sm font-semibold text-foreground">
+              {isEncargoMode ? "Resumen de encargo" : "Resumen de venta"}
+            </h2>
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outlined"
+                size="sm"
+                onClick={openSaveQuotation}
+                disabled={cart.lines.length === 0}
+                title={cart.lines.length === 0 ? "Agregue ítems al carrito" : "Guardar como cotización"}
+                data-test-id="pos-payment-save-quotation-btn"
+                className="shrink-0"
+              >
+                <span>Cotización</span>
+              </Button>
+            </div>
           </div>
           {saleSummaryAlert ? (
             <Alert variant="error" className="text-xs">
@@ -857,9 +910,15 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               <PaymentCartReadOnlyRow key={line.variantId} line={line} />
             ))}
           </ul>
-          <PosPromotionsPanel />
           <footer className="shrink-0 space-y-2 border-t border-border pt-3 text-sm">
-            <div className="flex justify-between gap-4">
+            {isEncargoMode ? (
+              <div className="flex justify-between gap-4 pt-1 text-base font-semibold">
+                <span className="text-foreground">Total a pagar</span>
+                <span className="tabular-nums text-foreground">{formatMoney(amountToPay)}</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">Subtotal neto</span>
               <span className="font-medium tabular-nums text-foreground">{formatMoney(totals.net)}</span>
             </div>
@@ -875,6 +934,8 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               <span className="text-foreground">Total</span>
               <span className="tabular-nums text-foreground">{formatMoney(saleTotal)}</span>
             </div>
+              </>
+            )}
           </footer>
         </section>
 
@@ -1096,19 +1157,19 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       </div>
 
       {/* Móvil: CTA fijo */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 p-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-md lg:hidden pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <Button
-          type="button"
-          variant="primary"
+      <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center border-t border-border bg-background/95 p-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-md lg:hidden pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <IconButton
+          icon="CircleDollarSign"
+          variant="containedPrimary"
           size="lg"
-          className="w-full"
-          disabled={!canConfirm || confirmLoading}
-          loading={confirmLoading}
+          className="shrink-0"
+          ariaLabel="Confirmar pago"
+          title={confirmPaymentTitle}
+          disabled={confirmPaymentDisabled}
+          isLoading={confirmLoading}
           onClick={() => void handleConfirm()}
           data-test-id="pos-payment-confirm-mobile"
-        >
-          Confirmar pago
-        </Button>
+        />
       </div>
 
       <Dialog

@@ -32,11 +32,11 @@
 }
 
 .fs-button--contained-primary {
-  background-color: var(--color-primary, #1c2046);
+  background-color: var(--color-primary, #002b59);
   color: var(--color-background, #ffffff);
 }
 .fs-button--contained-primary:hover:not(:disabled) {
-  background-color: var(--color-accent, #2563a8);
+  background-color: var(--color-accent, #0a7cad);
 }
 
 .fs-button--outlined {
@@ -45,9 +45,9 @@
   border-color: var(--color-foreground, #131615);
 }
 .fs-button--outlined:hover:not(:disabled) {
-  background-color: var(--color-accent, #2563a8);
+  background-color: var(--color-accent, #0a7cad);
   color: var(--color-background, #ffffff);
-  border-color: var(--color-accent, #2563a8);
+  border-color: var(--color-accent, #0a7cad);
 }
 
 .fs-button--contained-danger {

@@ -36,6 +36,17 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function personDocument(
+  entity: Record<string, unknown> | null | undefined,
+): string | null {
+  if (!entity || typeof entity !== "object") return null;
+  const person = (entity as { person?: Record<string, unknown> }).person;
+  if (!person || typeof person !== "object") return null;
+  const doc =
+    typeof person.documentNumber === "string" ? person.documentNumber.trim() : "";
+  return doc || null;
+}
+
 function personName(
   entity: Record<string, unknown> | null | undefined,
 ): string | null {
@@ -101,6 +112,38 @@ function normalizeDetail(raw: unknown): SaleTransactionDetail | null {
 
   const customerLabel = personName(customer);
 
+  const txType =
+    typeof o.transactionType === "string" ? o.transactionType.trim() : "";
+  const meta =
+    o.metadata && typeof o.metadata === "object"
+      ? (o.metadata as Record<string, unknown>)
+      : null;
+  const bo =
+    meta?.backorder && typeof meta.backorder === "object"
+      ? (meta.backorder as Record<string, unknown>)
+      : null;
+  const depositFromMeta = bo ? num(bo.depositAmount) : 0;
+  const amountPaid = num(o.amountPaid);
+  const total = num(o.total);
+  const backorderDepositAmount =
+    txType === "BACKORDER"
+      ? depositFromMeta > 0
+        ? depositFromMeta
+        : amountPaid
+      : null;
+  const backorderDepositPercent =
+    bo && Number.isFinite(Number(bo.depositPercent))
+      ? Math.round(Number(bo.depositPercent))
+      : null;
+  const backorderReservationStatus =
+    bo && typeof bo.reservationStatus === "string" && bo.reservationStatus.trim()
+      ? bo.reservationStatus.trim()
+      : null;
+  const backorderPendingBalance =
+    txType === "BACKORDER" && backorderDepositAmount != null
+      ? Math.max(0, total - backorderDepositAmount)
+      : null;
+
   return {
     id,
     documentNumber:
@@ -117,10 +160,10 @@ function normalizeDetail(raw: unknown): SaleTransactionDetail | null {
     subtotal: num(o.subtotal),
     taxAmount: num(o.taxAmount),
     discountAmount: num(o.discountAmount),
-    total: num(o.total),
+    total,
     paymentMethod:
       typeof o.paymentMethod === "string" ? o.paymentMethod : "",
-    amountPaid: num(o.amountPaid),
+    amountPaid,
     changeAmount: o.changeAmount == null ? null : num(o.changeAmount),
     notes: typeof o.notes === "string" && o.notes.trim() ? o.notes.trim() : null,
     externalReference:
@@ -141,7 +184,12 @@ function normalizeDetail(raw: unknown): SaleTransactionDetail | null {
         ? user.userName.trim()
         : null,
     customerLabel,
+    customerDocument: personDocument(customer),
     lines,
+    backorderDepositAmount,
+    backorderDepositPercent,
+    backorderReservationStatus,
+    backorderPendingBalance,
   };
 }
 

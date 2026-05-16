@@ -6,12 +6,13 @@
 :root {
   /* Must match the fixed header in TopBar (py-2 + h-10 logo row + pb-3) */
   --app-topbar-height: 3.75rem;
-  --color-primary: #1c2046;
+  --color-primary: #002b59;
   --color-background: #ffffff;
   --color-foreground: #131615;
   --color-border: #c1c1c2;
-  --color-accent: #2563a8;
-  --color-secondary: #04c9e7;
+  --color-active: #0a7cad;
+  --color-accent: #0a7cad;
+  --color-secondary: #35e3ff;
   --color-muted: #6b7280;
   --color-success: #4caf50;
   --color-info: #2196f3;

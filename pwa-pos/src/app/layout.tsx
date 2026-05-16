@@ -5,19 +5,16 @@ import AuthProvider from "@/providers/AuthProvider";
 
 /** Sin `next/font/google`: el build no debe hacer fetch a Google Fonts (CI/sin red). Ver `:root` en `globals.css`. */
 
-const THEME_COLOR = "#1C2046";
+const THEME_COLOR = "#002B59";
 
 export const metadata: Metadata = {
-  title: {
-    default: "FlowStore | POS",
-    template: "%s | POS",
-  },
-  description: "PWA POS para Flow Store 2",
+  title: "KaiStore POS",
+  description: "Punto de venta KaiStore (PWA)",
   manifest: "/manifest.json",
-  applicationName: "FlowStore POS",
+  applicationName: "KaiStore POS",
   appleWebApp: {
     capable: true,
-    title: "FlowStore | POS",
+    title: "KaiStore POS",
     statusBarStyle: "default",
   },
   icons: {
@@ -54,7 +51,7 @@ export default function RootLayout({
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="FlowStore | POS" />
+        <meta name="apple-mobile-web-app-title" content="KaiStore POS" />
       </head>
       <body className="min-h-full flex flex-col">
         <AuthProvider>{children}</AuthProvider>

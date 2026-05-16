@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PosLocalPrintPreferencesForm } from "@flowstore/print-service-client";
+import { PosLocalPrintPreferencesForm } from "./PosLocalPrintPreferencesForm";
 
 export default function PosLocalPrintingPage() {
   return (

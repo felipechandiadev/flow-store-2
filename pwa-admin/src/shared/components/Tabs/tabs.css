@@ -25,6 +25,6 @@
 }
 
 .fs-tabs__link--active {
-  border-bottom-color: var(--color-primary, #1c2046);
-  color: var(--color-primary, #1c2046);
+  border-bottom-color: var(--color-primary, #002b59);
+  color: var(--color-primary, #002b59);
 }

@@ -25,7 +25,7 @@
   border-radius: 9999px;
   background-color: color-mix(
     in srgb,
-    var(--color-primary, #1c2046) 45%,
+    var(--color-primary, #002b59) 45%,
     transparent
   );
 }
@@ -37,7 +37,7 @@
   height: 1rem;
   margin: 0;
   padding: 0;
-  border: 2px solid var(--color-primary, #1c2046);
+  border: 2px solid var(--color-primary, #002b59);
   background-color: var(--color-background, #fff);
   border-radius: 9999px;
   cursor: grab;
@@ -46,6 +46,6 @@
 }
 
 .fs-range-slider__thumb:focus-visible {
-  outline: 2px solid var(--color-primary, #1c2046);
+  outline: 2px solid var(--color-primary, #002b59);
   outline-offset: 2px;
 }

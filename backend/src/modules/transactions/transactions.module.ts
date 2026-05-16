@@ -48,6 +48,7 @@ import { FindTransactionQueryHandler } from './application/queries/find-transact
 import { TransactionsServiceAdapter } from './application/transactions.service.adapter';
 import { DocumentNumberService } from './application/document-number.service';
 import { DocumentSequencesBootstrap } from './application/document-sequences.bootstrap';
+import { BackorderTransactionTypeBootstrap } from './application/backorder-transaction-type.bootstrap';
 import { SupplierFiscalDocumentPaymentAggregateService } from './application/services/supplier-fiscal-document-payment-aggregate.service';
 
 // Inventory CQRS
@@ -93,6 +94,7 @@ import { ProductVariantsModule } from '@modules/product-variants/product-variant
   ],
   providers: [
     DocumentSequencesBootstrap,
+    BackorderTransactionTypeBootstrap,
     DocumentNumberService,
     SupplierFiscalDocumentPaymentAggregateService,
     PurchaseOrdersService,

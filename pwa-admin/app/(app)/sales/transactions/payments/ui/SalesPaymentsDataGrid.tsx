@@ -140,7 +140,6 @@ export default function SalesPaymentsDataGrid({
 
   return (
     <DataGrid
-      title="Pagos recibidos"
       columns={columns}
       rows={rows}
       totalRows={total}

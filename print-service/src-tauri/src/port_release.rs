@@ -98,10 +98,10 @@ fn terminate_stale_on_listen_ports_unix(ports: &[u16]) -> bool {
         killed_any = true;
         tracing::warn!(
             pid = %pid,
-            "Instancia previa del Print Service aún escucha el puerto; envío SIGTERM para liberarlo"
+            "Instancia previa de KaiPrinters aún escucha el puerto; envío SIGTERM para liberarlo"
         );
         eprintln!(
-            "[FlowStore Print Service] Cerrando instancia previa (PID {pid}) que ocupaba el puerto WS/WSS…"
+            "[KaiPrinters] Cerrando instancia previa (PID {pid}) que ocupaba el puerto WS/WSS…"
         );
         let _ = Command::new("kill").args(["-15", &pid]).status();
     }
@@ -124,6 +124,8 @@ fn unix_process_looks_like_flowstore_print_agent(pid: &str) -> bool {
         || cmd.contains("print-service-app")
         || cmd.contains("print_service_app")
         || cmd.contains("flowstore print service")
+        || cmd.contains("kaiprinters")
+        || cmd.contains("kai-printers")
         || cmd.contains("/print-service")
         || cmd.contains("/print-service-app")
         || cmd.contains("print-service.exe")

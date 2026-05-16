@@ -543,6 +543,108 @@ export function writePosPurposePrinterAliasesToStorage(aliases: {
   }
 }
 
+/** Elección del panel admin: impresora por alias para documentos (hoja). Solo localStorage. */
+const LS_ADMIN_DOCUMENTS_ALIAS = "printAdminPurposeDocumentsAlias";
+
+export function readAdminPurposePrinterAliasFromStorage(): {
+  documentsAlias: string;
+} {
+  if (typeof window === "undefined") {
+    return { documentsAlias: "" };
+  }
+  return {
+    documentsAlias: (localStorage.getItem(LS_ADMIN_DOCUMENTS_ALIAS) || "").trim(),
+  };
+}
+
+export function writeAdminPurposePrinterAliasToStorage(aliases: {
+  documentsAlias?: string;
+}): void {
+  if (typeof window === "undefined") return;
+  if (aliases.documentsAlias !== undefined) {
+    const t = aliases.documentsAlias.trim();
+    if (t) localStorage.setItem(LS_ADMIN_DOCUMENTS_ALIAS, t);
+    else localStorage.removeItem(LS_ADMIN_DOCUMENTS_ALIAS);
+  }
+}
+
+/**
+ * Añade `printerDisplayLabel` para impresiones de documentos desde pwa-admin.
+ */
+export function mergeAdminPrinterDisplayLabelIntoPrintExtras(
+  extra: Record<string, unknown>,
+): Record<string, unknown> {
+  const { documentsAlias } = readAdminPurposePrinterAliasFromStorage();
+  if (!documentsAlias) return extra;
+  return { ...extra, printerDisplayLabel: documentsAlias };
+}
+
+/** Formato de impresión por tipo de documento del POS (ticket 80 mm vs hoja). */
+export type PosDocumentPrintMode = "ticket" | "document";
+
+/** Tipos de documento configurables en Impresión local del POS. */
+export type PosDocumentPrintKind = "sale" | "quotation" | "backorder";
+
+export const POS_DOCUMENT_PRINT_MODES_CHANGED_EVENT = "flowstore:pos-document-print-modes-changed";
+
+const LS_POS_DOC_PRINT_SALE = "printPosDocPrintSale";
+const LS_POS_DOC_PRINT_QUOTATION = "printPosDocPrintQuotation";
+const LS_POS_DOC_PRINT_BACKORDER = "printPosDocPrintBackorder";
+
+const DEFAULT_POS_DOCUMENT_PRINT_MODES: Record<PosDocumentPrintKind, PosDocumentPrintMode> = {
+  sale: "ticket",
+  quotation: "ticket",
+  backorder: "ticket",
+};
+
+function parsePosDocumentPrintMode(raw: string | null): PosDocumentPrintMode | null {
+  const v = (raw || "").trim().toLowerCase();
+  if (v === "ticket" || v === "document") return v;
+  return null;
+}
+
+export function readPosDocumentPrintModesFromStorage(): Record<PosDocumentPrintKind, PosDocumentPrintMode> {
+  if (typeof window === "undefined") {
+    return { ...DEFAULT_POS_DOCUMENT_PRINT_MODES };
+  }
+  return {
+    sale:
+      parsePosDocumentPrintMode(localStorage.getItem(LS_POS_DOC_PRINT_SALE)) ??
+      DEFAULT_POS_DOCUMENT_PRINT_MODES.sale,
+    quotation:
+      parsePosDocumentPrintMode(localStorage.getItem(LS_POS_DOC_PRINT_QUOTATION)) ??
+      DEFAULT_POS_DOCUMENT_PRINT_MODES.quotation,
+    backorder:
+      parsePosDocumentPrintMode(localStorage.getItem(LS_POS_DOC_PRINT_BACKORDER)) ??
+      DEFAULT_POS_DOCUMENT_PRINT_MODES.backorder,
+  };
+}
+
+export function getPosDocumentPrintMode(kind: PosDocumentPrintKind): PosDocumentPrintMode {
+  return readPosDocumentPrintModesFromStorage()[kind];
+}
+
+export function writePosDocumentPrintModesToStorage(
+  modes: Partial<Record<PosDocumentPrintKind, PosDocumentPrintMode>>,
+): void {
+  if (typeof window === "undefined") return;
+  const keyByKind: Record<PosDocumentPrintKind, string> = {
+    sale: LS_POS_DOC_PRINT_SALE,
+    quotation: LS_POS_DOC_PRINT_QUOTATION,
+    backorder: LS_POS_DOC_PRINT_BACKORDER,
+  };
+  let changed = false;
+  for (const kind of Object.keys(keyByKind) as PosDocumentPrintKind[]) {
+    const mode = modes[kind];
+    if (mode === undefined) continue;
+    localStorage.setItem(keyByKind[kind], mode);
+    changed = true;
+  }
+  if (changed && typeof globalThis.window !== "undefined") {
+    globalThis.window.dispatchEvent(new CustomEvent(POS_DOCUMENT_PRINT_MODES_CHANGED_EVENT));
+  }
+}
+
 /**
  * Añade `printerDisplayLabel` al payload de `print` según el propósito y la elección guardada en el POS.
  * No persiste nada en el agente: solo indica qué línea (alias) usar para este trabajo.

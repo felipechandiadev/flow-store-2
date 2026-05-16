@@ -96,6 +96,13 @@ export const TRANSACTION_TYPE_OPTIONS: TransactionTypeOption[] = [
       "Cotización a cliente. Estructura de carrito sin efecto contable ni stock. Tiene vigencia configurable y, al convertirse, respeta los precios cotizados.",
   },
   {
+    id: "BACKORDER",
+    label: "Encargo",
+    category: "Ventas",
+    description:
+      "Reserva de mercadería con abono de cliente. No mueve stock; el folio correlativo usa sigla ECG. Al liquidar genera una venta.",
+  },
+  {
     id: "SERVICE_ORDER",
     label: "Orden de servicio",
     category: "Pedidos",

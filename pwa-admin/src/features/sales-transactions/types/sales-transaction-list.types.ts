@@ -9,6 +9,9 @@ export interface SalesTransactionListRow {
   transactionType: string;
   status: SalesPaymentStatus;
   total: number;
+  amountPaid: number;
+  backorderDepositAmount: number | null;
+  backorderPercent: number | null;
   paymentMethod: SalesPaymentMethod;
   branchName: string | null;
   pointOfSaleName: string | null;
