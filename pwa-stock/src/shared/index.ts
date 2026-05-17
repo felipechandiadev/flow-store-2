@@ -10,3 +10,4 @@ export { default as DropdownList } from "./DropdownList";
 export { default as Dialog } from "./Dialog";
 export { default as DotProgress } from "./DotProgress";
 export { default as Switch } from "./Switch";
+export type { SwitchOptionLabels } from "./Switch";

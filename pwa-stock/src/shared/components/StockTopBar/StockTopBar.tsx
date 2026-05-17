@@ -23,7 +23,7 @@ export default function StockTopBar() {
         </div>
         <IconButton
           variant="basicSecondary"
-          size="sm"
+          size="md"
           ariaLabel="Cerrar sesión"
           icon="LogOut"
           onClick={() => signOut({ callbackUrl: "/" })}

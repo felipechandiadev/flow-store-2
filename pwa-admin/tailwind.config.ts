@@ -14,7 +14,7 @@ const config: Config = {
         border: 'var(--color-border, #c1c1c2)',
         accent: 'var(--color-accent, #0A7CAD)',
         active: 'var(--color-active, #0A7CAD)',
-        secondary: 'var(--color-secondary, #35E3FF)',
+        secondary: 'var(--color-secondary, #04C9E6)',
         muted: 'var(--color-muted, #6b7280)',
         success: 'var(--color-success, #4CAF50)',
         info: 'var(--color-info, #2196F3)',

@@ -45,7 +45,7 @@
 }
 
 .fs-icon-button--contained-secondary {
-  background-color: var(--color-secondary, #35e3ff);
+  background-color: var(--color-secondary, #04c9e6);
   color: var(--color-background, #ffffff);
   border-color: transparent;
 }
@@ -97,7 +97,7 @@
 /* Basic secondary (tablas, cards, acciones secundarias): hover sin fondo, solo color */
 .fs-icon-button--basic-secondary {
   background-color: transparent;
-  color: var(--color-secondary, #35e3ff);
+  color: var(--color-secondary, #04c9e6);
   border-color: transparent;
 }
 .fs-icon-button--basic-secondary:hover:not(:disabled) {

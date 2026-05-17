@@ -16,7 +16,7 @@
   color: var(--color-background, #fff);
 }
 .fs-badge--secondary {
-  background-color: var(--color-secondary, #35e3ff);
+  background-color: var(--color-secondary, #04c9e6);
   color: var(--color-background, #fff);
 }
 .fs-badge--success {
@@ -42,8 +42,8 @@
   background-color: transparent;
 }
 .fs-badge--secondary-outlined {
-  border: 1px solid var(--color-secondary, #35e3ff);
-  color: var(--color-secondary, #35e3ff);
+  border: 1px solid var(--color-secondary, #04c9e6);
+  color: var(--color-secondary, #04c9e6);
   background-color: transparent;
 }
 .fs-badge--success-outlined {

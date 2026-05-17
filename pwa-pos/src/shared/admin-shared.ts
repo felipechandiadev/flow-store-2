@@ -10,6 +10,7 @@ export { Select } from "@/shared/components/Select";
 export { default as IconButton } from "@/shared/components/IconButton/IconButton";
 export { default as NumberStepper } from "@/shared/components/NumberStepper/NumberStepper";
 export { default as Switch } from "@/shared/components/Switch/Switch";
+export type { SwitchOptionLabels } from "@/shared/components/Switch";
 export { default as DataGrid } from "@/shared/components/DataGrid";
 export type { DataGridColumn } from "@/shared/components/DataGrid";
 

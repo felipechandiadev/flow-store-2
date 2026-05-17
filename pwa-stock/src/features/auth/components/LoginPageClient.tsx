@@ -13,12 +13,12 @@ import {
 } from "@/features/company/storage/stock-company-storage";
 
 function postLoginPath(): string {
-  if (typeof window === "undefined") return "/variant";
+  if (typeof window === "undefined") return "/scan";
   const raw = new URLSearchParams(window.location.search).get("callbackUrl");
   if (raw && raw.startsWith("/") && !raw.startsWith("//")) {
     return raw;
   }
-  return "/variant";
+  return "/scan";
 }
 
 function LoginPaperCard({ children }: { children: React.ReactNode }) {

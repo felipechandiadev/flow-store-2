@@ -11,9 +11,20 @@ npm install
 npm run dev   # http://localhost:3023
 ```
 
-El login está en **`/`** (igual que POS y admin). El ícono de **configuración** (esquina inferior derecha) abre `/setup` para elegir la empresa del dispositivo. La selección se guarda en `localStorage` (`flowstore-stock-company`).
+El login está en **`/`** (igual que POS y admin). Tras iniciar sesión se abre **`/scan`**. El ícono de **configuración** (esquina inferior derecha) abre `/setup` para elegir la empresa del dispositivo. La selección se guarda en `localStorage` (`flowstore-stock-company`).
 
 Backend NestJS en **3020** (`BACKEND_API_URL`).
+
+## Rutas (App Router)
+
+| Ruta | Uso |
+|------|-----|
+| `/scan` | Escáner + modo código/SKU; enlace al motor de búsqueda |
+| `/search` | Búsqueda manual, picker y creación rápida de producto |
+| `/variant/[variantId]` | Ficha de variante y stock por almacén |
+| `/variant/[variantId]/barcode` | Actualizar código de barras |
+
+Rutas legacy (`/variant`, `/variant?variantId=`, `/variant/barcode?variantId=`) redirigen a las rutas anteriores.
 
 ## Variables de entorno
 

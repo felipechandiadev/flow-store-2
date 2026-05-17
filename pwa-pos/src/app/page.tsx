@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Store } from "lucide-react";
@@ -15,6 +15,8 @@ import {
   type PosCompanyConfig,
 } from "@/features/company/storage/pos-company-storage";
 
+const POST_LOGIN_PATH = "/pos";
+
 export default function LoginPage() {
   const [userName, setUserName] = useState("");
   const [password, setPassword] = useState("");
@@ -23,11 +25,18 @@ export default function LoginPage() {
   const [posCompany, setPosCompany] = useState<PosCompanyConfig | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const router = useRouter();
+  const { status: sessionStatus } = useSession();
 
   useEffect(() => {
     setPosCompany(readPosCompany());
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (sessionStatus === "authenticated") {
+      router.replace(POST_LOGIN_PATH);
+    }
+  }, [sessionStatus, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +80,7 @@ export default function LoginPage() {
             });
           }
         }
-        router.push(cashSession.cashSessionId ? "/pos" : "/session-setup");
+        router.push(cashSession.cashSessionId ? POST_LOGIN_PATH : "/session-setup");
         return;
       }
 
@@ -81,12 +90,13 @@ export default function LoginPage() {
     }
   };
 
-  if (!hydrated) {
-    // Pinta estructura mínima para evitar saltos de layout antes de leer LS.
+  if (!hydrated || sessionStatus === "loading" || sessionStatus === "authenticated") {
     return (
       <div
         className="flex min-h-dvh items-center justify-center bg-background px-6"
-        data-test-id="login-loading"
+        data-test-id={
+          sessionStatus === "authenticated" ? "login-session-redirect" : "login-loading"
+        }
       />
     );
   }

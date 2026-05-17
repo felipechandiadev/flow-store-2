@@ -41,7 +41,7 @@
 }
 
 .fs-button--contained-secondary {
-  background-color: var(--color-secondary, #35e3ff);
+  background-color: var(--color-secondary, #04c9e6);
   color: var(--color-background, #ffffff);
 }
 .fs-button--contained-secondary:hover:not(:disabled) {
@@ -74,13 +74,13 @@
 
 .fs-button--outlined-secondary {
   background-color: transparent;
-  color: var(--color-secondary, #35e3ff);
-  border-color: var(--color-secondary, #35e3ff);
+  color: var(--color-secondary, #04c9e6);
+  border-color: var(--color-secondary, #04c9e6);
 }
 .fs-button--outlined-secondary:hover:not(:disabled) {
-  background-color: var(--color-secondary, #35e3ff);
+  background-color: var(--color-secondary, #04c9e6);
   color: var(--color-background, #ffffff);
-  border-color: var(--color-secondary, #35e3ff);
+  border-color: var(--color-secondary, #04c9e6);
 }
 
 .fs-button--text {
@@ -131,7 +131,7 @@
 }
 
 .fs-pill--secondary {
-  background-color: var(--color-secondary, #35e3ff);
+  background-color: var(--color-secondary, #04c9e6);
   color: var(--color-background, #ffffff);
 }
 .fs-pill--secondary:hover:not(:disabled) {

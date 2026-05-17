@@ -33,7 +33,7 @@ function fmtMillion(n: number) {
 }
 
 const primary = "var(--color-primary, #002b59)";
-const secondary = "var(--color-secondary, #35e3ff)";
+const secondary = "var(--color-secondary, #04c9e6)";
 const muted = "var(--color-muted, #6b7280)";
 const border = "var(--color-border, #c1c1c2)";
 

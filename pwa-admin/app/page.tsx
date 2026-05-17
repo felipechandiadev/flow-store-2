@@ -1,9 +1,11 @@
 'use client';
 
-import { signIn } from 'next-auth/react';
-import { useState } from 'react';
+import { signIn, useSession } from 'next-auth/react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, TextField } from '@/shared/components';
+
+const POST_LOGIN_PATH = '/dashboard';
 
 export default function LoginPage() {
   const [userName, setUserName] = useState('');
@@ -11,6 +13,13 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
+  const { status } = useSession();
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      router.replace(POST_LOGIN_PATH);
+    }
+  }, [status, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,11 +38,20 @@ export default function LoginPage() {
         return;
       }
 
-      router.push('/dashboard');
+      router.push(POST_LOGIN_PATH);
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (status === 'loading' || status === 'authenticated') {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center bg-background"
+        data-test-id="login-session-redirect"
+      />
+    );
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">

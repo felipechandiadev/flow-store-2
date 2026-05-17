@@ -1,15 +1,16 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Alert, Button, TextField } from "@/shared";
 import BarcodeScanner from "./BarcodeScanner";
 import { updateBarcodeAction } from "../actions/variant.action";
+import { variantDetailPath } from "../lib/variant-routes";
 
 export default function UpdateBarcodePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const variantId = searchParams.get("variantId")?.trim() || "";
+  const params = useParams();
+  const variantId = typeof params.variantId === "string" ? params.variantId.trim() : "";
   const [barcode, setBarcode] = useState("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
@@ -26,7 +27,7 @@ export default function UpdateBarcodePage() {
         setError(r.error);
         return;
       }
-      router.push(`/variant?variantId=${encodeURIComponent(variantId)}`);
+      router.push(variantDetailPath(variantId));
       router.refresh();
     });
   }, [barcode, router, variantId]);
@@ -58,7 +59,7 @@ export default function UpdateBarcodePage() {
       <Button
         type="button"
         variant="secondary"
-        onClick={() => router.push(`/variant?variantId=${encodeURIComponent(variantId)}`)}
+        onClick={() => router.push(variantDetailPath(variantId))}
         disabled={pending}
       >
         Volver

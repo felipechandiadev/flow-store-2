@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateVariantPaths } from "@/features/variant/lib/revalidate-variant-paths";
 import {
   adjustStockUseCase,
   getVariantStockUseCase,
@@ -9,7 +9,7 @@ import {
 } from "../application/stock.usecase";
 
 function revalidateVariant() {
-  revalidatePath("/variant");
+  revalidateVariantPaths();
 }
 
 export async function getVariantStockAction(variantId: string, sku?: string) {

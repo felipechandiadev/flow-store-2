@@ -1,7 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { lookupVariantUseCase } from "../application/lookup-variant.usecase";
+import { revalidateVariantPaths } from "../lib/revalidate-variant-paths";
 import { updateBarcodeUseCase } from "../application/update-barcode.usecase";
 import { VariantRequest } from "../infrastructure/variant.request";
 import type { ScanMode } from "../domain/scan-mode.entity";
@@ -34,6 +34,6 @@ export async function updateBarcodeAction(input: {
 }): Promise<{ success: true } | { success: false; error: string }> {
   const r = await updateBarcodeUseCase(input);
   if (!r.ok) return { success: false, error: r.error };
-  revalidatePath("/variant");
+  revalidateVariantPaths();
   return { success: true };
 }

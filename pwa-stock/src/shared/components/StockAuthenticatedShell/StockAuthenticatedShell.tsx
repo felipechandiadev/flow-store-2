@@ -14,7 +14,7 @@ export default function StockAuthenticatedShell({
       headerEnd={
         <IconButton
           variant="basicSecondary"
-          size="sm"
+          size="md"
           ariaLabel="Cerrar sesión"
           icon="LogOut"
           onClick={() => signOut({ callbackUrl: "/" })}
