@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3022",
+    "dev": "next dev -p 3022 -H 0.0.0.0",
     "build": "next build",
-    "start": "next start -p 3022",
+    "start": "next start -p 3022 -H 0.0.0.0",
     "lint": "eslint",
     "generate-pwa-icons": "node scripts/generate-pwa-icons.mjs"
   },
@@ -13,7 +13,9 @@
     "@flowstore/print-service-client": "file:../packages/print-service-client",
     "@tanstack/react-query": "^5.100.9",
     "@types/leaflet": "^1.9.21",
+    "html2canvas": "^1.4.1",
     "jsbarcode": "^3.11.6",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",

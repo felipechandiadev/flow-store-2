@@ -3,6 +3,8 @@
 import { NestFactory } from '@nestjs/core';
 import { DataSource, DeepPartial } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import * as fs from 'fs';
+import * as path from 'path';
 import { MinimalSeedModule } from './minimal-seed.module';
 import { User, UserRole } from '@modules/users/domain/user.entity';
 import {
@@ -118,46 +120,172 @@ const SEED_UNIT_BASE_SYMBOL = 'un';
 const SEED_UNIT_DERIVED_NAME = 'Docena';
 const SEED_UNIT_DERIVED_SYMBOL = 'doc';
 
-const SEED_CATEGORY_PARENT_NAME = 'CAT 01';
-const SEED_CATEGORY_CHILD_NAME = 'CAT 02';
+/** Categorías de producto (catálogo sala de venta / vidrios). */
+const SEED_PRODUCT_CATEGORIES = [
+  'Accesorios',
+  'Parabrisas',
+  'Lunetas',
+  'Vidrios Puerta',
+  'Aletas',
+] as const;
 
-/** Catálogo de atributos demo (nombre único + opciones). TALLA se usa en variantes de polera. */
-const SEED_ATTRIBUTES: readonly {
+const LEGACY_SEED_CATEGORY_NAMES = ['CAT 01', 'CAT 02'] as const;
+
+const SEED_ANO_ATTRIBUTE_NAME = 'AÑO';
+
+const LEGACY_SEED_ATTRIBUTE_NAMES = [
+  'TALLA',
+  'COLOR',
+  'MATERIAL',
+  'ORIGEN',
+  'MOLIENDA',
+  'PESO',
+  'MARCA DE AUTO',
+] as const;
+
+/** Catálogo de marcas de vehículo (vidrios / repuestos). Fuente: data-to-seed/marcas-autos.json */
+function loadSeedMarcasAutos(): string[] {
+  const candidates = [
+    path.join(__dirname, 'data', 'marcas-autos.json'),
+    path.resolve(__dirname, '../../../data-to-seed/marcas-autos.json'),
+  ];
+  for (const filePath of candidates) {
+    if (!fs.existsSync(filePath)) continue;
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
+    if (!Array.isArray(raw)) {
+      throw new Error(`marcas-autos.json inválido en ${filePath}: se esperaba un array`);
+    }
+    const names = [
+      ...new Set(
+        raw
+          .map((x) => (typeof x === 'string' ? x.trim() : ''))
+          .filter((x): x is string => x.length > 0),
+      ),
+    ].sort((a, b) => a.localeCompare(b, 'es'));
+    if (names.length === 0) {
+      throw new Error(`marcas-autos.json vacío en ${filePath}`);
+    }
+    return names;
+  }
+  throw new Error(
+    'No se encontró marcas-autos.json (backend/src/seed/data/ o data-to-seed/)',
+  );
+}
+
+/** Años/rangos unificados para vidrios. Fuente: data-to-seed/anos-unicos.json */
+function loadSeedAnosUnicos(): string[] {
+  const candidates = [
+    path.join(__dirname, 'data', 'anos-unicos.json'),
+    path.resolve(__dirname, '../../../data-to-seed/anos-unicos.json'),
+  ];
+  for (const filePath of candidates) {
+    if (!fs.existsSync(filePath)) continue;
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
+    if (!Array.isArray(raw)) {
+      throw new Error(`anos-unicos.json inválido en ${filePath}: se esperaba un array`);
+    }
+    const options = [
+      ...new Set(
+        raw
+          .map((x) => (typeof x === 'string' ? x.trim() : ''))
+          .filter((x): x is string => x.length > 0),
+      ),
+    ];
+    if (options.length === 0) {
+      throw new Error(`anos-unicos.json vacío en ${filePath}`);
+    }
+    return options;
+  }
+  throw new Error(
+    'No se encontró anos-unicos.json (backend/src/seed/data/ o data-to-seed/)',
+  );
+}
+
+const SEED_CATALOGO_IVA_TASA = 0.19;
+
+type CatalogoProductoSeedRow = {
+  codigo?: string | null;
+  nombre: string;
+  categoria: string;
+  anio?: string | null;
+  sku: string;
+  precioVentaConIva?: number | null;
+  precioNeto?: number | null;
+  precioNoDisponibleEnExcel?: boolean;
+};
+
+/** Catálogo sala de venta / vidrios. Fuente: catalogo-productos-seed.json */
+function loadSeedCatalogoProductos(): CatalogoProductoSeedRow[] {
+  const candidates = [
+    path.join(__dirname, 'data', 'catalogo-productos-seed.json'),
+    path.resolve(__dirname, '../../../data-to-seed/catalogo-productos-seed.json'),
+  ];
+  for (const filePath of candidates) {
+    if (!fs.existsSync(filePath)) continue;
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as {
+      productos?: unknown;
+    };
+    if (!Array.isArray(raw.productos)) {
+      throw new Error(
+        `catalogo-productos-seed.json inválido en ${filePath}: falta array productos`,
+      );
+    }
+    const productos: CatalogoProductoSeedRow[] = [];
+    for (const item of raw.productos) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      const nombre = typeof row.nombre === 'string' ? row.nombre.trim() : '';
+      const sku = typeof row.sku === 'string' ? row.sku.trim() : '';
+      const categoria =
+        typeof row.categoria === 'string' ? row.categoria.trim() : '';
+      if (!nombre || !sku || !categoria) continue;
+      productos.push({
+        codigo:
+          row.codigo === null || row.codigo === undefined
+            ? null
+            : String(row.codigo).trim() || null,
+        nombre,
+        categoria,
+        anio:
+          typeof row.anio === 'string' && row.anio.trim()
+            ? row.anio.trim()
+            : null,
+        sku,
+        precioVentaConIva:
+          typeof row.precioVentaConIva === 'number' &&
+          Number.isFinite(row.precioVentaConIva)
+            ? Math.round(row.precioVentaConIva)
+            : 0,
+        precioNeto:
+          typeof row.precioNeto === 'number' && Number.isFinite(row.precioNeto)
+            ? Math.round(row.precioNeto)
+            : null,
+        precioNoDisponibleEnExcel: row.precioNoDisponibleEnExcel === true,
+      });
+    }
+    if (productos.length === 0) {
+      throw new Error(`catalogo-productos-seed.json vacío en ${filePath}`);
+    }
+    return productos;
+  }
+  throw new Error(
+    'No se encontró catalogo-productos-seed.json (backend/src/seed/data/ o data-to-seed/)',
+  );
+}
+
+function buildSeedAttributes(): readonly {
   name: string;
   options: readonly string[];
   displayOrder: number;
-}[] = [
-  {
-    name: 'TALLA',
-    options: ['XS', 'SM', 'M', 'L', 'XL', 'XXL'],
-    displayOrder: 0,
-  },
-  {
-    name: 'COLOR',
-    options: ['Negro', 'Blanco', 'Gris', 'Azul marino', 'Rojo'],
-    displayOrder: 1,
-  },
-  {
-    name: 'MATERIAL',
-    options: ['Algodón', 'Poliéster', 'Lino', 'Mixto'],
-    displayOrder: 2,
-  },
-  {
-    name: 'ORIGEN',
-    options: ['Chile', 'Perú', 'Colombia', 'Brasil'],
-    displayOrder: 3,
-  },
-  {
-    name: 'MOLIENDA',
-    options: ['Grano entero', 'Espresso', 'Fina', 'Media'],
-    displayOrder: 4,
-  },
-  {
-    name: 'PESO',
-    options: ['250 g', '500 g', '1 kg'],
-    displayOrder: 5,
-  },
-];
+}[] {
+  return [
+    {
+      name: SEED_ANO_ATTRIBUTE_NAME,
+      options: loadSeedAnosUnicos(),
+      displayOrder: 0,
+    },
+  ];
+}
 
 const SEED_PRICE_LIST_RETAIL_NAME = 'MINORISTA';
 const SEED_PRICE_LIST_WHOLESALE_NAME = 'MAYORISTA';
@@ -1899,65 +2027,62 @@ async function bootstrap() {
       L: unitLiter.id,
     };
 
-    // Categories (ejemplos): CAT 01 (padre) y CAT 02 (hija)
-    const existingCat1 = await categoryRepo.findOne({
-      where: { name: SEED_CATEGORY_PARENT_NAME },
-    });
-    const cat1 = existingCat1
-      ? await categoryRepo.save({
-          ...existingCat1,
-          name: SEED_CATEGORY_PARENT_NAME,
-          description: undefined,
-          parentId: undefined,
-          sortOrder: 0,
-          isActive: true,
-          resultCenterId: null,
-        })
-      : await categoryRepo.save(
-          categoryRepo.create({
-            name: SEED_CATEGORY_PARENT_NAME,
+    // Categorías de producto (vidrios / accesorios)
+    for (const legacyName of LEGACY_SEED_CATEGORY_NAMES) {
+      const legacy = await categoryRepo.findOne({ where: { name: legacyName } });
+      if (legacy) {
+        await categoryRepo.softRemove(legacy);
+        console.log(`🗑️  Categoría legacy eliminada: «${legacyName}»`);
+      }
+    }
+
+    const categoryByName = new Map<string, Category>();
+    for (let i = 0; i < SEED_PRODUCT_CATEGORIES.length; i++) {
+      const name = SEED_PRODUCT_CATEGORIES[i];
+      const existing = await categoryRepo.findOne({ where: { name } });
+      const saved = existing
+        ? await categoryRepo.save({
+            ...existing,
+            name,
             description: undefined,
             parentId: undefined,
-            sortOrder: 0,
+            sortOrder: i,
             isActive: true,
             resultCenterId: null,
-          }),
-        );
-    console.log(
-      `✅ Categoría ejemplo ${cat1.name} ${existingCat1 ? 'ya existía' : 'creada'}: id=${cat1.id}`,
-    );
+          })
+        : await categoryRepo.save(
+            categoryRepo.create({
+              name,
+              description: undefined,
+              parentId: undefined,
+              sortOrder: i,
+              isActive: true,
+              resultCenterId: null,
+            }),
+          );
+      categoryByName.set(name, saved);
+      console.log(
+        `✅ Categoría ${saved.name} ${existing ? 'sincronizada' : 'creada'}: id=${saved.id}`,
+      );
+    }
 
-    const existingCat2 = await categoryRepo.findOne({
-      where: { name: SEED_CATEGORY_CHILD_NAME },
-    });
-    const cat2 = existingCat2
-      ? await categoryRepo.save({
-          ...existingCat2,
-          name: SEED_CATEGORY_CHILD_NAME,
-          description: undefined,
-          parentId: cat1.id,
-          sortOrder: 0,
-          isActive: true,
-          resultCenterId: null,
-        })
-      : await categoryRepo.save(
-          categoryRepo.create({
-            name: SEED_CATEGORY_CHILD_NAME,
-            description: undefined,
-            parentId: cat1.id,
-            sortOrder: 0,
-            isActive: true,
-            resultCenterId: null,
-          }),
-        );
-    console.log(
-      `✅ Categoría ejemplo ${cat2.name} ${existingCat2 ? 'ya existía' : 'creada'}: id=${cat2.id} parent=${cat1.name}`,
-    );
+    const catAccesorios = categoryByName.get('Accesorios');
+    if (!catAccesorios) {
+      throw new Error('Seed minimal: categoría Accesorios no sincronizada');
+    }
 
-    // Atributos de catálogo (TALLA + 4 extras para demo en admin)
-    let talla: Attribute | undefined;
-    let peso: Attribute | undefined;
-    for (const def of SEED_ATTRIBUTES) {
+    // Atributo único: AÑO (opciones desde anos-unicos.json)
+    for (const legacyName of LEGACY_SEED_ATTRIBUTE_NAMES) {
+      const legacy = await attributeRepo.findOne({ where: { name: legacyName } });
+      if (legacy) {
+        await attributeRepo.softRemove(legacy);
+        console.log(`🗑️  Atributo legacy eliminado: «${legacyName}»`);
+      }
+    }
+
+    const seedAttributeDefs = buildSeedAttributes();
+    let atributoAno: Attribute | undefined;
+    for (const def of seedAttributeDefs) {
       const existingAttr = await attributeRepo.findOne({
         where: { name: def.name },
       });
@@ -1978,21 +2103,15 @@ async function bootstrap() {
               isActive: true,
             }),
           );
-      if (def.name === 'TALLA') {
-        talla = saved;
-      }
-      if (def.name === 'PESO') {
-        peso = saved;
+      if (def.name === SEED_ANO_ATTRIBUTE_NAME) {
+        atributoAno = saved;
       }
       console.log(
-        `✅ Atributo ${saved.name} ${existingAttr ? 'ya existía' : 'creado'}: id=${saved.id}`,
+        `✅ Atributo ${saved.name} (${saved.options.length} opciones) ${existingAttr ? 'sincronizado' : 'creado'}: id=${saved.id}`,
       );
     }
-    if (!talla) {
-      throw new Error('Seed minimal: atributo TALLA no sincronizado');
-    }
-    if (!peso) {
-      throw new Error('Seed minimal: atributo PESO no sincronizado');
+    if (!atributoAno) {
+      throw new Error('Seed minimal: atributo AÑO no sincronizado');
     }
 
     // Price lists (ejemplos): MINORISTA (RETAIL, default) y MAYORISTA (WHOLESALE)
@@ -2117,9 +2236,9 @@ async function bootstrap() {
         name: 'Café de grano',
         brand: 'Origen Sur',
         description:
-          'Físico con tres presentaciones por peso (250 g, 500 g, 1 kg); inventario rastreado; típico venta minorista / compra a proveedor.',
+          'Físico con tres presentaciones (250 g, 500 g, 1 kg); inventario rastreado.',
         productType: ProductType.PHYSICAL,
-        categoryId: cat2.id,
+        categoryId: catAccesorios.id,
         productBaseUnit: 'G',
         variants: [
           {
@@ -2129,7 +2248,6 @@ async function bootstrap() {
             baseCost: 1200,
             pmp: 1400,
             trackInventory: true,
-            attributeValues: { [peso.id]: '250 g' },
             retailNet: 2790,
             wholesaleNet: 2350,
             uom: { stock: 'G', sale: 'G', purchase: 'KG' },
@@ -2149,7 +2267,6 @@ async function bootstrap() {
             baseCost: 2200,
             pmp: 2500,
             trackInventory: true,
-            attributeValues: { [peso.id]: '500 g' },
             retailNet: 4990,
             wholesaleNet: 4200,
             uom: { stock: 'G', sale: 'G', purchase: 'KG' },
@@ -2169,7 +2286,6 @@ async function bootstrap() {
             baseCost: 4000,
             pmp: 4500,
             trackInventory: true,
-            attributeValues: { [peso.id]: '1 kg' },
             retailNet: 8990,
             wholesaleNet: 7600,
             uom: { stock: 'G', sale: 'KG', purchase: 'KG' },
@@ -2187,49 +2303,10 @@ async function bootstrap() {
       {
         name: 'Polera algodón estampada',
         brand: 'Demo Wear',
-        description:
-          'Físico multivariante (varias tallas) usando el atributo TALLA del seed; mismo producto, SKUs distintos.',
+        description: 'Producto demo físico (variante única).',
         productType: ProductType.PHYSICAL,
-        categoryId: cat1.id,
+        categoryId: catAccesorios.id,
         variants: [
-          {
-            sku: 'SEED-DEMO-POL-XS',
-            barcode: '7800002001000',
-            basePrice: 11990,
-            baseCost: 5600,
-            pmp: 6000,
-            trackInventory: true,
-            attributeValues: { [talla.id]: 'XS' },
-            retailNet: 11990,
-            wholesaleNet: 10200,
-            shipping: {
-              netWeightKg: 0.12,
-              grossWeightKg: 0.17,
-              packageLengthCm: 32,
-              packageWidthCm: 24,
-              packageHeightCm: 3,
-              volumetricDivisorK: 5000,
-            },
-          },
-          {
-            sku: 'SEED-DEMO-POL-SM',
-            barcode: '7800002000999',
-            basePrice: 12490,
-            baseCost: 5800,
-            pmp: 6200,
-            trackInventory: true,
-            attributeValues: { [talla.id]: 'SM' },
-            retailNet: 12490,
-            wholesaleNet: 10600,
-            shipping: {
-              netWeightKg: 0.14,
-              grossWeightKg: 0.19,
-              packageLengthCm: 32,
-              packageWidthCm: 24,
-              packageHeightCm: 3,
-              volumetricDivisorK: 5000,
-            },
-          },
           {
             sku: 'SEED-DEMO-POL-ML',
             barcode: '7800002001001',
@@ -2237,69 +2314,11 @@ async function bootstrap() {
             baseCost: 6000,
             pmp: 6500,
             trackInventory: true,
-            attributeValues: { [talla.id]: 'M' },
             retailNet: 12990,
             wholesaleNet: 11000,
             shipping: {
               netWeightKg: 0.16,
               grossWeightKg: 0.21,
-              packageLengthCm: 32,
-              packageWidthCm: 24,
-              packageHeightCm: 3,
-              volumetricDivisorK: 5000,
-            },
-          },
-          {
-            sku: 'SEED-DEMO-POL-LG',
-            barcode: '7800002001002',
-            basePrice: 12990,
-            baseCost: 6000,
-            pmp: 6500,
-            trackInventory: true,
-            attributeValues: { [talla.id]: 'L' },
-            retailNet: 12990,
-            wholesaleNet: 11000,
-            shipping: {
-              netWeightKg: 0.17,
-              grossWeightKg: 0.22,
-              packageLengthCm: 32,
-              packageWidthCm: 24,
-              packageHeightCm: 3,
-              volumetricDivisorK: 5000,
-            },
-          },
-          {
-            sku: 'SEED-DEMO-POL-XL',
-            barcode: '7800002001003',
-            basePrice: 13490,
-            baseCost: 6200,
-            pmp: 6700,
-            trackInventory: true,
-            attributeValues: { [talla.id]: 'XL' },
-            retailNet: 13490,
-            wholesaleNet: 11400,
-            shipping: {
-              netWeightKg: 0.18,
-              grossWeightKg: 0.23,
-              packageLengthCm: 32,
-              packageWidthCm: 24,
-              packageHeightCm: 3,
-              volumetricDivisorK: 5000,
-            },
-          },
-          {
-            sku: 'SEED-DEMO-POL-XXL',
-            barcode: '7800002001004',
-            basePrice: 13990,
-            baseCost: 6400,
-            pmp: 6900,
-            trackInventory: true,
-            attributeValues: { [talla.id]: 'XXL' },
-            retailNet: 13990,
-            wholesaleNet: 11800,
-            shipping: {
-              netWeightKg: 0.2,
-              grossWeightKg: 0.25,
               packageLengthCm: 32,
               packageWidthCm: 24,
               packageHeightCm: 3,
@@ -2314,7 +2333,7 @@ async function bootstrap() {
         description:
           'Servicio (tipo SERVICE): variante única; consumos por receta/BOM al completar órdenes de servicio.',
         productType: ProductType.SERVICE,
-        categoryId: cat1.id,
+        categoryId: catAccesorios.id,
         variants: [
           {
             sku: 'SEED-DEMO-SRV-ARM',
@@ -2334,7 +2353,7 @@ async function bootstrap() {
         description:
           'Digital: sin stock físico; útil para ventas documentadas y flujos sin inventario.',
         productType: ProductType.DIGITAL,
-        categoryId: cat2.id,
+        categoryId: catAccesorios.id,
         variants: [
           {
             sku: 'SEED-DEMO-DIG-XLS',
@@ -2353,7 +2372,7 @@ async function bootstrap() {
         description:
           'Materia prima / insumo físico (25 kg y 5 kg) para recepciones y líneas de receta (BOM) hacia servicios o producción.',
         productType: ProductType.PHYSICAL,
-        categoryId: cat2.id,
+        categoryId: catAccesorios.id,
         productBaseUnit: 'KG',
         variants: [
           {
@@ -2402,7 +2421,7 @@ async function bootstrap() {
         description:
           'Físico por volumen (500 mL y 1 L); stock en mililitros; compra típica en litros.',
         productType: ProductType.PHYSICAL,
-        categoryId: cat2.id,
+        categoryId: catAccesorios.id,
         productBaseUnit: 'ML',
         variants: [
           {
@@ -2447,10 +2466,12 @@ async function bootstrap() {
       },
     ];
 
+    const marcasAutos = loadSeedMarcasAutos();
+    const demoProductBrandNames = seedDemoProducts
+      .map((d) => d.brand?.trim())
+      .filter((x): x is string => Boolean(x && x.length > 0));
     const seedBrandNames = [
-      ...new Set(
-        seedDemoProducts.map((d) => d.brand?.trim()).filter((x): x is string => Boolean(x && x.length > 0)),
-      ),
+      ...new Set([...marcasAutos, ...demoProductBrandNames]),
     ].sort((a, b) => a.localeCompare(b, 'es'));
 
     const brandIdByName = new Map<string, string>();
@@ -2462,16 +2483,27 @@ async function bootstrap() {
         b = brandRepo.create({
           companyId: company.id,
           name: nm,
-          description: null,
+          description: marcasAutos.includes(nm)
+            ? 'Marca de vehículo (catálogo seed)'
+            : null,
           isActive: true,
         });
         b = await brandRepo.save(b);
-        console.log(`✅ Marca demo creada: «${nm}» id=${b.id}`);
+        console.log(
+          `✅ Marca ${marcasAutos.includes(nm) ? 'auto' : 'demo'} creada: «${nm}» id=${b.id}`,
+        );
       } else {
-        console.log(`✅ Marca demo ya existía: «${nm}» id=${b.id}`);
+        if (marcasAutos.includes(nm) && !b.description) {
+          b.description = 'Marca de vehículo (catálogo seed)';
+          await brandRepo.save(b);
+        }
+        console.log(`✅ Marca ya existía: «${nm}» id=${b.id}`);
       }
       brandIdByName.set(nm, b.id);
     }
+    console.log(
+      `✅ Marcas de auto sincronizadas: ${marcasAutos.length} (total marcas seed: ${seedBrandNames.length})`,
+    );
 
     const upsertPriceListItem = async (args: {
       priceListId: string;
@@ -2619,6 +2651,139 @@ async function bootstrap() {
         `✅ Producto demo sincronizado: «${def.name}» (${def.productType}) variantes=${def.variants.length} productId=${product.id}`,
       );
     }
+
+    // ---------------------------------------------------------------------
+    // Catálogo Excel (catalogo-productos-seed.json): 1 producto / 1 variante por fila
+    // ---------------------------------------------------------------------
+    const catalogoRows = loadSeedCatalogoProductos();
+    const unitUnId = seedUnitId.UN;
+    let catalogVariantCreated = 0;
+    let catalogVariantUpdated = 0;
+
+    console.log(
+      `📦 Catálogo Excel: sincronizando ${catalogoRows.length} productos (precio venta con IVA → neto ÷ ${1 + SEED_CATALOGO_IVA_TASA})…`,
+    );
+
+    for (const row of catalogoRows) {
+      const category = categoryByName.get(row.categoria);
+      if (!category) {
+        throw new Error(
+          `Seed catálogo: categoría «${row.categoria}» no existe (producto «${row.nombre}»)`,
+        );
+      }
+
+      const precioVentaConIva = Math.max(0, Number(row.precioVentaConIva) || 0);
+      const retailNet =
+        precioVentaConIva > 0
+          ? Math.round(precioVentaConIva / (1 + SEED_CATALOGO_IVA_TASA))
+          : 0;
+      const wholesaleNet = retailNet;
+      const baseCost = Math.max(0, Number(row.precioNeto) || 0);
+      const pmp = baseCost;
+
+      const attributeValues =
+        row.anio && atributoAno.id
+          ? { [atributoAno.id]: row.anio }
+          : undefined;
+
+      let variant = await variantRepo.findOne({
+        where: { sku: row.sku, companyId: company.id },
+      });
+
+      let product: Product | null = null;
+      if (variant?.productId) {
+        product = await productRepo.findOne({ where: { id: variant.productId } });
+      }
+
+      const productPayload = {
+        name: row.nombre,
+        brand: undefined,
+        brandId: null,
+        description: row.codigo
+          ? `Código referencia: ${row.codigo}`
+          : 'Catálogo importado (seed Excel)',
+        productType: ProductType.PHYSICAL,
+        categoryId: category.id,
+        taxIds: [ivaTax.id],
+        isActive: true,
+        baseUnitId: unitUnId,
+      };
+
+      if (!product) {
+        product = productRepo.create(productPayload);
+      } else {
+        Object.assign(product, productPayload);
+      }
+      product = await productRepo.save(product);
+
+      const seedPmpHistory =
+        pmp > 0
+          ? appendPmpHistory(undefined, {
+              previousPmp: 0,
+              newPmp: pmp,
+              source: 'initial',
+              at: new Date().toISOString(),
+            })
+          : undefined;
+
+      const variantPayload: DeepPartial<ProductVariant> = {
+        productId: product.id,
+        sku: row.sku,
+        basePrice: retailNet,
+        baseCost,
+        pmp,
+        unitId: unitUnId,
+        stockBaseUnitId: unitUnId,
+        saleUnitId: unitUnId,
+        purchaseUnitId: unitUnId,
+        attributeValues,
+        taxIds: [ivaTax.id],
+        trackInventory: true,
+        allowNegativeStock: false,
+        isActive: true,
+        minimumStock: 0,
+        maximumStock: 0,
+        reorderPoint: 0,
+      };
+
+      if (!variant) {
+        const createPayload: DeepPartial<ProductVariant> = { ...variantPayload };
+        if (seedPmpHistory) {
+          createPayload.pmpHistory = seedPmpHistory;
+        }
+        variant = variantRepo.create(createPayload);
+        catalogVariantCreated += 1;
+      } else {
+        Object.assign(variant, variantPayload);
+        const h = variant.pmpHistory;
+        const historyEmpty = !h || !Array.isArray(h) || h.length === 0;
+        if (seedPmpHistory && historyEmpty) {
+          variant.pmpHistory = seedPmpHistory;
+        }
+        catalogVariantUpdated += 1;
+      }
+
+      const savedVariant = await variantRepo.save(variant);
+
+      await upsertPriceListItem({
+        priceListId: minorista.id,
+        productId: product.id,
+        productVariantId: savedVariant.id,
+        net: retailNet,
+        taxId: ivaTax.id,
+      });
+      await upsertPriceListItem({
+        priceListId: mayorista.id,
+        productId: product.id,
+        productVariantId: savedVariant.id,
+        net: wholesaleNet,
+        taxId: ivaTax.id,
+      });
+    }
+
+    console.log(
+      `✅ Catálogo Excel sincronizado: ${catalogoRows.length} productos (variantes nuevas=${catalogVariantCreated}, actualizadas=${catalogVariantUpdated})`,
+    );
 
     // Point of sale (ejemplo): CAJA LOCAL en sucursal seed con listas de precios
     const priceListsJson = [

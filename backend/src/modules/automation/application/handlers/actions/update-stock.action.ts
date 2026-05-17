@@ -30,6 +30,7 @@ export class UpdateStockActionHandler {
     const type = tx.transactionType;
     const incomingTypes = [
       TransactionType.PURCHASE,
+      TransactionType.SALE_RETURN,
       TransactionType.TRANSFER_IN,
       TransactionType.ADJUSTMENT_IN,
     ];

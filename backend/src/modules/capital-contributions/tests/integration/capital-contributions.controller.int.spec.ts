@@ -78,4 +78,21 @@ describe('CapitalContributionsController (Integration)', () => {
       occurredOn: '2026-04-19',
     });
   });
+
+  it('should accept cash hub capital contribution without bank account', async () => {
+    await request(app.getHttpServer())
+      .post('/capital-contributions')
+      .send({
+        shareholderId: '11111111-1111-4111-8111-111111111111',
+        cashHubId: '22222222-2222-4222-8222-222222222222',
+        amount: 2500,
+      })
+      .expect(201);
+
+    expect(service.create).toHaveBeenCalledWith({
+      shareholderId: '11111111-1111-4111-8111-111111111111',
+      cashHubId: '22222222-2222-4222-8222-222222222222',
+      amount: 2500,
+    });
+  });
 });

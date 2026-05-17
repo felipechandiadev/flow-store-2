@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { CompanyDetails } from "@/features/settings-branches/infrastructure/company.request";
 import type { ShareholderRow } from "@/features/settings-shareholders/types/shareholder.types";
+import type { CashHubRow } from "@/features/treasury-cash-hubs/types/cash-hub.types";
 import { Card, StatisticsCard, type LucideIconName } from "@/shared/components/Cards";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import Dialog from "@/shared/components/Dialog/Dialog";
@@ -16,7 +17,7 @@ import {
   postCapitalContributionAction,
   postCashDepositAction,
   postDividendWithdrawalAction,
-  postPettyCashWithdrawalAction,
+  postBankToCashHubTransferAction,
 } from "@/features/treasury-bank-operations/actions/treasury-bank-operations.action";
 import TreasuryBankMovementsGrid from "./TreasuryBankMovementsGrid";
 import { treasuryBankAccountKey } from "./treasury-bank-accounts";
@@ -43,12 +44,13 @@ function partnerLabel(row: ShareholderRow): string {
 type TreasuryBankTabContentProps = {
   company: CompanyDetails | null;
   shareholders: ShareholderRow[];
+  cashHubs: CashHubRow[];
   selectedBankAccountKey: string | null;
   movementRows: TreasuryMovementGridRow[];
   movementsTotal: number;
 };
 
-type DialogKind = "none" | "capital" | "dividend" | "deposit" | "petty";
+type DialogKind = "none" | "capital" | "dividend" | "deposit" | "bankToHub";
 
 const TREASURY_CARD_PAD = "[&_.fs-card__content]:p-2 [&_.fs-card__content]:pb-2";
 
@@ -96,6 +98,7 @@ function TreasuryTransactionCard({
 export default function TreasuryBankTabContent({
   company,
   shareholders,
+  cashHubs,
   selectedBankAccountKey,
   movementRows,
   movementsTotal,
@@ -131,7 +134,17 @@ export default function TreasuryBankTabContent({
     [shareholders],
   );
 
+  const cashHubOptions: Option[] = useMemo(
+    () =>
+      cashHubs.map((h) => ({
+        id: h.id,
+        label: `${h.name}${h.code ? ` · ${h.code}` : ""} · ${fmtMoney(h.currentBalance ?? 0)}`,
+      })),
+    [cashHubs],
+  );
+
   const [bankOpt, setBankOpt] = useState<string | null>(null);
+  const [cashHubOpt, setCashHubOpt] = useState<string | null>(null);
   const [partnerOpt, setPartnerOpt] = useState<string | null>(null);
   const [amountStr, setAmountStr] = useState("0");
   const [taxStr, setTaxStr] = useState("");
@@ -146,8 +159,14 @@ export default function TreasuryBankTabContent({
     return bankOptions[0] != null ? String(bankOptions[0].id) : null;
   }, [bankOptions, selectedBankAccountKey]);
 
+  const preferredCashHubId = useMemo(
+    () => (cashHubOptions[0] != null ? String(cashHubOptions[0].id) : null),
+    [cashHubOptions],
+  );
+
   const resetForm = () => {
     setBankOpt(preferredBankKey);
+    setCashHubOpt(preferredCashHubId);
     setPartnerOpt(partnerOptions[0] != null ? String(partnerOptions[0].id) : null);
     setAmountStr("0");
     setTaxStr("");
@@ -235,14 +254,21 @@ export default function TreasuryBankTabContent({
 
   const submitDeposit = () => {
     setError(null);
-    if (!bankOpt || amountNum <= 0) {
-      setError("Seleccione cuenta destino y monto.");
+    if (!cashHubOpt || !bankOpt || amountNum <= 0) {
+      setError("Seleccione centro de efectivo origen, cuenta bancaria destino y monto.");
+      return;
+    }
+    const hub = cashHubs.find((h) => String(h.id) === String(cashHubOpt));
+    const hubBalance = typeof hub?.currentBalance === "number" ? hub.currentBalance : 0;
+    if (amountNum > hubBalance + 0.01) {
+      setError(`El monto supera el saldo del centro de efectivo (${fmtMoney(hubBalance)}).`);
       return;
     }
     startTransition(() => {
       void (async () => {
         const r = await postCashDepositAction({
           bankAccountKey: bankOpt,
+          cashHubId: cashHubOpt,
           amount: amountNum,
         });
         if (r.success) {
@@ -255,16 +281,17 @@ export default function TreasuryBankTabContent({
     });
   };
 
-  const submitPetty = () => {
+  const submitBankToHub = () => {
     setError(null);
-    if (!bankOpt || amountNum <= 0) {
-      setError("Seleccione cuenta origen y monto.");
+    if (!bankOpt || !cashHubOpt || amountNum <= 0) {
+      setError("Seleccione cuenta bancaria origen, centro de efectivo destino y monto.");
       return;
     }
     startTransition(() => {
       void (async () => {
-        const r = await postPettyCashWithdrawalAction({
+        const r = await postBankToCashHubTransferAction({
           bankAccountKey: bankOpt,
+          cashHubId: cashHubOpt,
           amount: amountNum,
         });
         if (r.success) {
@@ -319,22 +346,22 @@ export default function TreasuryBankTabContent({
 
         <TreasuryTransactionCard
           title="Depósito de efectivo"
-          description="Traslado desde caja física al saldo de la cuenta bancaria elegida."
+          description="Depósito en banco desde un centro de efectivo (efectivo acopio → cuenta bancaria)."
           icon="Landmark"
-          ariaLabel="Depósito desde caja a banco"
+          ariaLabel="Depositar desde centro de efectivo a banco"
           onOpen={() => openDialog("deposit")}
-          disabled={bankOptions.length === 0}
+          disabled={bankOptions.length === 0 || cashHubOptions.length === 0}
           data-test-id="treasury-bank-action-deposit"
         />
 
         <TreasuryTransactionCard
-          title="Giro para caja"
-          description="Retiro bancario para reponer efectivo en caja (fondo fijo o sencillo)."
+          title="Giro para centro de efectivo"
+          description="Transferencia desde cuenta bancaria hacia un centro de efectivo (centro de acopio)."
           icon="Wallet"
-          ariaLabel="Giro de banco a caja"
-          onOpen={() => openDialog("petty")}
-          disabled={bankOptions.length === 0}
-          data-test-id="treasury-bank-action-petty"
+          ariaLabel="Giro de banco a centro de efectivo"
+          onOpen={() => openDialog("bankToHub")}
+          disabled={bankOptions.length === 0 || cashHubOptions.length === 0}
+          data-test-id="treasury-bank-action-bank-to-hub"
         />
       </div>
 
@@ -404,8 +431,8 @@ export default function TreasuryBankTabContent({
               ? "Retiro de utilidades"
               : dialog === "deposit"
                 ? "Depósito de efectivo"
-                : dialog === "petty"
-                  ? "Giro para caja"
+                : dialog === "bankToHub"
+                  ? "Giro para centro de efectivo"
                   : ""
         }
         size="md"
@@ -426,8 +453,8 @@ export default function TreasuryBankTabContent({
                   submitDividend();
                 } else if (dialog === "deposit") {
                   submitDeposit();
-                } else if (dialog === "petty") {
-                  submitPetty();
+                } else if (dialog === "bankToHub") {
+                  submitBankToHub();
                 }
               }}
             >
@@ -447,11 +474,29 @@ export default function TreasuryBankTabContent({
               placeholder="Seleccione socio"
             />
           )}
+          {(dialog === "deposit" || dialog === "bankToHub") &&
+            (cashHubOptions.length === 0 ? (
+              <Alert variant="warning">
+                No hay centros de efectivo configurados. Créelos en la pestaña Efectivo antes de registrar esta
+                operación.
+              </Alert>
+            ) : (
+              <Select
+                label={
+                  dialog === "deposit" ? "Centro de efectivo origen" : "Centro de efectivo destino"
+                }
+                options={cashHubOptions}
+                value={cashHubOpt}
+                onChange={(id) => setCashHubOpt(id == null ? null : String(id).trim())}
+                required
+                placeholder="Seleccione centro de efectivo"
+              />
+            ))}
           <Select
             label={
               dialog === "deposit"
                 ? "Cuenta bancaria destino"
-                : dialog === "petty"
+                : dialog === "bankToHub"
                   ? "Cuenta bancaria origen"
                   : "Cuenta bancaria"
             }
@@ -461,6 +506,11 @@ export default function TreasuryBankTabContent({
             required
             placeholder="Seleccione cuenta"
           />
+          {dialog === "deposit" ? (
+            <p className="text-xs text-muted-foreground">
+              El efectivo sale del centro de acopio seleccionado y aumenta el saldo de la cuenta bancaria.
+            </p>
+          ) : null}
           <TextField
             label="Monto"
             type="currency"

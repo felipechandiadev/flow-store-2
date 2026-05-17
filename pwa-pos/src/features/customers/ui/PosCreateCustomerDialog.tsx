@@ -30,6 +30,8 @@ const PAYMENT_DAY_OPTIONS: Option[] = [
 export type PosCreateCustomerDialogProps = {
   open: boolean;
   onClose: () => void;
+  /** Si false, no se muestran límite de crédito ni día de pago. */
+  internalCreditEnabled?: boolean;
   onSuccess?: (info: {
     customerId: string;
     displayName: string;
@@ -39,7 +41,12 @@ export type PosCreateCustomerDialogProps = {
   }) => void | Promise<void>;
 };
 
-export function PosCreateCustomerDialog({ open, onClose, onSuccess }: PosCreateCustomerDialogProps) {
+export function PosCreateCustomerDialog({
+  open,
+  onClose,
+  onSuccess,
+  internalCreditEnabled = false,
+}: PosCreateCustomerDialogProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [documentType, setDocumentType] = useState<"RUN" | "PASSPORT" | "DNI">("RUN");
@@ -76,7 +83,9 @@ export function PosCreateCustomerDialog({ open, onClose, onSuccess }: PosCreateC
 
   const handleSubmit = () => {
     setError(null);
-    const creditLimit = Math.max(0, Math.round(Number(creditLimitStr.replace(/\D/g, "")) || 0));
+    const creditLimit = internalCreditEnabled
+      ? Math.max(0, Math.round(Number(creditLimitStr.replace(/\D/g, "")) || 0))
+      : 0;
     const day = Number(paymentDayOfMonth);
     const input: PosCreateCustomerInput = {
       personType: "NATURAL",
@@ -88,7 +97,11 @@ export function PosCreateCustomerDialog({ open, onClose, onSuccess }: PosCreateC
       phone: phone.trim() || undefined,
       address: address.trim() || undefined,
       creditLimit,
-      paymentDayOfMonth: [5, 10, 15, 20, 25, 30].includes(day) ? (day as 5 | 10 | 15 | 20 | 25 | 30) : 5,
+      paymentDayOfMonth: internalCreditEnabled
+        ? [5, 10, 15, 20, 25, 30].includes(day)
+          ? (day as 5 | 10 | 15 | 20 | 25 | 30)
+          : 5
+        : 5,
       notes: notes.trim() || null,
     };
 
@@ -185,22 +198,26 @@ export function PosCreateCustomerDialog({ open, onClose, onSuccess }: PosCreateC
 
         <TextField label="Dirección" name="pos-customer-address" value={address} onChange={(e) => setAddress(e.target.value)} />
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <TextField
-            label="Límite de crédito"
-            name="pos-customer-credit-limit"
-            type="currency"
-            value={creditLimitStr}
-            onChange={(e) => setCreditLimitStr(e.target.value)}
-          />
-          <Select
-            label="Día de pago"
-            name="pos-customer-payment-day"
-            options={PAYMENT_DAY_OPTIONS}
-            value={paymentDayOfMonth}
-            onChange={(v) => setPaymentDayOfMonth(v != null ? String(v) : "5")}
-          />
-        </div>
+        {internalCreditEnabled ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <TextField
+              label="Límite de crédito"
+              name="pos-customer-credit-limit"
+              type="currency"
+              value={creditLimitStr}
+              onChange={(e) => setCreditLimitStr(e.target.value)}
+              data-test-id="pos-customer-create-credit-limit"
+            />
+            <Select
+              label="Día de pago"
+              name="pos-customer-payment-day"
+              options={PAYMENT_DAY_OPTIONS}
+              value={paymentDayOfMonth}
+              onChange={(v) => setPaymentDayOfMonth(v != null ? String(v) : "5")}
+              data-test-id="pos-customer-create-payment-day"
+            />
+          </div>
+        ) : null}
 
         <TextField
           label="Notas (opcional)"

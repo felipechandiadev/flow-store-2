@@ -7,10 +7,10 @@ import Select from "@/shared/components/Select/Select";
 import type { CompanyPaymentMethodConfig } from "@/features/companies/types/company-payment-methods.types";
 import {
   COMPANY_PAYMENT_METHOD_LABELS,
+  companyPaymentMethodAlwaysRequiresReference,
   POS_VALID_METHOD_IDS,
 } from "@/features/companies/types/company-payment-methods.types";
 import type { PosPaymentMethodConfig } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
-import { defaultPosEntryFor } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
 
 type Props = {
   /** Catálogo de empresa (sin filtrar). */
@@ -24,6 +24,47 @@ type Props = {
   "data-test-id"?: string;
 };
 
+function defaultRowForNewCatalogEntry(c: CompanyPaymentMethodConfig): PosPaymentMethodConfig {
+  return {
+    companyPaymentMethodId: c.id,
+    isEnabled: false,
+    preloadOnPaymentScreen: false,
+    preloadOrder: null,
+    isDefaultForChange: false,
+    bankAccountKey: c.bankAccountKey ?? null,
+    requireReference: companyPaymentMethodAlwaysRequiresReference(c.method) ? true : null,
+  };
+}
+
+function buildPayloadFromState(
+  order: string[],
+  byId: Record<string, PosPaymentMethodConfig>,
+  usableCatalog: CompanyPaymentMethodConfig[],
+): PosPaymentMethodConfig[] {
+  const catalogById = new Map(usableCatalog.map((c) => [c.id, c]));
+  return order
+    .map((id) => byId[id])
+    .filter((r): r is PosPaymentMethodConfig => r != null)
+    .map((r) => {
+      const cmp = catalogById.get(r.companyPaymentMethodId);
+      const refLocked =
+        cmp != null && companyPaymentMethodAlwaysRequiresReference(cmp.method);
+      return {
+        companyPaymentMethodId: r.companyPaymentMethodId,
+        isEnabled: r.isEnabled !== false,
+        preloadOnPaymentScreen: r.preloadOnPaymentScreen === true,
+        preloadOrder: r.preloadOrder ?? 0,
+        isDefaultForChange: r.isDefaultForChange === true,
+        bankAccountKey: r.bankAccountKey ?? null,
+        requireReference: refLocked
+          ? null
+          : r.requireReference == null
+            ? null
+            : r.requireReference === true,
+      };
+    });
+}
+
 function buildInitialById(
   usableCatalog: CompanyPaymentMethodConfig[],
   initial: PosPaymentMethodConfig[],
@@ -34,7 +75,7 @@ function buildInitialById(
   }
   const out: Record<string, PosPaymentMethodConfig> = {};
   for (const c of usableCatalog) {
-    out[c.id] = map.get(c.id) ?? defaultPosEntryFor(c, c.method === "CASH");
+    out[c.id] = map.get(c.id) ?? defaultRowForNewCatalogEntry(c);
   }
   return out;
 }
@@ -108,26 +149,21 @@ export function PosPaymentMethodsCardsEditor({
 
     dirtyRef.current = false; // reset sync loop on prop refresh
     setOrder(initialOrder);
-    setById(computeGlobalOrder(initialOrder, nextById));
-  }, [usableCatalog, usableKey, valueKey]);
+    const orderedById = computeGlobalOrder(initialOrder, nextById);
+    setById(orderedById);
+
+    const valueIds = new Set((value ?? []).map((v) => v.companyPaymentMethodId));
+    const catalogMissingInValue = usableCatalog.some((c) => !valueIds.has(c.id));
+    if (catalogMissingInValue) {
+      onChange(buildPayloadFromState(initialOrder, orderedById, usableCatalog));
+    }
+  }, [usableCatalog, usableKey, valueKey, onChange, value]);
 
   useEffect(() => {
     if (!dirtyRef.current) return;
-    const payload: PosPaymentMethodConfig[] = order
-      .map((id) => byId[id])
-      .filter((r): r is PosPaymentMethodConfig => r != null)
-      .map((r) => ({
-        companyPaymentMethodId: r.companyPaymentMethodId,
-        isEnabled: r.isEnabled !== false,
-        preloadOnPaymentScreen: r.preloadOnPaymentScreen === true,
-        preloadOrder: r.preloadOrder ?? 0,
-        isDefaultForChange: r.isDefaultForChange === true,
-        bankAccountKey: r.bankAccountKey ?? null,
-        requireReference: r.requireReference == null ? null : r.requireReference === true,
-      }));
     dirtyRef.current = false;
-    onChange(payload);
-  }, [order, byId, onChange]);
+    onChange(buildPayloadFromState(order, byId, usableCatalog));
+  }, [order, byId, onChange, usableCatalog]);
 
   const patchRow = useCallback(
     (id: string, patch: Partial<PosPaymentMethodConfig>) => {
@@ -256,14 +292,20 @@ export function PosPaymentMethodsCardsEditor({
                 disabled={disabled || r?.isEnabled === false}
                 data-test-id={`pos-pm-preload-${c.id}`}
               />
-              <Switch
-                checked={r?.requireReference === true}
-                onChange={(v) => patchRow(c.id, { requireReference: v })}
-                label="Pide referencia"
-                labelPosition="right"
-                disabled={disabled || r?.isEnabled === false}
-                data-test-id={`pos-pm-require-ref-${c.id}`}
-              />
+              {companyPaymentMethodAlwaysRequiresReference(c.method) ? (
+                <p className="text-xs text-muted-foreground self-center">
+                  Referencia obligatoria (no editable)
+                </p>
+              ) : (
+                <Switch
+                  checked={r?.requireReference === true}
+                  onChange={(v) => patchRow(c.id, { requireReference: v })}
+                  label="Pide referencia"
+                  labelPosition="right"
+                  disabled={disabled || r?.isEnabled === false}
+                  data-test-id={`pos-pm-require-ref-${c.id}`}
+                />
+              )}
               <Switch
                 checked={r?.isDefaultForChange === true}
                 onChange={(v) => setUniqueDefault(c.id, v)}

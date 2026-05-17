@@ -9,7 +9,7 @@ import {
 
 describe('CreateTransactionDto', () => {
   describe('validate()', () => {
-    it('should accept BANK_TO_CASH_TRANSFER with bankAccountKey', () => {
+    it('should accept BANK_TO_CASH_TRANSFER with bankAccountKey and cashHubId', () => {
       const dto = new CreateTransactionDto();
       dto.transactionType = TransactionType.BANK_TO_CASH_TRANSFER;
       dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
@@ -19,6 +19,7 @@ describe('CreateTransactionDto', () => {
       dto.total = 100;
       dto.paymentMethod = PaymentMethod.TRANSFER;
       dto.bankAccountKey = 'bank-key-1';
+      dto.cashHubId = '223e4567-e89b-12d3-a456-426614174001';
 
       const errors = dto.validate();
 
@@ -152,6 +153,80 @@ describe('CreateTransactionDto', () => {
       dto.lines = [
         plainLine({ productName: 'G', quantity: 1, unitPrice: 200, subtotal: 200, total: 200 }),
       ];
+
+      const errors = dto.validate();
+
+      expect(errors.length).toBe(0);
+    });
+
+    it('should reject SALE_RETURN without relatedTransactionId', () => {
+      const dto = new CreateTransactionDto();
+      dto.transactionType = TransactionType.SALE_RETURN;
+      dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.userId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.customerId = '123e4567-e89b-12d3-a456-426614174001';
+      dto.storageId = '123e4567-e89b-12d3-a456-426614174002';
+      dto.subtotal = 100;
+      dto.total = 100;
+      dto.lines = [
+        plainLine({ productName: 'x', quantity: 1, unitPrice: 100, subtotal: 100, total: 100 }),
+      ];
+
+      const errors = dto.validate();
+
+      expect(errors.some((e) => e.includes('relatedTransactionId'))).toBe(true);
+    });
+
+    it('should accept SALE_RETURN with sale link and lines', () => {
+      const dto = new CreateTransactionDto();
+      dto.transactionType = TransactionType.SALE_RETURN;
+      dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.userId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.customerId = '123e4567-e89b-12d3-a456-426614174001';
+      dto.storageId = '123e4567-e89b-12d3-a456-426614174002';
+      dto.relatedTransactionId = '123e4567-e89b-12d3-a456-426614174099';
+      dto.subtotal = 100;
+      dto.total = 100;
+      dto.lines = [
+        plainLine({ productName: 'x', quantity: 1, unitPrice: 100, subtotal: 100, total: 100 }),
+      ];
+
+      const errors = dto.validate();
+
+      expect(errors.length).toBe(0);
+    });
+
+    it('should reject CUSTOMER_CREDIT_NOTE without saleReturnId', () => {
+      const dto = new CreateTransactionDto();
+      dto.transactionType = TransactionType.CUSTOMER_CREDIT_NOTE;
+      dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.userId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.customerId = '123e4567-e89b-12d3-a456-426614174001';
+      dto.subtotal = 50;
+      dto.total = 50;
+      dto.metadata = { links: {} };
+
+      const errors = dto.validate();
+
+      expect(errors.some((e) => e.includes('saleReturnId'))).toBe(true);
+    });
+
+    it('should accept CUSTOMER_CREDIT_NOTE with saleReturnId and totals only', () => {
+      const dto = new CreateTransactionDto();
+      dto.transactionType = TransactionType.CUSTOMER_CREDIT_NOTE;
+      dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.userId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.customerId = '123e4567-e89b-12d3-a456-426614174001';
+      dto.relatedTransactionId = '123e4567-e89b-12d3-a456-426614174099';
+      dto.subtotal = 50;
+      dto.taxAmount = 10;
+      dto.total = 60;
+      dto.metadata = {
+        links: {
+          saleReturnId: '123e4567-e89b-12d3-a456-426614174099',
+          saleId: '123e4567-e89b-12d3-a456-426614174088',
+        },
+      };
 
       const errors = dto.validate();
 

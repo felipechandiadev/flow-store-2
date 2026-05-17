@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import {
   Alert,
   Button,
@@ -24,6 +24,7 @@ import {
   emptyCloseCounted,
   grandCloseCounted,
 } from "@/features/session/lib/close-counted-buckets";
+import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 
 /** Si el POS no devuelve catálogo, permitimos arqueo con los medios estándar. */
 function fallbackCloseMethods(): EffectivePaymentMethod[] {
@@ -68,6 +69,8 @@ type CloseOk = Extract<Awaited<ReturnType<typeof closeCashSessionAction>>, { suc
 export default function CashClosingPageClient() {
   const router = useRouter();
   const { data: authSession, status: authStatus } = useSession();
+  const cart = usePosCart();
+  const signOutStartedRef = useRef(false);
 
   const [cashSessionId, setCashSessionId] = useState<string | null>(null);
   const [pointOfSaleId, setPointOfSaleId] = useState<string | null>(null);
@@ -88,8 +91,21 @@ export default function CashClosingPageClient() {
   const [formError, setFormError] = useState<string | null>(null);
   const [step, setStep] = useState<"blind" | "result">("blind");
   const [closeResult, setCloseResult] = useState<CloseOk | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   const [isPending, startTransition] = useTransition();
+
+  const finishUserSession = useCallback(() => {
+    if (signOutStartedRef.current) return;
+    signOutStartedRef.current = true;
+    setSigningOut(true);
+    void signOut({ callbackUrl: "/" });
+  }, []);
+
+  useEffect(() => {
+    if (step !== "result" || !closeResult) return;
+    finishUserSession();
+  }, [step, closeResult, finishUserSession]);
 
   useEffect(() => {
     const ctx = readPosContextClient();
@@ -232,14 +248,11 @@ export default function CashClosingPageClient() {
         setFormError(res.message);
         return;
       }
+      patchPosContextClient({ cashSessionId: null });
+      cart.clear();
       setCloseResult(res);
       setStep("result");
-      patchPosContextClient({ cashSessionId: null });
     });
-  };
-
-  const goSessionSetup = () => {
-    router.push("/session-setup");
   };
 
   if (loadingCtx) {
@@ -264,21 +277,19 @@ export default function CashClosingPageClient() {
             <p className="mt-1 max-w-xl text-xs text-muted-foreground sm:text-sm">
               {blind
                 ? "Resultado del arqueo: comparación entre efectivo contado y el saldo teórico de la sesión."
-                : "La sesión se cerró correctamente."}
+                : "La sesión de caja se cerró correctamente."}
             </p>
           </div>
-          <IconButton
-            icon="ArrowLeft"
-            variant="basic"
-            size="md"
-            ariaLabel="Volver al POS"
-            title="Volver al POS"
-            onClick={() => router.push("/pos")}
-          />
         </div>
 
         <Alert variant="success" className="text-sm">
-          {closeResult.message ?? "Sesión cerrada correctamente."}
+          {closeResult.message ?? "Sesión de caja cerrada correctamente."}
+        </Alert>
+
+        <Alert variant="info" className="text-sm">
+          {signingOut
+            ? "Cerrando sesión de usuario… Serás redirigido al inicio de sesión."
+            : "La sesión de usuario se cerrará automáticamente."}
         </Alert>
 
         {blind && counted ? (
@@ -327,11 +338,8 @@ export default function CashClosingPageClient() {
         ) : null}
 
         <div className="flex flex-wrap gap-3">
-          <Button type="button" variant="primary" onClick={goSessionSetup}>
-            Abrir nueva sesión
-          </Button>
-          <Button type="button" variant="outlined" onClick={() => router.push("/pos")}>
-            Volver al POS
+          <Button type="button" variant="primary" onClick={finishUserSession} disabled={signingOut}>
+            {signingOut ? "Cerrando sesión…" : "Cerrar sesión de usuario"}
           </Button>
         </div>
       </div>
@@ -385,9 +393,9 @@ export default function CashClosingPageClient() {
         </p>
 
         {!effectiveLoaded ? (
-          <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground" role="status">
             <DotProgress /> Cargando medios de pago…
-          </p>
+          </div>
         ) : inputMethods.length === 0 ? (
           <p className="mt-4 text-sm text-muted-foreground">
             {loadError
@@ -435,9 +443,9 @@ export default function CashClosingPageClient() {
         </p>
         <div className="mt-4 max-w-md">
           {loadingHubs ? (
-            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
               <DotProgress /> Cargando centros…
-            </p>
+            </div>
           ) : hubs.length === 0 ? (
             <p className="text-xs text-muted-foreground">No hay centros disponibles; se usará el default del POS.</p>
           ) : (

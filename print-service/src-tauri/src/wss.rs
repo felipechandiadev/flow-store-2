@@ -1,4 +1,4 @@
-//! WSS listener on 127.0.0.1 (TLS from `tls` module).
+//! WSS listener (TLS). Misma interfaz de red que WS (`listen_host` en SQLite).
 
 use std::sync::Arc;
 
@@ -17,9 +17,12 @@ pub async fn run_wss_loop(
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> Result<()> {
     let port = state.db.wss_listen_port();
+    let host = state.db.listen_host();
+    let loopback_only = host == "127.0.0.1" || host.eq_ignore_ascii_case("localhost");
     let acceptor = TlsAcceptor::from(tls.clone());
 
     let mut v6_task = None;
+    if loopback_only {
     if let Ok(addr6) = format!("[::1]:{port}").parse::<std::net::SocketAddr>() {
         match TcpListener::bind(addr6).await {
             Ok(listener6) => {
@@ -61,8 +64,9 @@ pub async fn run_wss_loop(
             Err(e) => tracing::debug!(%addr6, err = %e, "wss: skip IPv6 loopback bind"),
         }
     }
+    }
 
-    let addr: std::net::SocketAddr = format!("127.0.0.1:{port}").parse()?;
+    let addr: std::net::SocketAddr = format!("{host}:{port}").parse()?;
     let listener = TcpListener::bind(addr).await?;
     tracing::info!(%addr, "WSS listening");
     loop {

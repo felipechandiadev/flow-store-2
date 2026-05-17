@@ -5,6 +5,7 @@ import {
   CompanyPaymentMethodConfig,
   EffectivePaymentMethod,
   PAYMENT_METHOD_LABELS,
+  PAYMENT_METHODS_ALWAYS_REQUIRE_REFERENCE,
   POS_INVALID_METHODS,
   PosPaymentMethodConfig,
 } from './payment-method-config.types';
@@ -56,7 +57,9 @@ export function sanitizeCompanyPaymentMethod(
     alias: trimOrNull(r.alias),
     displayOrder,
     isActive: r.isActive !== false,
-    requireReference: r.requireReference === true,
+    requireReference: PAYMENT_METHODS_ALWAYS_REQUIRE_REFERENCE.has(method)
+      ? true
+      : r.requireReference === true,
     bankAccountKey: trimOrNull(r.bankAccountKey),
     metadata: r.metadata && typeof r.metadata === 'object' ? (r.metadata as Record<string, any>) : null,
   };
@@ -124,8 +127,9 @@ export function sanitizePosPaymentMethod(
         ? Math.trunc(Number(r.preloadOrder))
         : null;
 
-  const requireReference =
-    r.requireReference == null
+  const requireReference = PAYMENT_METHODS_ALWAYS_REQUIRE_REFERENCE.has(exists.method)
+    ? null
+    : r.requireReference == null
       ? null
       : r.requireReference === true
         ? true
@@ -182,6 +186,41 @@ export function validatePosPaymentMethods(
 }
 
 /**
+ * Alinea la config del POS con el catálogo actual de la empresa:
+ * - conserva filas existentes;
+ * - agrega entradas para medios nuevos (deshabilitados por defecto);
+ * - omite referencias huérfanas a ids ya no presentes en empresa.
+ */
+export function syncPosPaymentMethodsWithCatalog(
+  companyCatalog: CompanyPaymentMethodConfig[],
+  posList: PosPaymentMethodConfig[],
+): PosPaymentMethodConfig[] {
+  const byPosId = new Map(
+    posList.map((p) => [p.companyPaymentMethodId, p]),
+  );
+  const applicable = companyCatalog
+    .filter((c) => !POS_INVALID_METHODS.has(c.method))
+    .slice()
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+
+  return applicable.map((cmp) => {
+    const existing = byPosId.get(cmp.id);
+    if (existing) {
+      return existing;
+    }
+    return {
+      companyPaymentMethodId: cmp.id,
+      isEnabled: false,
+      preloadOnPaymentScreen: false,
+      preloadOrder: null,
+      isDefaultForChange: false,
+      bankAccountKey: cmp.bankAccountKey ?? null,
+      requireReference: null,
+    };
+  });
+}
+
+/**
  * Calcula el catálogo "efectivo" para pwa-pos:
  *  - solo entradas activas en empresa
  *  - excluyendo métodos no aptos para POS (MIXED/CREDIT/INTERNAL_CREDIT)
@@ -193,9 +232,10 @@ export function mergeCompanyAndPos(
   companyCatalog: CompanyPaymentMethodConfig[],
   posList: PosPaymentMethodConfig[],
 ): EffectivePaymentMethod[] {
+  const syncedPos = syncPosPaymentMethodsWithCatalog(companyCatalog, posList);
   const byId = new Map(companyCatalog.map((c) => [c.id, c]));
   const out: EffectivePaymentMethod[] = [];
-  for (const pos of posList) {
+  for (const pos of syncedPos) {
     if (!pos.isEnabled) continue;
     const cmp = byId.get(pos.companyPaymentMethodId);
     if (!cmp) continue;
@@ -208,8 +248,11 @@ export function mergeCompanyAndPos(
       label: cmp.alias?.trim() || PAYMENT_METHOD_LABELS[cmp.method] || cmp.method,
       alias: cmp.alias ?? null,
       bankAccountKey: pos.bankAccountKey ?? cmp.bankAccountKey ?? null,
-      requireReference:
-        pos.requireReference == null ? cmp.requireReference : pos.requireReference,
+      requireReference: PAYMENT_METHODS_ALWAYS_REQUIRE_REFERENCE.has(cmp.method)
+        ? true
+        : pos.requireReference == null
+          ? cmp.requireReference
+          : pos.requireReference,
       preloadOnPaymentScreen: pos.preloadOnPaymentScreen,
       preloadOrder: pos.preloadOrder ?? null,
       isDefaultForChange: pos.isDefaultForChange,

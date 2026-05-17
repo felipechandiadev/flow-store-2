@@ -322,6 +322,8 @@ export class CreateTransactionDto {
 
     const requirePositive = [
       TransactionType.SALE,
+      TransactionType.SALE_RETURN,
+      TransactionType.CUSTOMER_CREDIT_NOTE,
       TransactionType.PURCHASE,
       TransactionType.PURCHASE_ORDER,
       TransactionType.PURCHASE_RETURN,
@@ -371,8 +373,10 @@ export class CreateTransactionDto {
         if (!this.shareholderId) {
           errors.push('CAPITAL_CONTRIBUTION requiere shareholderId');
         }
-        if (!this.bankAccountKey) {
-          errors.push('CAPITAL_CONTRIBUTION requiere bankAccountKey');
+        if (!this.bankAccountKey && !this.cashHubId) {
+          errors.push(
+            'CAPITAL_CONTRIBUTION requiere bankAccountKey o cashHubId',
+          );
         }
         break;
 
@@ -394,6 +398,9 @@ export class CreateTransactionDto {
       case TransactionType.BANK_TO_CASH_TRANSFER:
         if (!this.bankAccountKey) {
           errors.push('BANK_TO_CASH_TRANSFER requiere bankAccountKey');
+        }
+        if (!this.cashHubId?.trim()) {
+          errors.push('BANK_TO_CASH_TRANSFER requiere cashHubId (centro de efectivo destino)');
         }
         break;
 
@@ -503,6 +510,44 @@ export class CreateTransactionDto {
           errors.push('SALE requiere al menos una línea');
         }
         break;
+
+      case TransactionType.SALE_RETURN: {
+        const uuidRe =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!this.customerId?.trim()) {
+          errors.push('SALE_RETURN requiere customerId');
+        }
+        if (
+          !this.relatedTransactionId?.trim() ||
+          !uuidRe.test(String(this.relatedTransactionId).trim())
+        ) {
+          errors.push(
+            'SALE_RETURN requiere relatedTransactionId (UUID de la venta SALE origen)',
+          );
+        }
+        if (!this.storageId?.trim()) {
+          errors.push('SALE_RETURN requiere storageId');
+        }
+        if (!this.lines || this.lines.length === 0) {
+          errors.push('SALE_RETURN requiere al menos una línea');
+        }
+        break;
+      }
+
+      case TransactionType.CUSTOMER_CREDIT_NOTE: {
+        if (!this.customerId?.trim()) {
+          errors.push('CUSTOMER_CREDIT_NOTE requiere customerId');
+        }
+        const srId = this.metadata?.links?.saleReturnId;
+        const uuidRe =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!srId || typeof srId !== 'string' || !uuidRe.test(String(srId).trim())) {
+          errors.push(
+            'CUSTOMER_CREDIT_NOTE requiere metadata.links.saleReturnId (UUID de SALE_RETURN)',
+          );
+        }
+        break;
+      }
 
       case TransactionType.PURCHASE:
         if (!this.supplierId) {
@@ -623,7 +668,8 @@ export class CreateTransactionDto {
 
 export class CreateCapitalContributionDto {
   shareholderId!: string;
-  bankAccountKey!: string;
+  bankAccountKey?: string;
+  cashHubId?: string;
   amount!: number;
   notes?: string;
   occurredOn?: string;
@@ -637,12 +683,18 @@ export class CreateCapitalContributionDto {
     dto.branchId = branchId;
     dto.userId = userId;
     dto.shareholderId = this.shareholderId;
-    dto.bankAccountKey = this.bankAccountKey;
+    const hubId = this.cashHubId?.trim();
+    if (hubId) {
+      dto.cashHubId = hubId;
+      dto.paymentMethod = PaymentMethod.CASH;
+    } else {
+      dto.bankAccountKey = this.bankAccountKey;
+      dto.paymentMethod = PaymentMethod.TRANSFER;
+    }
     dto.subtotal = this.amount;
     dto.taxAmount = 0;
     dto.discountAmount = 0;
     dto.total = this.amount;
-    dto.paymentMethod = PaymentMethod.TRANSFER;
     dto.paymentStatus = PaymentStatus.PAID;
     dto.amountPaid = this.amount;
     dto.notes = this.notes;
@@ -650,6 +702,7 @@ export class CreateCapitalContributionDto {
       capitalContribution: true,
       partnerId: this.shareholderId,
       occurredOn: this.occurredOn,
+      ...(hubId ? { capitalContributionCashHub: true, cashHubId: hubId } : {}),
     };
     return dto;
   }
@@ -694,6 +747,7 @@ export class CreateCashDepositDto {
 
 export class CreateBankTransferDto {
   bankAccountKey!: string;
+  cashHubId!: string;
   amount!: number;
   notes?: string;
   occurredOn?: string;
@@ -702,11 +756,13 @@ export class CreateBankTransferDto {
     userId: string,
     branchId: string,
   ): CreateTransactionDto {
+    const hubId = this.cashHubId?.trim() ?? '';
     const dto = new CreateTransactionDto();
     dto.transactionType = TransactionType.BANK_TO_CASH_TRANSFER;
     dto.branchId = branchId;
     dto.userId = userId;
     dto.bankAccountKey = this.bankAccountKey;
+    dto.cashHubId = hubId;
     dto.subtotal = this.amount;
     dto.taxAmount = 0;
     dto.discountAmount = 0;
@@ -716,6 +772,8 @@ export class CreateBankTransferDto {
     dto.notes = this.notes;
     dto.metadata = {
       bankToCashTransfer: true,
+      bankToCashHubTransfer: true,
+      cashHubId: hubId,
       occurredOn: this.occurredOn,
     };
     return dto;

@@ -14,6 +14,10 @@ export type PosCustomerDetail = {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  personType?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  businessName?: string | null;
 };
 
 export type PosCustomerPaymentRow = {
@@ -35,11 +39,50 @@ export type PosCustomerQuotaRow = {
   createdAt: string | null;
 };
 
+export type PosCustomerPurchaseRow = {
+  id: string;
+  documentNumber: string | null;
+  transactionType: string | null;
+  status: string | null;
+  total: number;
+  paymentMethod: string | null;
+  createdAt: string;
+};
+
+export type CustomerCreditNoteUsageStatus =
+  | "available"
+  | "partially_used"
+  | "fully_used";
+
+export type PosCustomerCreditNoteRow = {
+  id: string;
+  documentNumber: string;
+  total: number;
+  consumedAmount: number;
+  availableAmount: number;
+  usageStatus: CustomerCreditNoteUsageStatus;
+  createdAt: string;
+  status: string;
+};
+
+export type PosCustomerReturnRow = {
+  id: string;
+  documentNumber: string;
+  total: number;
+  status: string;
+  createdAt: string;
+  refundMode: string | null;
+  linkedCreditNote: PosCustomerCreditNoteRow | null;
+};
+
 export type PosCustomerDetailBundle =
   | {
       success: true;
       customer: PosCustomerDetail;
       payments: PosCustomerPaymentRow[];
       quotas: PosCustomerQuotaRow[];
+      purchases: PosCustomerPurchaseRow[];
+      returns: PosCustomerReturnRow[];
+      creditNotes: PosCustomerCreditNoteRow[];
     }
   | { success: false; message: string };

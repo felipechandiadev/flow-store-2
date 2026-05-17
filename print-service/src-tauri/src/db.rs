@@ -204,6 +204,20 @@ impl Db {
         14568
     }
 
+    /// `0.0.0.0` = aceptar conexiones WS desde otros equipos en la LAN (tablets, POS remoto).
+    pub fn default_listen_host() -> &'static str {
+        "0.0.0.0"
+    }
+
+    pub fn listen_host(&self) -> String {
+        self.get_setting("listen_host")
+            .ok()
+            .flatten()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| Self::default_listen_host().to_string())
+    }
+
     pub fn listen_port(&self) -> u16 {
         self.get_setting("listen_port")
             .ok()

@@ -34,6 +34,7 @@ import { GetCashSessionsDto } from './dto/get-cash-sessions.dto';
 import { OpenCashSessionDto } from './dto/open-cash-session.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { saleTransactionCashFlows } from './sale-transaction-cash-flow.util';
+import { saleReturnTransactionCashFlows } from './sale-return-transaction-cash-flow.util';
 
 @Injectable()
 export class CashSessionsService {
@@ -1082,10 +1083,11 @@ export class CashSessionsService {
         case TransactionType.PAYROLL_PAYMENT:
         case TransactionType.EXPENSE_PAYMENT:
         case TransactionType.BANK_TO_CASH_TRANSFER:
-        case TransactionType.SALE_RETURN:
-          // Salidas de efectivo
-          cashOut += total;
+        case TransactionType.SALE_RETURN: {
+          const { cashOut: returnOut } = saleReturnTransactionCashFlows(tx);
+          cashOut += returnOut;
           break;
+        }
         default:
           break;
       }

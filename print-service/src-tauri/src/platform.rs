@@ -225,17 +225,28 @@ fn list_windows() -> Result<Vec<PrinterInfo>> {
     Ok(outv)
 }
 
-pub fn print_pdf_to_printer(pdf_path: &Path, printer: &str, copies: u32) -> Result<()> {
+pub fn print_pdf_to_printer(
+    pdf_path: &Path,
+    printer: &str,
+    copies: u32,
+    thermal_80mm: bool,
+) -> Result<()> {
     #[cfg(target_os = "macos")]
     {
-        let status = Command::new("lp")
-            .arg("-d")
+        let mut cmd = Command::new("lp");
+        cmd.arg("-d")
             .arg(printer)
             .arg("-n")
-            .arg(copies.max(1).to_string())
-            .arg(pdf_path)
-            .status()
-            .context("lp")?;
+            .arg(copies.max(1).to_string());
+        if thermal_80mm {
+            cmd.arg("-o")
+                .arg("media=Custom.80x297mm")
+                .arg("-o")
+                .arg("fit-to-page=false")
+                .arg("-o")
+                .arg("print-scaling=none");
+        }
+        let status = cmd.arg(pdf_path).status().context("lp")?;
         if !status.success() {
             anyhow::bail!("lp exited {:?}", status.code());
         }
@@ -283,7 +294,7 @@ fn print_windows(pdf_path: &Path, printer: &str, copies: u32) -> Result<()> {
             )
         };
         if r.0 as isize <= 32 {
-            anyhow::bail!("ShellExecuteW printto failed code {}", r.0);
+            anyhow::bail!("ShellExecuteW printto failed code {}", r.0 as isize);
         }
     }
     Ok(())

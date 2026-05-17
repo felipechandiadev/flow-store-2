@@ -20,6 +20,7 @@ export interface CustomersRepositoryPort {
   getTransactions(customerId: string): Promise<Transaction[]>;
   getPendingPayments(customerId: string): Promise<Transaction[]>;
   getPurchases(customerId: string, status?: string): Promise<Transaction[]>;
+  getPaymentIns(customerId: string): Promise<Transaction[]>;
   calculateAvailableCredit(customerId: string): Promise<{
     creditLimit: number;
     usedCredit: number;

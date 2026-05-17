@@ -5,6 +5,10 @@ import { Search } from "lucide-react";
 import { searchPosProductsAction } from "@/features/pos-products/actions/pos-products.action";
 import type { PosProductSearchItem } from "@/features/pos-products/types/pos-product.types";
 import {
+  looksLikeBarcodeScan,
+  shouldAutoAddSingleResult,
+} from "@/features/pos-products/lib/pos-barcode-scan";
+import {
   clampPosProductSearchPageSize,
   POS_PRODUCT_SEARCH_DEBOUNCE_MS,
   POS_PRODUCT_SEARCH_DEFAULT_PAGE_SIZE,
@@ -36,7 +40,9 @@ type Props = {
   branchId: string | null;
   pointOfSaleId: string;
   onPriceListChange: (id: string) => void;
-  onPickProduct: (item: PosProductSearchItem) => void;
+  onPickProduct?: (item: PosProductSearchItem) => void;
+  disabled?: boolean;
+  disabledHint?: string;
 };
 
 export default function PosProductSearchPanel({
@@ -46,6 +52,8 @@ export default function PosProductSearchPanel({
   pointOfSaleId,
   onPriceListChange,
   onPickProduct,
+  disabled = false,
+  disabledHint,
 }: Props) {
   const [draftSearch, setDraftSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -63,6 +71,21 @@ export default function PosProductSearchPanel({
   const [resultPageSize, setResultPageSize] = useState(POS_PRODUCT_SEARCH_DEFAULT_PAGE_SIZE);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchFieldWrapRef = useRef<HTMLDivElement>(null);
+  /** Tras Enter o código tipo barras: agregar al carrito si hay un solo resultado. */
+  const scanAutoAddRef = useRef(false);
+  const [scanAddedHint, setScanAddedHint] = useState("");
+
+  const focusSearchField = useCallback(() => {
+    searchFieldWrapRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    setDraftSearch("");
+    setSearchQuery("");
+    searchCommittedRef.current = "";
+    setPage(1);
+  }, []);
 
   useEffect(() => {
     const n = readPosProductSearchPageSize();
@@ -86,6 +109,9 @@ export default function PosProductSearchPanel({
       debounceRef.current = null;
       const next = draftSearch.trim();
       if (next === searchCommittedRef.current.trim()) return;
+      if (looksLikeBarcodeScan(next, 8)) {
+        scanAutoAddRef.current = true;
+      }
       setSearchQuery(draftSearch);
       setPage(1);
     }, POS_PRODUCT_SEARCH_DEBOUNCE_MS);
@@ -99,6 +125,36 @@ export default function PosProductSearchPanel({
   useEffect(() => {
     setPage(1);
   }, [pageSize, priceListId, branchId, pointOfSaleId]);
+
+  const tryAutoAddSingleResult = useCallback(
+    (products: PosProductSearchItem[], totalCount: number, currentPage: number) => {
+      if (
+        !shouldAutoAddSingleResult({
+          total: totalCount,
+          itemCount: products.length,
+          page: currentPage,
+          scanIntent: scanAutoAddRef.current,
+        })
+      ) {
+        scanAutoAddRef.current = false;
+        return false;
+      }
+      scanAutoAddRef.current = false;
+      if (disabled || !onPickProduct) return false;
+      onPickProduct(products[0]!);
+      clearSearch();
+      setScanAddedHint(`${products[0]!.productName} agregado al carrito`);
+      focusSearchField();
+      return true;
+    },
+    [clearSearch, disabled, focusSearchField, onPickProduct],
+  );
+
+  useEffect(() => {
+    if (!scanAddedHint) return;
+    const t = window.setTimeout(() => setScanAddedHint(""), 2200);
+    return () => clearTimeout(t);
+  }, [scanAddedHint]);
 
   const load = useCallback(async () => {
     if (!canSearch) return;
@@ -114,6 +170,7 @@ export default function PosProductSearchPanel({
         pageSize,
       });
       if (!res.success) {
+        scanAutoAddRef.current = false;
         setError(res.message);
         setItems([]);
         setTotal(0);
@@ -122,14 +179,25 @@ export default function PosProductSearchPanel({
       setItems(res.products);
       setTotal(res.pagination.total);
       setResultPageSize(res.pagination.pageSize);
+      tryAutoAddSingleResult(res.products, res.pagination.total, page);
     } catch (e) {
+      scanAutoAddRef.current = false;
       setError(e instanceof Error ? e.message : "Error al buscar");
       setItems([]);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [canSearch, searchQuery, priceListId, branchId, pointOfSaleId, page, pageSize]);
+  }, [
+    canSearch,
+    searchQuery,
+    priceListId,
+    branchId,
+    pointOfSaleId,
+    page,
+    pageSize,
+    tryAutoAddSingleResult,
+  ]);
 
   useEffect(() => {
     void load();
@@ -142,14 +210,21 @@ export default function PosProductSearchPanel({
     [total, resultPageSize, pageSize],
   );
 
-  const flushDebouncedSearch = useCallback(() => {
+  const flushDebouncedSearch = useCallback((): "committed" | "unchanged" => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
-    if (draftSearch.trim() === searchCommittedRef.current.trim()) return;
+    const next = draftSearch.trim();
+    if (next === searchCommittedRef.current.trim()) {
+      return "unchanged";
+    }
+    if (looksLikeBarcodeScan(next)) {
+      scanAutoAddRef.current = true;
+    }
     setSearchQuery(draftSearch);
     setPage(1);
+    return "committed";
   }, [draftSearch]);
 
   const openSettings = useCallback(() => {
@@ -177,10 +252,18 @@ export default function PosProductSearchPanel({
 
   return (
     <aside
-      className="flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4"
+      className="relative flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4"
       style={{ height: `${POS_PRODUCT_SEARCH_PANEL_HEIGHT_VH}vh` }}
       data-test-id="pos-product-search-panel"
     >
+      {disabled ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/75 p-4 text-center text-sm text-muted-foreground"
+          aria-hidden
+        >
+          {disabledHint ?? "Búsqueda de productos deshabilitada en este modo."}
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1" />
         <div className="flex min-w-0 items-center justify-end gap-2">
@@ -201,6 +284,7 @@ export default function PosProductSearchPanel({
         </div>
       </div>
 
+      <div ref={searchFieldWrapRef}>
       <TextField
         label="Buscar productos"
         name="pos-product-search"
@@ -209,15 +293,27 @@ export default function PosProductSearchPanel({
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            flushDebouncedSearch();
+            scanAutoAddRef.current = true;
+            const status = flushDebouncedSearch();
+            if (status === "unchanged" && !loading) {
+              tryAutoAddSingleResult(items, total, page);
+            }
           }
         }}
         placeholder="Nombre, SKU, código de barras…"
+        autoComplete="off"
         alwaysShowLabel
         startAdornment={<Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />}
         data-test-id="pos-product-search-field"
         aria-busy={searchTextPending}
       />
+      </div>
+
+      {scanAddedHint ? (
+        <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400" role="status" data-test-id="pos-product-scan-added-hint">
+          {scanAddedHint}
+        </p>
+      ) : null}
 
       {searchTextPending ? (
         <p className="text-xs text-muted-foreground" data-test-id="pos-product-search-pending">
@@ -284,7 +380,8 @@ export default function PosProductSearchPanel({
                   size="sm"
                   title="Agregar al carrito"
                   ariaLabel="Agregar producto al carrito"
-                  onClick={() => onPickProduct(item)}
+                  disabled={disabled || !onPickProduct}
+                  onClick={() => onPickProduct?.(item)}
                   data-test-id={`pos-product-add-${item.variantId}`}
                 />
               </div>

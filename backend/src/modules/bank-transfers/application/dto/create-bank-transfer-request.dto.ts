@@ -4,12 +4,16 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
 
 export class CreateBankTransferRequestDto {
   @IsString()
   bankAccountKey!: string;
+
+  @IsUUID()
+  cashHubId!: string;
 
   @Type(() => Number)
   @IsNumber()

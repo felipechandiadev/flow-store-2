@@ -19,6 +19,8 @@ export interface SideBarMenuItem {
    * el árbol y si todos los hijos se ocultan, el padre también desaparece.
    */
   requiresRole?: 'SUPER_ADMIN' | 'ADMIN' | 'OPERATOR';
+  /** Oculta el ítem en sidebar sin quitarlo del menú (restaurar con `hidden: false`). */
+  hidden?: boolean;
 }
 
 interface SideBarProps {
@@ -41,20 +43,20 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 /**
- * Filtra recursivamente el árbol de menú según el rol del usuario.
- * Si un item declara `requiresRole`, solo se conserva cuando coincide.
- * Si un padre se queda sin hijos visibles, también se elimina.
+ * Filtra recursivamente el árbol de menú según rol y flag `hidden`.
+ * Si un padre se queda sin hijos visibles, también se oculta.
  */
-function filterMenuByRole(
+function filterVisibleMenuItems(
   items: SideBarMenuItem[],
   role: string | null | undefined,
 ): SideBarMenuItem[] {
   return items.flatMap((item) => {
+    if (item.hidden) return [];
     if (item.requiresRole && item.requiresRole !== role) {
       return [];
     }
     if (Array.isArray(item.children) && item.children.length > 0) {
-      const visibleChildren = filterMenuByRole(item.children, role);
+      const visibleChildren = filterVisibleMenuItems(item.children, role);
       if (visibleChildren.length === 0) return [];
       return [{ ...item, children: visibleChildren }];
     }
@@ -259,7 +261,7 @@ const SideBar: React.FC<SideBarProps> = ({
 
       <nav className="w-full px-3 flex-1 mt-1.5 overflow-y-auto">
         <ul className="flex w-full flex-col gap-1">
-          {filterMenuByRole(
+          {filterVisibleMenuItems(
             menuItems,
             (session?.user?.role as string | undefined) ?? null,
           ).map((item, idx) => renderMenuItem(item, idx))}

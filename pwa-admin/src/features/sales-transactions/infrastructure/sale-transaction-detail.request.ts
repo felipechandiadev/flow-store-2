@@ -1,6 +1,8 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import type {
+  CustomerCreditNoteUsageStatus,
+  LinkedCustomerCreditNoteDetail,
   SaleTransactionDetail,
   SaleTransactionDetailLine,
 } from "../types/sale-transaction-detail.types";
@@ -59,6 +61,34 @@ function personName(
     typeof person.lastName === "string" ? person.lastName.trim() : "";
   const full = `${first} ${last}`.trim();
   return full || null;
+}
+
+function normalizeLinkedCreditNote(
+  raw: unknown,
+): LinkedCustomerCreditNoteDetail | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const id = o.id != null ? String(o.id) : "";
+  if (!id) return null;
+  const usage = String(o.usageStatus ?? "available");
+  const usageStatus: CustomerCreditNoteUsageStatus =
+    usage === "partially_used" || usage === "fully_used" ? usage : "available";
+  return {
+    id,
+    documentNumber:
+      typeof o.documentNumber === "string" ? o.documentNumber : "",
+    total: num(o.total),
+    consumedAmount: num(o.consumedAmount),
+    availableAmount: num(o.availableAmount),
+    usageStatus,
+    createdAt:
+      typeof o.createdAt === "string"
+        ? o.createdAt
+        : o.createdAt instanceof Date
+          ? o.createdAt.toISOString()
+          : "",
+    status: typeof o.status === "string" ? o.status : "",
+  };
 }
 
 function normalizeLine(raw: unknown): SaleTransactionDetailLine | null {
@@ -144,6 +174,15 @@ function normalizeDetail(raw: unknown): SaleTransactionDetail | null {
       ? Math.max(0, total - backorderDepositAmount)
       : null;
 
+  const refundModeRaw =
+    meta && typeof meta.refundMode === "string" ? meta.refundMode.trim() : "";
+  const saleReturnRefundMode =
+    txType === "SALE_RETURN" && refundModeRaw ? refundModeRaw : null;
+
+  const linkedCustomerCreditNote = normalizeLinkedCreditNote(
+    (o as { linkedCustomerCreditNote?: unknown }).linkedCustomerCreditNote,
+  );
+
   return {
     id,
     documentNumber:
@@ -190,6 +229,8 @@ function normalizeDetail(raw: unknown): SaleTransactionDetail | null {
     backorderDepositPercent,
     backorderReservationStatus,
     backorderPendingBalance,
+    linkedCustomerCreditNote,
+    saleReturnRefundMode,
   };
 }
 

@@ -585,6 +585,27 @@ export const ACCOUNTING_RULES_SEED = [
       description: 'Ajuste IVA deducible en nota de crédito proveedor',
     },
   },
+
+  /**
+   * Nota de crédito cliente: reduce CxC (1.1.02) sin repetir inventario
+   * (el stock ya entró con SALE_RETURN). Contra devoluciones/descuentos (4.1.02).
+   */
+  {
+    name: 'Customer Credit Note - reduce AR',
+    companyId: 'PLACEHOLDER_COMPANY_ID',
+    appliesTo: 'TRANSACTION',
+    transactionType: 'CUSTOMER_CREDIT_NOTE',
+    expenseCategoryId: null,
+    taxId: null,
+    paymentMethod: null,
+    debitAccountCode: '4.1.02',
+    creditAccountCode: '1.1.02',
+    priority: 96,
+    isActive: true,
+    metadata: {
+      description: 'NC cliente: devoluciones vs cuentas por cobrar',
+    },
+  },
 ];
 
 /**

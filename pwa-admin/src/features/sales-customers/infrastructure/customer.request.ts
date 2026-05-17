@@ -213,11 +213,16 @@ export class CustomerRequest {
       cache: "no-store",
     });
     if (!res.ok) {
-      return [];
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `HTTP ${res.status}`);
     }
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     const arr = json.payments;
-    return Array.isArray(arr) ? arr : [];
+    if (Array.isArray(arr)) return arr;
+    if (arr && typeof arr === "object" && Array.isArray((arr as { payments?: unknown }).payments)) {
+      return (arr as { payments: Record<string, unknown>[] }).payments;
+    }
+    return [];
   }
 
   static async getPurchases(customerId: string): Promise<Record<string, unknown>[]> {
@@ -232,11 +237,45 @@ export class CustomerRequest {
       cache: "no-store",
     });
     if (!res.ok) {
-      return [];
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `HTTP ${res.status}`);
     }
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     const arr = json.purchases;
     return Array.isArray(arr) ? arr : [];
+  }
+
+  static async getCustomerReturns(customerId: string): Promise<Record<string, unknown>[]> {
+    const id = customerId?.trim();
+    if (!id) return [];
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl(`customers/${encodeURIComponent(id)}/customer-returns`), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return Array.isArray(json.returns) ? json.returns : [];
+  }
+
+  static async getCustomerCreditNotes(customerId: string): Promise<Record<string, unknown>[]> {
+    const id = customerId?.trim();
+    if (!id) return [];
+    const headers = await authHeaders();
+    const res = await fetch(
+      apiUrl(`customers/${encodeURIComponent(id)}/customer-credit-notes`),
+      { method: "GET", headers, cache: "no-store" },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return Array.isArray(json.creditNotes) ? json.creditNotes : [];
   }
 
   static async getPendingQuotas(customerId: string): Promise<Record<string, unknown>[]> {

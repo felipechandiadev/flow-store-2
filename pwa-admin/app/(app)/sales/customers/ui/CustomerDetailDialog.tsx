@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Dialog from "@/shared/components/Dialog";
 import Badge from "@/shared/components/Badge/Badge";
 import { SIDE_BAR_MENU_ITEM_CLASSNAMES } from "@/shared/components/TopBar/SideBar";
@@ -12,14 +12,25 @@ import { CustomerDetailCreditSection } from "./customer-detail/CustomerDetailCre
 import { CustomerDetailPurchasesSection } from "./customer-detail/CustomerDetailPurchasesSection";
 import { CustomerDetailPaymentsSection } from "./customer-detail/CustomerDetailPaymentsSection";
 import { CustomerDetailQuotasSection } from "./customer-detail/CustomerDetailQuotasSection";
+import { CustomerDetailReturnsSection } from "./customer-detail/CustomerDetailReturnsSection";
+import { CustomerDetailCreditNotesSection } from "./customer-detail/CustomerDetailCreditNotesSection";
 
-export type CustomerDetailSectionId = "summary" | "credit" | "purchases" | "payments" | "quotas";
+export type CustomerDetailSectionId =
+  | "summary"
+  | "credit"
+  | "purchases"
+  | "payments"
+  | "returns"
+  | "creditNotes"
+  | "quotas";
 
 const NAV_ITEMS: { id: CustomerDetailSectionId; label: string }[] = [
   { id: "summary", label: "Resumen" },
   { id: "credit", label: "Crédito" },
   { id: "purchases", label: "Compras" },
   { id: "payments", label: "Pagos" },
+  { id: "returns", label: "Devoluciones" },
+  { id: "creditNotes", label: "Notas de crédito" },
   { id: "quotas", label: "Cuotas pendientes" },
 ];
 
@@ -40,6 +51,17 @@ export function CustomerDetailDialog({
   const [detail, setDetail] = useState<CustomerDetailView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const navItems = useMemo(() => {
+    if (internalCreditEnabled) return NAV_ITEMS;
+    return NAV_ITEMS.filter((item) => item.id !== "credit" && item.id !== "quotas");
+  }, [internalCreditEnabled]);
+
+  useEffect(() => {
+    if (!internalCreditEnabled && (section === "credit" || section === "quotas")) {
+      setSection("summary");
+    }
+  }, [internalCreditEnabled, section]);
 
   const handleClose = useCallback(() => {
     setSection("summary");
@@ -126,7 +148,7 @@ export function CustomerDetailDialog({
             aria-label="Secciones cliente"
           >
             <ul className="flex min-w-0 flex-1 flex-row gap-1 px-2 sm:flex-col sm:gap-1 sm:px-3">
-              {NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const active = section === item.id;
                 return (
                   <li key={item.id} className="shrink-0 sm:w-full">
@@ -174,6 +196,12 @@ export function CustomerDetailDialog({
             ) : null}
             {section === "payments" && customerId?.trim() ? (
               <CustomerDetailPaymentsSection customerId={customerId.trim()} />
+            ) : null}
+            {section === "returns" && customerId?.trim() ? (
+              <CustomerDetailReturnsSection customerId={customerId.trim()} />
+            ) : null}
+            {section === "creditNotes" && customerId?.trim() ? (
+              <CustomerDetailCreditNotesSection customerId={customerId.trim()} />
             ) : null}
             {section === "quotas" && customerId?.trim() ? (
               <CustomerDetailQuotasSection customerId={customerId.trim()} />

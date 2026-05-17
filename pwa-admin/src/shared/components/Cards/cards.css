@@ -29,6 +29,11 @@
   );
 }
 
+/** Centro / ítem seleccionado (p. ej. tesorería · centros de efectivo). */
+.fs-card.fs-card--border-secondary {
+  border-color: var(--color-secondary, #35e3ff);
+}
+
 .fs-card__header {
   padding: 1rem 1rem 0.75rem 1rem;
 }

@@ -6,8 +6,12 @@ import type { CompanyDetails, CompanyBankAccountItem } from "@/features/settings
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
 import type { PointOfSaleListItem } from "@/features/sales-points-of-sale/types/point-of-sale.types";
 import type { CashHubRow } from "@/features/treasury-cash-hubs/types/cash-hub.types";
+import type { ShareholderRow } from "@/features/settings-shareholders/types/shareholder.types";
 import { createCashHubAction } from "@/features/treasury-cash-hubs/actions/cash-hub.action";
-import { postCashDepositAction } from "@/features/treasury-bank-operations/actions/treasury-bank-operations.action";
+import {
+  postCapitalContributionAction,
+  postCashDepositAction,
+} from "@/features/treasury-bank-operations/actions/treasury-bank-operations.action";
 import { Card, StatisticsCard } from "@/shared/components/Cards";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import Dialog from "@/shared/components/Dialog/Dialog";
@@ -27,6 +31,16 @@ function fmtMoney(n: number): string {
   }).format(Number.isFinite(n) ? n : 0);
 }
 
+function partnerLabel(row: ShareholderRow): string {
+  const p = row.person;
+  return (
+    p?.displayName?.trim() ||
+    [p?.firstName, p?.lastName].filter(Boolean).join(" ").trim() ||
+    p?.businessName?.trim() ||
+    "Socio"
+  );
+}
+
 function bankKey(a: CompanyBankAccountItem): string {
   const k = String(a.accountKey ?? "").trim();
   if (k) return k;
@@ -42,9 +56,13 @@ type Props = {
   movementsTotal: number;
   branches: BranchListItem[];
   pointsOfSale: PointOfSaleListItem[];
+  totalCashHubs: number;
+  totalOpenCashSessions: number;
+  openCashSessionsCount: number;
+  shareholders: ShareholderRow[];
 };
 
-type DialogKind = "none" | "createHub" | "depositToBank";
+type DialogKind = "none" | "createHub" | "depositToBank" | "capitalContribution";
 
 const TREASURY_CARD_PAD = "[&_.fs-card__content]:p-2 [&_.fs-card__content]:pb-2";
 
@@ -56,6 +74,10 @@ export default function TreasuryCashTabContent({
   movementsTotal,
   branches,
   pointsOfSale,
+  totalCashHubs,
+  totalOpenCashSessions,
+  openCashSessionsCount,
+  shareholders,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -63,15 +85,20 @@ export default function TreasuryCashTabContent({
   const [dialog, setDialog] = useState<DialogKind>("none");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [capitalHubId, setCapitalHubId] = useState<string | null>(null);
 
   const selectedHub = useMemo(
     () => hubs.find((h) => String(h.id) === String(selectedCashHubId ?? "")) ?? null,
     [hubs, selectedCashHubId],
   );
 
-  const totalCash = useMemo(() => {
-    return hubs.reduce((s, h) => s + (typeof h.currentBalance === "number" ? h.currentBalance : 0), 0);
-  }, [hubs]);
+  const capitalTargetHub = useMemo(() => {
+    const id = capitalHubId ?? selectedCashHubId;
+    if (!id) return null;
+    return hubs.find((h) => String(h.id) === String(id)) ?? null;
+  }, [capitalHubId, selectedCashHubId, hubs]);
+
+  const totalCash = totalCashHubs + totalOpenCashSessions;
 
   const hubCards = hubs;
 
@@ -115,8 +142,18 @@ export default function TreasuryCashTabContent({
     [accounts],
   );
   const [bankOpt, setBankOpt] = useState<string | null>(null);
+  const [partnerOpt, setPartnerOpt] = useState<string | null>(null);
   const [amountStr, setAmountStr] = useState("0");
   const [notes, setNotes] = useState("");
+
+  const partnerOptions: Option[] = useMemo(
+    () =>
+      shareholders.map((s) => ({
+        id: s.id,
+        label: partnerLabel(s),
+      })),
+    [shareholders],
+  );
 
   const resetForms = () => {
     setError(null);
@@ -125,6 +162,7 @@ export default function TreasuryCashTabContent({
     setBranchId(null);
     setPosIds([]);
     setBankOpt(bankOptions[0] != null ? String(bankOptions[0].id) : null);
+    setPartnerOpt(partnerOptions[0] != null ? String(partnerOptions[0].id) : null);
     setAmountStr("0");
     setNotes("");
   };
@@ -133,7 +171,7 @@ export default function TreasuryCashTabContent({
     if (dialog !== "none") {
       resetForms();
     }
-  }, [dialog, bankOptions]);
+  }, [dialog, bankOptions, partnerOptions]);
 
   const openDialog = (k: DialogKind) => {
     if (pending) return;
@@ -143,6 +181,7 @@ export default function TreasuryCashTabContent({
   const closeDialog = () => {
     if (pending) return;
     setDialog("none");
+    setCapitalHubId(null);
   };
 
   const submitCreateHub = () => {
@@ -181,6 +220,34 @@ export default function TreasuryCashTabContent({
 
   const amountNum = Math.max(0, Math.round(Number(amountStr) || 0));
 
+  const submitCapitalContribution = () => {
+    setError(null);
+    if (!capitalTargetHub?.id) {
+      setError("Seleccione un centro de efectivo.");
+      return;
+    }
+    if (!partnerOpt || amountNum <= 0) {
+      setError("Seleccione socio e indique un monto mayor a cero.");
+      return;
+    }
+    startTransition(() => {
+      void (async () => {
+        const r = await postCapitalContributionAction({
+          shareholderId: partnerOpt,
+          cashHubId: capitalTargetHub.id,
+          amount: amountNum,
+          notes: notes.trim() || undefined,
+        });
+        if (!r.success) {
+          setError(r.error);
+          return;
+        }
+        closeDialog();
+        router.refresh();
+      })();
+    });
+  };
+
   const submitDeposit = () => {
     setError(null);
     if (!selectedHub?.id) {
@@ -216,9 +283,17 @@ export default function TreasuryCashTabContent({
         <StatisticsCard
           label="Total en Efectivo"
           value={fmtMoney(totalCash)}
-          hint="Suma de centros de efectivo"
+          hint={
+            <span className="flex flex-col gap-1">
+              <span>Centros de efectivo: {fmtMoney(totalCashHubs)}</span>
+              <span>
+                Sesiones de caja abiertas ({openCashSessionsCount}): {fmtMoney(totalOpenCashSessions)}
+              </span>
+            </span>
+          }
           tone="info"
           className={TREASURY_CARD_PAD}
+          data-test-id="treasury-cash-total-card"
         />
 
         <div className="hidden h-full bg-border md:block" aria-hidden />
@@ -252,7 +327,8 @@ export default function TreasuryCashTabContent({
                   return (
                     <Card
                       key={h.id}
-                      className={active ? "border border-[var(--color-secondary)]" : "border border-border"}
+                      className={active ? "fs-card--border-secondary" : undefined}
+                      onClick={pending ? undefined : () => selectHub(h.id)}
                       title={
                         <div className="flex items-center justify-between gap-2">
                           <span className="truncate">{h.name}</span>
@@ -260,18 +336,27 @@ export default function TreasuryCashTabContent({
                         </div>
                       }
                       subtitle={h.code ? <span className="text-xs text-muted-foreground">{h.code}</span> : undefined}
-                      content={
-                        <div className="flex items-center justify-between gap-2">
-                          <Button
-                            type="button"
-                            variant={active ? "secondary" : "outlinedSecondary"}
+                      headerEnd={
+                        <div
+                          className="flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                          role="presentation"
+                        >
+                          <IconButton
+                            icon="TrendingUp"
+                            variant="basicSecondary"
                             size="sm"
-                            onClick={() => selectHub(h.id)}
-                            disabled={pending}
-                            data-test-id={`cash-hub-select-${h.id}`}
-                          >
-                            Ver movimientos
-                          </Button>
+                            ariaLabel="Aporte de capital en efectivo desde un socio"
+                            onClick={() => {
+                              setCapitalHubId(h.id);
+                              if (String(h.id) !== String(selectedCashHubId ?? "")) {
+                                selectHub(h.id);
+                              }
+                              openDialog("capitalContribution");
+                            }}
+                            disabled={pending || partnerOptions.length === 0}
+                            data-test-id={`cash-hub-capital-${h.id}`}
+                          />
                           <IconButton
                             icon="Landmark"
                             variant="basicSecondary"
@@ -370,6 +455,47 @@ export default function TreasuryCashTabContent({
               </div>
             </div>
           </div>
+        </div>
+      </Dialog>
+
+      {/* Dialog: Capital contribution (cash hub) */}
+      <Dialog
+        open={dialog === "capitalContribution"}
+        onClose={closeDialog}
+        title="Aporte de capital en efectivo"
+        alertArea={error ? <Alert variant="error">{error}</Alert> : null}
+        actionsJustify="end"
+        actions={
+          <>
+            <Button variant="outlinedSecondary" onClick={closeDialog} disabled={pending} type="button">
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={submitCapitalContribution} disabled={pending} type="button">
+              {pending ? "Registrando…" : "Registrar aporte"}
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-sm text-muted-foreground">
+          {capitalTargetHub
+            ? `Ingreso de efectivo al centro «${capitalTargetHub.name}». Se contabiliza como aporte de capital del socio.`
+            : "Seleccione un centro de efectivo."}
+        </p>
+        <div className="flex flex-col gap-3">
+          <Select
+            label="Socio"
+            options={partnerOptions}
+            value={partnerOpt}
+            onChange={(v) => setPartnerOpt(v != null ? String(v) : null)}
+            placeholder="Seleccione socio"
+          />
+          <TextField
+            label="Monto"
+            value={amountStr}
+            onChange={(e) => setAmountStr(e.target.value)}
+            inputMode="numeric"
+          />
+          <TextField label="Notas (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
       </Dialog>
 

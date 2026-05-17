@@ -3,16 +3,29 @@
 use anyhow::Result;
 use serde_json::Value;
 
+fn origin_matches_allowed(allowed: &str, origin: &str) -> bool {
+    if allowed == "*" || allowed == origin {
+        return true;
+    }
+    // Prefijo con comodín final: p. ej. "http://192.168." → "http://192.168.1.10:3022"
+    if let Some(prefix) = allowed.strip_suffix('*') {
+        if !prefix.is_empty() && origin.starts_with(prefix) {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn origin_allowed(stored_json: &str, origin_header: Option<&str>) -> bool {
     let Ok(Value::Array(arr)) = serde_json::from_str::<Value>(stored_json) else {
         return false;
     };
     let Some(origin) = origin_header else {
-        return arr.iter().any(|v| v.as_str() == Some("*"));
+        return arr.iter().filter_map(|v| v.as_str()).any(|a| a == "*");
     };
     arr.iter()
         .filter_map(|v| v.as_str())
-        .any(|allowed| allowed == "*" || origin == allowed)
+        .any(|allowed| origin_matches_allowed(allowed, origin))
 }
 
 pub fn default_allowed_origins_json() -> &'static str {

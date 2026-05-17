@@ -1,9 +1,13 @@
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
 import type { PosSaleCustomer } from "@/features/customers/types/pos-customer.types";
 import type { BackorderDepositConfig } from "@/features/pos-cart/types/backorder-deposit.types";
+import type {
+  LoadedReturnSaleMeta,
+  PosCartMode,
+} from "@/features/pos-cart/types/pos-cart-mode.types";
 import type { ResolvedLineDiscount } from "@/features/promotions/lib/discount-engine.types";
 
-const CART_STORAGE_VERSION = 1;
+const CART_STORAGE_VERSION = 2;
 const CART_KEY_PREFIX = "flowstore.pos.cart.v";
 
 /** Metadatos de una cotización cargada en el carrito. La venta resultante
@@ -30,6 +34,8 @@ type StoredCart = {
   customer?: PosSaleCustomer | null;
   quotation?: LoadedQuotationMeta | null;
   backorderDeposit?: BackorderDepositConfig | null;
+  cartMode?: PosCartMode;
+  loadedReturnSale?: LoadedReturnSaleMeta | null;
 };
 
 function parseDiscount(value: unknown): ResolvedLineDiscount | null {
@@ -74,21 +80,45 @@ function parseBackorderDeposit(value: unknown): BackorderDepositConfig | null {
   };
 }
 
+function parseCartMode(value: unknown): PosCartMode {
+  return value === "return" ? "return" : "sale";
+}
+
+function parseLoadedReturnSale(value: unknown): LoadedReturnSaleMeta | null {
+  if (!value || typeof value !== "object") return null;
+  const o = value as LoadedReturnSaleMeta;
+  if (typeof o.id !== "string" || typeof o.documentNumber !== "string") return null;
+  return {
+    id: o.id,
+    documentNumber: o.documentNumber,
+    total: Number(o.total) || 0,
+    createdAt: typeof o.createdAt === "string" ? o.createdAt : "",
+  };
+}
+
 export function readCartClient(input: { pointOfSaleId: string; priceListId: string }): {
   lines: PosCartLine[];
   customer: PosSaleCustomer | null;
   quotation: LoadedQuotationMeta | null;
   backorderDeposit: BackorderDepositConfig | null;
+  cartMode: PosCartMode;
+  loadedReturnSale: LoadedReturnSaleMeta | null;
 } {
-  if (typeof window === "undefined")
-    return { lines: [], customer: null, quotation: null, backorderDeposit: null };
+  const empty = {
+    lines: [] as PosCartLine[],
+    customer: null,
+    quotation: null,
+    backorderDeposit: null,
+    cartMode: "sale" as PosCartMode,
+    loadedReturnSale: null,
+  };
+  if (typeof window === "undefined") return empty;
   try {
     const raw = window.localStorage.getItem(keyFor(input));
-    if (!raw) return { lines: [], customer: null, quotation: null, backorderDeposit: null };
+    if (!raw) return empty;
     const parsed = JSON.parse(raw) as StoredCart;
-    if (!parsed || parsed.v !== CART_STORAGE_VERSION || !Array.isArray(parsed.lines)) {
-      return { lines: [], customer: null, quotation: null, backorderDeposit: null };
-    }
+    if (!parsed || !Array.isArray(parsed.lines)) return empty;
+    if (parsed.v !== CART_STORAGE_VERSION && parsed.v !== 1) return empty;
     const lines = parsed.lines
       .map((l) => {
         if (!l?.item || !l.variantId) return null;
@@ -140,10 +170,16 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
         : null;
 
     const backorderDeposit = parseBackorderDeposit(parsed.backorderDeposit);
+    const cartMode =
+      parsed.v === CART_STORAGE_VERSION ? parseCartMode(parsed.cartMode) : "sale";
+    const loadedReturnSale =
+      parsed.v === CART_STORAGE_VERSION
+        ? parseLoadedReturnSale(parsed.loadedReturnSale)
+        : null;
 
-    return { lines, customer, quotation, backorderDeposit };
+    return { lines, customer, quotation, backorderDeposit, cartMode, loadedReturnSale };
   } catch {
-    return { lines: [], customer: null, quotation: null, backorderDeposit: null };
+    return empty;
   }
 }
 
@@ -153,6 +189,8 @@ export function writeCartClient(
   customer: PosSaleCustomer | null = null,
   quotation: LoadedQuotationMeta | null = null,
   backorderDeposit: BackorderDepositConfig | null = null,
+  cartMode: PosCartMode = "sale",
+  loadedReturnSale: LoadedReturnSaleMeta | null = null,
 ): void {
   if (typeof window === "undefined") return;
   try {
@@ -168,6 +206,8 @@ export function writeCartClient(
       customer: customer ?? null,
       quotation: quotation ?? null,
       backorderDeposit: backorderDeposit ?? null,
+      cartMode,
+      loadedReturnSale: cartMode === "return" ? loadedReturnSale : null,
     };
     window.localStorage.setItem(keyFor(input), JSON.stringify(payload));
   } catch {

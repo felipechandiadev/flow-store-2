@@ -1,4 +1,5 @@
 import type { PosSaleReceiptData } from "@/app/(pos)/pos/payment/ui/PosSaleReceiptDialog";
+import { printPosHtmlViaAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-agent-print";
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
 
 function escapeHtml(s: string) {
@@ -36,49 +37,6 @@ function companyAddressLines(address: string | null | undefined): string[] {
   const byNl = raw.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
   if (byNl.length > 1) return byNl;
   return raw.split(",").map((x) => x.trim()).filter(Boolean);
-}
-
-function printHtmlInHiddenIframe(html: string, title: string): void {
-  if (typeof window === "undefined") return;
-  const iframe = document.createElement("iframe");
-  iframe.setAttribute("title", title);
-  Object.assign(iframe.style, {
-    position: "fixed",
-    right: "0",
-    bottom: "0",
-    width: "0",
-    height: "0",
-    border: "0",
-    opacity: "0",
-    pointerEvents: "none",
-  });
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument;
-  const win = iframe.contentWindow;
-  if (!doc || !win) {
-    iframe.remove();
-    return;
-  }
-  doc.open();
-  doc.write(html);
-  doc.close();
-  const cleanup = () => {
-    try {
-      iframe.remove();
-    } catch {
-      /* ignore */
-    }
-  };
-  setTimeout(() => {
-    try {
-      win.focus();
-      win.print();
-    } catch {
-      /* ignore */
-    } finally {
-      setTimeout(cleanup, 1200);
-    }
-  }, 120);
 }
 
 /**
@@ -281,5 +239,11 @@ export function buildPosSaleDocumentHtml(data: PosSaleReceiptData): string {
 export function printPosSaleDocument(data: PosSaleReceiptData): void {
   const html = buildPosSaleDocumentHtml(data);
   const label = data.documentKind === "backorder" ? "Impresión encargo documento" : "Impresión venta documento";
-  printHtmlInHiddenIframe(html, label);
+  const folio = data.folio.trim() || "documento";
+  printPosHtmlViaAgentOrBrowserFireAndForget(html, "documents", {
+    filename: `${folio}.pdf`,
+    iframeTitle: label,
+    documentType: data.documentKind === "backorder" ? "BACKORDER" : "SALE",
+    internalFolio: folio,
+  });
 }

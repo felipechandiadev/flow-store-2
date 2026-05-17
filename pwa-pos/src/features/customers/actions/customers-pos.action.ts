@@ -11,6 +11,10 @@ export async function getCustomerPosDetailBundleAction(customerId: string) {
   return CustomersPosRequest.getCustomerDetailBundle(customerId);
 }
 
+export async function getCustomerPosPaymentSourcesAction(customerId: string) {
+  return CustomersPosRequest.getPosPaymentSources(customerId);
+}
+
 export async function createPosCustomerAction(input: PosCreateCustomerInput) {
   return CustomersPosRequest.create(input);
 }

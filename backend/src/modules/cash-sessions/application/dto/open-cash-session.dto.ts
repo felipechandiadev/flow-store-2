@@ -22,4 +22,8 @@ export class OpenCashSessionDto {
   @IsNumber()
   @Min(0, { message: 'El monto de apertura no puede ser negativo' })
   openingAmount: number = 0;
+
+  @IsOptional()
+  @IsString()
+  cashHubId?: string;
 }

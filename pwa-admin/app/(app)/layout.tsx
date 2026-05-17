@@ -7,7 +7,11 @@ import AppShellLayoutClient from "./AppShellLayoutClient";
 
 export default async function AppGroupLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
-  const company = session != null ? await GetCompanyUseCase.execute() : null;
+  const accessToken = session?.user?.accessToken;
+  const company =
+    accessToken != null && String(accessToken).trim() !== ""
+      ? await GetCompanyUseCase.execute()
+      : null;
 
   return (
     <AppProviders session={session}>

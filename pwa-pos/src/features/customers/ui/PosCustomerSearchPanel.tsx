@@ -23,6 +23,7 @@ import type {
   PosCustomerSearchRow,
   PosSaleCustomer,
 } from "@/features/customers/types/pos-customer.types";
+import type { ReactNode } from "react";
 import {
   clampPosCustomerSearchPageSize,
   POS_CUSTOMER_SEARCH_DEBOUNCE_MS,
@@ -69,6 +70,8 @@ type Props = {
   /** Muestra botón + para creación rápida de cliente. */
   showAddCustomer?: boolean;
   onAddCustomerClick?: () => void;
+  /** Contenido extra bajo la ficha del cliente (p. ej. NC y abonos disponibles). */
+  paymentSourcesSlot?: ReactNode;
 };
 
 /**
@@ -94,6 +97,7 @@ export default function PosCustomerSearchPanel({
   variant = "stacked",
   showAddCustomer = false,
   onAddCustomerClick,
+  paymentSourcesSlot,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -314,6 +318,10 @@ export default function PosCustomerSearchPanel({
               </div>
             </dl>
           </article>
+
+          {paymentSourcesSlot ? (
+            <div className="mt-4 border-t border-border pt-4">{paymentSourcesSlot}</div>
+          ) : null}
         </div>
       </aside>
     );

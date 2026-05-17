@@ -1,5 +1,7 @@
 import type { CompanyDetails } from "@/features/company/infrastructure/company.request";
 import type { QuotationDetail } from "@/features/quotations/types/quotation.types";
+import { printPosHtmlViaAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-agent-print";
+import { thermalReceiptTicketCss } from "@/features/pos-print/lib/thermal-receipt-ticket-styles";
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
 
 function escapeHtml(s: string) {
@@ -94,37 +96,14 @@ export function buildQuotationReceiptHtml(
 
   return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/>
 <title>Cotización ${escapeHtml(folio)}</title>
-<style>
-  @page { size: 80mm auto; margin: 2mm; }
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif; font-size: 11px; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .receipt { width: 72mm; max-width: 100%; margin: 0 auto; padding: 2mm 0; }
-  .logo { display: block; max-width: 52mm; max-height: 24mm; margin: 0 auto 8px; object-fit: contain; }
-  .store { font-size: 13px; font-weight: 700; text-align: center; margin: 0 0 2px; line-height: 1.2; }
-  .legal { font-size: 10px; text-align: center; margin: 0; color: #333; }
-  .muted { color: #555; font-size: 9px; }
-  .center { text-align: center; }
-  .row { display: flex; justify-content: space-between; gap: 6px; font-size: 10px; margin: 3px 0; align-items: flex-start; }
-  .sep { border-top: 1px dashed #888; margin: 8px 0; }
-  .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin: 6px 0 4px; color: #333; }
-  table.lines { width: 100%; border-collapse: collapse; font-size: 10px; }
-  table.lines td { vertical-align: top; padding: 4px 0; border-bottom: 1px dotted #ccc; }
-  table.lines tr:last-child td { border-bottom: none; }
-  .name { max-width: 46mm; word-wrap: break-word; }
-  .qty { white-space: nowrap; width: 22mm; }
-  .tright { text-align: right; }
-  .tot { font-size: 11px; font-weight: 700; }
-  .wrap { font-size: 10px; white-space: pre-wrap; word-break: break-word; margin: 0; }
-  .barcode-wrap { display: flex; justify-content: center; width: 100%; margin-top: 6px; }
-  .barcode-wrap svg { max-width: 68mm; height: auto; }
-</style></head><body>
+<style>${thermalReceiptTicketCss()}</style></head><body>
 <div class="receipt">
   <img class="logo" src="${escapeHtml(logo)}" alt="" />
   <p class="store">${escapeHtml(displayName)}</p>
   ${c?.razonSocial && c?.nombreFantasia ? `<p class="legal">${escapeHtml(c.razonSocial)}</p>` : ""}
   ${c?.rut ? `<p class="legal">RUT: ${escapeHtml(c.rut)}</p>` : ""}
   <div class="sep"></div>
-  <p class="center" style="font-size:12px;font-weight:700;">COTIZACIÓN</p>
+  <p class="center" style="font-size:12px;font-weight:600;">COTIZACIÓN</p>
   <p class="center muted">Folio: ${escapeHtml(folio)}</p>
   <p class="center muted">${escapeHtml(formatDateTime(q.issuedAt))}</p>
   <p class="center muted">Válida hasta: ${escapeHtml(formatDateTime(q.validUntil))}</p>
@@ -149,43 +128,11 @@ export function printPosQuotationReceipt(input: QuotationReceiptPrintInput): voi
   if (typeof window === "undefined") return;
   const origin = window.location.origin;
   const html = buildQuotationReceiptHtml(input, origin);
-  const iframe = document.createElement("iframe");
-  iframe.setAttribute("title", "Impresión cotización");
-  Object.assign(iframe.style, {
-    position: "fixed",
-    right: "0",
-    bottom: "0",
-    width: "0",
-    height: "0",
-    border: "0",
-    opacity: "0",
-    pointerEvents: "none",
+  const folio = input.quotation.documentNumber?.trim() || "cotizacion";
+  printPosHtmlViaAgentOrBrowserFireAndForget(html, "tickets", {
+    filename: `${folio}.pdf`,
+    iframeTitle: "Impresión cotización",
+    documentType: "QUOTATION",
+    internalFolio: folio,
   });
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument;
-  const win = iframe.contentWindow;
-  if (!doc || !win) {
-    iframe.remove();
-    return;
-  }
-  doc.open();
-  doc.write(html);
-  doc.close();
-  const cleanup = () => {
-    try {
-      iframe.remove();
-    } catch {
-      /* ignore */
-    }
-  };
-  setTimeout(() => {
-    try {
-      win.focus();
-      win.print();
-    } catch {
-      /* ignore */
-    } finally {
-      setTimeout(cleanup, 1200);
-    }
-  }, 120);
 }

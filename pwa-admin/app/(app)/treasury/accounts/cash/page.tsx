@@ -1,8 +1,11 @@
+import { Suspense } from "react";
 import { CompanyRequest } from "@/features/settings-branches/infrastructure/company.request";
 import { BranchRequest } from "@/features/settings-branches/infrastructure/branch.request";
 import { PointOfSaleRequest } from "@/features/sales-points-of-sale/infrastructure/point-of-sale.request";
 import { CashHubsRequest } from "@/features/treasury-cash-hubs/infrastructure/cash-hubs.request";
 import { TreasuryCashHubMovementsRequest } from "@/features/treasury-cash-hubs/infrastructure/treasury-cash-hub-movements.request";
+import { listCashSessionsAction } from "@/features/sales-cash-sessions/actions/cash-sessions-list.action";
+import { ShareholderRequest } from "@/features/settings-shareholders/infrastructure/shareholder.request";
 import { redirect } from "next/navigation";
 import { resolveTreasuryCashHubSelection } from "./treasury-cash-hubs";
 import { mapApiTxToMovementGridRow, type TreasuryMovementGridRow } from "../bank/treasury-movements-mapper";
@@ -18,14 +21,34 @@ export default async function TreasuryCashPage({
   const company = await CompanyRequest.getDetails();
   const companyId = company?.id?.trim() ?? "";
 
-  const [brRes, posRes, hubs] = await Promise.all([
+  const [brRes, posRes, hubs, openSessionsRes, shareholders] = await Promise.all([
     companyId ? BranchRequest.findAll(false) : Promise.resolve({ success: true as const, branches: [] }),
     companyId ? PointOfSaleRequest.findAll(true) : Promise.resolve({ success: true as const, pointsOfSale: [] }),
     companyId ? CashHubsRequest.list(companyId) : Promise.resolve([]),
+    companyId ? listCashSessionsAction({ status: "OPEN" }) : Promise.resolve({ success: false as const, error: "" }),
+    companyId ? ShareholderRequest.list(companyId) : Promise.resolve([]),
   ]);
 
   const branches = brRes.success ? brRes.branches : [];
   const pointsOfSale = posRes.success ? posRes.pointsOfSale : [];
+
+  const totalCashHubs = hubs.reduce(
+    (sum, h) => sum + (typeof h.currentBalance === "number" ? h.currentBalance : 0),
+    0,
+  );
+  const openSessions =
+    openSessionsRes.success && "data" in openSessionsRes ? openSessionsRes.data.rows : [];
+  const totalOpenCashSessions = openSessions.reduce((sum, s) => {
+    const expected =
+      typeof s.expectedAmount === "number" && Number.isFinite(s.expectedAmount)
+        ? s.expectedAmount
+        : null;
+    const opening =
+      typeof s.openingAmount === "number" && Number.isFinite(s.openingAmount)
+        ? s.openingAmount
+        : 0;
+    return sum + (expected ?? opening);
+  }, 0);
 
   if (!companyId) {
     return (
@@ -62,14 +85,26 @@ export default async function TreasuryCashPage({
   }
 
   return (
-    <TreasuryCashTabContent
-      company={company}
-      hubs={hubs}
-      selectedCashHubId={selectedId}
-      movementRows={movementRows}
-      movementsTotal={movementsTotal}
-      branches={branches}
-      pointsOfSale={pointsOfSale}
-    />
+    <Suspense
+      fallback={
+        <div className="p-4 text-sm text-muted-foreground" data-test-id="treasury-cash-page-suspense">
+          Cargando…
+        </div>
+      }
+    >
+      <TreasuryCashTabContent
+        company={company}
+        hubs={hubs}
+        selectedCashHubId={selectedId}
+        movementRows={movementRows}
+        movementsTotal={movementsTotal}
+        branches={branches}
+        pointsOfSale={pointsOfSale}
+        totalCashHubs={totalCashHubs}
+        totalOpenCashSessions={totalOpenCashSessions}
+        openCashSessionsCount={openSessions.length}
+        shareholders={shareholders}
+      />
+    </Suspense>
   );
 }

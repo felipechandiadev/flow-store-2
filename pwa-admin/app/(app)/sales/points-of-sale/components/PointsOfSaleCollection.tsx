@@ -51,6 +51,7 @@ export function PointsOfSaleCollection({
         <PointsOfSaleCollectionAddAction
           branches={branches}
           priceListCatalog={priceListCatalog}
+          storages={storages}
           activeCompanyId={activeCompanyId}
         />
       }

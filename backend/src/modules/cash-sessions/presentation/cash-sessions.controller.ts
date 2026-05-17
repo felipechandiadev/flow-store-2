@@ -16,6 +16,10 @@ import { GetCashSessionsDto } from '../application/dto/get-cash-sessions.dto';
 import { OpenCashSessionDto } from '../application/dto/open-cash-session.dto';
 import { CreateSaleDto } from '../application/dto/create-sale.dto';
 import { CreateBackorderDto } from '../application/dto/create-backorder.dto';
+import {
+  ConfirmCustomerReturnDocumentDto,
+  ConfirmCustomerReturnRefundDto,
+} from '../application/dto/create-sale-return.dto';
 import { RegisterCashMovementDto } from '../application/dto/register-cash-movement.dto';
 import { CloseCashSessionDto } from '../application/dto/close-cash-session.dto';
 import { DepositCashFromHubBodyDto } from '../application/dto/deposit-cash-from-hub.dto';
@@ -38,6 +42,15 @@ export class CashSessionsController {
   @Get()
   async findAll(@Query() query: GetCashSessionsDto) {
     return this.coreService.findAll(query);
+  }
+
+  @Get('cash-hubs-by-pos')
+  async listCashHubsByPos(@Query('pointOfSaleId') pointOfSaleId: string) {
+    const id = pointOfSaleId?.trim();
+    if (!id) {
+      throw new BadRequestException('pointOfSaleId es obligatorio');
+    }
+    return this.coreService.listCashHubsForPointOfSale(id);
   }
 
   @Get(':id/movements')
@@ -94,6 +107,16 @@ export class CashSessionsController {
   @Post('backorders')
   async createBackorder(@Body() createBackorderDto: CreateBackorderDto) {
     return this.salesService.createBackorder(createBackorderDto);
+  }
+
+  @Post('customer-returns/confirm-document')
+  async confirmCustomerReturnDocument(@Body() body: ConfirmCustomerReturnDocumentDto) {
+    return this.salesService.confirmCustomerReturnWithCreditNote(body);
+  }
+
+  @Post('customer-returns/confirm-refund')
+  async confirmCustomerReturnRefund(@Body() body: ConfirmCustomerReturnRefundDto) {
+    return this.salesService.confirmCustomerReturnWithImmediateRefund(body);
   }
 
   @Post(':id/cash-deposits-from-hub')

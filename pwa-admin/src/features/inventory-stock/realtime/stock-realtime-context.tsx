@@ -34,11 +34,13 @@ export function useStockRealtime() {
 }
 
 function clientBackendBaseUrl(): string | null {
-  const raw = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-  if (!raw || !String(raw).trim()) {
+  const raw =
+    process.env.NEXT_PUBLIC_BACKEND_API_URL?.trim() ||
+    process.env.BACKEND_API_URL?.trim();
+  if (!raw) {
     return null;
   }
-  return String(raw).replace(/\/$/, "");
+  return raw.replace(/\/$/, "");
 }
 
 export function StockRealtimeProvider({ children }: { children: React.ReactNode }) {

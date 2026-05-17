@@ -17,6 +17,7 @@ import {
   PosPaymentMethodConfig,
   buildDefaultPosList,
   mergeCompanyAndPos,
+  syncPosPaymentMethodsWithCatalog,
   validatePosPaymentMethods,
 } from '@modules/payment-methods-config';
 
@@ -243,7 +244,8 @@ export class PosService {
       return buildDefaultPosList(catalog);
     }
     try {
-      return validatePosPaymentMethods(raw, catalog);
+      const validated = validatePosPaymentMethods(raw, catalog);
+      return syncPosPaymentMethodsWithCatalog(catalog, validated);
     } catch {
       return buildDefaultPosList(catalog);
     }
@@ -260,7 +262,9 @@ export class PosService {
     const catalog = await this.companiesService.getPaymentMethods(pos.companyId);
     let validated: PosPaymentMethodConfig[];
     try {
-      validated = validatePosPaymentMethods(list, catalog);
+      const incoming = Array.isArray(list) ? list : [];
+      const synced = syncPosPaymentMethodsWithCatalog(catalog, incoming);
+      validated = validatePosPaymentMethods(synced, catalog);
     } catch (e) {
       throw new BadRequestException(
         e instanceof Error ? e.message : 'Configuración inválida',

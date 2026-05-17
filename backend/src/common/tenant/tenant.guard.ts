@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -34,6 +35,8 @@ const ACTIVE_COMPANY_HEADER = 'x-active-company-id';
  */
 @Injectable()
 export class TenantGuard implements CanActivate {
+  private readonly logger = new Logger(TenantGuard.name);
+
   constructor(
     private readonly reflector: Reflector,
     @InjectRepository(User)
@@ -57,6 +60,13 @@ export class TenantGuard implements CanActivate {
       : null;
 
     if (!bearer || !isUUID(bearer)) {
+      if (process.env.NODE_ENV !== 'production') {
+        const method = req.method ?? '?';
+        const path = req.originalUrl ?? req.url ?? '?';
+        this.logger.debug(
+          `Sin Bearer UUID en ${method} ${path} (Authorization: ${auth ? 'presente' : 'ausente'})`,
+        );
+      }
       throw new UnauthorizedException(
         'Token de autenticación inválido o ausente',
       );

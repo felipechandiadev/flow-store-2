@@ -1,6 +1,18 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
+function resolveBackendApiBase(): string {
+  const base =
+    process.env.BACKEND_API_URL?.trim() ||
+    process.env.NEXT_PUBLIC_BACKEND_API_URL?.trim();
+  if (!base) {
+    throw new Error(
+      'BACKEND_API_URL no está definida (servidor Next). En red local use la IP del host, p. ej. http://192.168.1.10:3001',
+    );
+  }
+  return base.replace(/\/$/, '');
+}
+
 /** En dev cada app usa su propio origen (p. ej. :3021 vs :3022): las cookies ya no se mezclan. Nombres explícitos por si más adelante comparten host detrás de un proxy. */
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -24,7 +36,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Contraseña', type: 'password' },
       },
       async authorize(credentials) {
-        const res = await fetch(`${process.env.BACKEND_API_URL}/api/auth/login`, {
+        const res = await fetch(`${resolveBackendApiBase()}/api/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -33,7 +45,15 @@ export const authOptions: NextAuthOptions = {
           }),
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          console.error(
+            '[auth] login backend falló:',
+            res.status,
+            typeof data?.message === 'string' ? data.message : data,
+          );
+          return null;
+        }
         if (res.ok && data.user) {
           return {
             id: data.user.id,

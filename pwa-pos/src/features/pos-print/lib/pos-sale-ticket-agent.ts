@@ -1,0 +1,213 @@
+import type { PosSaleReceiptData } from "@/app/(pos)/pos/payment/ui/PosSaleReceiptDialog";
+import {
+  agentSupportsPosSaleTicket,
+  isPosAgentPrintConfiguredForPurpose,
+  POS_SALE_TICKET_PAYLOAD_VERSION,
+  PrintServiceConnection,
+  type HelloResponseData,
+  type PosSaleTicketPayload,
+  type PosSaleTicketPrintExtras,
+} from "@flowstore/print-service-client";
+import { buildPosSaleReceiptHtml } from "@/app/(pos)/pos/payment/ui/PosSaleReceiptDialog";
+import { htmlToPdfBase64 } from "@/features/pos-print/lib/html-to-pdf-base64";
+import { withPrintAgentConnection } from "@/features/pos-print/lib/pos-agent-print";
+import { printHtmlInHiddenIframe } from "@/features/pos-print/lib/print-html-in-hidden-iframe";
+
+const LOG = "[KaiStore print]";
+
+function logPath(path: string, detail?: string) {
+  const msg = detail ? `${LOG} ticket → ${path} (${detail})` : `${LOG} ticket → ${path}`;
+  console.warn(msg);
+}
+
+function isUnknownPrinterLabelError(e: unknown): boolean {
+  return String(e).includes("unknown_printer_display_label");
+}
+
+export function posSaleReceiptToTicketPayload(data: PosSaleReceiptData): PosSaleTicketPayload {
+  const displayName = data.company.nombreFantasia?.trim() || data.company.razonSocial.trim();
+  return {
+    version: POS_SALE_TICKET_PAYLOAD_VERSION,
+    folio: data.folio.trim(),
+    issuedAtIso: data.issuedAtIso,
+    documentKind: data.documentKind === "backorder" ? "backorder" : "sale",
+    backorder: data.backorder ?? null,
+    company: {
+      razonSocial: data.company.razonSocial.trim() || displayName,
+      nombreFantasia: data.company.nombreFantasia?.trim() || null,
+      rut: data.company.rut?.trim() || null,
+      businessActivity: data.company.businessActivity?.trim() || null,
+    },
+    customer: data.customer
+      ? {
+          name: data.customer.name ?? null,
+          document: data.customer.document ?? null,
+          phone: data.customer.phone ?? null,
+          email: data.customer.email ?? null,
+        }
+      : null,
+    quotation: data.quotation
+      ? {
+          documentNumber: data.quotation.documentNumber ?? null,
+          validUntil: data.quotation.validUntil ?? null,
+        }
+      : null,
+    lines: data.lines.map((l) => ({
+      productName: l.productName,
+      attributes: l.attributes ?? [],
+      quantity: l.quantity,
+      unitSymbol: l.unitSymbol,
+      unitPriceWithTax: l.unitPriceWithTax,
+      lineGross: l.lineGross,
+      discountAmount: l.discountAmount,
+      discountLabel: l.discountLabel,
+    })),
+    promotions: data.promotions.map((p) => ({
+      code: p.code,
+      name: p.name,
+      amount: p.amount,
+    })),
+    totals: {
+      subtotalNet: data.totals.subtotalNet,
+      taxes: data.totals.taxes,
+      lineDiscounts: data.totals.lineDiscounts,
+      orderDiscount: data.totals.orderDiscount,
+      total: data.totals.total,
+      change: data.totals.change,
+    },
+    payments: data.payments.map((p) => ({
+      label: p.label,
+      amount: p.amount,
+      detail: p.detail,
+    })),
+  };
+}
+
+async function assertQueued(
+  res: unknown,
+): Promise<void> {
+  const r = res as { jobId?: string; queued?: boolean };
+  if (r && r.queued === false && !r.jobId) {
+    throw new Error("enqueue_rejected");
+  }
+}
+
+async function enqueueSaleTicketOnAgent(
+  conn: PrintServiceConnection,
+  ticket: PosSaleTicketPayload,
+  meta: PosSaleTicketPrintExtras,
+  omitDisplayLabel: boolean,
+): Promise<void> {
+  const res = await conn.enqueuePosSaleTicket(ticket, meta, omitDisplayLabel);
+  await assertQueued(res);
+}
+
+async function enqueueSaleTicketPdfOnAgent(
+  conn: PrintServiceConnection,
+  data: PosSaleReceiptData,
+  meta: PosSaleTicketPrintExtras,
+  omitDisplayLabel: boolean,
+): Promise<void> {
+  const html = buildPosSaleReceiptHtml(data, window.location.origin);
+  const base64 = await htmlToPdfBase64(html, "tickets");
+  const body: Record<string, unknown> = {
+    purpose: "tickets",
+    type: "pdf-base64",
+    payload: base64,
+    filename: meta.filename,
+    copies: 1,
+    sourceApp: "pwa-pos",
+    documentType: meta.documentType,
+    internalFolio: meta.internalFolio,
+  };
+  const res = omitDisplayLabel
+    ? await conn.enqueuePrint(body)
+    : await conn.enqueuePosPrint(body);
+  await assertQueued(res);
+}
+
+/**
+ * Ticket de venta: agente construye PDF vectorial (`pos-sale-ticket`) si el binario lo soporta.
+ * Fallback: PDF rasterizado (html2canvas) o diálogo del navegador.
+ */
+export async function printPosSaleTicketAgentOrBrowser(
+  data: PosSaleReceiptData,
+  meta: PosSaleTicketPrintExtras,
+): Promise<"agent-vector" | "agent-raster" | "browser"> {
+  if (typeof window === "undefined") return "browser";
+
+  if (!isPosAgentPrintConfiguredForPurpose("tickets")) {
+    logPath("browser", "sin alias Tickets en Impresión local");
+    const html = buildPosSaleReceiptHtml(data, window.location.origin);
+    printHtmlInHiddenIframe(html, "Impresión ticket");
+    return "browser";
+  }
+
+  const ticket = posSaleReceiptToTicketPayload(data);
+  let result: "agent-vector" | "agent-raster" | "browser" = "browser";
+
+  await withPrintAgentConnection("tickets", async (conn, hello: HelloResponseData | null) => {
+    const vectorOk = agentSupportsPosSaleTicket(hello);
+
+    if (vectorOk) {
+      try {
+        await enqueueSaleTicketOnAgent(conn, ticket, meta, false);
+        logPath("agent-vector", "pos-sale-ticket");
+        result = "agent-vector";
+        return;
+      } catch (e) {
+        if (isUnknownPrinterLabelError(e)) {
+          try {
+            await enqueueSaleTicketOnAgent(conn, ticket, meta, true);
+            logPath("agent-vector", "pos-sale-ticket (sin alias, mapeo propósito)");
+            result = "agent-vector";
+            return;
+          } catch (e2) {
+            console.warn(`${LOG} vector con/sin alias falló:`, e2);
+          }
+        } else {
+          console.warn(`${LOG} pos-sale-ticket falló:`, e);
+        }
+      }
+    } else {
+      console.warn(
+        `${LOG} agente sin capacidad pos-sale-ticket — reinicie KaiPrinters (npm run tauri dev). Usando PDF rasterizado.`,
+      );
+    }
+
+    try {
+      await enqueueSaleTicketPdfOnAgent(conn, data, meta, false);
+      logPath("agent-raster", "pdf-base64 / html2canvas");
+      result = "agent-raster";
+      return;
+    } catch (e) {
+      if (isUnknownPrinterLabelError(e)) {
+        try {
+          await enqueueSaleTicketPdfOnAgent(conn, data, meta, true);
+          logPath("agent-raster", "pdf-base64 sin alias");
+          result = "agent-raster";
+          return;
+        } catch (e2) {
+          console.warn(`${LOG} raster falló:`, e2);
+        }
+      } else {
+        console.warn(`${LOG} raster falló:`, e);
+      }
+    }
+  });
+
+  if (result === "browser") {
+    logPath("browser", "fallback final");
+    const html = buildPosSaleReceiptHtml(data, window.location.origin);
+    printHtmlInHiddenIframe(html, "Impresión ticket");
+  }
+
+  return result;
+}
+
+export function printPosSaleTicketAgentOrBrowserFireAndForget(
+  data: PosSaleReceiptData,
+  meta: PosSaleTicketPrintExtras,
+): void {
+  void printPosSaleTicketAgentOrBrowser(data, meta);
+}

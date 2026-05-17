@@ -2,12 +2,17 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import type { PosCustomerSearchResponse } from "../types/pos-customer.types";
 import type {
+  CustomerCreditNoteUsageStatus,
+  PosCustomerCreditNoteRow,
   PosCustomerDetail,
   PosCustomerDetailBundle,
   PosCustomerPaymentRow,
+  PosCustomerPurchaseRow,
   PosCustomerQuotaRow,
+  PosCustomerReturnRow,
 } from "../types/pos-customer-detail.types";
 import type { PosCreateCustomerInput, PosCreateCustomerResult } from "../types/pos-customer-create.types";
+import type { CustomerPaymentSourcesResponse } from "../types/customer-payment-sources.types";
 
 export class CustomersPosRequest {
   static async search(input: { query?: string; page?: number; pageSize?: number }): Promise<PosCustomerSearchResponse> {
@@ -78,6 +83,88 @@ export class CustomersPosRequest {
     }
   }
 
+  private static parsePaymentsPayload(pData: Record<string, unknown>): PosCustomerPaymentRow[] {
+    const raw = pData.payments;
+    const arr = Array.isArray(raw)
+      ? raw
+      : raw && typeof raw === "object" && Array.isArray((raw as { payments?: unknown }).payments)
+        ? ((raw as { payments: unknown[] }).payments)
+        : [];
+    return arr.map((row) => {
+      const p = row as Record<string, unknown>;
+      return {
+        id: String(p.id ?? ""),
+        documentNumber: p.documentNumber != null ? String(p.documentNumber) : null,
+        type: p.type != null ? String(p.type) : null,
+        status: p.status != null ? String(p.status) : null,
+        total: Number(p.total ?? 0),
+        paymentMethod: p.paymentMethod != null ? String(p.paymentMethod) : null,
+        createdAt: p.createdAt != null ? String(p.createdAt) : "",
+      };
+    });
+  }
+
+  private static parsePurchasesPayload(data: Record<string, unknown>): PosCustomerPurchaseRow[] {
+    const arr = Array.isArray(data.purchases) ? data.purchases : [];
+    return arr.map((row) => {
+      const p = row as Record<string, unknown>;
+      return {
+        id: String(p.id ?? ""),
+        documentNumber: p.documentNumber != null ? String(p.documentNumber) : null,
+        transactionType: p.transactionType != null ? String(p.transactionType) : null,
+        status: p.status != null ? String(p.status) : null,
+        total: Number(p.total ?? 0),
+        paymentMethod: p.paymentMethod != null ? String(p.paymentMethod) : null,
+        createdAt: p.createdAt != null ? String(p.createdAt) : "",
+      };
+    });
+  }
+
+  private static parseCreditNoteRow(raw: Record<string, unknown>): PosCustomerCreditNoteRow | null {
+    const id = raw.id != null ? String(raw.id) : "";
+    if (!id) return null;
+    const usage = String(raw.usageStatus ?? "available");
+    const usageStatus: CustomerCreditNoteUsageStatus =
+      usage === "partially_used" || usage === "fully_used" ? usage : "available";
+    return {
+      id,
+      documentNumber: String(raw.documentNumber ?? ""),
+      total: Number(raw.total ?? 0),
+      consumedAmount: Number(raw.consumedAmount ?? 0),
+      availableAmount: Number(raw.availableAmount ?? 0),
+      usageStatus,
+      createdAt: String(raw.createdAt ?? ""),
+      status: String(raw.status ?? ""),
+    };
+  }
+
+  private static parseReturnsPayload(data: Record<string, unknown>): PosCustomerReturnRow[] {
+    const arr = Array.isArray(data.returns) ? data.returns : [];
+    return arr
+      .map((row) => {
+        const r = row as Record<string, unknown>;
+        const id = r.id != null ? String(r.id) : "";
+        if (!id) return null;
+        const ncRaw = r.linkedCreditNote;
+        let linkedCreditNote: PosCustomerCreditNoteRow | null = null;
+        if (ncRaw && typeof ncRaw === "object") {
+          linkedCreditNote = CustomersPosRequest.parseCreditNoteRow(
+            ncRaw as Record<string, unknown>,
+          );
+        }
+        return {
+          id,
+          documentNumber: String(r.documentNumber ?? ""),
+          total: Number(r.total ?? 0),
+          status: String(r.status ?? ""),
+          createdAt: String(r.createdAt ?? ""),
+          refundMode: r.refundMode != null ? String(r.refundMode) : null,
+          linkedCreditNote,
+        };
+      })
+      .filter((x): x is PosCustomerReturnRow => x != null);
+  }
+
   static async getCustomerDetailBundle(customerId: string): Promise<PosCustomerDetailBundle> {
     const base = process.env.BACKEND_API_URL;
     if (!base) {
@@ -105,21 +192,33 @@ export class CustomersPosRequest {
     const url = (path: string) => `${base}/api${path}`;
 
     try {
-      const [cRes, pRes, qRes] = await Promise.all([
+      const [cRes, pRes, qRes, purRes, retRes, ncRes] = await Promise.all([
         fetch(url(`/customers/${encodeURIComponent(id)}`), { headers, cache: "no-store" }),
         fetch(url(`/customers/${encodeURIComponent(id)}/payments`), { headers, cache: "no-store" }),
         fetch(url(`/customers/${encodeURIComponent(id)}/pending-quotas`), { headers, cache: "no-store" }),
+        fetch(url(`/customers/${encodeURIComponent(id)}/purchases`), { headers, cache: "no-store" }),
+        fetch(url(`/customers/${encodeURIComponent(id)}/customer-returns`), { headers, cache: "no-store" }),
+        fetch(url(`/customers/${encodeURIComponent(id)}/customer-credit-notes`), {
+          headers,
+          cache: "no-store",
+        }),
       ]);
 
       const cData = (await cRes.json().catch(() => ({}))) as Record<string, unknown>;
-      if (!cRes.ok || !cData?.customer) {
+      const rawCustomer = cData.customer ?? cData;
+      if (
+        !cRes.ok ||
+        !rawCustomer ||
+        typeof rawCustomer !== "object" ||
+        !(rawCustomer as Record<string, unknown>).customerId
+      ) {
         const msg =
           (typeof cData?.message === "string" && cData.message) ||
           `No se pudo cargar el cliente (${cRes.status})`;
         return { success: false, message: String(msg) };
       }
 
-      const raw = cData.customer as Record<string, unknown>;
+      const raw = rawCustomer as Record<string, unknown>;
       const customer: PosCustomerDetail = {
         customerId: String(raw.customerId ?? id),
         displayName: String(raw.displayName ?? ""),
@@ -139,22 +238,14 @@ export class CustomersPosRequest {
         notes: raw.notes != null ? String(raw.notes) : null,
         createdAt: raw.createdAt != null ? String(raw.createdAt) : "",
         updatedAt: raw.updatedAt != null ? String(raw.updatedAt) : "",
+        personType: raw.personType != null ? String(raw.personType) : null,
+        firstName: raw.firstName != null ? String(raw.firstName) : null,
+        lastName: raw.lastName != null ? String(raw.lastName) : null,
+        businessName: raw.businessName != null ? String(raw.businessName) : null,
       };
 
       const pData = (await pRes.json().catch(() => ({}))) as Record<string, unknown>;
-      const paymentsRaw = pRes.ok && Array.isArray(pData?.payments) ? (pData.payments as unknown[]) : [];
-      const payments: PosCustomerPaymentRow[] = paymentsRaw.map((row) => {
-        const p = row as Record<string, unknown>;
-        return {
-          id: String(p.id ?? ""),
-          documentNumber: p.documentNumber != null ? String(p.documentNumber) : null,
-          type: p.type != null ? String(p.type) : null,
-          status: p.status != null ? String(p.status) : null,
-          total: Number(p.total ?? 0),
-          paymentMethod: p.paymentMethod != null ? String(p.paymentMethod) : null,
-          createdAt: p.createdAt != null ? String(p.createdAt) : "",
-        };
-      });
+      const payments = pRes.ok ? CustomersPosRequest.parsePaymentsPayload(pData) : [];
 
       const qData = (await qRes.json().catch(() => ({}))) as Record<string, unknown>;
       const quotasRaw = qRes.ok && Array.isArray(qData?.quotas) ? (qData.quotas as unknown[]) : [];
@@ -170,7 +261,97 @@ export class CustomersPosRequest {
         };
       });
 
-      return { success: true, customer, payments, quotas };
+      const purData = (await purRes.json().catch(() => ({}))) as Record<string, unknown>;
+      const purchases = purRes.ok ? CustomersPosRequest.parsePurchasesPayload(purData) : [];
+
+      const retData = (await retRes.json().catch(() => ({}))) as Record<string, unknown>;
+      const returns = retRes.ok ? CustomersPosRequest.parseReturnsPayload(retData) : [];
+
+      const ncData = (await ncRes.json().catch(() => ({}))) as Record<string, unknown>;
+      const creditNotes = ncRes.ok
+        ? (Array.isArray(ncData.creditNotes) ? ncData.creditNotes : [])
+            .map((row) =>
+              CustomersPosRequest.parseCreditNoteRow(row as Record<string, unknown>),
+            )
+            .filter((x): x is PosCustomerCreditNoteRow => x != null)
+        : [];
+
+      return { success: true, customer, payments, quotas, purchases, returns, creditNotes };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error de red";
+      return { success: false, message: err };
+    }
+  }
+
+  static async getPosPaymentSources(customerId: string): Promise<CustomerPaymentSourcesResponse> {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      return { success: false, message: "BACKEND_API_URL no está configurada" };
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const id = customerId.trim();
+    if (!id) {
+      return { success: false, message: "Cliente no especificado" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    try {
+      const res = await fetch(
+        `${base}/api/customers/${encodeURIComponent(id)}/pos-payment-sources`,
+        { headers, cache: "no-store" },
+      );
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok || data.success !== true) {
+        const msg =
+          (typeof data.message === "string" && data.message) ||
+          `No se pudieron cargar fuentes de pago (${res.status})`;
+        return { success: false, message: String(msg) };
+      }
+
+      const mapCredit = (row: unknown) => {
+        const r = row as Record<string, unknown>;
+        return {
+          id: String(r.id ?? ""),
+          documentNumber: String(r.documentNumber ?? ""),
+          total: Number(r.total ?? 0),
+          consumedAmount: Number(r.consumedAmount ?? 0),
+          availableAmount: Number(r.availableAmount ?? 0),
+          createdAt: String(r.createdAt ?? ""),
+        };
+      };
+      const mapAdvance = (row: unknown) => {
+        const r = row as Record<string, unknown>;
+        return {
+          id: String(r.id ?? ""),
+          documentNumber: String(r.documentNumber ?? ""),
+          depositAmount: Number(r.depositAmount ?? 0),
+          depositConsumedAmount: Number(r.depositConsumedAmount ?? 0),
+          availableAmount: Number(r.availableAmount ?? 0),
+          createdAt: String(r.createdAt ?? ""),
+        };
+      };
+
+      return {
+        success: true,
+        creditNotes: Array.isArray(data.creditNotes)
+          ? (data.creditNotes as unknown[]).map(mapCredit)
+          : [],
+        orderAdvances: Array.isArray(data.orderAdvances)
+          ? (data.orderAdvances as unknown[]).map(mapAdvance)
+          : [],
+      };
     } catch (e) {
       const err = e instanceof Error ? e.message : "Error de red";
       return { success: false, message: err };

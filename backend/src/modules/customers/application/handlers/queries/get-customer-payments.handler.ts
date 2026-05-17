@@ -16,9 +16,9 @@ export class GetCustomerPaymentsHandler implements IQueryHandler<GetCustomerPaym
   async execute(query: GetCustomerPaymentsQuery) {
     const { customerId } = query;
 
-    const payments = await this.customerRepository.getTransactions(customerId);
+    const payments = await this.customerRepository.getPaymentIns(customerId);
 
-    const mapped = payments.slice(0, 50).map((p) => ({
+    const mapped = payments.map((p) => ({
       id: p.id,
       documentNumber: (p as any).documentNumber || null,
       type: (p as any).transactionType || null,

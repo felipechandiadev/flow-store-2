@@ -14,7 +14,9 @@ export type CompanyPaymentMethodId =
   | "TRANSFER"
   | "CHECK"
   | "CREDIT"
-  | "INTERNAL_CREDIT";
+  | "INTERNAL_CREDIT"
+  | "CUSTOMER_CREDIT_NOTE"
+  | "ORDER_ADVANCE";
 
 export interface CompanyPaymentMethodConfig {
   id: string;
@@ -38,7 +40,21 @@ export const COMPANY_PAYMENT_METHOD_LABELS: Record<
   CHECK: "Cheque",
   CREDIT: "Crédito",
   INTERNAL_CREDIT: "Crédito interno",
+  CUSTOMER_CREDIT_NOTE: "Nota de crédito cliente",
+  ORDER_ADVANCE: "Abono por encargo",
 };
+
+/** Referencia obligatoria; no editable en empresa ni POS. */
+export const PAYMENT_METHODS_ALWAYS_REQUIRE_REFERENCE: CompanyPaymentMethodId[] = [
+  "CUSTOMER_CREDIT_NOTE",
+  "ORDER_ADVANCE",
+];
+
+export function companyPaymentMethodAlwaysRequiresReference(
+  method: CompanyPaymentMethodId,
+): boolean {
+  return PAYMENT_METHODS_ALWAYS_REQUIRE_REFERENCE.includes(method);
+}
 
 /** Métodos válidos para POS (caja física). CREDIT/INTERNAL_CREDIT son
  * estados de documento (cuentas por cobrar), no medios tangibles para
@@ -49,4 +65,6 @@ export const POS_VALID_METHOD_IDS: CompanyPaymentMethodId[] = [
   "DEBIT_CARD",
   "TRANSFER",
   "CHECK",
+  "CUSTOMER_CREDIT_NOTE",
+  "ORDER_ADVANCE",
 ];

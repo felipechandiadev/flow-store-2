@@ -31,6 +31,7 @@ import {
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { CashHubsService } from '@modules/cash-hubs/application/cash-hubs.service';
 import { saleTransactionCashFlows } from './sale-transaction-cash-flow.util';
+import { saleReturnTransactionCashFlows } from './sale-return-transaction-cash-flow.util';
 
 /**
  * CashSessionCoreService - Single Responsibility: Session Lifecycle Management
@@ -219,6 +220,8 @@ export class CashSessionCoreService {
    */
   async open(openDto: OpenCashSessionDto) {
     const { userId, userName, pointOfSaleId, openingAmount } = openDto;
+    const cashHubId =
+      typeof openDto.cashHubId === 'string' ? openDto.cashHubId.trim() : '';
 
     // Validar POS existe
     const pointOfSale = await this.pointOfSaleRepository.findOne({
@@ -233,6 +236,34 @@ export class CashSessionCoreService {
       throw new BadRequestException(
         'No se pudo determinar la empresa asociada al punto de venta.',
       );
+    }
+
+    const openingNum = Number(openingAmount) || 0;
+    if (openingNum > 0.0001) {
+      if (!cashHubId) {
+        throw new BadRequestException(
+          'Seleccione un centro de efectivo como fuente del efectivo de apertura.',
+        );
+      }
+      const allowed = await this.cashHubsService.validateHubForPos(
+        companyId,
+        pointOfSale.id,
+        cashHubId,
+      );
+      if (!allowed) {
+        throw new BadRequestException(
+          'El centro de efectivo no está vinculado a este punto de venta.',
+        );
+      }
+      const hubBalance = await this.cashHubsService.getHubBalance(
+        companyId,
+        cashHubId,
+      );
+      if (openingNum > hubBalance + 0.0001) {
+        throw new BadRequestException(
+          `Saldo insuficiente en el centro de efectivo (disponible: ${hubBalance})`,
+        );
+      }
     }
 
     // TODO: Llamar a LedgerEntriesService.getAccountBalance para validar saldo de caja (V2)
@@ -309,8 +340,18 @@ export class CashSessionCoreService {
       txDto.amountPaid = openingAmount;
       txDto.changeAmount = 0;
       txDto.documentType = 'TICKET';
-      txDto.notes = undefined;
-      txDto.metadata = {};
+      if (cashHubId && openingNum > 0.0001) {
+        txDto.cashHubId = cashHubId;
+        txDto.notes = 'Apertura de caja desde centro de efectivo';
+        txDto.metadata = {
+          fromCashHub: true,
+          cashSessionOpening: true,
+          cashHubId,
+        };
+      } else {
+        txDto.notes = undefined;
+        txDto.metadata = {};
+      }
       // validate() will be called internally by createTransaction
 
       await this.transactionsService.createTransaction(txDto);
@@ -709,24 +750,26 @@ export class CashSessionCoreService {
   }
 
   /**
-   * Centros de acopio vinculados al POS de la sesión, con saldo disponible para retirar a caja.
+   * Centros de acopio vinculados a un POS (p. ej. antes de abrir sesión de caja).
    */
-  async listCashHubsForSessionDeposit(cashSessionId: string) {
-    const session = await this.cashSessionRepository.findOne({
-      where: { id: cashSessionId, deletedAt: null as any },
-      relations: ['pointOfSale'],
+  async listCashHubsForPointOfSale(pointOfSaleId: string) {
+    const pointOfSale = await this.pointOfSaleRepository.findOne({
+      where: { id: pointOfSaleId, deletedAt: IsNull() },
+      relations: ['branch'],
     });
-    if (!session) {
-      throw new NotFoundException('Sesión de caja no encontrada');
+    if (!pointOfSale) {
+      throw new NotFoundException('El punto de venta especificado no existe.');
     }
-    if (session.status !== CashSessionStatus.OPEN) {
-      throw new BadRequestException('La sesión no está abierta');
+    const companyId = pointOfSale.branch?.companyId;
+    if (!companyId) {
+      throw new BadRequestException(
+        'No se pudo determinar la empresa asociada al punto de venta.',
+      );
     }
-    const posId = session.pointOfSaleId;
-    if (!posId || !session.pointOfSale) {
-      throw new BadRequestException('Sesión sin punto de venta asociado');
-    }
-    const companyId = session.companyId;
+    return this.listCashHubsLinkedToPos(companyId, pointOfSale.id);
+  }
+
+  private async listCashHubsLinkedToPos(companyId: string, posId: string) {
     const list = await this.cashHubsService.listByCompany(companyId);
     const hubs: Array<{
       id: string;
@@ -749,6 +792,28 @@ export class CashSessionCoreService {
       });
     }
     return { success: true, hubs };
+  }
+
+  /**
+   * Centros de acopio vinculados al POS de la sesión, con saldo disponible para retirar a caja.
+   */
+  async listCashHubsForSessionDeposit(cashSessionId: string) {
+    const session = await this.cashSessionRepository.findOne({
+      where: { id: cashSessionId, deletedAt: null as any },
+      relations: ['pointOfSale'],
+    });
+    if (!session) {
+      throw new NotFoundException('Sesión de caja no encontrada');
+    }
+    if (session.status !== CashSessionStatus.OPEN) {
+      throw new BadRequestException('La sesión no está abierta');
+    }
+    const posId = session.pointOfSaleId;
+    if (!posId || !session.pointOfSale) {
+      throw new BadRequestException('Sesión sin punto de venta asociado');
+    }
+    const companyId = session.companyId;
+    return this.listCashHubsLinkedToPos(companyId, posId);
   }
 
   /**
@@ -979,9 +1044,11 @@ export class CashSessionCoreService {
         case TransactionType.PAYROLL_PAYMENT:
         case TransactionType.EXPENSE_PAYMENT:
         case TransactionType.BANK_TO_CASH_TRANSFER:
-        case TransactionType.SALE_RETURN:
-          cashOut += total;
+        case TransactionType.SALE_RETURN: {
+          const { cashOut: returnOut } = saleReturnTransactionCashFlows(tx);
+          cashOut += returnOut;
           break;
+        }
         default:
           break;
       }

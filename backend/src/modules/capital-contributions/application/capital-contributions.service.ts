@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { User } from '@modules/users/domain/user.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
+import { CashHub } from '@modules/cash-hubs/domain/cash-hub.entity';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
 import { CreateCapitalContributionDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { CreateCapitalContributionRequestDto } from './dto/create-capital-contribution-request.dto';
@@ -14,6 +15,8 @@ export class CapitalContributionsService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Branch)
     private readonly branchRepository: Repository<Branch>,
+    @InjectRepository(CashHub)
+    private readonly cashHubRepository: Repository<CashHub>,
     private readonly transactionsService: TransactionsService,
   ) {}
 
@@ -37,15 +40,33 @@ export class CapitalContributionsService {
   async create(payload: CreateCapitalContributionRequestDto) {
     const shareholderId = this.asString(payload.shareholderId);
     const bankAccountKey = this.asString(payload.bankAccountKey);
+    const cashHubId = this.asString(payload.cashHubId);
     const amount = Number(payload.amount ?? 0);
     const notes = this.asString(payload.notes);
     const occurredOn = this.asString(payload.occurredOn);
 
-    if (!shareholderId || !bankAccountKey || amount <= 0) {
+    if (!shareholderId || amount <= 0) {
       return {
         success: false,
-        error: 'Socio, cuenta bancaria y monto son obligatorios.',
+        error: 'Socio y monto son obligatorios.',
       };
+    }
+    if (!bankAccountKey && !cashHubId) {
+      return {
+        success: false,
+        error: 'Indique cuenta bancaria o centro de efectivo destino.',
+      };
+    }
+    if (cashHubId) {
+      const hub = await this.cashHubRepository.findOne({
+        where: { id: cashHubId },
+      });
+      if (!hub) {
+        return {
+          success: false,
+          error: 'Centro de efectivo no encontrado.',
+        };
+      }
     }
 
     const user = await this.userRepository.findOne({
@@ -64,7 +85,11 @@ export class CapitalContributionsService {
       // Convertir a DTO estándar
       const createTxDto = new CreateCapitalContributionDto();
       createTxDto.shareholderId = shareholderId;
-      createTxDto.bankAccountKey = bankAccountKey;
+      if (cashHubId) {
+        createTxDto.cashHubId = cashHubId;
+      } else if (bankAccountKey) {
+        createTxDto.bankAccountKey = bankAccountKey;
+      }
       createTxDto.amount = amount;
       createTxDto.notes = notes || undefined;
       createTxDto.occurredOn = occurredOn || undefined;

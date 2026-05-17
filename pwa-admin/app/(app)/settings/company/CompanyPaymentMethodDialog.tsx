@@ -9,6 +9,7 @@ import { Button } from "@/shared/components/Button";
 import Alert from "@/shared/components/Alert/Alert";
 import {
   COMPANY_PAYMENT_METHOD_LABELS,
+  companyPaymentMethodAlwaysRequiresReference,
   type CompanyPaymentMethodConfig,
   type CompanyPaymentMethodId,
 } from "@/features/companies/types/company-payment-methods.types";
@@ -96,6 +97,8 @@ export function CompanyPaymentMethodDialog({
     return base;
   }, [internalCreditEnabled, initial?.method]);
 
+  const referenceAlwaysRequired = companyPaymentMethodAlwaysRequiresReference(method);
+
   async function handleSubmit() {
     const item: CompanyPaymentMethodConfig = {
       id: initial?.id ?? newClientId(),
@@ -103,7 +106,7 @@ export function CompanyPaymentMethodDialog({
       alias: alias.trim() || null,
       displayOrder: initial?.displayOrder ?? 0,
       isActive,
-      requireReference: initial?.requireReference ?? false,
+      requireReference: referenceAlwaysRequired ? true : (initial?.requireReference ?? false),
       bankAccountKey: bankAccountKey.trim() || null,
       metadata: initial?.metadata ?? null,
     };
@@ -167,6 +170,12 @@ export function CompanyPaymentMethodDialog({
           labelPosition="right"
           data-test-id="company-payment-method-active"
         />
+        {referenceAlwaysRequired ? (
+          <p className="text-xs text-muted-foreground" data-test-id="company-payment-method-ref-required-hint">
+            Este medio exige referencia obligatoria (número de nota de crédito o de encargo). No se puede
+            desactivar.
+          </p>
+        ) : null}
         <div className="mt-2 flex justify-end gap-2">
           <Button
             variant="secondary"

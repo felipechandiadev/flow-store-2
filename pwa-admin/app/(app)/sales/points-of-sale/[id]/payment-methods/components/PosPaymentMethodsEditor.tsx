@@ -10,11 +10,12 @@ import Switch from "@/shared/components/Switch/Switch";
 import Alert from "@/shared/components/Alert/Alert";
 import {
   COMPANY_PAYMENT_METHOD_LABELS,
+  companyPaymentMethodAlwaysRequiresReference,
   POS_VALID_METHOD_IDS,
   type CompanyPaymentMethodConfig,
 } from "@/features/companies/types/company-payment-methods.types";
 import {
-  defaultPosEntryFor,
+  syncPosPaymentDraftWithCatalog,
   type PosPaymentMethodConfig,
 } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
 import { replacePosPaymentMethodsAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
@@ -57,21 +58,32 @@ export function PosPaymentMethodsEditor({
     [initialCatalog],
   );
 
+  const syncedPosList = useMemo(
+    () => syncPosPaymentDraftWithCatalog(initialCatalog, initialPosList),
+    [initialCatalog, initialPosList],
+  );
+
   const initialMap = useMemo(() => {
     const map = new Map<string, RowState>();
-    for (const item of initialPosList) {
+    for (const item of syncedPosList) {
       map.set(item.companyPaymentMethodId, item);
     }
     return map;
-  }, [initialPosList]);
+  }, [syncedPosList]);
 
   /** Estado: por cada entrada del catálogo, lo que el POS configura. */
   const [byId, setById] = useState<Record<string, RowState>>(() => {
     const out: Record<string, RowState> = {};
     for (const c of usableCatalog) {
-      out[c.id] =
-        initialMap.get(c.id) ??
-        defaultPosEntryFor(c, c.method === "CASH");
+      out[c.id] = initialMap.get(c.id) ?? {
+        companyPaymentMethodId: c.id,
+        isEnabled: false,
+        preloadOnPaymentScreen: false,
+        preloadOrder: null,
+        isDefaultForChange: false,
+        bankAccountKey: c.bankAccountKey ?? null,
+        requireReference: null,
+      };
     }
     return out;
   });
@@ -126,8 +138,9 @@ export function PosPaymentMethodsEditor({
           preloadOrder: byId[c.id]?.preloadOrder ?? null,
           isDefaultForChange: byId[c.id]?.isDefaultForChange === true,
           bankAccountKey: byId[c.id]?.bankAccountKey ?? null,
-          requireReference:
-            byId[c.id]?.requireReference == null
+          requireReference: companyPaymentMethodAlwaysRequiresReference(c.method)
+            ? null
+            : byId[c.id]?.requireReference == null
               ? null
               : byId[c.id]?.requireReference === true,
         }));
@@ -259,13 +272,19 @@ export function PosPaymentMethodsEditor({
                         disabled={!r?.preloadOnPaymentScreen}
                       />
                     </div>
-                    <Switch
-                      checked={r?.requireReference === true}
-                      onChange={(v) => update(c.id, { requireReference: v })}
-                      label="Pide referencia"
-                      labelPosition="right"
-                      data-test-id={`pos-pm-require-ref-${c.id}`}
-                    />
+                    {companyPaymentMethodAlwaysRequiresReference(c.method) ? (
+                      <p className="text-xs text-muted-foreground">
+                        Referencia obligatoria (no editable)
+                      </p>
+                    ) : (
+                      <Switch
+                        checked={r?.requireReference === true}
+                        onChange={(v) => update(c.id, { requireReference: v })}
+                        label="Pide referencia"
+                        labelPosition="right"
+                        data-test-id={`pos-pm-require-ref-${c.id}`}
+                      />
+                    )}
                     <Switch
                       checked={r?.isDefaultForChange === true}
                       onChange={(v) => setUniqueDefault(c.id, v)}

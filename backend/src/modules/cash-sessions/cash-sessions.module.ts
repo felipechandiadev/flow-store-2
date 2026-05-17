@@ -24,6 +24,7 @@ import { CashHubsModule } from '@modules/cash-hubs/cash-hubs.module';
 import { CompaniesModule } from '@modules/companies/companies.module';
 import { PromotionsModule } from '@modules/promotions/promotions.module';
 import { ProductVariantsModule } from '@modules/product-variants/product-variants.module';
+import { CustomersModule } from '@modules/customers/customers.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { ProductVariantsModule } from '@modules/product-variants/product-variant
     CompaniesModule,
     PromotionsModule,
     ProductVariantsModule,
+    CustomersModule,
     CqrsModule,
   ],
   controllers: [CashSessionsController],

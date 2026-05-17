@@ -1,6 +1,8 @@
-import type {
-  CompanyPaymentMethodConfig,
-  CompanyPaymentMethodId,
+import {
+  companyPaymentMethodAlwaysRequiresReference,
+  POS_VALID_METHOD_IDS,
+  type CompanyPaymentMethodConfig,
+  type CompanyPaymentMethodId,
 } from "@/features/companies/types/company-payment-methods.types";
 
 /** Configuración local del POS para un medio del catálogo de empresa. */
@@ -32,6 +34,31 @@ export interface EffectivePaymentMethod {
   displayOrder: number;
 }
 
+/** Alinea config POS con catálogo empresa (incluye medios nuevos deshabilitados). */
+export function syncPosPaymentDraftWithCatalog(
+  catalog: CompanyPaymentMethodConfig[],
+  posList: PosPaymentMethodConfig[],
+): PosPaymentMethodConfig[] {
+  const byId = new Map(posList.map((p) => [p.companyPaymentMethodId, p]));
+  return catalog
+    .filter((c) => c.isActive && (POS_VALID_METHOD_IDS as string[]).includes(c.method))
+    .slice()
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .map((cmp) => {
+      const existing = byId.get(cmp.id);
+      if (existing) return existing;
+      return {
+        companyPaymentMethodId: cmp.id,
+        isEnabled: false,
+        preloadOnPaymentScreen: false,
+        preloadOrder: null,
+        isDefaultForChange: false,
+        bankAccountKey: cmp.bankAccountKey ?? null,
+        requireReference: companyPaymentMethodAlwaysRequiresReference(cmp.method) ? true : null,
+      };
+    });
+}
+
 /** Crea valores default para una entrada nueva del POS apuntando al catálogo. */
 export function defaultPosEntryFor(
   cmp: CompanyPaymentMethodConfig,
@@ -44,6 +71,8 @@ export function defaultPosEntryFor(
     preloadOrder: isCash ? 0 : null,
     isDefaultForChange: isCash,
     bankAccountKey: cmp.bankAccountKey ?? null,
-    requireReference: cmp.requireReference ?? false,
+    requireReference: companyPaymentMethodAlwaysRequiresReference(cmp.method)
+      ? true
+      : (cmp.requireReference ?? false),
   };
 }

@@ -7,13 +7,15 @@ const PATH = "/treasury/accounts/bank";
 
 export async function postCapitalContributionAction(input: {
   shareholderId: string;
-  bankAccountKey: string;
+  bankAccountKey?: string;
+  cashHubId?: string;
   amount: number;
   notes?: string;
 }): Promise<{ success: true } | { success: false; error: string }> {
   try {
     await TreasuryOperationsRequest.postCapitalContribution(input);
     revalidatePath(PATH, "page");
+    revalidatePath("/treasury/accounts/cash", "page");
     revalidatePath("/settings/company", "page");
     return { success: true };
   } catch (e) {
@@ -40,9 +42,9 @@ export async function postDividendWithdrawalAction(input: {
 
 export async function postCashDepositAction(input: {
   bankAccountKey: string;
+  cashHubId: string;
   amount: number;
   notes?: string;
-  cashHubId?: string;
 }): Promise<{ success: true } | { success: false; error: string }> {
   try {
     await TreasuryOperationsRequest.postCashDeposit(input);
@@ -54,16 +56,21 @@ export async function postCashDepositAction(input: {
   }
 }
 
-export async function postPettyCashWithdrawalAction(input: {
+export async function postBankToCashHubTransferAction(input: {
   bankAccountKey: string;
+  cashHubId: string;
   amount: number;
   notes?: string;
 }): Promise<{ success: true } | { success: false; error: string }> {
   try {
-    await TreasuryOperationsRequest.postPettyCashWithdrawal(input);
+    await TreasuryOperationsRequest.postBankToCashHubTransfer(input);
     revalidatePath(PATH, "page");
+    revalidatePath("/treasury/accounts/cash", "page");
     return { success: true };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error al registrar giro a caja" };
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Error al registrar giro a centro de efectivo",
+    };
   }
 }

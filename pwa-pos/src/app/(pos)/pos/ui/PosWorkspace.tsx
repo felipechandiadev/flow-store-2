@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readPosContextClient, type PosContextV1 } from "@/features/session/lib/pos-context-storage";
 import { Button, IconButton } from "@/shared/admin-shared";
-import { ArrowUpFromLine, Package } from "lucide-react";
+import { ArrowUpFromLine, Package, RotateCcw } from "lucide-react";
 import PosProductSearchPanel, { POS_PRODUCT_SEARCH_PANEL_HEIGHT_VH } from "./PosProductSearchPanel";
 import PosCartLineCard from "./PosCartLineCard";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { LoadQuotationDialog } from "./LoadQuotationDialog";
 import { BackorderDepositDialog } from "./BackorderDepositDialog";
+import { LoadReturnSaleDialog } from "./LoadReturnSaleDialog";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(
@@ -23,7 +24,9 @@ export default function PosWorkspace() {
   const [priceListId, setPriceListId] = useState("");
   const cart = usePosCart();
   const [loadQuotationOpen, setLoadQuotationOpen] = useState(false);
+  const [loadReturnOpen, setLoadReturnOpen] = useState(false);
   const [backorderDepositOpen, setBackorderDepositOpen] = useState(false);
+  const isReturnMode = cart.isReturnMode;
 
   useEffect(() => {
     const c = readPosContextClient();
@@ -68,10 +71,10 @@ export default function PosWorkspace() {
   const saleTotal = Math.max(0, totals.gross - lineDiscountsTotal - (cart.orderDiscount ?? 0));
 
   useEffect(() => {
-    if (cart.lines.length > 0 || !cart.backorderDeposit) return;
+    if (isReturnMode || cart.lines.length > 0 || !cart.backorderDeposit) return;
     const id = window.setTimeout(() => cart.clearBackorderDeposit(), 0);
     return () => clearTimeout(id);
-  }, [cart.lines.length, cart.backorderDeposit, cart.clearBackorderDeposit]);
+  }, [isReturnMode, cart.lines.length, cart.backorderDeposit, cart.clearBackorderDeposit]);
 
   if (!ctx?.priceListId) {
     return (
@@ -89,7 +92,9 @@ export default function PosWorkspace() {
         branchId={branchId}
         pointOfSaleId={ctx.pointOfSaleId}
         onPriceListChange={setPriceListId}
-        onPickProduct={addProduct}
+        onPickProduct={isReturnMode ? undefined : addProduct}
+        disabled={isReturnMode}
+        disabledHint="En devolución solo puedes quitar líneas del carrito. Usa «Desvincular» para salir."
       />
 
       <aside
@@ -103,6 +108,7 @@ export default function PosWorkspace() {
               variant="outlined"
               size="sm"
               onClick={() => setLoadQuotationOpen(true)}
+              disabled={isReturnMode}
               data-test-id="pos-load-quotation-btn"
               className="shrink-0"
             >
@@ -113,7 +119,7 @@ export default function PosWorkspace() {
               variant="outlined"
               size="sm"
               onClick={() => setBackorderDepositOpen(true)}
-              disabled={cart.lines.length === 0 || saleTotal <= 0}
+              disabled={isReturnMode || cart.lines.length === 0 || saleTotal <= 0}
               title={
                 cart.lines.length === 0
                   ? "Agregue ítems al carrito"
@@ -124,6 +130,22 @@ export default function PosWorkspace() {
             >
               <Package size={14} className="shrink-0" aria-hidden />
               <span>Encargo</span>
+            </Button>
+            <Button
+              variant="outlined"
+              size="sm"
+              onClick={() => setLoadReturnOpen(true)}
+              disabled={isReturnMode && cart.lines.length > 0}
+              title={
+                isReturnMode && cart.lines.length > 0
+                  ? "Desvincule la devolución actual para cargar otra venta"
+                  : "Cargar venta origen para devolución"
+              }
+              data-test-id="pos-load-return-btn"
+              className="shrink-0"
+            >
+              <RotateCcw size={14} className="shrink-0" aria-hidden />
+              <span>Devolución</span>
             </Button>
             {cart.backorderDeposit ? (
               <span
@@ -153,7 +175,29 @@ export default function PosWorkspace() {
           </div>
         </div>
 
-        {cart.loadedQuotation ? (
+        {cart.loadedReturnSale ? (
+          <div
+            className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-xs"
+            data-test-id="pos-cart-return-banner"
+          >
+            <div>
+              <span className="text-muted-foreground">Devolución — venta:</span>{" "}
+              <span className="font-mono font-semibold">
+                {cart.loadedReturnSale.documentNumber}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={() => cart.exitReturnMode()}
+              data-test-id="pos-cart-return-detach"
+            >
+              Desvincular
+            </button>
+          </div>
+        ) : null}
+
+        {cart.loadedQuotation && !isReturnMode ? (
           <div
             className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-xs"
             data-test-id="pos-cart-quotation-banner"
@@ -183,10 +227,9 @@ export default function PosWorkspace() {
           className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
           data-test-id="pos-cart-lines-scroll"
         >
-          {cart.lines.length === 0 ? (
-            <p className="text-sm text-zinc-500">Toca un producto en la lista para agregarlo.</p>
-          ) : (
-            cart.lines.map((line) => (
+          {cart.lines.length === 0
+            ? null
+            : cart.lines.map((line) => (
               <PosCartLineCard
                 key={line.variantId}
                 line={line}
@@ -196,8 +239,7 @@ export default function PosWorkspace() {
                 onRemove={() => cart.remove(line.variantId)}
                 onSetQuantity={(q) => cart.setQuantity(line.variantId, q)}
               />
-            ))
-          )}
+            ))}
         </div>
 
         <footer className="shrink-0 border-t border-border pt-3" data-test-id="pos-cart-summary">
@@ -221,9 +263,9 @@ export default function PosWorkspace() {
               variant="outlined"
               size="lg"
               className="mx-6 shrink-0"
-              ariaLabel="Ir a cobro"
-              title="Ir a cobro"
+              ariaLabel={isReturnMode ? "Ir a devolución" : "Ir a cobro"}
               disabled={cart.lines.length === 0}
+              title={isReturnMode ? "Ir a devolución" : "Ir a cobro"}
               onClick={() => router.push("/pos/payment")}
               data-test-id="pos-cart-checkout-icon"
             />
@@ -243,6 +285,8 @@ export default function PosWorkspace() {
         initial={cart.backorderDeposit}
         onConfirm={(config) => cart.setBackorderDeposit(config)}
       />
+
+      <LoadReturnSaleDialog open={loadReturnOpen} onClose={() => setLoadReturnOpen(false)} />
     </div>
   );
 }

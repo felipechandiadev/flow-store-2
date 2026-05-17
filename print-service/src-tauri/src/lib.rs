@@ -1,6 +1,9 @@
 mod db;
 mod events;
 mod jobs;
+mod ticket_test_pdf;
+mod pos_sale_ticket_pdf;
+mod ticket_barcode;
 mod platform;
 mod port_release;
 mod protocol;
@@ -210,6 +213,7 @@ fn notify_print_network_toggle(state: &Arc<AppState>, event: &'static str) {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ServiceSettingsPatch {
+    listen_host: Option<String>,
     listen_port: Option<u16>,
     wss_listen_port: Option<u16>,
     wss_enabled: Option<bool>,
@@ -261,6 +265,7 @@ fn get_dashboard(state: tauri::State<'_, Arc<AppState>>) -> Result<serde_json::V
         "jobs": jobs,
         "metrics": { "jobsCompletedTotal": state.jobs_completed_total.load(Ordering::Relaxed) },
         "serviceStatus": events::service_status_payload(state.connected(), sessions),
+        "listenHost": state.db.listen_host(),
         "listenPort": state.db.listen_port(),
         "wssListenPort": state.db.wss_listen_port(),
         "wssEnabled": wss_on,
@@ -301,6 +306,16 @@ fn set_service_settings(
     state: tauri::State<'_, Arc<AppState>>,
     patch: ServiceSettingsPatch,
 ) -> Result<(), String> {
+    if let Some(v) = patch.listen_host {
+        let h = v.trim();
+        if h.is_empty() {
+            return Err("listen_host no puede estar vacío".into());
+        }
+        state
+            .db
+            .set_setting("listen_host", h)
+            .map_err(|e| e.to_string())?;
+    }
     if let Some(v) = patch.listen_port {
         state
             .db
@@ -367,7 +382,13 @@ fn queue_test_print(
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty());
-    let path = jobs::write_minimal_test_pdf(&state.temp_dir).map_err(|e| e.to_string())?;
+    let agent_label = state
+        .db
+        .get_setting("agent_display_name")
+        .map_err(|e| e.to_string())?
+        .unwrap_or_default();
+    let path = jobs::write_test_print_pdf(&state.temp_dir, purpose, &agent_label)
+        .map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();
     state
         .db

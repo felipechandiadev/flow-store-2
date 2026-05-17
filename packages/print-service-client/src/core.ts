@@ -1,3 +1,5 @@
+import type { PosSaleTicketPayload, PosSaleTicketPrintExtras } from "./pos-sale-ticket";
+
 /** Protocol version sent to the local print agent (see docs/print_service_app_developer_guide_v2.md). */
 export const PRINT_PROTOCOL_VERSION = "2.1";
 
@@ -40,7 +42,12 @@ export type PrinterHealthPayload = {
   >;
 };
 
+/** Capacidades del agente (protocolo 2.1+). */
+export const AGENT_CAPABILITY_POS_SALE_TICKET = "pos-sale-ticket";
+export const AGENT_CAPABILITY_PDF_BASE64 = "pdf-base64";
+
 export type HelloResponseData = {
+  agentCapabilities?: string[];
   serviceStatus?: {
     status?: string;
     connectedClients?: number;
@@ -331,6 +338,32 @@ export class PrintServiceConnection {
     return this.enqueuePrint(mergePrinterDisplayLabelForPurposeIntoPrintExtras(purpose, { ...extra }));
   }
 
+  /**
+   * Ticket de venta POS: el agente genera PDF vectorial desde JSON (`type: "pos-sale-ticket"`).
+   * @param omitPrinterDisplayLabel Si true, usa solo mapeo por propósito (sin alias del POS).
+   */
+  enqueuePosSaleTicket(
+    ticket: PosSaleTicketPayload,
+    extras: PosSaleTicketPrintExtras & { purpose?: string },
+    omitPrinterDisplayLabel = false,
+  ): Promise<unknown> {
+    const purpose = extras.purpose ?? "tickets";
+    const body: Record<string, unknown> = {
+      purpose,
+      type: "pos-sale-ticket",
+      ticket,
+      filename: extras.filename,
+      copies: 1,
+      sourceApp: extras.sourceApp ?? "pwa-pos",
+      documentType: extras.documentType,
+      internalFolio: extras.internalFolio,
+    };
+    if (omitPrinterDisplayLabel) {
+      return this.enqueuePrint(body);
+    }
+    return this.enqueuePosPrint(body);
+  }
+
   private sendHello(): void {
     const rid = randomId();
     const body: Record<string, unknown> = {
@@ -513,6 +546,34 @@ export function writePrintServiceConfigToStorage(cfg: {
 const LS_POS_TICKETS_ALIAS = "printPosPurposeTicketsAlias";
 const LS_POS_DOCUMENTS_ALIAS = "printPosPurposeDocumentsAlias";
 
+export type PosPrintAgentPurpose = "tickets" | "documents";
+
+/** POS configuró impresión de tickets vía agente (alias elegido en Impresión local). */
+export function isPosTicketAgentPrintConfigured(): boolean {
+  return isPosAgentPrintConfiguredForPurpose("tickets");
+}
+
+/** POS configuró impresión de documentos (hoja) vía agente. */
+export function isPosDocumentAgentPrintConfigured(): boolean {
+  return isPosAgentPrintConfiguredForPurpose("documents");
+}
+
+/** Alias del POS guardado para el propósito indicado. */
+export function agentSupportsPosSaleTicket(hello: HelloResponseData | null | undefined): boolean {
+  const caps = hello?.agentCapabilities;
+  if (!Array.isArray(caps) || caps.length === 0) {
+    return false;
+  }
+  return caps.includes(AGENT_CAPABILITY_POS_SALE_TICKET);
+}
+
+export function isPosAgentPrintConfiguredForPurpose(purpose: PosPrintAgentPurpose): boolean {
+  if (typeof window === "undefined") return false;
+  const { ticketsAlias, documentsAlias } = readPosPurposePrinterAliasesFromStorage();
+  if (purpose === "tickets") return ticketsAlias.length > 0;
+  return documentsAlias.length > 0;
+}
+
 export function readPosPurposePrinterAliasesFromStorage(): {
   ticketsAlias: string;
   documentsAlias: string;
@@ -583,18 +644,24 @@ export function mergeAdminPrinterDisplayLabelIntoPrintExtras(
 export type PosDocumentPrintMode = "ticket" | "document";
 
 /** Tipos de documento configurables en Impresión local del POS. */
-export type PosDocumentPrintKind = "sale" | "quotation" | "backorder";
+export type PosDocumentPrintKind =
+  | "sale"
+  | "quotation"
+  | "backorder"
+  | "customerCreditNote";
 
 export const POS_DOCUMENT_PRINT_MODES_CHANGED_EVENT = "flowstore:pos-document-print-modes-changed";
 
 const LS_POS_DOC_PRINT_SALE = "printPosDocPrintSale";
 const LS_POS_DOC_PRINT_QUOTATION = "printPosDocPrintQuotation";
 const LS_POS_DOC_PRINT_BACKORDER = "printPosDocPrintBackorder";
+const LS_POS_DOC_PRINT_CUSTOMER_CREDIT_NOTE = "printPosDocPrintCustomerCreditNote";
 
 const DEFAULT_POS_DOCUMENT_PRINT_MODES: Record<PosDocumentPrintKind, PosDocumentPrintMode> = {
   sale: "ticket",
   quotation: "ticket",
   backorder: "ticket",
+  customerCreditNote: "ticket",
 };
 
 function parsePosDocumentPrintMode(raw: string | null): PosDocumentPrintMode | null {
@@ -617,6 +684,9 @@ export function readPosDocumentPrintModesFromStorage(): Record<PosDocumentPrintK
     backorder:
       parsePosDocumentPrintMode(localStorage.getItem(LS_POS_DOC_PRINT_BACKORDER)) ??
       DEFAULT_POS_DOCUMENT_PRINT_MODES.backorder,
+    customerCreditNote:
+      parsePosDocumentPrintMode(localStorage.getItem(LS_POS_DOC_PRINT_CUSTOMER_CREDIT_NOTE)) ??
+      DEFAULT_POS_DOCUMENT_PRINT_MODES.customerCreditNote,
   };
 }
 
@@ -632,6 +702,7 @@ export function writePosDocumentPrintModesToStorage(
     sale: LS_POS_DOC_PRINT_SALE,
     quotation: LS_POS_DOC_PRINT_QUOTATION,
     backorder: LS_POS_DOC_PRINT_BACKORDER,
+    customerCreditNote: LS_POS_DOC_PRINT_CUSTOMER_CREDIT_NOTE,
   };
   let changed = false;
   for (const kind of Object.keys(keyByKind) as PosDocumentPrintKind[]) {

@@ -5,6 +5,54 @@ backend/logs/
 backend/public/uploads/
 backend/*.tsbuildinfo
 
+# Local folders not to push
+proyecto-reportes/
+print-service/
+scripts/
+data-to-seed/
+
+# Dependencies and build artifacts
+node_modules/
+**/node_modules/
+packages/**/node_modules/
+dist/
+build/
+**/dist/
+**/build/
+**/.vite/
+
+# Local environment files
+.env
+.env.local
+.env.production
+.env.development
+.env.test
+backend/.env
+backend/.env.local
+
+# Rust/Tauri build artifacts
+print-service/src-tauri/target/
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Coverage
+coverage/
+
+# Temporary files
+*.tmp
+
 # Root markdown (keep README.md)
 /*.md
 !README.md

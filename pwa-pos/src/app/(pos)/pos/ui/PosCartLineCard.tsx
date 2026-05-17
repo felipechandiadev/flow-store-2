@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getPosVariantStockAction } from "@/features/pos-products/actions/pos-products.action";
+import type { PosProductSearchItem } from "@/features/pos-products/types/pos-product.types";
 import type { ResolvedLineDiscount } from "@/features/promotions/lib/discount-engine.types";
 import { InlineSepDot, PosProductNameWithAttributes } from "@/features/pos-products/ui/posProductPreview";
 import IconButton from "@/shared/components/IconButton/IconButton";

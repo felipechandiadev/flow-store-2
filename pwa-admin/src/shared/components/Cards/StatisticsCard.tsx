@@ -16,7 +16,7 @@ export interface StatisticsCardProps {
   /** Valor destacado (número, porcentaje, moneda) */
   value: React.ReactNode;
   /** Línea secundaria (ej. variación o período) */
-  hint?: string;
+  hint?: React.ReactNode;
   /** Color del valor; por defecto `primary` (tema: --color-*) */
   tone?: StatisticsValueTone;
   /** Tipografía y padding más ajustados (p. ej. grillas de tesorería). */

@@ -2,17 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { getCustomerPaymentsListAction } from "@/features/sales-customers/actions/customer.action";
+import type { CustomerPaymentRow } from "@/features/sales-customers/types/customer-related-documents.types";
+import { fmtClp, formatCustomerDateTime, TX_TYPE_LABEL } from "./customer-detail-format";
 
-function fmtClp(n: number): string {
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(n) ? n : 0);
+function normalizeRow(raw: Record<string, unknown>): CustomerPaymentRow | null {
+  const id = raw.id != null ? String(raw.id) : "";
+  if (!id) return null;
+  return {
+    id,
+    documentNumber: raw.documentNumber != null ? String(raw.documentNumber) : null,
+    type: raw.type != null ? String(raw.type) : null,
+    status: raw.status != null ? String(raw.status) : null,
+    total: Number(raw.total) || 0,
+    paymentMethod: raw.paymentMethod != null ? String(raw.paymentMethod) : null,
+    createdAt: raw.createdAt != null ? String(raw.createdAt) : "",
+  };
 }
 
 export function CustomerDetailPaymentsSection({ customerId }: { customerId: string }) {
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [rows, setRows] = useState<CustomerPaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +32,11 @@ export function CustomerDetailPaymentsSection({ customerId }: { customerId: stri
       if (cancelled) return;
       setLoading(false);
       if (res.success) {
-        setRows(res.rows);
+        setRows(
+          res.rows
+            .map((r) => normalizeRow(r))
+            .filter((x): x is CustomerPaymentRow => x != null),
+        );
       } else {
         setError(res.error);
         setRows([]);
@@ -42,7 +54,11 @@ export function CustomerDetailPaymentsSection({ customerId }: { customerId: stri
     return <p className="text-sm text-error">{error}</p>;
   }
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">No hay pagos listados para este cliente.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        No hay cobros (pagos a cuenta) registrados para este cliente.
+      </p>
+    );
   }
 
   return (
@@ -54,27 +70,24 @@ export function CustomerDetailPaymentsSection({ customerId }: { customerId: stri
             <th className="px-3 py-2">Tipo</th>
             <th className="px-3 py-2">Estado</th>
             <th className="px-3 py-2">Método</th>
-            <th className="px-3 py-2 text-right">Total</th>
+            <th className="px-3 py-2 text-right">Monto</th>
             <th className="px-3 py-2">Fecha</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => {
-            const id = String(r.id ?? i);
-            const doc = r.documentNumber != null ? String(r.documentNumber) : "—";
-            const type = r.type != null ? String(r.type) : "—";
-            const status = r.status != null ? String(r.status) : "—";
-            const method = r.paymentMethod != null ? String(r.paymentMethod) : "—";
-            const total = Number(r.total) || 0;
-            const created = r.createdAt != null ? String(r.createdAt) : "—";
+          {rows.map((r) => {
+            const typeKey = r.type ?? "";
+            const typeLabel = TX_TYPE_LABEL[typeKey] ?? (typeKey || "—");
             return (
-              <tr key={`pay-${id}`} className="border-b border-border/80">
-                <td className="px-3 py-2 font-mono text-[11px]">{doc}</td>
-                <td className="px-3 py-2">{type}</td>
-                <td className="px-3 py-2">{status}</td>
-                <td className="px-3 py-2">{method}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{fmtClp(total)}</td>
-                <td className="px-3 py-2 text-muted-foreground">{created}</td>
+              <tr key={r.id} className="border-b border-border/80">
+                <td className="px-3 py-2 font-mono text-[11px]">{r.documentNumber ?? "—"}</td>
+                <td className="px-3 py-2">{typeLabel}</td>
+                <td className="px-3 py-2">{r.status ?? "—"}</td>
+                <td className="px-3 py-2">{r.paymentMethod ?? "—"}</td>
+                <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtClp(r.total)}</td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {formatCustomerDateTime(r.createdAt)}
+                </td>
               </tr>
             );
           })}

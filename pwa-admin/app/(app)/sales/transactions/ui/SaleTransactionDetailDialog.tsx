@@ -52,6 +52,23 @@ function typeLabel(type: string): string {
   return opt?.label ?? type;
 }
 
+const CREDIT_NOTE_USAGE_LABEL: Record<
+  "available" | "partially_used" | "fully_used",
+  string
+> = {
+  available: "Disponible",
+  partially_used: "Utilizada parcialmente",
+  fully_used: "Utilizada",
+};
+
+function creditNoteUsageBadgeVariant(
+  status: "available" | "partially_used" | "fully_used",
+): "success-outlined" | "warning-outlined" | "secondary-outlined" {
+  if (status === "available") return "success-outlined";
+  if (status === "partially_used") return "warning-outlined";
+  return "secondary-outlined";
+}
+
 export default function SaleTransactionDetailDialog({
   transactionId,
   open,
@@ -63,6 +80,8 @@ export default function SaleTransactionDetailDialog({
   const [printing, setPrinting] = useState(false);
 
   const isBackorder = detail?.transactionType === "BACKORDER";
+  const isSaleReturn = detail?.transactionType === "SALE_RETURN";
+  const linkedNc = detail?.linkedCustomerCreditNote ?? null;
 
   const handlePrintBackorder = useCallback(async () => {
     if (!detail || detail.transactionType !== "BACKORDER") return;
@@ -196,6 +215,65 @@ export default function SaleTransactionDetailDialog({
                 <span className="font-medium text-muted-foreground">Notas: </span>
                 {detail.notes}
               </div>
+            ) : null}
+
+            {isSaleReturn ? (
+              <section
+                className="rounded-md border border-border bg-muted/20 p-3 text-sm"
+                data-test-id="sale-return-credit-note-block"
+              >
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Nota de crédito asociada
+                </h3>
+                {linkedNc ? (
+                  <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+                    <div>
+                      <dt className="text-muted-foreground">Folio NC</dt>
+                      <dd className="font-mono font-medium">{linkedNc.documentNumber || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Estado de uso</dt>
+                      <dd className="mt-0.5">
+                        <Badge variant={creditNoteUsageBadgeVariant(linkedNc.usageStatus)}>
+                          {CREDIT_NOTE_USAGE_LABEL[linkedNc.usageStatus]}
+                        </Badge>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Monto total NC</dt>
+                      <dd className="font-semibold tabular-nums">{formatMoney(linkedNc.total)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Saldo disponible</dt>
+                      <dd className="font-semibold tabular-nums">
+                        {formatMoney(linkedNc.availableAmount)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Monto utilizado</dt>
+                      <dd className="tabular-nums">{formatMoney(linkedNc.consumedAmount)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Fecha NC</dt>
+                      <dd>{formatDateTime(linkedNc.createdAt)}</dd>
+                    </div>
+                    {detail.saleReturnRefundMode ? (
+                      <div className="sm:col-span-2">
+                        <dt className="text-muted-foreground">Modo devolución</dt>
+                        <dd className="font-medium">
+                          {detail.saleReturnRefundMode === "immediate"
+                            ? "Reembolso inmediato en caja"
+                            : "Solo documento (NC)"}
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                ) : (
+                  <p className="text-muted-foreground" data-test-id="sale-return-no-credit-note">
+                    No hay nota de crédito vinculada a esta devolución.
+                  </p>
+                )}
+              </section>
             ) : null}
 
             {detail.transactionType === "BACKORDER" ? (

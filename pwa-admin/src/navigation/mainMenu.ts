@@ -56,6 +56,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
   {
     id: 'nav-purchasing',
     label: 'Compras',
+    hidden: true,
     children: [
       {
         id: 'purchasing-transactions',
@@ -81,8 +82,8 @@ export const mainMenuItems: SideBarMenuItem[] = [
     id: 'nav-treasury',
     label: 'Tesorería',
     children: [
-      { id: 'treasury-expenses', label: 'Gastos operativos', url: '/treasury/expenses' },
-      { id: 'treasury-expense-categories', label: 'Categorías de gasto', url: '/treasury/expense-categories' },
+      { id: 'treasury-expenses', label: 'Gastos operativos', url: '/treasury/expenses', hidden: true },
+      { id: 'treasury-expense-categories', label: 'Categorías de gasto', url: '/treasury/expense-categories', hidden: true },
       { id: 'treasury-accounts', label: 'Cuentas bancarias y cajas', url: '/treasury/accounts' },
       { id: 'treasury-checks', label: 'Cheques', url: '/treasury/checks' },
       // { id: 'treasury-reconciliations', label: 'Conciliaciones', url: '/treasury/reconciliations' },
@@ -92,6 +93,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
   {
     id: 'nav-accounting',
     label: 'Contabilidad',
+    hidden: true,
     children: [
       { id: 'acc-coa', label: 'Plan de cuentas', url: '/accounting/chart-of-accounts' },
       { id: 'acc-rules', label: 'Reglas contables', url: '/accounting/rules' },
@@ -109,6 +111,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
   {
     id: 'nav-hr',
     label: 'RRHH',
+    hidden: true,
     children: [
       { id: 'hr-employees', label: 'Empleados', url: '/hr/employees' },
       { id: 'hr-remunerations', label: 'Remuneraciones', url: '/hr/remunerations' },

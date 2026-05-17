@@ -13,12 +13,14 @@ import { CreateCustomerDto } from '../application/dto/create-customer.dto';
 import { UpdateCustomerDto } from '../application/dto/update-customer.dto';
 import { SearchCustomersDto } from '../application/dto/search-customers.dto';
 import { InstallmentService } from '@modules/installments/application/services/installment.service';
+import { CustomerPaymentSourcesService } from '../application/customer-payment-sources.service';
 
 @Controller('customers')
 export class CustomersController {
   constructor(
     private readonly customersService: CustomersServiceAdapter,
     private readonly installmentService: InstallmentService,
+    private readonly customerPaymentSourcesService: CustomerPaymentSourcesService,
   ) {}
 
   @Get('search')
@@ -95,8 +97,29 @@ export class CustomersController {
 
   @Get(':id/payments')
   async getPayments(@Param('id') id: string) {
-    const payments = await this.customersService.getPayments(id);
-    return { success: true, payments };
+    return this.customersService.getPayments(id);
+  }
+
+  @Get(':id/customer-returns')
+  async getCustomerReturns(@Param('id') id: string) {
+    const returns =
+      await this.customerPaymentSourcesService.listReturnsForCustomer(id);
+    return { success: true, returns };
+  }
+
+  @Get(':id/customer-credit-notes')
+  async getCustomerCreditNotes(@Param('id') id: string) {
+    const creditNotes =
+      await this.customerPaymentSourcesService.listAllCreditNotesForCustomer(
+        id,
+      );
+    return { success: true, creditNotes };
+  }
+
+  @Get(':id/pos-payment-sources')
+  async getPosPaymentSources(@Param('id') id: string) {
+    const sources = await this.customerPaymentSourcesService.listForCustomer(id);
+    return { success: true, ...sources };
   }
 
   @Get(':id')

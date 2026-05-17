@@ -1,4 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
+import { CurrentCompany } from '@common/tenant';
+import { PosSaleLookupService } from '../application/pos-sale-lookup.service';
 import {
   ApiTags,
   ApiOperation,
@@ -21,7 +23,10 @@ import {
 @ApiBearerAuth('JWT-auth')
 @Controller('transactions')
 export class TransactionsController {
-  constructor(private readonly queryBus: QueryBus) {}
+  constructor(
+    private readonly queryBus: QueryBus,
+    private readonly posSaleLookup: PosSaleLookupService,
+  ) {}
 
   /**
    * Si `forcedTransactionTypes` tiene elementos, fija el filtro IN y omite `type` / `types`
@@ -159,6 +164,23 @@ export class TransactionsController {
     return this.executeTransactionSearch(query, [TransactionType.SALE]);
   }
 
+  @Get('sales/by-document-number/:documentNumber')
+  @ApiOperation({
+    summary: 'Buscar venta por folio interno (POS devolución)',
+    description:
+      'Devuelve venta `SALE` con líneas para cargar carrito de devolución en el POS. `sale: null` si no existe.',
+  })
+  async getSaleByDocumentNumber(
+    @Param('documentNumber') documentNumber: string,
+    @CurrentCompany() companyId: string,
+  ) {
+    const sale = await this.posSaleLookup.findSaleByDocumentNumber(
+      companyId,
+      documentNumber,
+    );
+    return { success: true, sale };
+  }
+
   @Get('customer-returns')
   @ApiOperation({
     summary: 'Devoluciones de venta a cliente (SALE_RETURN)',
@@ -168,6 +190,18 @@ export class TransactionsController {
   async listCustomerReturns(@Query() query: SearchTransactionsDto) {
     return this.executeTransactionSearch(query, [
       TransactionType.SALE_RETURN,
+    ]);
+  }
+
+  @Get('customer-credit-notes')
+  @ApiOperation({
+    summary: 'Notas de crédito a cliente (CUSTOMER_CREDIT_NOTE)',
+    description:
+      'Solo transacciones `CUSTOMER_CREDIT_NOTE`. Mismos query params que GET /transactions; se ignoran `type` y `types`.',
+  })
+  async listCustomerCreditNotes(@Query() query: SearchTransactionsDto) {
+    return this.executeTransactionSearch(query, [
+      TransactionType.CUSTOMER_CREDIT_NOTE,
     ]);
   }
 

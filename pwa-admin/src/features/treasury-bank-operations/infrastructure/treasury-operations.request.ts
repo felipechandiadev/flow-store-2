@@ -26,7 +26,8 @@ async function authHeaders(): Promise<HeadersInit> {
 export class TreasuryOperationsRequest {
   static async postCapitalContribution(body: {
     shareholderId: string;
-    bankAccountKey: string;
+    bankAccountKey?: string;
+    cashHubId?: string;
     amount: number;
     notes?: string;
   }) {
@@ -71,7 +72,12 @@ export class TreasuryOperationsRequest {
     return data;
   }
 
-  static async postCashDeposit(body: { bankAccountKey: string; amount: number; notes?: string; cashHubId?: string }) {
+  static async postCashDeposit(body: {
+    bankAccountKey: string;
+    cashHubId: string;
+    amount: number;
+    notes?: string;
+  }) {
     const headers = await authHeaders();
     const res = await fetch(apiUrl("cash-deposits"), {
       method: "POST",
@@ -89,9 +95,14 @@ export class TreasuryOperationsRequest {
     return data;
   }
 
-  static async postPettyCashWithdrawal(body: { bankAccountKey: string; amount: number; notes?: string }) {
+  static async postBankToCashHubTransfer(body: {
+    bankAccountKey: string;
+    cashHubId: string;
+    amount: number;
+    notes?: string;
+  }) {
     const headers = await authHeaders();
-    const res = await fetch(apiUrl("petty-cash-withdrawals"), {
+    const res = await fetch(apiUrl("bank-transfers"), {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -102,7 +113,7 @@ export class TreasuryOperationsRequest {
       throw new Error(err || `HTTP ${res.status}`);
     }
     if (data.success === false) {
-      throw new Error(typeof data.error === "string" ? data.error : "Error en giro para caja");
+      throw new Error(typeof data.error === "string" ? data.error : "Error en giro a centro de efectivo");
     }
     return data;
   }

@@ -25,6 +25,7 @@ import { Unit } from '@modules/units/domain/unit.entity';
 import { VariantQuantityConversionService } from '@modules/product-variants/application/variant-quantity-conversion.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { CreateBackorderDto } from './dto/create-backorder.dto';
+import { CreateSaleReturnDto } from './dto/create-sale-return.dto';
 import type { TransactionBackorderMetadata } from '@modules/transactions/domain/transaction-backorder.metadata';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
 import {
@@ -39,10 +40,19 @@ import { Promotion } from '@modules/promotions/domain/promotion.entity';
 import { PromotionRedemption } from '@modules/promotions/domain/promotion-redemption.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
+import { CustomerPaymentSourcesService } from '@modules/customers/application/customer-payment-sources.service';
 
 type PosCommercialRegisterConfig = {
-  transactionType: TransactionType.SALE | TransactionType.BACKORDER;
+  transactionType:
+    | TransactionType.SALE
+    | TransactionType.BACKORDER
+    | TransactionType.SALE_RETURN;
   skipStockCheck: boolean;
+  /** Devolución: no validar stock disponible (entrada de inventario). */
+  skipStockAvailabilityCheck?: boolean;
+  originalSaleId?: string;
+  /** Devolución: reembolso en caja con medios de pago (salida de efectivo). */
+  immediateRefund?: boolean;
   backorderDepositAmount?: number;
   backorderDepositPercent?: number;
 };
@@ -89,6 +99,7 @@ export class SalesFromSessionService {
     private readonly companiesService: CompaniesService,
     private readonly promotionsService: PromotionsService,
     private readonly variantQuantityConversion: VariantQuantityConversionService,
+    private readonly customerPaymentSourcesService: CustomerPaymentSourcesService,
   ) {}
 
   /**
@@ -188,6 +199,238 @@ export class SalesFromSessionService {
    * Encargo / reserva: transacción BACKORDER (no SALE), sin movimiento de stock.
    * Líneas y promociones como venta; `amountPaid` = abono cobrado.
    */
+  /**
+   * Devolución de venta (SALE_RETURN) desde POS.
+   * `immediateRefund`: medios de pago y salida de efectivo en sesión de caja.
+   */
+  async createSaleReturn(
+    createSaleReturnDto: CreateSaleReturnDto,
+    opts?: { immediateRefund?: boolean },
+  ) {
+    const immediateRefund = opts?.immediateRefund === true;
+    const originalSaleId = createSaleReturnDto.originalSaleId?.trim();
+    if (!originalSaleId) {
+      throw new BadRequestException('originalSaleId es requerido');
+    }
+    if (!createSaleReturnDto.customerId?.trim()) {
+      throw new BadRequestException('customerId es requerido para la devolución');
+    }
+    const hasPaidLines = (createSaleReturnDto.payments ?? []).some(
+      (p) => (Number(p.amount) || 0) > 0,
+    );
+    if (immediateRefund && !hasPaidLines) {
+      throw new BadRequestException(
+        'El reembolso inmediato requiere al menos un medio de pago con monto mayor que cero.',
+      );
+    }
+    if (!immediateRefund && hasPaidLines) {
+      throw new BadRequestException(
+        'La devolución en modo documento no admite pagos. Use el endpoint de reembolso inmediato.',
+      );
+    }
+    await this.assertReturnQuantitiesAllowed(
+      originalSaleId,
+      createSaleReturnDto.lines.map((l) => ({
+        productVariantId: l.productVariantId,
+        quantity: Number(l.quantity) || 0,
+      })),
+    );
+    return this.registerPosCommercial(createSaleReturnDto, {
+      transactionType: TransactionType.SALE_RETURN,
+      skipStockCheck: false,
+      skipStockAvailabilityCheck: true,
+      originalSaleId,
+      immediateRefund,
+    });
+  }
+
+  /**
+   * Modo documento: SALE_RETURN + CUSTOMER_CREDIT_NOTE (sin reembolso en caja).
+   */
+  async confirmCustomerReturnWithCreditNote(dto: CreateSaleReturnDto) {
+    return this.confirmCustomerReturnWithCreditNoteCore(dto, false);
+  }
+
+  /**
+   * Reembolso inmediato: SALE_RETURN con pagos + CUSTOMER_CREDIT_NOTE + salida de caja.
+   */
+  async confirmCustomerReturnWithImmediateRefund(dto: CreateSaleReturnDto) {
+    return this.confirmCustomerReturnWithCreditNoteCore(dto, true);
+  }
+
+  private async confirmCustomerReturnWithCreditNoteCore(
+    dto: CreateSaleReturnDto,
+    immediateRefund: boolean,
+  ) {
+    const originalSaleId = dto.originalSaleId?.trim();
+    if (!originalSaleId) {
+      throw new BadRequestException('originalSaleId es requerido');
+    }
+    const originalSale = await this.transactionRepository.findOne({
+      where: {
+        id: originalSaleId,
+        transactionType: TransactionType.SALE,
+      },
+    });
+    if (!originalSale) {
+      throw new NotFoundException('Venta origen no encontrada');
+    }
+
+    const saleReturnResult = await this.createSaleReturn(dto, {
+      immediateRefund,
+    });
+    const srTx = saleReturnResult.transaction;
+
+    const pointOfSale = await this.pointOfSaleRepository.findOne({
+      where: { id: dto.pointOfSaleId, deletedAt: IsNull() },
+    });
+    if (!pointOfSale?.branchId) {
+      throw new BadRequestException('Punto de venta sin sucursal');
+    }
+    const user = await this.userRepository.findOne({
+      where: { userName: dto.userName, deletedAt: IsNull() },
+    });
+    if (!user) {
+      throw new NotFoundException(`Usuario ${dto.userName} no encontrado`);
+    }
+
+    const creditNote = await this.createCustomerCreditNoteForReturn({
+      saleReturnId: srTx.id,
+      saleId: originalSaleId,
+      saleDocumentNumber: originalSale.documentNumber,
+      customerId: dto.customerId!.trim(),
+      branchId: pointOfSale.branchId,
+      userId: user.id,
+      pointOfSaleId: pointOfSale.id,
+      cashSessionId: dto.cashSessionId,
+      subtotal: Number(srTx.subtotal ?? saleReturnResult.lines.reduce((a, l) => a + Number(l.subtotal ?? 0), 0)),
+      taxAmount: Number(srTx.taxAmount ?? 0),
+      discountAmount: Number(srTx.discountAmount ?? 0),
+      total: Number(srTx.total),
+    });
+
+    return {
+      success: true,
+      originalSale: {
+        id: originalSale.id,
+        documentNumber: originalSale.documentNumber,
+      },
+      saleReturn: {
+        id: srTx.id,
+        documentNumber: srTx.documentNumber,
+        total: Number(srTx.total),
+        subtotal: Number(srTx.subtotal ?? 0),
+        taxAmount: Number(srTx.taxAmount ?? 0),
+        discountAmount: Number(srTx.discountAmount ?? 0),
+      },
+      creditNote: {
+        id: creditNote.id,
+        documentNumber: creditNote.documentNumber,
+        total: Number(creditNote.total),
+      },
+    };
+  }
+
+  private async assertReturnQuantitiesAllowed(
+    originalSaleId: string,
+    lines: Array<{ productVariantId: string; quantity: number }>,
+  ): Promise<void> {
+    const sale = await this.transactionRepository.findOne({
+      where: { id: originalSaleId, transactionType: TransactionType.SALE },
+      relations: ['lines'],
+    });
+    if (!sale) {
+      throw new NotFoundException('Venta origen no encontrada');
+    }
+
+    const soldByVariant = new Map<string, number>();
+    for (const sl of sale.lines ?? []) {
+      const vid = sl.productVariantId?.trim();
+      if (!vid) continue;
+      const q = Number(sl.quantity) || 0;
+      soldByVariant.set(vid, (soldByVariant.get(vid) ?? 0) + q);
+    }
+
+    const priorReturns = await this.transactionRepository.find({
+      where: {
+        relatedTransactionId: originalSaleId,
+        transactionType: TransactionType.SALE_RETURN,
+      },
+      relations: ['lines'],
+    });
+    const returnedByVariant = new Map<string, number>();
+    for (const pr of priorReturns) {
+      for (const rl of pr.lines ?? []) {
+        const vid = rl.productVariantId?.trim();
+        if (!vid) continue;
+        const q = Number(rl.quantity) || 0;
+        returnedByVariant.set(vid, (returnedByVariant.get(vid) ?? 0) + q);
+      }
+    }
+
+    for (const line of lines) {
+      const vid = line.productVariantId?.trim();
+      const qty = Number(line.quantity) || 0;
+      if (!vid || qty <= 0) continue;
+      const sold = soldByVariant.get(vid) ?? 0;
+      if (sold <= 0) {
+        throw new BadRequestException(
+          `La variante ${vid} no pertenece a la venta origen.`,
+        );
+      }
+      const already = returnedByVariant.get(vid) ?? 0;
+      if (already + qty > sold + 0.0001) {
+        throw new BadRequestException(
+          `Cantidad a devolver excede lo vendido para la variante ${vid} (vendido: ${sold}, ya devuelto: ${already}, solicitud: ${qty}).`,
+        );
+      }
+    }
+  }
+
+  private async createCustomerCreditNoteForReturn(params: {
+    saleReturnId: string;
+    saleId: string;
+    saleDocumentNumber?: string;
+    customerId: string;
+    branchId: string;
+    userId: string;
+    pointOfSaleId?: string;
+    cashSessionId?: string;
+    subtotal: number;
+    taxAmount: number;
+    discountAmount: number;
+    total: number;
+  }) {
+    const dto = new CreateTransactionDto();
+    Object.assign(dto, {
+      transactionType: TransactionType.CUSTOMER_CREDIT_NOTE,
+      branchId: params.branchId,
+      userId: params.userId,
+      customerId: params.customerId,
+      pointOfSaleId: params.pointOfSaleId,
+      cashSessionId: params.cashSessionId,
+      relatedTransactionId: params.saleReturnId,
+      subtotal: params.subtotal,
+      taxAmount: params.taxAmount,
+      discountAmount: params.discountAmount,
+      total: params.total,
+      paymentMethod: PaymentMethod.CASH,
+      amountPaid: 0,
+      notes: params.saleDocumentNumber
+        ? `NC por devolución · venta ${params.saleDocumentNumber}`
+        : undefined,
+      metadata: {
+        origin: 'CUSTOMER_CREDIT_NOTE',
+        links: {
+          saleReturnId: params.saleReturnId,
+          saleId: params.saleId,
+        },
+      },
+      lines: [],
+    });
+    return this.transactionsService.createTransaction(dto);
+  }
+
   async createBackorder(createBackorderDto: CreateBackorderDto) {
     if (!createBackorderDto.customerId?.trim()) {
       throw new BadRequestException('El encargo requiere un cliente');
@@ -250,7 +493,12 @@ export class SalesFromSessionService {
       );
     }
 
-    const paymentsUsed = paymentsForSale ?? [];
+    const isSaleReturn = config.transactionType === TransactionType.SALE_RETURN;
+    const immediateReturnRefund =
+      isSaleReturn && config.immediateRefund === true;
+    const paymentsUsed = isSaleReturn && !immediateReturnRefund
+      ? []
+      : (paymentsForSale ?? []);
 
     // Determinar método de pago final.
     // Si hay múltiples pagos, NO se marca como `MIXED`: el sistema
@@ -258,7 +506,10 @@ export class SalesFromSessionService {
     // Para `paymentMethod` se usa el medio del pago de mayor monto
     // (fallback al primero) para que reportes/asientos sigan teniendo
     // un valor representativo.
-    let finalPaymentMethod = paymentMethod;
+    let finalPaymentMethod =
+      isSaleReturn && !immediateReturnRefund
+        ? PaymentMethod.CASH
+        : paymentMethod;
     const isMixedPayment = paymentsUsed.length > 1;
     if (paymentsUsed.length > 1) {
       const dominant = [...paymentsUsed].sort(
@@ -268,6 +519,15 @@ export class SalesFromSessionService {
         dominant?.paymentMethod ?? paymentsUsed[0].paymentMethod;
     } else if (paymentsUsed.length === 1) {
       finalPaymentMethod = paymentsUsed[0].paymentMethod;
+    }
+
+    const customerIdTrimmed = customerId?.trim() ?? '';
+    const isSale = config.transactionType === TransactionType.SALE;
+    if (isSale && customerIdTrimmed && paymentsUsed.length > 0) {
+      await this.customerPaymentSourcesService.validatePaymentsForCustomer(
+        customerIdTrimmed,
+        paymentsUsed,
+      );
     }
 
     return await this.dataSource.transaction(async (manager) => {
@@ -310,7 +570,7 @@ export class SalesFromSessionService {
 
       if (cashSession.status !== CashSessionStatus.OPEN) {
         throw new ConflictException(
-          `La sesión de caja está en estado ${cashSession.status}, no se pueden registrar ventas`,
+          `La sesión de caja está en estado ${cashSession.status}, no se pueden registrar operaciones`,
         );
       }
 
@@ -670,7 +930,7 @@ export class SalesFromSessionService {
         effectiveStorageId = chosen?.id;
       }
 
-      if (!config.skipStockCheck) {
+      if (!config.skipStockCheck && !config.skipStockAvailabilityCheck) {
         const qtyNeedByVariant = new Map<string, number>();
         for (const tl of transactionLines) {
           const vid = tl.productVariantId as string | undefined;
@@ -727,9 +987,11 @@ export class SalesFromSessionService {
       // construir DTO de transacción usando la clase para que métodos como validate() existan
       const isBackorder = config.transactionType === TransactionType.BACKORDER;
       const depositAmount = config.backorderDepositAmount ?? 0;
-      const paidForTx = isBackorder
-        ? depositAmount
-        : amountPaid || total;
+      const paidForTx = isSaleReturn
+        ? 0
+        : isBackorder
+          ? depositAmount
+          : amountPaid || total;
 
       const rawSnap = (metadata as { backorderCustomerSnapshot?: unknown } | undefined)
         ?.backorderCustomerSnapshot;
@@ -764,6 +1026,32 @@ export class SalesFromSessionService {
           }
         : undefined;
 
+      if (immediateReturnRefund) {
+        const paidSum = paymentsUsed.reduce(
+          (acc, p) => acc + (Number(p.amount) || 0),
+          0,
+        );
+        if (paymentsUsed.length === 0) {
+          throw new BadRequestException(
+            'Reembolso inmediato: agrega al menos un medio de pago.',
+          );
+        }
+        if (Math.abs(paidSum - total) > 1) {
+          throw new BadRequestException(
+            `Reembolso inmediato: la suma de pagos (${paidSum}) debe coincidir con el total a devolver (${total}).`,
+          );
+        }
+      }
+
+      const saleReturnMeta =
+        isSaleReturn && config.originalSaleId
+          ? {
+              origin: 'SALE_RETURN',
+              refundMode: immediateReturnRefund ? 'immediate' : 'document',
+              links: { saleId: config.originalSaleId },
+            }
+          : {};
+
       const dto = new CreateTransactionDto();
       Object.assign(dto, {
         transactionType: config.transactionType,
@@ -773,18 +1061,22 @@ export class SalesFromSessionService {
         cashSessionId: cashSession.id,
         storageId: isBackorder ? undefined : effectiveStorageId,
         customerId: customerId || undefined,
+        ...(isSaleReturn && config.originalSaleId
+          ? { relatedTransactionId: config.originalSaleId }
+          : {}),
         subtotal,
         taxAmount,
         discountAmount,
         total,
         paymentMethod: finalPaymentMethod,
         amountPaid: paidForTx,
-        changeAmount: changeAmount || 0,
+        changeAmount: isSaleReturn ? 0 : changeAmount || 0,
         externalReference: externalReference || undefined,
         notes: notes || undefined,
         bankAccountKey: bankAccountKey || undefined,
         metadata: {
           ...metadata,
+          ...saleReturnMeta,
           ...(backorderMeta ? { backorder: backorderMeta } : {}),
           paymentDetails: paymentsUsed.length > 0 ? paymentsUsed : undefined,
           paymentSnapshots:
@@ -830,6 +1122,14 @@ export class SalesFromSessionService {
         throw err;
       }
 
+      if (isSale && customerIdTrimmed && paymentsUsed.length > 0) {
+        await this.customerPaymentSourcesService.applyPaymentsToSources(
+          customerIdTrimmed,
+          paymentsUsed,
+          finalTransaction.id,
+        );
+      }
+
       // Persistir redenciones inmutables vinculadas a la transacción
       // recién creada. El snapshot inmutable de cada promoción sobrevive
       // a ediciones futuras de la regla.
@@ -862,10 +1162,15 @@ export class SalesFromSessionService {
         }
         return 0;
       })();
-      if (cashPortion > 0) {
+      if (!isSaleReturn && cashPortion > 0) {
         const previousExpected =
           cashSession.expectedAmount || cashSession.openingAmount || 0;
         cashSession.expectedAmount = Number(previousExpected) + cashPortion;
+        await manager.getRepository(CashSession).save(cashSession);
+      } else if (immediateReturnRefund && cashPortion > 0) {
+        const previousExpected =
+          cashSession.expectedAmount || cashSession.openingAmount || 0;
+        cashSession.expectedAmount = Number(previousExpected) - cashPortion;
         await manager.getRepository(CashSession).save(cashSession);
       }
 
@@ -876,6 +1181,9 @@ export class SalesFromSessionService {
           documentNumber: finalTransaction.documentNumber,
           transactionType: finalTransaction.transactionType,
           total: Number(finalTransaction.total),
+          subtotal: Number(finalTransaction.subtotal ?? subtotal),
+          taxAmount: Number(finalTransaction.taxAmount ?? taxAmount),
+          discountAmount: Number(finalTransaction.discountAmount ?? discountAmount),
           status: finalTransaction.status,
           createdAt: finalTransaction.createdAt,
           paymentMethod: finalTransaction.paymentMethod,

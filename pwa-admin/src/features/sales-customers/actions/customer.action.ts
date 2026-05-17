@@ -18,11 +18,11 @@ export async function listCustomersForPage(opts: { page?: number; pageSize?: num
   const session = await getServerSession(authOptions);
   const companyId = (session?.user as { activeCompanyId?: string | null })
     ?.activeCompanyId;
-  let internalCreditEnabled = true;
+  let internalCreditEnabled = false;
   if (companyId) {
     const icc = await getCompanyInternalCustomerCreditSettingsAction(companyId);
     if (icc.success) {
-      internalCreditEnabled = icc.internalCustomerCredit.enabled;
+      internalCreditEnabled = icc.internalCustomerCredit.enabled === true;
     }
   }
   return { ...list, internalCreditEnabled };
@@ -86,6 +86,39 @@ export async function getCustomerPurchasesListAction(
     return { success: true, rows };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : "Error al cargar compras." };
+  }
+}
+
+export async function getCustomerReturnsListAction(
+  customerId: string,
+): Promise<{ success: true; rows: Record<string, unknown>[] } | { success: false; error: string }> {
+  const id = customerId?.trim();
+  if (!id) {
+    return { success: false, error: "Cliente no especificado." };
+  }
+  try {
+    const rows = await CustomerRequest.getCustomerReturns(id);
+    return { success: true, rows };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error al cargar devoluciones." };
+  }
+}
+
+export async function getCustomerCreditNotesListAction(
+  customerId: string,
+): Promise<{ success: true; rows: Record<string, unknown>[] } | { success: false; error: string }> {
+  const id = customerId?.trim();
+  if (!id) {
+    return { success: false, error: "Cliente no especificado." };
+  }
+  try {
+    const rows = await CustomerRequest.getCustomerCreditNotes(id);
+    return { success: true, rows };
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Error al cargar notas de crédito.",
+    };
   }
 }
 

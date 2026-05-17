@@ -118,6 +118,16 @@ export class PaymentDetailDto {
   @IsString()
   reference?: string;
 
+  /** Transacción `CUSTOMER_CREDIT_NOTE` aplicada como medio de pago. */
+  @IsOptional()
+  @IsUUID()
+  creditNoteTransactionId?: string;
+
+  /** Transacción `BACKORDER` cuyo abono se aplica como medio de pago. */
+  @IsOptional()
+  @IsUUID()
+  backorderTransactionId?: string;
+
   /**
    * Datos del cheque cuando `paymentMethod === 'CHECK'`. Se persiste en
    * `metadata.paymentSnapshots[].checkData` y se usa para crear un

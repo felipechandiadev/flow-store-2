@@ -35,7 +35,11 @@ export class CashSessionsRequest {
     return res.json();
   }
 
-  static async open(input: { pointOfSaleId: string; openingAmount: number }): Promise<
+  static async open(input: {
+    pointOfSaleId: string;
+    openingAmount: number;
+    cashHubId?: string;
+  }): Promise<
     | { success: true; cashSession: { id: string } }
     | { success: false; message: string; statusCode?: number }
   > {
@@ -65,6 +69,7 @@ export class CashSessionsRequest {
         userId,
         pointOfSaleId: input.pointOfSaleId,
         openingAmount: input.openingAmount,
+        ...(input.cashHubId?.trim() ? { cashHubId: input.cashHubId.trim() } : {}),
       }),
       cache: "no-store",
     });
@@ -141,6 +146,202 @@ export class CashSessionsRequest {
     }
 
     return { success: false, message: "Respuesta inesperada al registrar la venta" };
+  }
+
+  static async confirmCustomerReturnDocument(
+    body: import("../lib/build-create-sale-return-payload").ConfirmCustomerReturnDocumentApiBody,
+  ): Promise<
+    | {
+        success: true;
+        originalSale: { id: string; documentNumber: string };
+        saleReturn: {
+          id: string;
+          documentNumber: string;
+          total: number;
+          subtotal: number;
+          taxAmount: number;
+          discountAmount: number;
+        };
+        creditNote: { id: string; documentNumber: string; total: number };
+      }
+    | { success: false; message: string; statusCode?: number }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      throw new Error("BACKEND_API_URL is not set");
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    const res = await fetch(`${base}/api/cash-sessions/customer-returns/confirm-document`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const rawMsg = data?.message;
+      const msg =
+        typeof rawMsg === "string"
+          ? rawMsg
+          : Array.isArray(rawMsg)
+            ? rawMsg.map(String).join(", ")
+            : typeof data?.error === "string"
+              ? data.error
+              : res.statusText || "Error al registrar la devolución";
+      return { success: false, message: msg, statusCode: res.status };
+    }
+
+    if (data?.success !== true) {
+      return { success: false, message: "Respuesta inesperada al registrar la devolución" };
+    }
+
+    const originalSale = data.originalSale as Record<string, unknown> | undefined;
+    const saleReturn = data.saleReturn as Record<string, unknown> | undefined;
+    const creditNote = data.creditNote as Record<string, unknown> | undefined;
+
+    if (
+      originalSale?.id &&
+      originalSale?.documentNumber &&
+      saleReturn?.id &&
+      saleReturn?.documentNumber &&
+      creditNote?.id &&
+      creditNote?.documentNumber
+    ) {
+      return {
+        success: true,
+        originalSale: {
+          id: String(originalSale.id),
+          documentNumber: String(originalSale.documentNumber),
+        },
+        saleReturn: {
+          id: String(saleReturn.id),
+          documentNumber: String(saleReturn.documentNumber),
+          total: Number(saleReturn.total) || 0,
+          subtotal: Number(saleReturn.subtotal) || 0,
+          taxAmount: Number(saleReturn.taxAmount) || 0,
+          discountAmount: Number(saleReturn.discountAmount) || 0,
+        },
+        creditNote: {
+          id: String(creditNote.id),
+          documentNumber: String(creditNote.documentNumber),
+          total: Number(creditNote.total) || 0,
+        },
+      };
+    }
+
+    return { success: false, message: "Respuesta inesperada al registrar la devolución" };
+  }
+
+  static async confirmCustomerReturnRefund(
+    body: import("../lib/build-create-sale-return-payload").ConfirmCustomerReturnRefundApiBody,
+  ): Promise<
+    | {
+        success: true;
+        originalSale: { id: string; documentNumber: string };
+        saleReturn: {
+          id: string;
+          documentNumber: string;
+          total: number;
+          subtotal: number;
+          taxAmount: number;
+          discountAmount: number;
+        };
+        creditNote: { id: string; documentNumber: string; total: number };
+      }
+    | { success: false; message: string; statusCode?: number }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      throw new Error("BACKEND_API_URL is not set");
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    const res = await fetch(`${base}/api/cash-sessions/customer-returns/confirm-refund`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const rawMsg = data?.message;
+      const msg =
+        typeof rawMsg === "string"
+          ? rawMsg
+          : Array.isArray(rawMsg)
+            ? rawMsg.map(String).join(", ")
+            : typeof data?.error === "string"
+              ? data.error
+              : res.statusText || "Error al registrar el reembolso";
+      return { success: false, message: msg, statusCode: res.status };
+    }
+
+    if (data?.success !== true) {
+      return { success: false, message: "Respuesta inesperada al registrar el reembolso" };
+    }
+
+    const originalSale = data.originalSale as Record<string, unknown> | undefined;
+    const saleReturn = data.saleReturn as Record<string, unknown> | undefined;
+    const creditNote = data.creditNote as Record<string, unknown> | undefined;
+
+    if (
+      originalSale?.id &&
+      originalSale?.documentNumber &&
+      saleReturn?.id &&
+      saleReturn?.documentNumber &&
+      creditNote?.id &&
+      creditNote?.documentNumber
+    ) {
+      return {
+        success: true,
+        originalSale: {
+          id: String(originalSale.id),
+          documentNumber: String(originalSale.documentNumber),
+        },
+        saleReturn: {
+          id: String(saleReturn.id),
+          documentNumber: String(saleReturn.documentNumber),
+          total: Number(saleReturn.total) || 0,
+          subtotal: Number(saleReturn.subtotal) || 0,
+          taxAmount: Number(saleReturn.taxAmount) || 0,
+          discountAmount: Number(saleReturn.discountAmount) || 0,
+        },
+        creditNote: {
+          id: String(creditNote.id),
+          documentNumber: String(creditNote.documentNumber),
+          total: Number(creditNote.total) || 0,
+        },
+      };
+    }
+
+    return { success: false, message: "Respuesta inesperada al registrar el reembolso" };
   }
 
   static async createBackorder(
@@ -254,6 +455,51 @@ export class CashSessionsRequest {
     }
 
     return { success: true, movements: data as CashSessionMovementRow[] };
+  }
+
+  static async listCashHubsForPointOfSale(pointOfSaleId: string): Promise<
+    | { success: true; hubs: CashHubDepositCandidate[] }
+    | { success: false; message: string; statusCode?: number }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      throw new Error("BACKEND_API_URL is not set");
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    const q = new URLSearchParams({ pointOfSaleId: pointOfSaleId.trim() });
+    const res = await fetch(`${base}/api/cash-sessions/cash-hubs-by-pos?${q.toString()}`, {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const rawMsg = data?.message;
+      const msg =
+        typeof rawMsg === "string"
+          ? rawMsg
+          : Array.isArray(rawMsg)
+            ? rawMsg.join(", ")
+            : res.statusText || "No se pudieron cargar los centros de efectivo";
+      return { success: false, message: msg, statusCode: res.status };
+    }
+
+    const hubs = Array.isArray(data?.hubs) ? (data.hubs as CashHubDepositCandidate[]) : [];
+    return { success: true, hubs };
   }
 
   static async listCashHubsForDeposit(cashSessionId: string): Promise<

@@ -49,6 +49,7 @@ import { TransactionsServiceAdapter } from './application/transactions.service.a
 import { DocumentNumberService } from './application/document-number.service';
 import { DocumentSequencesBootstrap } from './application/document-sequences.bootstrap';
 import { BackorderTransactionTypeBootstrap } from './application/backorder-transaction-type.bootstrap';
+import { PosSaleLookupService } from './application/pos-sale-lookup.service';
 import { SupplierFiscalDocumentPaymentAggregateService } from './application/services/supplier-fiscal-document-payment-aggregate.service';
 
 // Inventory CQRS
@@ -96,6 +97,7 @@ import { ProductVariantsModule } from '@modules/product-variants/product-variant
     DocumentSequencesBootstrap,
     BackorderTransactionTypeBootstrap,
     DocumentNumberService,
+    PosSaleLookupService,
     SupplierFiscalDocumentPaymentAggregateService,
     PurchaseOrdersService,
     TransactionsService, // Adapter for backward compatibility

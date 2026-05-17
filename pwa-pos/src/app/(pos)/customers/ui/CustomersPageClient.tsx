@@ -4,27 +4,29 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { PosCustomerSearchRow, PosSaleCustomer } from "@/features/customers/types/pos-customer.types";
 import type { PosCustomerDetailBundle } from "@/features/customers/types/pos-customer-detail.types";
+import { isPosCustomerUuid } from "@/features/customers/lib/pos-customer-url";
 import PosCustomerSearchPanel, {
   POS_CUSTOMER_URL_KEYS,
   type PosCustomerSearchInitial,
 } from "@/features/customers/ui/PosCustomerSearchPanel";
 import { PosCreateCustomerDialog } from "@/features/customers/ui/PosCreateCustomerDialog";
-import PosCustomerDetailAside from "./PosCustomerDetailAside";
+import PosCustomerDetailPanel from "@/features/customers/ui/PosCustomerDetailPanel";
 
 const PANEL_VH = 76;
+const PANEL_VH_WITH_DETAIL = 42;
 
 type Props = {
   initialCustomerSearch: PosCustomerSearchInitial;
   customerIdParam: string;
-  customerIdValid: boolean;
   detailBundle: PosCustomerDetailBundle | null;
+  internalCreditEnabled: boolean;
 };
 
 export default function CustomersPageClient({
   initialCustomerSearch,
   customerIdParam,
-  customerIdValid,
   detailBundle,
+  internalCreditEnabled,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -32,17 +34,41 @@ export default function CustomersPageClient({
   const [, startTransition] = useTransition();
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
 
+  /** La URL es la fuente de verdad inmediata al elegir cliente (no esperar al refresh del RSC). */
+  const customerIdFromUrl = (sp.get(POS_CUSTOMER_URL_KEYS.selectedId) ?? customerIdParam).trim();
+  const customerIdValidFromUrl = !customerIdFromUrl || isPosCustomerUuid(customerIdFromUrl);
+  const selectedCustomerId =
+    customerIdFromUrl && customerIdValidFromUrl ? customerIdFromUrl : null;
+  const invalidId = Boolean(customerIdFromUrl && !customerIdValidFromUrl);
+
+  const detailBundleForSelection = useMemo(() => {
+    if (!selectedCustomerId || !detailBundle?.success) return null;
+    if (detailBundle.customer.customerId !== selectedCustomerId) return null;
+    return detailBundle;
+  }, [detailBundle, selectedCustomerId]);
+
   const selectedForSearch: PosSaleCustomer | null = useMemo(() => {
-    if (!detailBundle || !detailBundle.success) return null;
-    const c = detailBundle.customer;
+    if (detailBundleForSelection) {
+      const c = detailBundleForSelection.customer;
+      return {
+        customerId: c.customerId,
+        name: c.displayName || "Cliente",
+        document: c.documentNumber?.trim() ?? "",
+        phone: c.phone?.trim() ?? "",
+        email: c.email?.trim() || null,
+      };
+    }
+    if (!selectedCustomerId) return null;
+    const row = initialCustomerSearch.items.find((i) => i.customerId === selectedCustomerId);
+    if (!row) return null;
     return {
-      customerId: c.customerId,
-      name: c.displayName || "Cliente",
-      document: c.documentNumber?.trim() ?? "",
-      phone: c.phone?.trim() ?? "",
-      email: c.email?.trim() || null,
+      customerId: row.customerId,
+      name: row.displayName?.trim() || "Cliente",
+      document: row.documentNumber?.trim() ?? "",
+      phone: row.phone?.trim() ?? "",
+      email: row.email?.trim() || null,
     };
-  }, [detailBundle]);
+  }, [detailBundleForSelection, initialCustomerSearch.items, selectedCustomerId]);
 
   const pushParams = useCallback(
     (mutate: (p: URLSearchParams) => void) => {
@@ -73,46 +99,41 @@ export default function CustomersPageClient({
     });
   }, [pushParams]);
 
-  const invalidId = Boolean(customerIdParam && !customerIdValid);
-  const detailError =
-    !invalidId && customerIdParam && detailBundle && !detailBundle.success ? detailBundle.message : null;
-  const customer = detailBundle?.success ? detailBundle.customer : null;
-  const payments = detailBundle?.success ? detailBundle.payments : [];
-  const quotas = detailBundle?.success ? detailBundle.quotas : [];
+  const searchHeightVh = selectedCustomerId ? PANEL_VH_WITH_DETAIL : PANEL_VH;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5">
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-foreground">Clientes</h1>
         <p className="mt-1 max-w-2xl text-xs text-muted-foreground sm:text-sm">
-          Búsqueda enlazada a la URL (como en cobros). Al elegir un cliente, la ficha y el historial se cargan en el
-          servidor.
+          Busca y elige un cliente. La ficha completa aparece a la derecha (o debajo en pantallas
+          estrechas).
         </p>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[minmax(280px,380px)_1fr] lg:items-stretch">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[minmax(260px,360px)_minmax(0,1fr)] md:items-stretch">
         <PosCustomerSearchPanel
           initial={initialCustomerSearch}
           selectedCustomer={selectedForSearch}
           onPick={onPick}
           onClearSelected={onClearSelected}
-          heightVh={PANEL_VH}
+          heightVh={searchHeightVh}
           variant="split"
           showAddCustomer
           onAddCustomerClick={() => setCreateCustomerOpen(true)}
         />
-        <PosCustomerDetailAside
+        <PosCustomerDetailPanel
+          customerId={selectedCustomerId}
+          initialBundle={detailBundleForSelection}
           invalidId={invalidId}
-          detailError={detailError}
-          customer={customer}
-          payments={payments}
-          quotas={quotas}
+          internalCreditEnabled={internalCreditEnabled}
         />
       </div>
 
       <PosCreateCustomerDialog
         open={createCustomerOpen}
         onClose={() => setCreateCustomerOpen(false)}
+        internalCreditEnabled={internalCreditEnabled}
         onSuccess={(info) => {
           pushParams((p) => {
             p.set(POS_CUSTOMER_URL_KEYS.selectedId, info.customerId);

@@ -1,4 +1,4 @@
-//! WebSocket server on 127.0.0.1 (plain ws). See README for WSS / mixed content.
+//! WebSocket server (plain ws). Por defecto escucha en `0.0.0.0` (LAN + localhost). Ver README.
 
 use crate::events;
 use crate::jobs;
@@ -38,9 +38,12 @@ fn json_line(v: &impl serde::Serialize) -> Message {
 
 pub async fn run_ws_loop(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<bool>) -> Result<()> {
     let port = state.db.listen_port();
+    let host = state.db.listen_host();
+    let loopback_only = host == "127.0.0.1" || host.eq_ignore_ascii_case("localhost");
 
-    // Muchos navegadores resuelven `localhost` → `::1`; sin este listener el WS solo en 127.0.0.1 falla en silencio.
+    // Muchos navegadores resuelven `localhost` → `::1`; con host loopback, duplicar listener en [::1].
     let mut v6_task = None;
+    if loopback_only {
     if let Ok(addr6) = format!("[::1]:{port}").parse::<SocketAddr>() {
         match TcpListener::bind(addr6).await {
             Ok(listener6) => {
@@ -75,8 +78,11 @@ pub async fn run_ws_loop(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<
             Err(e) => tracing::debug!(%addr6, err = %e, "ws: skip IPv6 loopback bind"),
         }
     }
+    }
 
-    let addr: SocketAddr = format!("127.0.0.1:{port}").parse()?;
+    let addr: SocketAddr = format!("{host}:{port}").parse().map_err(|e| {
+        anyhow::anyhow!("listen_host inválido ({host}): {e}")
+    })?;
     let listener = TcpListener::bind(addr).await.map_err(|e| {
         eprintln!(
             "[KaiPrinters] ERROR: no se pudo abrir WebSocket en {addr} — {e}. \
@@ -86,9 +92,16 @@ pub async fn run_ws_loop(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<
         e
     })?;
     tracing::info!(%addr, "WebSocket listening");
-    eprintln!(
-        "[KaiPrinters] WebSocket (WS) activo: ws://127.0.0.1:{port}/  (y [::1]:{port} si está habilitado)"
-    );
+    if loopback_only {
+        eprintln!(
+            "[KaiPrinters] WebSocket (WS) activo: ws://127.0.0.1:{port}/  (y [::1]:{port} si está habilitado)"
+        );
+    } else {
+        eprintln!(
+            "[KaiPrinters] WebSocket (WS) activo en {host}:{port} — desde otro equipo use ws://<IP-LAN-del-Mac>:{port}/ \
+             y en el POS el mismo host (no 127.0.0.1). Orígenes: permitir «todos» o http://<IP>:3022 en KaiPrinters."
+        );
+    }
     loop {
         tokio::select! {
             _ = shutdown_rx.changed() => {
@@ -241,6 +254,7 @@ where
                             ws.send(json_line(&OutResponse::ok(env.request_id.clone(), json!({
                                 "serviceStatus": events::service_status_payload(state.connected(), state.connected_sessions_json()),
                                 "printerHealth": ph["payload"].clone(),
+                                "agentCapabilities": ["pdf-base64", "pos-sale-ticket"],
                             })))).await.ok();
                             let _ = state.broadcast.send(ph.to_string());
                             let snap = json!({
@@ -356,6 +370,12 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
             }
         }
         "set_config" => {
+            if let Some(v) = env.extra.get("listenHost").and_then(|x| x.as_str()) {
+                let h = v.trim();
+                if !h.is_empty() {
+                    let _ = state.db.set_setting("listen_host", h);
+                }
+            }
             if let Some(v) = env.extra.get("listenPort").and_then(|x| x.as_u64()) {
                 let _ = state.db.set_setting("listen_port", &v.to_string());
             }
@@ -404,13 +424,37 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                 .unwrap_or("document.pdf");
             let copies = env.extra.get("copies").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
             let priority = env.extra.get("priority").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-            let b64 = match env.extra.get("payload").and_then(|v| v.as_str()) {
-                Some(s) => s,
-                None => return OutResponse::err(rid, "payload_required"),
-            };
-            let path = match jobs::decode_pdf_base64_to_temp(&state.temp_dir, b64) {
-                Ok(p) => p,
-                Err(e) => return OutResponse::err(rid, format!("{e:#}")),
+            let print_type = env
+                .extra
+                .get("type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("pdf-base64");
+            let path = if print_type == "pos-sale-ticket" {
+                let ticket = match env.extra.get("ticket") {
+                    Some(v) => v,
+                    None => return OutResponse::err(rid, "ticket_required"),
+                };
+                let folio = ticket
+                    .get("folio")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                tracing::info!(%folio, "print: pos-sale-ticket → generar PDF vectorial");
+                match jobs::write_pos_sale_ticket_pdf_from_value(&state.temp_dir, ticket) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        tracing::error!(%folio, err = %e, "pos-sale-ticket PDF failed");
+                        return OutResponse::err(rid, format!("{e:#}"));
+                    }
+                }
+            } else {
+                let b64 = match env.extra.get("payload").and_then(|v| v.as_str()) {
+                    Some(s) => s,
+                    None => return OutResponse::err(rid, "payload_required"),
+                };
+                match jobs::decode_pdf_base64_to_temp(&state.temp_dir, b64) {
+                    Ok(p) => p,
+                    Err(e) => return OutResponse::err(rid, format!("{e:#}")),
+                }
             };
             let document_type = env.extra.get("documentType").and_then(|v| v.as_str());
             let internal_folio = env.extra.get("internalFolio").and_then(|v| v.as_str());
@@ -461,7 +505,12 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
         }
         "test_print" => {
             let purpose = env.extra.get("purpose").and_then(|v| v.as_str()).unwrap_or("documents");
-            let path = match jobs::write_minimal_test_pdf(&state.temp_dir) {
+            let agent_label = state
+                .db
+                .get_setting("agent_display_name")
+                .unwrap_or(None)
+                .unwrap_or_default();
+            let path = match jobs::write_test_print_pdf(&state.temp_dir, purpose, &agent_label) {
                 Ok(p) => p,
                 Err(e) => return OutResponse::err(rid, format!("{e:#}")),
             };

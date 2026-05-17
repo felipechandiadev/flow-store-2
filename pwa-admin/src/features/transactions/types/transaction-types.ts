@@ -22,6 +22,13 @@ export const TRANSACTION_TYPE_OPTIONS: TransactionTypeOption[] = [
     description:
       "Revierte o ajusta una venta previa (devolución). Normalmente referencia una SALE original y genera el efecto inverso en montos/stock según el flujo.",
   },
+  {
+    id: "CUSTOMER_CREDIT_NOTE",
+    label: "Nota de crédito cliente",
+    category: "Ventas",
+    description:
+      "Documento fiscal/contable al cliente que reduce CxC; debe vincularse a una SALE_RETURN existente (metadata.links.saleReturnId). No mueve stock por sí sola.",
+  },
 
   // Compras y devoluciones
   {
@@ -184,10 +191,10 @@ export const TRANSACTION_TYPE_OPTIONS: TransactionTypeOption[] = [
   },
   {
     id: "BANK_TO_CASH_TRANSFER",
-    label: "Giro banco a caja",
+    label: "Giro banco a centro de efectivo",
     category: "Pagos y cobros",
     description:
-      "Mueve fondos desde cuenta bancaria de la empresa hacia caja (tesorería interna). No representa pago a proveedor ni a tercero.",
+      "Mueve fondos desde cuenta bancaria de la empresa hacia un centro de efectivo (centro de acopio). No representa pago a proveedor ni a tercero.",
   },
   {
     id: "PAYROLL_PAYMENT",
@@ -239,10 +246,10 @@ export const TRANSACTION_TYPE_OPTIONS: TransactionTypeOption[] = [
   // Caja
   {
     id: "CASH_DEPOSIT",
-    label: "Depósito de efectivo",
+    label: "Depósito de efectivo (centro → banco)",
     category: "Caja",
     description:
-      "Depósito de efectivo (generalmente desde caja a banco). Puede requerir bankAccountKey según configuración.",
+      "Traslado de efectivo desde un centro de acopio hacia una cuenta bancaria de la empresa.",
   },
   {
     id: "OPERATING_EXPENSE",

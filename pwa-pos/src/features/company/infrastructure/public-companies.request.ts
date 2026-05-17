@@ -1,3 +1,5 @@
+import { getServerBackendApiBase } from "@/lib/backend-api-url";
+
 export type PublicCompany = {
   id: string;
   razonSocial: string;
@@ -37,9 +39,14 @@ export class PublicCompaniesRequest {
     | { success: true; companies: PublicCompany[] }
     | { success: false; error: string }
   > {
-    const base = process.env.BACKEND_API_URL;
-    if (!base) {
-      return { success: false, error: "BACKEND_API_URL no está definida" };
+    let base: string;
+    try {
+      base = getServerBackendApiBase();
+    } catch (e) {
+      return {
+        success: false,
+        error: e instanceof Error ? e.message : "BACKEND_API_URL no está definida",
+      };
     }
     try {
       const res = await fetch(`${base}/api/companies/public/list`, {

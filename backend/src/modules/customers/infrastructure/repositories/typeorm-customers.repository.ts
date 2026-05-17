@@ -155,14 +155,29 @@ export class TypeOrmCustomersRepository implements CustomersRepositoryPort {
     customerId: string,
     status?: string,
   ): Promise<Transaction[]> {
-    const where: any = {
+    const where: Record<string, unknown> = {
       customerId,
-      transactionType: TransactionType.PURCHASE,
+      transactionType: In([
+        TransactionType.SALE,
+        TransactionType.BACKORDER,
+        TransactionType.PURCHASE,
+      ]),
     };
     if (status) where.status = status;
 
     return this.transactionRepository.find({
-      where,
+      where: where as never,
+      order: { createdAt: 'DESC' },
+      take: 100,
+    });
+  }
+
+  async getPaymentIns(customerId: string): Promise<Transaction[]> {
+    return this.transactionRepository.find({
+      where: {
+        customerId,
+        transactionType: TransactionType.PAYMENT_IN,
+      },
       order: { createdAt: 'DESC' },
       take: 100,
     });

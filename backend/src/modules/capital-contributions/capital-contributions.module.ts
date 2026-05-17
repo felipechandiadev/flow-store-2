@@ -4,6 +4,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
 import { User } from '@modules/users/domain/user.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
+import { CashHub } from '@modules/cash-hubs/domain/cash-hub.entity';
 import { CapitalContribution } from './domain/capital-contribution.entity';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 import { CapitalContributionsService } from './application/capital-contributions.service';
@@ -13,7 +14,7 @@ import { TypeOrmCapitalContributionRepository } from './infrastructure/repositor
 @Module({
   imports: [
     CqrsModule,
-    TypeOrmModule.forFeature([Transaction, User, Branch, CapitalContribution]),
+    TypeOrmModule.forFeature([Transaction, User, Branch, CashHub, CapitalContribution]),
     TransactionsModule,
   ],
   controllers: [CapitalContributionsController],

@@ -36,10 +36,11 @@ export class CashDepositsService {
     const notes = this.asString(payload.notes);
     const occurredOn = this.asString(payload.occurredOn);
 
-    if (!bankAccountKey || amount <= 0) {
+    const cashHubId = this.asString(payload.cashHubId);
+    if (!bankAccountKey || !cashHubId || amount <= 0) {
       return {
         success: false,
-        error: 'Cuenta bancaria y monto son obligatorios.',
+        error: 'Centro de efectivo, cuenta bancaria y monto son obligatorios.',
       };
     }
 
@@ -62,9 +63,7 @@ export class CashDepositsService {
       createTxDto.amount = amount;
       createTxDto.notes = notes || undefined;
       createTxDto.occurredOn = occurredOn || undefined;
-      if (payload.cashHubId?.trim()) {
-        createTxDto.cashHubId = payload.cashHubId.trim();
-      }
+      createTxDto.cashHubId = cashHubId;
 
       // Obtener una rama válida de la base de datos
       const branch = await this.branchRepository.findOne({

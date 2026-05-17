@@ -1,3 +1,19 @@
+export type CustomerCreditNoteUsageStatus =
+  | "available"
+  | "partially_used"
+  | "fully_used";
+
+export type LinkedCustomerCreditNoteDetail = {
+  id: string;
+  documentNumber: string;
+  total: number;
+  consumedAmount: number;
+  availableAmount: number;
+  usageStatus: CustomerCreditNoteUsageStatus;
+  createdAt: string;
+  status: string;
+};
+
 export type SaleTransactionDetailLine = {
   id: string;
   productName: string;
@@ -38,4 +54,8 @@ export type SaleTransactionDetail = {
   backorderDepositPercent: number | null;
   backorderReservationStatus: string | null;
   backorderPendingBalance: number | null;
+  /** Presente en devoluciones (`SALE_RETURN`) con NC generada. */
+  linkedCustomerCreditNote: LinkedCustomerCreditNoteDetail | null;
+  /** `document` | `immediate` desde metadata de la devolución. */
+  saleReturnRefundMode: string | null;
 };

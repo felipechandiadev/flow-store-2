@@ -15,6 +15,7 @@ export class OpenCashSessionUseCase {
     const res = await CashSessionsRequest.open({
       pointOfSaleId: parsed.data.pointOfSaleId,
       openingAmount: parsed.data.openingAmount,
+      cashHubId: parsed.data.cashHubId,
     });
 
     if (!res.success) {

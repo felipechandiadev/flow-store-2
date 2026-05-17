@@ -52,6 +52,27 @@ END $$;
       );
     }
 
+    try {
+      await this.dataSource.query(`
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_enum e ON t.oid = e.enumtypid
+    WHERE t.typname = 'transactions_transactiontype_enum'
+      AND e.enumlabel = 'CUSTOMER_CREDIT_NOTE'
+  ) THEN
+    ALTER TYPE transactions_transactiontype_enum ADD VALUE 'CUSTOMER_CREDIT_NOTE';
+  END IF;
+END $$;
+      `);
+    } catch (err) {
+      this.logger.warn(
+        `Could not ensure CUSTOMER_CREDIT_NOTE enum value: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
     for (const label of [
       'SUPPLIER_RECEIPT',
       'SUPPLIER_HONORARIUM_RECEIPT',

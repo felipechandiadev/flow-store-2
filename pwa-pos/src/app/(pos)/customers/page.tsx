@@ -10,12 +10,12 @@ import {
 import type { PosCustomerSearchInitial } from "@/features/customers/ui/PosCustomerSearchPanel";
 import { POS_CUSTOMER_URL_KEYS } from "@/features/customers/ui/PosCustomerSearchPanel";
 import type { PosCustomerDetailBundle } from "@/features/customers/types/pos-customer-detail.types";
+import { getInternalCustomerCreditEnabledAction } from "@/features/company/actions/company-internal-customer-credit.action";
+import { Suspense } from "react";
+import { isPosCustomerUuid } from "@/features/customers/lib/pos-customer-url";
 import CustomersPageClient from "./ui/CustomersPageClient";
 
 export const dynamic = "force-dynamic";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parseSp(
   sp: Record<string, string | string[] | undefined>,
@@ -77,21 +77,29 @@ export default async function Page({
       };
 
   const customerIdParam = parseSp(sp, POS_CUSTOMER_URL_KEYS.selectedId).trim();
-  const customerIdValid = !customerIdParam || UUID_RE.test(customerIdParam);
+  const customerIdValid = !customerIdParam || isPosCustomerUuid(customerIdParam);
 
   let detailBundle: PosCustomerDetailBundle | null = null;
   if (customerIdParam && customerIdValid) {
     detailBundle = await getCustomerPosDetailBundleAction(customerIdParam);
   }
 
+  const internalCreditEnabled = await getInternalCustomerCreditEnabledAction();
+
   return (
     <div className="h-full min-h-0">
-      <CustomersPageClient
-        initialCustomerSearch={initialCustomerSearch}
-        customerIdParam={customerIdParam}
-        customerIdValid={customerIdValid}
-        detailBundle={detailBundle}
-      />
+      <Suspense
+        fallback={
+          <p className="text-sm text-muted-foreground">Cargando clientes…</p>
+        }
+      >
+        <CustomersPageClient
+          initialCustomerSearch={initialCustomerSearch}
+          customerIdParam={customerIdParam}
+          detailBundle={detailBundle}
+          internalCreditEnabled={internalCreditEnabled}
+        />
+      </Suspense>
     </div>
   );
 }

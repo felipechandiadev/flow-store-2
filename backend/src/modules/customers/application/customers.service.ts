@@ -354,12 +354,6 @@ export class CustomersService {
   }
 
   async getPurchases(customerId: string, status?: string) {
-    const where: any = {
-      customerId,
-      transactionType: TransactionType.PURCHASE,
-    };
-    if (status) where.status = status;
-
     const purchases = await this.customersRepository.getPurchases(
       customerId,
       status,

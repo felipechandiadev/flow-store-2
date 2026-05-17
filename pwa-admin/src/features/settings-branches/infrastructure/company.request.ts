@@ -9,14 +9,17 @@ function apiUrl(path: string): string {
   return `${base}/api${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-async function authHeaders(): Promise<HeadersInit> {
+async function authHeaders(): Promise<HeadersInit | null> {
   const session = await getServerSession(authOptions);
   const token = session?.user?.accessToken;
-  const activeCompanyId = (session?.user as any)?.activeCompanyId as string | null | undefined;
-  const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) {
-    h.Authorization = `Bearer ${token}`;
+  if (token == null || String(token).trim() === "") {
+    return null;
   }
+  const activeCompanyId = (session?.user as any)?.activeCompanyId as string | null | undefined;
+  const h: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
   if (activeCompanyId) {
     h["X-Active-Company-Id"] = activeCompanyId;
   }
@@ -185,6 +188,9 @@ export class CompanyRequest {
   /** Detalle de la empresa (primera activa en BD), según backend. */
   static async getDetails(): Promise<CompanyDetails | null> {
     const headers = await authHeaders();
+    if (!headers) {
+      return null;
+    }
     try {
       const res = await fetch(apiUrl("company"), {
         method: "GET",
@@ -203,6 +209,9 @@ export class CompanyRequest {
 
   static async patchGeneral(input: UpdateCompanyGeneralInput): Promise<CompanyDetails> {
     const headers = await authHeaders();
+    if (!headers) {
+      throw new Error("Sesión no autenticada");
+    }
     const res = await fetch(apiUrl("company"), {
       method: "PATCH",
       headers,
@@ -221,6 +230,9 @@ export class CompanyRequest {
 
   static async addBankAccount(input: AddCompanyBankAccountInput): Promise<CompanyDetails> {
     const headers = await authHeaders();
+    if (!headers) {
+      throw new Error("Sesión no autenticada");
+    }
     const res = await fetch(apiUrl("company/bank-accounts"), {
       method: "POST",
       headers,

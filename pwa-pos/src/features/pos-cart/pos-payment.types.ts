@@ -4,9 +4,24 @@ export const POS_PAYMENT_METHOD_IDS = [
   "DEBIT_CARD",
   "TRANSFER",
   "CHECK",
+  "CUSTOMER_CREDIT_NOTE",
+  "ORDER_ADVANCE",
 ] as const;
 
 export type PosPaymentMethodId = (typeof POS_PAYMENT_METHOD_IDS)[number];
+
+export const CUSTOMER_LINKED_PAYMENT_METHODS = [
+  "CUSTOMER_CREDIT_NOTE",
+  "ORDER_ADVANCE",
+] as const;
+
+export type CustomerLinkedPaymentMethod = (typeof CUSTOMER_LINKED_PAYMENT_METHODS)[number];
+
+export function isCustomerLinkedPaymentMethod(
+  method: string,
+): method is CustomerLinkedPaymentMethod {
+  return (CUSTOMER_LINKED_PAYMENT_METHODS as readonly string[]).includes(method);
+}
 
 /**
  * Datos específicos de un cheque entrante (cliente -> empresa). Se
@@ -46,4 +61,8 @@ export type PosPaymentLine = {
   bankAccountKey?: string | null;
   /** Datos del cheque cuando `type === "CHECK"`. */
   checkData?: PosCheckPaymentData;
+  /** Nota de crédito aplicada (`CUSTOMER_CREDIT_NOTE`). */
+  creditNoteTransactionId?: string | null;
+  /** Encargo cuyo abono se aplica (`ORDER_ADVANCE`). */
+  backorderTransactionId?: string | null;
 };

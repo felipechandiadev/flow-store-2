@@ -58,6 +58,7 @@ type JobRow = {
 };
 
 type DashboardPayload = {
+  listenHost?: string;
   listenPort?: number;
   wssListenPort?: number;
   wssEnabled?: boolean;
@@ -133,6 +134,7 @@ export default function App() {
   const [originLines, setOriginLines] = useState<OriginLineRow[]>([]);
   const [allowAllOrigins, setAllowAllOrigins] = useState(false);
   const [settings, setSettings] = useState({
+    listenHost: "0.0.0.0",
     listenPort: "",
     wssListenPort: "",
     wssEnabled: false,
@@ -165,6 +167,7 @@ export default function App() {
     setAllowAllOrigins(all);
     setOriginLines(originLinesFromDb);
     setSettings({
+      listenHost: d.listenHost?.trim() || "0.0.0.0",
       listenPort: d.listenPort != null ? String(d.listenPort) : "",
       wssListenPort: d.wssListenPort != null ? String(d.wssListenPort) : "",
       wssEnabled: !!d.wssEnabled,
@@ -270,6 +273,7 @@ export default function App() {
 
   async function handleSaveSettings() {
     const patch = {
+      listenHost: settings.listenHost.trim() || undefined,
       listenPort: settings.listenPort ? Number(settings.listenPort) : undefined,
       wssListenPort: settings.wssListenPort ? Number(settings.wssListenPort) : undefined,
       wssEnabled: settings.wssEnabled,
@@ -490,6 +494,21 @@ export default function App() {
             value={settings.agentDisplayName}
             onChange={(e) => setSettings((s) => ({ ...s, agentDisplayName: e.target.value }))}
           />
+          <SharedTextField
+            label="Interfaz de red (host)"
+            name="in-listen-host"
+            type="text"
+            density="compact"
+            placeholder="0.0.0.0"
+            readOnly={!configEdit}
+            disabled={!configEdit}
+            value={settings.listenHost}
+            onChange={(e) => setSettings((s) => ({ ...s, listenHost: e.target.value }))}
+          />
+          <p className="text-xs text-muted-foreground">
+            Use <span className="font-mono">0.0.0.0</span> para que tablets u otros PCs en la LAN conecten al WebSocket.
+            Reinicie el servicio (botón energía) tras cambiar.
+          </p>
           <SharedTextField
             label="Puerto WS"
             name="in-ws-port"

@@ -23,6 +23,8 @@ export type CreateSaleApiBody = {
     amount: number;
     companyPaymentMethodId?: string;
     reference?: string;
+    creditNoteTransactionId?: string;
+    backorderTransactionId?: string;
     bankAccountId?: string;
     checkData?: {
       checkNumber: string;
@@ -91,6 +93,8 @@ export function buildCreateSalePayments(payments: PosPaymentLine[]): SalePayment
         amount: Math.round(Number(p.amount) || 0),
         companyPaymentMethodId: p.companyPaymentMethodId?.trim() || undefined,
         reference: p.reference?.trim() || undefined,
+        creditNoteTransactionId: p.creditNoteTransactionId?.trim() || undefined,
+        backorderTransactionId: p.backorderTransactionId?.trim() || undefined,
         bankAccountId: p.bankAccountKey?.trim() || undefined,
       };
       if (p.type === "CHECK" && p.checkData) {

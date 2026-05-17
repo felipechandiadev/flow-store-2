@@ -45,8 +45,11 @@ export class CashHubsService {
       .addSelect(
         `SUM(CASE
           WHEN tx.transactionType = :inType THEN tx.total
+          WHEN tx.transactionType = :bankToHub THEN tx.total
+          WHEN tx.transactionType = :capitalIn THEN tx.total
           WHEN tx.transactionType = :outType THEN -tx.total
           WHEN tx.transactionType = :depositFromSession THEN -tx.total
+          WHEN tx.transactionType = :openingFromHub AND tx.cashHubId IS NOT NULL THEN -tx.total
           ELSE 0
         END)`,
         'balance',
@@ -56,8 +59,11 @@ export class CashHubsService {
       .andWhere('tx.status = :status', { status: TransactionStatus.CONFIRMED })
       .setParameters({
         inType: TransactionType.CASH_SESSION_TO_HUB_TRANSFER,
+        bankToHub: TransactionType.BANK_TO_CASH_TRANSFER,
+        capitalIn: TransactionType.CAPITAL_CONTRIBUTION,
         outType: TransactionType.CASH_DEPOSIT,
         depositFromSession: TransactionType.CASH_SESSION_DEPOSIT,
+        openingFromHub: TransactionType.CASH_SESSION_OPENING,
       })
       .groupBy('tx.cashHubId')
       .getRawMany<{ cashHubId: string; balance: string | null }>();
@@ -73,8 +79,8 @@ export class CashHubsService {
   }
 
   /**
-   * Saldo efectivo del centro de acopio: entradas por traslado desde sesión de caja,
-   * salidas por depósito bancario y por ingreso de efectivo desde el hub hacia una sesión POS.
+   * Saldo efectivo del centro de acopio: entradas por traslado desde sesión de caja y aportes;
+   * salidas por depósito bancario, ingreso a sesión POS y apertura de caja desde el hub.
    */
   async getHubBalance(companyId: string, hubId: string): Promise<number> {
     await this.getOne(hubId, companyId);
@@ -83,8 +89,11 @@ export class CashHubsService {
       .select(
         `COALESCE(SUM(CASE
           WHEN tx.transactionType = :inType THEN tx.total
+          WHEN tx.transactionType = :bankToHub THEN tx.total
+          WHEN tx.transactionType = :capitalIn THEN tx.total
           WHEN tx.transactionType = :outType THEN -tx.total
           WHEN tx.transactionType = :depositFromSession THEN -tx.total
+          WHEN tx.transactionType = :openingFromHub AND tx.cashHubId IS NOT NULL THEN -tx.total
           ELSE 0
         END), 0)`,
         'balance',
@@ -93,8 +102,11 @@ export class CashHubsService {
       .andWhere('tx.status = :status', { status: TransactionStatus.CONFIRMED })
       .setParameters({
         inType: TransactionType.CASH_SESSION_TO_HUB_TRANSFER,
+        bankToHub: TransactionType.BANK_TO_CASH_TRANSFER,
+        capitalIn: TransactionType.CAPITAL_CONTRIBUTION,
         outType: TransactionType.CASH_DEPOSIT,
         depositFromSession: TransactionType.CASH_SESSION_DEPOSIT,
+        openingFromHub: TransactionType.CASH_SESSION_OPENING,
       })
       .getRawOne<{ balance: string | null }>();
     const n = Number(row?.balance ?? 0);

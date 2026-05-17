@@ -227,7 +227,7 @@ export function CreateCustomerDialog({
 
         {internalCreditEnabled ? (
           <div className="flex flex-col gap-3 border-t border-border pt-3">
-            <p className="text-sm font-semibold text-foreground">Datos de cliente</p>
+            <p className="text-sm font-semibold text-foreground">Crédito</p>
             <TextField
               label="Límite de crédito (CLP)"
               name="customer-credit-limit"
@@ -248,31 +248,17 @@ export function CreateCustomerDialog({
               alwaysShowLabel
               data-test-id="customer-create-payment-day"
             />
-            <TextField
-              label="Notas (opcional)"
-              name="customer-notes"
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              data-test-id="customer-create-notes"
-            />
           </div>
-        ) : (
-          <div className="flex flex-col gap-3 border-t border-border pt-3">
-            <p className="text-sm text-muted-foreground">
-              El crédito interno está deshabilitado en la empresa. No se asigna límite de crédito ni día de
-              pago.
-            </p>
-            <TextField
-              label="Notas (opcional)"
-              name="customer-notes"
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              data-test-id="customer-create-notes"
-            />
-          </div>
-        )}
+        ) : null}
+
+        <TextField
+          label="Notas (opcional)"
+          name="customer-notes"
+          rows={3}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          data-test-id="customer-create-notes"
+        />
       </div>
     </Dialog>
   );

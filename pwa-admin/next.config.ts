@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
+import { buildLanAllowedDevOrigins } from "../shared/next-lan-dev-origins";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: buildLanAllowedDevOrigins(),
   transpilePackages: ["@flowstore/print-service-client"],
   env: {
     NEXT_PUBLIC_BACKEND_API_URL:

@@ -6,6 +6,7 @@ import IconButton from "@/shared/components/IconButton/IconButton";
 import Badge from "@/shared/components/Badge/Badge";
 import {
   COMPANY_PAYMENT_METHOD_LABELS,
+  companyPaymentMethodAlwaysRequiresReference,
   type CompanyPaymentMethodConfig,
 } from "@/features/companies/types/company-payment-methods.types";
 import {
@@ -61,6 +62,16 @@ function MethodCard({
           <div className="flex justify-between gap-2">
             <dt className="text-muted-foreground">Cuenta</dt>
             <dd className="font-mono">{item.bankAccountKey}</dd>
+          </div>
+        ) : null}
+        {companyPaymentMethodAlwaysRequiresReference(item.method) || item.requireReference ? (
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Referencia</dt>
+            <dd>
+              {companyPaymentMethodAlwaysRequiresReference(item.method)
+                ? "Obligatoria (fija)"
+                : "Opcional configurable"}
+            </dd>
           </div>
         ) : null}
       </dl>

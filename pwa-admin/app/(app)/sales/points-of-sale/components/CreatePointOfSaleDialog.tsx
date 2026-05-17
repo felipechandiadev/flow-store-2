@@ -64,7 +64,7 @@ export function CreatePointOfSaleDialog({
   );
 
   const storeRoomOptions = useMemo(() => {
-    return storages
+    return (storages ?? [])
       .filter((s) => s.branchId === branchId && s.type === "STORE" && s.isActive)
       .map((s) => ({ id: s.id, label: s.name }));
   }, [storages, branchId]);

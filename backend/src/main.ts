@@ -7,12 +7,23 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './shared/logging/logging.interceptor';
 import { MetricsInterceptor } from './shared/metrics/metrics.interceptor';
 import { setupSwagger } from './shared/swagger/swagger.config';
+import {
+  buildCorsOriginOption,
+  CORS_ALLOWED_HEADERS,
+  CORS_ALLOWED_METHODS,
+  resolveCorsAllowOriginHeader,
+} from './config/cors.util';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Get configuration service
   const configService = app.get(AppConfigService);
+
+  const corsOrigin = buildCorsOriginOption(
+    configService.app.cors.origin,
+    configService.app.cors.credentials,
+  );
 
   // CORS: preflight OPTIONS debe responder antes del router de Nest (evita 404 en rutas solo-GET).
   if (configService.app.features.enableCors) {
@@ -32,41 +43,30 @@ async function bootstrap() {
       if (req.method !== 'OPTIONS') {
         return next();
       }
-      const configured = configService.app.cors.origin;
       const reqOrigin = typeof req.headers?.origin === 'string' ? req.headers.origin : '';
-      let allowOrigin = configured;
-      if (configured === '*' && configService.app.cors.credentials && reqOrigin) {
-        allowOrigin = reqOrigin;
-      }
+      const allowOrigin = resolveCorsAllowOriginHeader(
+        configService.app.cors.origin,
+        configService.app.cors.credentials,
+        reqOrigin,
+      );
       res.setHeader('Access-Control-Allow-Origin', allowOrigin);
       if (configService.app.cors.credentials) {
         res.setHeader('Access-Control-Allow-Credentials', 'true');
       }
-      res.setHeader(
-        'Access-Control-Allow-Methods',
-        'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-      );
-      res.setHeader(
-        'Access-Control-Allow-Headers',
-        'Authorization,Content-Type,X-Active-Company-Id,x-active-company-id',
-      );
+      res.setHeader('Access-Control-Allow-Methods', CORS_ALLOWED_METHODS);
+      res.setHeader('Access-Control-Allow-Headers', CORS_ALLOWED_HEADERS);
       res.setHeader('Access-Control-Max-Age', '86400');
       return res.status(204).end();
     });
   }
 
-  // CORS Configuration
+  // CORS Configuration (acepta cualquier origen cuando CORS_ORIGIN=* o all)
   if (configService.app.features.enableCors) {
     app.enableCors({
-      origin: configService.app.cors.origin,
-      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+      origin: corsOrigin,
+      methods: CORS_ALLOWED_METHODS,
       credentials: configService.app.cors.credentials,
-      allowedHeaders: [
-        'Authorization',
-        'Content-Type',
-        'X-Active-Company-Id',
-        'x-active-company-id',
-      ],
+      allowedHeaders: CORS_ALLOWED_HEADERS.split(','),
     });
   }
 

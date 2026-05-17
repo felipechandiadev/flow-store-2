@@ -35,8 +35,16 @@ export default function PosCustomerDetailAside(props: {
   customer: PosCustomerDetail | null;
   payments: PosCustomerPaymentRow[];
   quotas: PosCustomerQuotaRow[];
+  internalCreditEnabled?: boolean;
 }) {
-  const { invalidId, detailError, customer, payments, quotas } = props;
+  const {
+    invalidId,
+    detailError,
+    customer,
+    payments,
+    quotas,
+    internalCreditEnabled = false,
+  } = props;
 
   if (invalidId) {
     return (
@@ -74,8 +82,8 @@ export default function PosCustomerDetailAside(props: {
       >
         <h2 className="text-sm font-semibold text-foreground">Ficha del cliente</h2>
         <p className="text-sm text-muted-foreground">
-          Busca y elige un cliente en el panel izquierdo para ver su ficha, línea de crédito, cuotas pendientes e
-          historial de pagos.
+          Busca y elige un cliente en el panel izquierdo para ver su ficha
+          {internalCreditEnabled ? ", línea de crédito, cuotas pendientes" : ""} e historial de pagos.
         </p>
       </aside>
     );
@@ -116,27 +124,30 @@ export default function PosCustomerDetailAside(props: {
           ) : null}
         </section>
 
-        <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Crédito</h3>
-          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-            <DetailField label="Límite" value={money.format(Math.round(customer.creditLimit))} />
-            <DetailField label="Utilizado" value={money.format(Math.round(customer.usedCredit))} />
-            <DetailField label="Disponible" value={money.format(Math.round(customer.availableCredit))} />
-            <DetailField
-              label="Día de pago"
-              value={
-                customer.paymentDayOfMonth != null && Number.isFinite(customer.paymentDayOfMonth)
-                  ? String(customer.paymentDayOfMonth)
-                  : ""
-              }
-            />
-          </dl>
-        </section>
+        {internalCreditEnabled ? (
+          <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Crédito</h3>
+            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+              <DetailField label="Límite" value={money.format(Math.round(customer.creditLimit))} />
+              <DetailField label="Utilizado" value={money.format(Math.round(customer.usedCredit))} />
+              <DetailField label="Disponible" value={money.format(Math.round(customer.availableCredit))} />
+              <DetailField
+                label="Día de pago"
+                value={
+                  customer.paymentDayOfMonth != null && Number.isFinite(customer.paymentDayOfMonth)
+                    ? String(customer.paymentDayOfMonth)
+                    : ""
+                }
+              />
+            </dl>
+          </section>
+        ) : null}
 
-        <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Cuotas / documentos pendientes
-          </h3>
+        {internalCreditEnabled ? (
+          <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Cuotas / documentos pendientes
+            </h3>
           {quotas.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Sin cuotas pendientes registradas.</p>
           ) : (
@@ -161,7 +172,8 @@ export default function PosCustomerDetailAside(props: {
               </table>
             </div>
           )}
-        </section>
+          </section>
+        ) : null}
 
         <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Historial de pagos</h3>

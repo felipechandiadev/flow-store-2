@@ -62,6 +62,7 @@ describe('CashDepositsController (Integration)', () => {
       .post('/cash-deposits')
       .send({
         bankAccountKey: 'main-bank',
+        cashHubId: '223e4567-e89b-12d3-a456-426614174000',
         amount: 1500,
         occurredOn: '2026-04-19',
       })
@@ -69,6 +70,7 @@ describe('CashDepositsController (Integration)', () => {
 
     expect(service.create).toHaveBeenCalledWith({
       bankAccountKey: 'main-bank',
+      cashHubId: '223e4567-e89b-12d3-a456-426614174000',
       amount: 1500,
       occurredOn: '2026-04-19',
     });

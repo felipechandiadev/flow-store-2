@@ -10,6 +10,7 @@ import React, {
   useState,
 } from "react";
 import { io, type Socket } from "socket.io-client";
+import { getClientBackendApiBase } from "@/lib/backend-api-url";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import type { StockUpdatedPayload } from "../lib/stock-alert-copy";
 
@@ -29,14 +30,6 @@ const StockRealtimeContext = createContext<StockRealtimeContextValue>({
 
 export function useStockRealtime() {
   return useContext(StockRealtimeContext);
-}
-
-function clientBackendBaseUrl(): string | null {
-  const raw = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-  if (!raw || !String(raw).trim()) {
-    return null;
-  }
-  return String(raw).replace(/\/$/, "");
 }
 
 export function PosStockRealtimeProvider({
@@ -59,7 +52,7 @@ export function PosStockRealtimeProvider({
   }, []);
 
   useEffect(() => {
-    const base = clientBackendBaseUrl();
+    const base = getClientBackendApiBase();
     if (!base || !userId) {
       return;
     }
@@ -95,7 +88,7 @@ export function PosStockRealtimeProvider({
   }, [userId, activeCompanyId]);
 
   useEffect(() => {
-    const base = clientBackendBaseUrl();
+    const base = getClientBackendApiBase();
     if (!base || !userId) {
       return;
     }

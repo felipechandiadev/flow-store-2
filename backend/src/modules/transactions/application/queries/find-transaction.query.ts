@@ -2,7 +2,11 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Transaction } from '../../domain/transaction.entity';
+import {
+  Transaction,
+  TransactionType,
+} from '../../domain/transaction.entity';
+import { buildCustomerCreditNoteLinkSummary } from '../read-models/customer-credit-note-link.summary';
 
 export class FindTransactionQuery {
   constructor(public readonly id: string) {}
@@ -45,6 +49,22 @@ export class FindTransactionQueryHandler implements IQueryHandler<FindTransactio
 
     if (!transaction) {
       throw new NotFoundException(`Transaction with ID ${query.id} not found`);
+    }
+
+    if (transaction.transactionType === TransactionType.SALE_RETURN) {
+      const creditNote = await this.transactionRepository.findOne({
+        where: {
+          relatedTransactionId: transaction.id,
+          transactionType: TransactionType.CUSTOMER_CREDIT_NOTE,
+        },
+        order: { createdAt: 'DESC' },
+      });
+      if (creditNote) {
+        Object.assign(transaction, {
+          linkedCustomerCreditNote:
+            buildCustomerCreditNoteLinkSummary(creditNote),
+        });
+      }
     }
 
     return transaction;

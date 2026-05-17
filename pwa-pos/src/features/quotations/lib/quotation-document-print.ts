@@ -1,5 +1,6 @@
 import type { CompanyDetails } from "@/features/company/infrastructure/company.request";
 import type { QuotationLineRow } from "@/features/quotations/types/quotation.types";
+import { printPosHtmlViaAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-agent-print";
 import type { QuotationReceiptPrintInput } from "@/features/quotations/lib/quotation-receipt-print";
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
 
@@ -231,43 +232,11 @@ export function buildQuotationDocumentHtml(input: QuotationReceiptPrintInput): s
 export function printPosQuotationDocument(input: QuotationReceiptPrintInput): void {
   if (typeof window === "undefined") return;
   const html = buildQuotationDocumentHtml(input);
-  const iframe = document.createElement("iframe");
-  iframe.setAttribute("title", "Impresión cotización documento");
-  Object.assign(iframe.style, {
-    position: "fixed",
-    right: "0",
-    bottom: "0",
-    width: "0",
-    height: "0",
-    border: "0",
-    opacity: "0",
-    pointerEvents: "none",
+  const folio = input.quotation.documentNumber?.trim() || "cotizacion";
+  printPosHtmlViaAgentOrBrowserFireAndForget(html, "documents", {
+    filename: `${folio}.pdf`,
+    iframeTitle: "Impresión cotización documento",
+    documentType: "QUOTATION",
+    internalFolio: folio,
   });
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument;
-  const win = iframe.contentWindow;
-  if (!doc || !win) {
-    iframe.remove();
-    return;
-  }
-  doc.open();
-  doc.write(html);
-  doc.close();
-  const cleanup = () => {
-    try {
-      iframe.remove();
-    } catch {
-      /* ignore */
-    }
-  };
-  setTimeout(() => {
-    try {
-      win.focus();
-      win.print();
-    } catch {
-      /* ignore */
-    } finally {
-      setTimeout(cleanup, 1200);
-    }
-  }, 120);
 }

@@ -6,7 +6,10 @@ import { Button } from "@/shared/components/Button";
 import Alert from "@/shared/components/Alert/Alert";
 import { TextField } from "@/shared/components/TextField/TextField";
 import { Select, type Option } from "@/shared/components/Select";
-import type { SupplierGridRow } from "@/features/purchasing-suppliers/types/supplier.types";
+import type {
+  SupplierGridRow,
+  SupplierPersonBankAccount,
+} from "@/features/purchasing-suppliers/types/supplier.types";
 import type { CompanyBankAccountItem } from "@/features/settings-branches/infrastructure/company.request";
 import type {
   ReceptionDocumentPaymentMode,
@@ -35,7 +38,7 @@ const MODE_OPTIONS: Option[] = [
   { id: "COMPLETED", label: "Pago completado (documento pagado)" },
 ];
 
-const EMPTY_SUPPLIER_BANK_ACCOUNTS: NonNullable<SupplierGridRow["person"]>["bankAccounts"] = [];
+const EMPTY_SUPPLIER_BANK_ACCOUNTS: SupplierPersonBankAccount[] = [];
 
 function defaultPaymentMethod(
   companyHasBanks: boolean,
@@ -50,7 +53,7 @@ function newLineFromTemplate(args: {
   companyHasBanks: boolean;
   supplierHasBanks: boolean;
   companyBankAccounts: CompanyBankAccountItem[];
-  supplierBankAccounts: NonNullable<SupplierGridRow["person"]>["bankAccounts"];
+  supplierBankAccounts: SupplierPersonBankAccount[];
   cashHubOptions: Option[];
 }): InvoicePlannedPaymentLineState {
   const dm = defaultPaymentMethod(args.companyHasBanks, args.supplierHasBanks);
@@ -63,7 +66,9 @@ function newLineFromTemplate(args: {
     companyBankAccountKey:
       args.companyBankAccounts[0] != null ? bankAccountOptionKey(args.companyBankAccounts[0], 0) : null,
     supplierBankAccountKey:
-      args.supplierBankAccounts?.[0] != null ? bankAccountOptionKey(args.supplierBankAccounts[0], 0) : null,
+      args.supplierBankAccounts[0] != null
+        ? bankAccountOptionKey(args.supplierBankAccounts[0], 0)
+        : null,
     chequeNumber: "",
     cashHubId: dm === "CASH" && firstHub ? String(firstHub.id) : null,
   };
@@ -117,7 +122,7 @@ export function PurchaseDocumentReceptionPaymentDialog({
   const manualPaidLockRef = useRef(false);
   const manualSchedLockRef = useRef(false);
 
-  const supplierBankAccounts = useMemo(() => {
+  const supplierBankAccounts = useMemo((): SupplierPersonBankAccount[] => {
     const raw = supplier?.person?.bankAccounts;
     if (raw != null && raw.length > 0) {
       return raw;

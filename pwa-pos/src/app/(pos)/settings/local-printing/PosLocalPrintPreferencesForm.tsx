@@ -30,6 +30,7 @@ const INITIAL_DOC_PRINT_MODES: Record<PosDocumentPrintKind, PosDocumentPrintMode
   sale: "ticket",
   quotation: "ticket",
   backorder: "ticket",
+  customerCreditNote: "ticket",
 };
 
 function aliasSelectOptions(aliases: string[], current: string) {
@@ -259,6 +260,11 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
                 ["sale", "Ventas", "pos-print-prefs-sale-mode"] as const,
                 ["quotation", "Cotizaciones", "pos-print-prefs-quotation-mode"] as const,
                 ["backorder", "Encargos", "pos-print-prefs-backorder-mode"] as const,
+                [
+                  "customerCreditNote",
+                  "Notas de crédito",
+                  "pos-print-prefs-customer-credit-note-mode",
+                ] as const,
               ] as const
             ).map(([kind, label, testId]) => (
               <div key={kind}>

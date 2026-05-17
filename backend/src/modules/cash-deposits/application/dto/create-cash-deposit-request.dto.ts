@@ -25,7 +25,6 @@ export class CreateCashDepositRequestDto {
   @IsDateString()
   occurredOn?: string;
 
-  @IsOptional()
   @IsUUID()
-  cashHubId?: string;
+  cashHubId!: string;
 }

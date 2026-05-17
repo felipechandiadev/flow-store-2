@@ -31,9 +31,10 @@ import { Installment } from '@modules/installments/domain/installment.entity';
  *
  * 22 tipos organizados en 8 categorías:
  *
- * 1. VENTAS Y DEVOLUCIONES (2 tipos)
+ * 1. VENTAS Y DEVOLUCIONES (3 tipos)
  *    SALE: Venta a cliente (contado o crédito)
- *    SALE_RETURN: Devolución de venta con referencia a SALE original
+ *    SALE_RETURN: Devolución de venta con referencia a SALE original (líneas, stock)
+ *    CUSTOMER_CREDIT_NOTE: Nota de crédito al cliente (documento fiscal/contable; sin líneas)
  *
  * 2. COMPRAS Y DEVOLUCIONES (6 tipos)
  *    PURCHASE: Compra a proveedor
@@ -91,6 +92,8 @@ export enum TransactionType {
   // Ventas y Devoluciones
   SALE = 'SALE',
   SALE_RETURN = 'SALE_RETURN',
+  /** Nota de crédito a cliente; montos y vínculos; detalle en SALE_RETURN. */
+  CUSTOMER_CREDIT_NOTE = 'CUSTOMER_CREDIT_NOTE',
 
   // Compras y Devoluciones
   PURCHASE = 'PURCHASE',
@@ -185,6 +188,10 @@ export enum PaymentMethod {
   CHECK = 'CHECK',
   CREDIT = 'CREDIT',
   INTERNAL_CREDIT = 'INTERNAL_CREDIT',
+  /** Cliente paga con nota de crédito emitida a su favor. */
+  CUSTOMER_CREDIT_NOTE = 'CUSTOMER_CREDIT_NOTE',
+  /** Anticipo de cliente por encargo / pedido especial. */
+  ORDER_ADVANCE = 'ORDER_ADVANCE',
   MIXED = 'MIXED',
 }
 

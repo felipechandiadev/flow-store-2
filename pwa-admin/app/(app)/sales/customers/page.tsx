@@ -19,7 +19,7 @@ export default async function Page() {
         <CustomersDataGrid
           rows={result.customers}
           total={result.total}
-          internalCreditEnabled={result.internalCreditEnabled !== false}
+          internalCreditEnabled={result.internalCreditEnabled === true}
         />
       </Suspense>
     </div>

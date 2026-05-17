@@ -15,7 +15,10 @@ import { updatePointOfSaleAction } from "@/features/sales-points-of-sale/actions
 import { getCompanyPaymentMethodsAction } from "@/features/companies/actions/companies-payment-methods.action";
 import { getPosPaymentMethodsAction, replacePosPaymentMethodsAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
 import type { CompanyPaymentMethodConfig } from "@/features/companies/types/company-payment-methods.types";
-import type { PosPaymentMethodConfig } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
+import {
+  syncPosPaymentDraftWithCatalog,
+  type PosPaymentMethodConfig,
+} from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
 import { getCompanyDetailsAction } from "@/features/settings-company/actions/company.action";
 import { PosPaymentMethodsCardsEditor } from "./PosPaymentMethodsCardsEditor";
 
@@ -65,7 +68,7 @@ export function UpdatePointOfSaleDialog({
   const hasBranches = branchOptions.length > 0;
 
   const storeRoomOptions = useMemo(() => {
-    return storages
+    return (storages ?? [])
       .filter((s) => s.branchId === branchId && s.type === "STORE" && s.isActive)
       .map((s) => ({ id: s.id, label: s.name }));
   }, [storages, branchId]);
@@ -87,7 +90,7 @@ export function UpdatePointOfSaleDialog({
         ? point.branchId
         : branches[0]?.id ?? "";
     setBranchId(resolvedBranchId);
-    const rooms = storages.filter(
+    const rooms = (storages ?? []).filter(
       (s) => s.branchId === resolvedBranchId && s.type === "STORE" && s.isActive,
     );
     const initialStorage =
@@ -123,8 +126,15 @@ export function UpdatePointOfSaleDialog({
         ]);
         if (catalogRes.success) {
           setPaymentCatalog(catalogRes.paymentMethods);
-        }
-        if (posRes.success) {
+          if (posRes.success) {
+            setPosPaymentDraft(
+              syncPosPaymentDraftWithCatalog(
+                catalogRes.paymentMethods,
+                posRes.paymentMethods,
+              ),
+            );
+          }
+        } else if (posRes.success) {
           setPosPaymentDraft(posRes.paymentMethods);
         }
         if (details?.bankAccounts?.length) {
@@ -219,8 +229,7 @@ export function UpdatePointOfSaleDialog({
           return;
         }
 
-        // Persist POS payment methods (if loaded/edited).
-        if (posPaymentDraft.length > 0) {
+        if (paymentCatalog.length > 0) {
           const pr = await replacePosPaymentMethodsAction(point.id, posPaymentDraft);
           if (!pr.success) {
             setError(pr.error || "No se pudieron guardar los medios de pago del POS.");

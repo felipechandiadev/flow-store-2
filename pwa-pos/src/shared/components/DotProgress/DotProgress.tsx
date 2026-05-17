@@ -44,12 +44,18 @@ const DotProgress: React.FC<DotProgressProps> = ({
   }, [interval, totalSteps, activeStep]);
 
   return (
-    <div className={`flex items-center ${className}`} style={{ gap }} data-test-id="dot-progress-root">
+    <span
+      className={`inline-flex items-center ${className}`}
+      style={{ gap }}
+      data-test-id="dot-progress-root"
+      role="status"
+      aria-hidden
+    >
       {[...Array(totalSteps)].map((_, i) => {
         const isActive = i === active;
         const pulse = isActive && activeStep === undefined;
         return (
-          <div
+          <span
             key={i}
             className={pulse ? "fs-dot-progress__dot--pulse" : undefined}
             style={{
@@ -57,16 +63,15 @@ const DotProgress: React.FC<DotProgressProps> = ({
               height: size,
               borderRadius: "50%",
               backgroundColor: isActive ? colorPrimary : colorNeutral,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
+              display: "inline-block",
+              flexShrink: 0,
               transition: "background-color 0.2s",
               cursor: "default",
             }}
           />
         );
       })}
-    </div>
+    </span>
   );
 };
 

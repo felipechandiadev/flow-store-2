@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { CompanyRequest } from "@/features/settings-branches/infrastructure/company.request";
+import { CashHubsRequest } from "@/features/treasury-cash-hubs/infrastructure/cash-hubs.request";
 import { ShareholderRequest } from "@/features/settings-shareholders/infrastructure/shareholder.request";
 import { TreasuryBankMovementsRequest } from "@/features/treasury-bank-operations/infrastructure/treasury-bank-movements.request";
 import TreasuryBankTabContent from "./TreasuryBankTabContent";
@@ -16,6 +17,7 @@ export default async function TreasuryBankPage({
 }) {
   const company = await CompanyRequest.getDetails();
   const shareholders = company?.id ? await ShareholderRequest.list(company.id) : [];
+  const cashHubs = company?.id ? await CashHubsRequest.list(company.id) : [];
   const accounts = company?.bankAccounts ?? [];
 
   const sp = await searchParams;
@@ -55,6 +57,7 @@ export default async function TreasuryBankPage({
       <TreasuryBankTabContent
         company={company}
         shareholders={shareholders}
+        cashHubs={cashHubs}
         selectedBankAccountKey={selectedKey}
         movementRows={movementRows}
         movementsTotal={movementsTotal}

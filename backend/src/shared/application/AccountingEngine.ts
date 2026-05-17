@@ -60,6 +60,7 @@ type RulesByScope = {
 const TRANSACTION_TYPES_WITH_SUBTOTAL_BASE = new Set<TransactionType>([
   TransactionType.SALE,
   TransactionType.SALE_RETURN,
+  TransactionType.CUSTOMER_CREDIT_NOTE,
   TransactionType.PURCHASE,
   TransactionType.PURCHASE_RETURN,
 ]);
@@ -687,6 +688,8 @@ export async function recordPayment(
       break;
 
     case 'INTERNAL_CREDIT':
+    case 'CUSTOMER_CREDIT_NOTE':
+    case 'ORDER_ADVANCE':
       await createBasicPosting(
         manager,
         transaction,
@@ -876,31 +879,61 @@ export async function postTransactionToLedger(
         transaction.transactionType === TransactionType.CAPITAL_CONTRIBUTION) &&
       !specialHandlingApplied
     ) {
-      const bankAccount =
-        accounts.find((a) => a.code === '1.1.02') || accounts.find((a) => a.code === '1102');
       const capitalAccount =
         accounts.find((a) => a.code === '3.1.01') || accounts.find((a) => a.code === '3101');
-      if (bankAccount && capitalAccount) {
-        const amount = Math.abs(Number(transaction.total));
-        localPostings.push({
-          transactionId,
-          entryDate: transaction.createdAt,
-          description: description,
-          personId: personId,
-          accountId: bankAccount.id,
-          debit: amount,
-          credit: 0,
-        } as any);
-        localPostings.push({
-          transactionId,
-          entryDate: transaction.createdAt,
-          description: description,
-          personId: personId,
-          accountId: capitalAccount.id,
-          debit: 0,
-          credit: amount,
-        } as any);
-        specialHandlingApplied = true;
+      const cashHubId =
+        (transaction as { cashHubId?: string | null }).cashHubId ||
+        metadata.cashHubId;
+      if (cashHubId && capitalAccount) {
+        const hubAccount =
+          accounts.find((a) => a.code === '1.1.10') || accounts.find((a) => a.code === '1110');
+        if (hubAccount) {
+          const amount = Math.abs(Number(transaction.total));
+          localPostings.push({
+            transactionId,
+            entryDate: transaction.createdAt,
+            description: description,
+            personId: personId,
+            accountId: hubAccount.id,
+            debit: amount,
+            credit: 0,
+          } as any);
+          localPostings.push({
+            transactionId,
+            entryDate: transaction.createdAt,
+            description: description,
+            personId: personId,
+            accountId: capitalAccount.id,
+            debit: 0,
+            credit: amount,
+          } as any);
+          specialHandlingApplied = true;
+        }
+      } else {
+        const bankAccount =
+          accounts.find((a) => a.code === '1.1.02') || accounts.find((a) => a.code === '1102');
+        if (bankAccount && capitalAccount) {
+          const amount = Math.abs(Number(transaction.total));
+          localPostings.push({
+            transactionId,
+            entryDate: transaction.createdAt,
+            description: description,
+            personId: personId,
+            accountId: bankAccount.id,
+            debit: amount,
+            credit: 0,
+          } as any);
+          localPostings.push({
+            transactionId,
+            entryDate: transaction.createdAt,
+            description: description,
+            personId: personId,
+            accountId: capitalAccount.id,
+            debit: 0,
+            credit: amount,
+          } as any);
+          specialHandlingApplied = true;
+        }
       }
     }
 
@@ -999,6 +1032,39 @@ export async function postTransactionToLedger(
     }
 
     const metaLedger = parseMetadata(transaction);
+    if (
+      transaction.transactionType === TransactionType.BANK_TO_CASH_TRANSFER &&
+      ((transaction as any).cashHubId || metaLedger.bankToCashHubTransfer) &&
+      !specialHandlingApplied
+    ) {
+      const bankAccount =
+        accounts.find((a) => a.code === '1.1.02') || accounts.find((a) => a.code === '1102');
+      const hubAccount =
+        accounts.find((a) => a.code === '1.1.10') || accounts.find((a) => a.code === '1110');
+      if (bankAccount && hubAccount) {
+        const amount = Math.abs(Number(transaction.total));
+        localPostings.push({
+          transactionId,
+          entryDate: transaction.createdAt,
+          description: description,
+          personId: null,
+          accountId: hubAccount.id,
+          debit: amount,
+          credit: 0,
+        } as any);
+        localPostings.push({
+          transactionId,
+          entryDate: transaction.createdAt,
+          description: description,
+          personId: null,
+          accountId: bankAccount.id,
+          debit: 0,
+          credit: amount,
+        } as any);
+        specialHandlingApplied = true;
+      }
+    }
+
     if (
       transaction.transactionType === TransactionType.CASH_DEPOSIT &&
       ((transaction as any).cashHubId || metaLedger.cashHubDeposit) &&

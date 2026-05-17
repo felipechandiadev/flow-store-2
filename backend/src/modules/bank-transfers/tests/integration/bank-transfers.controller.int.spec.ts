@@ -62,6 +62,7 @@ describe('BankTransfersController (Integration)', () => {
       .post('/bank-transfers')
       .send({
         bankAccountKey: 'main-bank',
+        cashHubId: '123e4567-e89b-12d3-a456-426614174000',
         amount: 1500,
         occurredOn: '2026-04-19',
         notes: 'transfer',
@@ -70,6 +71,7 @@ describe('BankTransfersController (Integration)', () => {
 
     expect(service.create).toHaveBeenCalledWith({
       bankAccountKey: 'main-bank',
+      cashHubId: '123e4567-e89b-12d3-a456-426614174000',
       amount: 1500,
       occurredOn: '2026-04-19',
       notes: 'transfer',

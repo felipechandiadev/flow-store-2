@@ -82,5 +82,13 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   [PaymentMethod.CHECK]: 'Cheque',
   [PaymentMethod.CREDIT]: 'Crédito',
   [PaymentMethod.INTERNAL_CREDIT]: 'Crédito interno',
+  [PaymentMethod.CUSTOMER_CREDIT_NOTE]: 'Nota de crédito cliente',
+  [PaymentMethod.ORDER_ADVANCE]: 'Abono por encargo',
   [PaymentMethod.MIXED]: 'Mixto',
 };
+
+/** Medios cuya referencia es obligatoria y no puede desactivarse en empresa ni POS. */
+export const PAYMENT_METHODS_ALWAYS_REQUIRE_REFERENCE = new Set<PaymentMethod>([
+  PaymentMethod.CUSTOMER_CREDIT_NOTE,
+  PaymentMethod.ORDER_ADVANCE,
+]);

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { User } from '@modules/users/domain/user.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
+import { CashHub } from '@modules/cash-hubs/domain/cash-hub.entity';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
 import { CreateBankTransferDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { CreateBankTransferRequestDto } from './dto/create-bank-transfer-request.dto';
@@ -14,6 +15,8 @@ export class BankTransfersService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Branch)
     private readonly branchRepository: Repository<Branch>,
+    @InjectRepository(CashHub)
+    private readonly cashHubRepository: Repository<CashHub>,
     private readonly transactionsService: TransactionsService,
   ) {}
 
@@ -32,14 +35,25 @@ export class BankTransfersService {
    */
   async create(payload: CreateBankTransferRequestDto) {
     const bankAccountKey = this.asString(payload.bankAccountKey);
+    const cashHubId = this.asString(payload.cashHubId);
     const amount = Number(payload.amount ?? 0);
     const notes = this.asString(payload.notes);
     const occurredOn = this.asString(payload.occurredOn);
 
-    if (!bankAccountKey || amount <= 0) {
+    if (!bankAccountKey || !cashHubId || amount <= 0) {
       return {
         success: false,
-        error: 'Cuenta bancaria y monto son obligatorios.',
+        error: 'Cuenta bancaria, centro de efectivo y monto son obligatorios.',
+      };
+    }
+
+    const hub = await this.cashHubRepository.findOne({
+      where: { id: cashHubId },
+    });
+    if (!hub) {
+      return {
+        success: false,
+        error: 'Centro de efectivo no encontrado.',
       };
     }
 
@@ -59,6 +73,7 @@ export class BankTransfersService {
       // Convertir a DTO estándar
       const createTxDto = new CreateBankTransferDto();
       createTxDto.bankAccountKey = bankAccountKey;
+      createTxDto.cashHubId = cashHubId;
       createTxDto.amount = amount;
       createTxDto.notes = notes || undefined;
       createTxDto.occurredOn = occurredOn || undefined;

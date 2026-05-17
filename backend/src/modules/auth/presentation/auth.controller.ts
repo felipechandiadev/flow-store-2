@@ -94,6 +94,7 @@ export class AuthController {
     });
   }
 
+  @SkipTenant()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('JWT-auth')

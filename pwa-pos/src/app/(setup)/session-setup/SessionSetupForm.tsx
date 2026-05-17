@@ -6,6 +6,8 @@ import type { PointOfSaleListItem, PosPriceList } from "@/features/session/types
 import type { CashSessionListItem } from "@/features/session/types/cash-session.types";
 import { openCashSessionAction } from "@/features/session/actions/session-setup.action";
 import { listOpenCashSessionsAction } from "@/features/session/actions/cash-session.action";
+import { listCashHubsForPosAction } from "@/features/session/actions/cash-hub-pos.action";
+import type { CashHubDepositCandidate } from "@/features/session/types/cash-hub-deposit.types";
 import { Alert, Button, Dialog, Select, TextField } from "@/shared/admin-shared";
 import { savePosContextClient, type PosPriceListSnapshot } from "@/features/session/lib/pos-context-storage";
 
@@ -52,6 +54,19 @@ function getBranchId(p: PointOfSaleListItem): string | null {
 
 function getBranchName(p: PointOfSaleListItem): string | null {
   return p.branch?.name ?? null;
+}
+
+const currencyFmt = new Intl.NumberFormat("es-CL", {
+  style: "currency",
+  currency: "CLP",
+  maximumFractionDigits: 0,
+});
+
+function parseOpeningAmount(raw: string): number {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (!digits) return 0;
+  const n = Number(digits);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0;
 }
 
 function buildPosContextFromPos(pos: PointOfSaleListItem) {
@@ -232,15 +247,56 @@ function NewSessionForm({
 
   const [isOpenAmountDialog, setIsOpenAmountDialog] = useState(false);
   const [openingAmount, setOpeningAmount] = useState<string>("0");
+  const [cashHubId, setCashHubId] = useState<string | null>(null);
+  const [cashHubs, setCashHubs] = useState<CashHubDepositCandidate[]>([]);
+  const [loadingCashHubs, setLoadingCashHubs] = useState(false);
   const [error, setError] = useState<string>(initialError);
 
-  const openingAmountNum = Number(openingAmount);
+  const openingAmountNum = parseOpeningAmount(openingAmount);
+  const requiresCashHub = openingAmountNum > 0;
+
+  const selectedCashHub = useMemo(
+    () => (cashHubId ? cashHubs.find((h) => h.id === cashHubId) ?? null : null),
+    [cashHubs, cashHubId],
+  );
+
+  const hubBalanceInsufficient =
+    requiresCashHub &&
+    selectedCashHub != null &&
+    openingAmountNum > selectedCashHub.currentBalance + 0.01;
+
   const canSubmitOpening =
     !isPending &&
+    !loadingCashHubs &&
     pointOfSaleId.trim() !== "" &&
     openingAmount.trim() !== "" &&
-    Number.isFinite(openingAmountNum) &&
-    openingAmountNum >= 0;
+    openingAmountNum >= 0 &&
+    (!requiresCashHub || Boolean(cashHubId)) &&
+    !hubBalanceInsufficient;
+
+  const loadCashHubsForPos = async (posId: string) => {
+    setLoadingCashHubs(true);
+    setCashHubs([]);
+    setCashHubId(null);
+    try {
+      const res = await listCashHubsForPosAction(posId);
+      if (res.success) {
+        setCashHubs(res.hubs);
+        if (res.hubs.length === 1) {
+          setCashHubId(res.hubs[0].id);
+        }
+      } else {
+        setError(res.message);
+      }
+    } finally {
+      setLoadingCashHubs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpenAmountDialog || !pointOfSaleId) return;
+    void loadCashHubsForPos(pointOfSaleId);
+  }, [isOpenAmountDialog, pointOfSaleId]);
 
   const handleConfirmOpen = () => {
     setError("");
@@ -249,7 +305,8 @@ function NewSessionForm({
     startTransition(async () => {
       const result = await openCashSessionAction({
         pointOfSaleId,
-        openingAmount,
+        openingAmount: openingAmountNum,
+        cashHubId: requiresCashHub ? cashHubId ?? undefined : undefined,
       });
 
       if (!result.success) {
@@ -352,6 +409,8 @@ function NewSessionForm({
               onClick={() => {
                 setError("");
                 setOpeningAmount("0");
+                setCashHubId(null);
+                setCashHubs([]);
                 setIsOpenAmountDialog(true);
               }}
               disabled={loadingOpenSessions}
@@ -395,9 +454,47 @@ function NewSessionForm({
       >
         <div className="grid gap-3">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Indica el monto de apertura en efectivo para iniciar la sesión de caja del punto de venta{" "}
+            Indica el centro de efectivo fuente y el monto de apertura para la sesión de caja del punto de
+            venta{" "}
             <span className="font-medium text-zinc-900 dark:text-zinc-100">{selectedPos?.name}</span>.
+            El movimiento quedará registrado en el centro de efectivo como apertura de caja.
           </p>
+          {loadingCashHubs ? (
+            <p className="text-sm text-muted-foreground">Cargando centros de efectivo…</p>
+          ) : cashHubs.length === 0 && requiresCashHub ? (
+            <Alert variant="warning">
+              No hay centros de efectivo vinculados a este punto de venta. Configúralos en administración
+              antes de abrir caja con efectivo.
+            </Alert>
+          ) : cashHubs.length > 0 ? (
+            <Select
+              label="Centro de efectivo (fuente)"
+              placeholder="Seleccione centro de efectivo"
+              value={cashHubId}
+              onChange={(id) => setCashHubId(id != null ? String(id) : null)}
+              options={cashHubs.map((h) => ({
+                id: h.id,
+                label: `${h.name}${h.code ? ` · ${h.code}` : ""} · ${currencyFmt.format(h.currentBalance)}`,
+              }))}
+              required={requiresCashHub}
+              disabled={isPending}
+            />
+          ) : null}
+          {selectedCashHub ? (
+            <p className="text-xs text-muted-foreground">
+              Saldo disponible en el centro:{" "}
+              <span className="font-semibold tabular-nums text-foreground">
+                {currencyFmt.format(selectedCashHub.currentBalance)}
+              </span>
+            </p>
+          ) : null}
+          {hubBalanceInsufficient ? (
+            <Alert variant="error">
+              El centro de efectivo no tiene saldo suficiente para el monto de apertura ingresado (
+              {currencyFmt.format(openingAmountNum)}). Disponible:{" "}
+              {currencyFmt.format(selectedCashHub?.currentBalance ?? 0)}.
+            </Alert>
+          ) : null}
           <TextField
             label="Monto de apertura"
             type="currency"

@@ -119,12 +119,16 @@ export class LedgerEntriesService {
       const hubCashDeposit =
         transaction.transactionType === TransactionType.CASH_DEPOSIT &&
         ((transaction as any).cashHubId || metaEarly.cashHubDeposit);
+      const hubBankToCash =
+        transaction.transactionType === TransactionType.BANK_TO_CASH_TRANSFER &&
+        ((transaction as any).cashHubId || metaEarly.bankToCashHubTransfer);
 
       // PAYROLL no requiere reglas contables, se genera directamente desde metadata
       if (
         applicableRules.length === 0 &&
         transaction.transactionType !== TransactionType.PAYROLL &&
-        !hubCashDeposit
+        !hubCashDeposit &&
+        !hubBankToCash
       ) {
         this.logger.warn(
           `No accounting rules found for transaction ${transaction.id} (type: ${transaction.transactionType})`,
@@ -401,6 +405,13 @@ export class LedgerEntriesService {
       return this.buildHubCashDepositEntries(transaction, personId, companyId);
     }
 
+    if (
+      transaction.transactionType === TransactionType.BANK_TO_CASH_TRANSFER &&
+      ((transaction as any).cashHubId || meta.bankToCashHubTransfer)
+    ) {
+      return this.buildHubBankToCashEntries(transaction, personId, companyId);
+    }
+
     // CASO ESPECIAL: Remuneraciones (PAYROLL)
     // No depende de reglas contables, genera asientos directamente desde metadata
     if (transaction.transactionType === TransactionType.PAYROLL) {
@@ -542,6 +553,54 @@ export class LedgerEntriesService {
         debit: 0,
         credit: amount,
         metadata: { cashHubDeposit: true, scope: 'TRANSACTION' },
+      },
+    ];
+  }
+
+  /** Giro banco → centro de acopio (1102 → 1110): Debe efectivo acopio / Haber banco. */
+  private async buildHubBankToCashEntries(
+    transaction: Transaction,
+    personId: string | null,
+    companyId: string,
+  ): Promise<LedgerEntryDto[]> {
+    const accounts = await this.accountRepo.findByCompanyId(companyId);
+    const byCode = new Map(accounts.map((a) => [a.code, a.id]));
+    const bankId =
+      byCode.get('1102') ?? byCode.get('1.1.02') ?? byCode.get('1.1.2');
+    const hubId = byCode.get('1110') ?? byCode.get('1.1.10');
+    if (!bankId || !hubId) {
+      this.logger.warn(
+        `[ledger] BANK_TO_CASH_TRANSFER con hub: faltan cuentas 1102/1110 para companyId=${companyId}; sin asientos.`,
+      );
+      return [];
+    }
+    const amount = Math.abs(Number(transaction.total || 0));
+    if (amount < 0.01) {
+      return [];
+    }
+    const desc =
+      transaction.notes ||
+      'Giro bancario a centro de efectivo (banco → efectivo acopio)';
+    return [
+      {
+        transactionId: transaction.id,
+        accountId: hubId,
+        personId,
+        entryDate: transaction.createdAt,
+        description: desc,
+        debit: amount,
+        credit: 0,
+        metadata: { bankToCashHubTransfer: true, scope: 'TRANSACTION' },
+      },
+      {
+        transactionId: transaction.id,
+        accountId: bankId,
+        personId,
+        entryDate: transaction.createdAt,
+        description: desc,
+        debit: 0,
+        credit: amount,
+        metadata: { bankToCashHubTransfer: true, scope: 'TRANSACTION' },
       },
     ];
   }

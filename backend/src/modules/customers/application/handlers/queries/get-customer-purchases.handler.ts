@@ -24,8 +24,10 @@ export class GetCustomerPurchasesHandler implements IQueryHandler<GetCustomerPur
     return purchases.map((p) => ({
       id: p.id,
       documentNumber: (p as any).documentNumber ?? null,
+      transactionType: (p as any).transactionType ?? null,
       status: p.status,
       total: Number(p.total || 0),
+      paymentMethod: (p as any).paymentMethod ?? null,
       createdAt: p.createdAt,
     }));
   }

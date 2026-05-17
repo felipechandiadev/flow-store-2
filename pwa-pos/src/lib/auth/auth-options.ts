@@ -1,5 +1,6 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { getServerBackendApiBase } from "@/lib/backend-api-url";
 
 /** En dev cada app usa su propio origen (p. ej. :3022 vs admin :3021): las cookies ya no se mezclan. Nombres explícitos por si más adelante comparten host detrás de un proxy. */
 const isProd = process.env.NODE_ENV === "production";
@@ -25,7 +26,7 @@ export const authOptions: NextAuthOptions = {
         companyId: { label: "Company", type: "text" },
       },
       async authorize(credentials) {
-        const url = `${process.env.BACKEND_API_URL}/api/auth/login`;
+        const url = `${getServerBackendApiBase()}/api/auth/login`;
         // La empresa se resuelve por prioridad:
         //   1. credentials.companyId  → enviado por LoginPage desde localStorage
         //      (configurado por el operario en /setup).

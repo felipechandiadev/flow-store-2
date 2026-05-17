@@ -1,6 +1,8 @@
 //! Background worker: drain pending print_jobs (priority M4), retries.
 
 use crate::db::{Db, PendingJob};
+use crate::pos_sale_ticket_pdf;
+use crate::ticket_test_pdf;
 use crate::platform;
 use crate::state::AppState;
 use anyhow::Result;
@@ -52,6 +54,23 @@ pub fn spawn_worker(state: Arc<AppState>) {
     });
 }
 
+/// Resuelve impresoras del SO para un propósito. Si `tickets` no tiene mapeo, usa `documents`
+/// (misma impresora en cajas con un solo equipo) y deja constancia en el log.
+fn printers_for_purpose_with_fallback(db: &Db, purpose: &str) -> Result<Vec<String>> {
+    let mut printers = db.printers_for_purpose_ordered(purpose)?;
+    if printers.is_empty() && purpose == "tickets" {
+        let docs = db.printers_for_purpose_ordered("documents")?;
+        if !docs.is_empty() {
+            tracing::warn!(
+                "no printer mapped for tickets; using documents mapping as fallback ({})",
+                docs.join(", ")
+            );
+            printers = docs;
+        }
+    }
+    Ok(printers)
+}
+
 fn process_one(db: &Db, job: &PendingJob, notify: &tokio::sync::broadcast::Sender<String>) -> Result<()> {
     db.update_job_status(&job.id, "printing", None)?;
     let path = PathBuf::from(&job.payload_ref);
@@ -64,14 +83,17 @@ fn process_one(db: &Db, job: &PendingJob, notify: &tokio::sync::broadcast::Sende
         .ok_or_else(|| anyhow::anyhow!("missing purpose"))?;
     let printers: Vec<String> = match job.target_system_printer.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
         Some(t) => vec![t.to_string()],
-        None => db.printers_for_purpose_ordered(purpose)?,
+        None => printers_for_purpose_with_fallback(db, purpose)?,
     };
     if printers.is_empty() {
-        anyhow::bail!("no printer mapped for {}", purpose);
+        anyhow::bail!(
+            "no printer mapped for {purpose} (configure «Tickets» in KaiPrinters or map «Documentos»)"
+        );
     }
     let mut last_err: Option<anyhow::Error> = None;
     for printer in &printers {
-        match platform::print_pdf_to_printer(&path, printer, job.copies.max(1) as u32) {
+        let thermal = purpose == "tickets";
+        match platform::print_pdf_to_printer(&path, printer, job.copies.max(1) as u32, thermal) {
             Ok(()) => {
                 let _ = std::fs::remove_file(&path);
                 db.delete_job(&job.id)?;
@@ -101,12 +123,24 @@ pub fn decode_pdf_base64_to_temp(dir: &PathBuf, b64: &str) -> Result<PathBuf> {
     Ok(p)
 }
 
-/// One-page PDF (fixed payload) for `test_print` diagnostics.
-pub fn write_minimal_test_pdf(dir: &PathBuf) -> Result<PathBuf> {
+/// PDF de prueba: ticket 80 mm para `tickets`, documento A4 mínimo para `documents`.
+pub fn write_test_print_pdf(dir: &PathBuf, purpose: &str, agent_label: &str) -> Result<PathBuf> {
     std::fs::create_dir_all(dir)?;
-    static PDF: &[u8] = include_bytes!("../assets/minimal_test.pdf");
     let id = uuid::Uuid::new_v4().to_string();
     let p = dir.join(format!("test_{id}.pdf"));
-    std::fs::write(&p, PDF)?;
+    if purpose == "tickets" {
+        ticket_test_pdf::write_pos_ticket_test_pdf(&p, agent_label)?;
+    } else {
+        static PDF: &[u8] = include_bytes!("../assets/minimal_test.pdf");
+        std::fs::write(&p, PDF)?;
+    }
     Ok(p)
+}
+
+/// Genera PDF vectorial de ticket de venta POS desde JSON (`pos-sale-ticket`).
+pub fn write_pos_sale_ticket_pdf_from_value(
+    dir: &PathBuf,
+    value: &serde_json::Value,
+) -> Result<PathBuf> {
+    pos_sale_ticket_pdf::write_pos_sale_ticket_pdf_from_value(dir, value)
 }

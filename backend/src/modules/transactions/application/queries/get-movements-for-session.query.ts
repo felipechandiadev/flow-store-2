@@ -3,6 +3,7 @@ import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transaction, TransactionType } from '../../domain/transaction.entity';
+import { isImmediateSaleReturnRefund } from '@modules/cash-sessions/application/sale-return-transaction-cash-flow.util';
 
 export interface SessionMovement {
   id: string;
@@ -78,6 +79,7 @@ export class GetMovementsForSessionQueryHandler implements IQueryHandler<GetMove
       case TransactionType.PAYMENT_IN:
         return 'IN';
       case TransactionType.SALE_RETURN:
+        return isImmediateSaleReturnRefund(tx) ? 'OUT' : 'NEUTRAL';
       case TransactionType.CASH_SESSION_WITHDRAWAL:
       case TransactionType.CASH_SESSION_TO_HUB_TRANSFER:
       case TransactionType.OPERATING_EXPENSE:

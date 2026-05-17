@@ -83,7 +83,7 @@ function describeWsCloseFailure(
       "Revisá: la app «KaiPrinters» en ejecución (bandeja); host y puertos; desde HTTPS el navegador exige WSS (no ws://).",
       "Si usás WSS, puede hacer falta abrir una vez https://127.0.0.1:PUERTO_WSS en el navegador y aceptar el certificado local.",
       "En la app del agente, «orígenes permitidos» debe incluir el origen exacto de esta PWA (incluido https y el puerto).",
-      "Si el POS está en otro dispositivo (tablet/caja) y el agente en la PC, 127.0.0.1 en el navegador apunta al dispositivo del navegador, no a la PC: hoy el agente solo escucha en loopback de la máquina donde corre.",
+      "Si el POS está en otro equipo (tablet) y KaiPrinters en el Mac: en el POS use la IP LAN del Mac (no 127.0.0.1). En KaiPrinters: interfaz 0.0.0.0 y orígenes permitidos (todos o http://IP:3022).",
     ].join(" ");
   }
   if (ev.code === 1002) {
