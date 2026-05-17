@@ -1,35 +1,70 @@
 "use client";
 
-import { signOut } from "next-auth/react";
+import { useState } from "react";
 import { IconButton } from "@/shared";
+import SideBar from "@/shared/components/SideBar/SideBar";
+import { stockMenuItems } from "@/navigation/stockMenu";
 
 export default function StockTopBar() {
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState<Record<string, boolean>>({});
+
   return (
-    <header
-      className="fixed top-0 z-30 w-full border-b"
-      style={{
-        backgroundColor: "var(--color-background)",
-        borderColor: "var(--color-border)",
-      }}
-      data-test-id="stock-top-bar"
-    >
-      <div className="mx-auto flex w-full max-w-md items-center justify-between gap-3 px-4 py-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <img src="/logo.png" alt="KaiStore" className="h-9 w-9 shrink-0 object-contain" />
-          <div className="flex min-w-0 flex-col leading-none">
-            <span className="text-base font-bold tracking-tight">KaiStore</span>
-            <span className="text-xs font-normal text-muted-foreground">StockControl</span>
+    <>
+      <header
+        className="fixed top-0 z-30 w-full border-b"
+        style={{
+          backgroundColor: "var(--color-background)",
+          borderColor: "var(--color-border)",
+        }}
+        data-test-id="stock-top-bar"
+      >
+        <div className="mx-auto flex w-full max-w-md items-center justify-between gap-3 px-4 py-2">
+          <IconButton
+            icon="Menu"
+            variant="basicSecondary"
+            size="md"
+            strokeWidth={2.5}
+            onClick={() => setShowSidebar(true)}
+            ariaLabel="Abrir menú"
+            data-test-id="stock-menu-button"
+          />
+          <div className="flex shrink-0 items-center gap-2" data-test-id="stock-top-bar-brand">
+            <div className="flex flex-col text-right leading-none">
+              <span className="text-base font-bold tracking-tight">KaiStore</span>
+              <span className="text-xs font-normal text-muted-foreground">StockControl</span>
+            </div>
+            <img
+              src="/logo.png"
+              alt=""
+              className="h-9 w-9 shrink-0 object-contain"
+              data-test-id="stock-top-bar-logo"
+            />
           </div>
         </div>
-        <IconButton
-          variant="basicSecondary"
-          size="md"
-          ariaLabel="Cerrar sesión"
-          icon="LogOut"
-          onClick={() => signOut({ callbackUrl: "/" })}
-          data-test-id="stock-logout"
-        />
-      </div>
-    </header>
+      </header>
+
+      {showSidebar ? (
+        <div
+          className="fixed inset-0 z-[60] flex"
+          data-test-id="stock-sidebar-shell"
+          role="presentation"
+        >
+          <SideBar
+            menuItems={stockMenuItems}
+            onClose={() => setShowSidebar(false)}
+            logoUrl="/logo.png"
+            expandedState={sidebarExpanded}
+            onExpandedChange={setSidebarExpanded}
+          />
+          <div
+            className="flex-1 bg-black/10"
+            aria-label="Cerrar menú lateral"
+            data-test-id="stock-sidebar-overlay"
+            onClick={() => setShowSidebar(false)}
+          />
+        </div>
+      ) : null}
+    </>
   );
 }

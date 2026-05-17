@@ -11,13 +11,8 @@ import {
   Person,
   PersonType,
   DocumentType,
-  BankName,
-  AccountTypeName,
 } from '@modules/persons/domain/person.entity';
-import {
-  Company,
-  CompanyBankAccount,
-} from '@modules/companies/domain/company.entity';
+import { Company } from '@modules/companies/domain/company.entity';
 import { Tax, TaxType } from '@modules/taxes/domain/tax.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
@@ -57,11 +52,24 @@ import {
   StorageType,
 } from '@modules/storages/domain/storage.entity';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
-import {
-  buildDefaultCompanyCatalog,
-  buildDefaultPosList,
-} from '@modules/payment-methods-config/domain/payment-method-config.helpers';
 import { TenantContext } from '@common/tenant/tenant.context';
+import {
+  SEED_BRANCH_ADDRESS,
+  SEED_BRANCH_LOCATION,
+  SEED_BRANCH_NAME,
+  SEED_BRANCH_PHONE,
+  SEED_CASH_HUB_CODE,
+  SEED_CASH_HUB_NAME,
+  SEED_PARABRISAS,
+  SEED_POS_NAME,
+  SEED_PRICE_LIST_NAME,
+  SEED_STORAGE_SALA_CODE,
+  SEED_STORAGE_SALA_NAME,
+  buildSeedCompanyBankAccounts,
+  buildSeedCompanyPaymentCatalog,
+  buildSeedCompanySettings,
+  buildSeedPosPaymentList,
+} from './seed-parabrisas-config';
 
 const SEED_IVA_DESCRIPTION =
   'Impuesto al Valor Agregado sobre ventas, servicios e importaciones.';
@@ -70,50 +78,9 @@ const SEED_HONORARIUM_RETENTION_NAME = 'Retención pago Honorarios';
 const SEED_HONORARIUM_RETENTION_DESCRIPTION =
   'Retención de impuesto aplicable al pago de honorarios (tasa referencial 15,25%).';
 
-const SEED_BRANCH_NAME = 'Local Principal';
-const SEED_BRANCH_ADDRESS = 'Av. Anibal Pinto 1000, Parral';
-const SEED_BRANCH_PHONE = '999999999';
-const SEED_BRANCH_LOCATION = {
-  lat: -36.15943159155879,
-  lng: -71.78741455078126,
-};
-
-/** Almacenes demo: sala ligada a la sucursal seed; depósito central (sin sucursal). */
-const SEED_STORAGE_SALA_NAME = 'Sala de venta';
-const SEED_STORAGE_SALA_CODE = 'SEED-SALA-VENTA';
+/** Depósito central opcional (sin sucursal); la sala de venta es el almacén por defecto. */
 const SEED_STORAGE_DEPOSITO_NAME = 'Depósito principal';
 const SEED_STORAGE_DEPOSITO_CODE = 'SEED-DEP-PRINCIPAL';
-
-/** Claves estables para upsert en `companies.bank_accounts` sin borrar cuentas agregadas fuera del seed. */
-const SEED_COMPANY_BANK_ACCOUNT_KEYS = {
-  bchCorriente: 'seed-company-bank-bch-cc',
-  estadoVista: 'seed-company-bank-estado-vista',
-} as const;
-
-function buildSeedCompanyBankAccounts(
-  accountHolderName: string,
-): CompanyBankAccount[] {
-  return [
-    {
-      accountKey: SEED_COMPANY_BANK_ACCOUNT_KEYS.bchCorriente,
-      bankName: BankName.BANCO_CHILE,
-      accountType: AccountTypeName.CUENTA_CORRIENTE,
-      accountNumber: '111-00000-01',
-      accountHolderName,
-      isPrimary: true,
-      notes: 'Cuenta ejemplo (seed mínimo)',
-    },
-    {
-      accountKey: SEED_COMPANY_BANK_ACCOUNT_KEYS.estadoVista,
-      bankName: BankName.BANCO_ESTADO,
-      accountType: AccountTypeName.CUENTA_VISTA,
-      accountNumber: '22222222-2',
-      accountHolderName,
-      isPrimary: false,
-      notes: 'Cuenta ejemplo (seed mínimo)',
-    },
-  ];
-}
 
 const SEED_UNIT_BASE_NAME = 'Unidad';
 const SEED_UNIT_BASE_SYMBOL = 'un';
@@ -286,11 +253,6 @@ function buildSeedAttributes(): readonly {
     },
   ];
 }
-
-const SEED_PRICE_LIST_RETAIL_NAME = 'MINORISTA';
-const SEED_PRICE_LIST_WHOLESALE_NAME = 'MAYORISTA';
-
-const SEED_POS_NAME = 'CAJA LOCAL';
 
 const SEED_ACCOUNTING_ACCOUNTS: readonly {
   code: string;
@@ -1157,16 +1119,16 @@ async function bootstrap() {
     const password = process.env.SEED_ADMIN_PASSWORD || '098098';
     const email = process.env.SEED_ADMIN_EMAIL || 'admin@flowstore.local';
     const razonSocial =
-      process.env.SEED_COMPANY_RAZON_SOCIAL || 'Mi Empresa SpA';
+      process.env.SEED_COMPANY_RAZON_SOCIAL || SEED_PARABRISAS.razonSocial;
     const nombreFantasia =
-      process.env.SEED_NOMBRE_FANTASIA || 'Mi Empresa';
+      process.env.SEED_NOMBRE_FANTASIA || SEED_PARABRISAS.nombreFantasia;
     const businessActivity =
-      process.env.SEED_BUSINESS_ACTIVITY || 'Comercio al por menor';
-    const rut = process.env.SEED_COMPANY_RUT || '11.111.111-1';
+      process.env.SEED_BUSINESS_ACTIVITY || SEED_PARABRISAS.businessActivity;
+    const rut = process.env.SEED_COMPANY_RUT || SEED_PARABRISAS.rut;
     const companyAddress =
-      process.env.SEED_COMPANY_ADDRESS || 'Av. Principal 123, Santiago';
+      process.env.SEED_COMPANY_ADDRESS || SEED_PARABRISAS.address;
     const companyMail =
-      process.env.SEED_COMPANY_MAIL || 'contacto@flowstore.local';
+      process.env.SEED_COMPANY_MAIL || SEED_PARABRISAS.mail;
 
     assertValidChileCompanyRut(rut, 'SEED_COMPANY_RUT');
 
@@ -1181,7 +1143,7 @@ async function bootstrap() {
         rut,
         address: companyAddress,
         mail: companyMail,
-        defaultCurrency: 'CLP',
+        defaultCurrency: SEED_PARABRISAS.defaultCurrency,
         isActive: true,
       });
       await companyRepo.save(company);
@@ -1216,120 +1178,21 @@ async function bootstrap() {
       `✅ Cuentas bancarias ejemplo sincronizadas (${seedBankRows.length}) companyId=${company.id}`,
     );
 
-    /**
-     * Catálogo de medios de pago a nivel empresa
-     * (`company.settings.paymentMethods`).
-     *
-     * Idempotente: si ya existe un catálogo no vacío, lo conserva
-     * (para no pisar configuraciones manuales hechas desde la UI).
-     * Excluye `MIXED`: el sistema lo infiere cuando una transacción
-     * tiene más de un detalle de pago.
-     */
-    const existingCompanySettings =
-      (company.settings && typeof company.settings === 'object'
-        ? (company.settings as Record<string, any>)
-        : {}) ?? {};
-    const existingCompanyPMs = Array.isArray(
-      existingCompanySettings.paymentMethods,
-    )
-      ? (existingCompanySettings.paymentMethods as Array<{ id?: string }>)
-      : [];
-    if (existingCompanyPMs.length === 0) {
-      const catalog = buildDefaultCompanyCatalog();
-      company.settings = {
-        ...existingCompanySettings,
-        paymentMethods: catalog,
-      };
-      await companyRepo.save(company);
-      console.log(
-        `✅ Medios de pago empresa creados (${catalog.length}): ${catalog
-          .map((c) => c.method)
-          .join(', ')}`,
-      );
-    } else {
-      console.log(
-        `✅ Medios de pago empresa ya existían (${existingCompanyPMs.length}); no se sobrescriben`,
-      );
-    }
-
-    /**
-     * Configuración de cheques en `company.settings.checks` (JSON de la
-     * empresa, misma capa que cotizaciones y medios de pago).
-     *
-     * Idempotente: solo crea el bloque si no existe; respeta cambios
-     * manuales hechos desde la UI.
-     */
-    const existingCompanySettingsAfterPM =
-      (company.settings && typeof company.settings === 'object'
-        ? (company.settings as Record<string, any>)
-        : {}) ?? {};
-    const existingChecks = existingCompanySettingsAfterPM.checks;
-    if (!existingChecks || typeof existingChecks !== 'object') {
-      company.settings = {
-        ...existingCompanySettingsAfterPM,
-        checks: {
-          enabled: true,
-          receiveChecks: true,
-          issueChecks: true,
-          allowPostdatedReceived: true,
-          allowPostdatedIssued: true,
-          defaultDepositBankAccountKey: null,
-          defaultIssueBankAccountKey: null,
-        },
-      };
-      await companyRepo.save(company);
-      console.log(`✅ Configuración de cheques creada (enabled=true)`);
-    } else {
-      console.log(`✅ Configuración de cheques ya existía; no se sobrescribe`);
-    }
-
-    /**
-     * Configuración de cotizaciones en `company.settings.quotations`
-     * (JSON de la empresa; coherent con Ajustes → Empresa → Cotizaciones).
-     *
-     * Defaults: módulo habilitado con 15 días de vigencia y máximo 60.
-     */
-    const existingCompanySettingsAfterChecks =
-      (company.settings && typeof company.settings === 'object'
-        ? (company.settings as Record<string, any>)
-        : {}) ?? {};
-    const existingQuotations = existingCompanySettingsAfterChecks.quotations;
-    if (!existingQuotations || typeof existingQuotations !== 'object') {
-      company.settings = {
-        ...existingCompanySettingsAfterChecks,
-        quotations: {
-          enabled: true,
-          defaultValidityDays: 15,
-          maxValidityDays: 60,
-          allowCustomValidity: true,
-          defaultTerms: null,
-        },
-      };
-      await companyRepo.save(company);
-      console.log(`✅ Configuración de cotizaciones creada (enabled=true, vigencia 15 días)`);
-    } else {
-      console.log(`✅ Configuración de cotizaciones ya existía; no se sobrescribe`);
-    }
-
-    /**
-     * Crédito interno global (`company.settings.internalCustomerCredit`).
-     * Idempotente: solo crea si falta.
-     */
-    const existingCompanySettingsAfterQuotations =
-      (company.settings && typeof company.settings === 'object'
-        ? (company.settings as Record<string, any>)
-        : {}) ?? {};
-    const existingIcc = existingCompanySettingsAfterQuotations.internalCustomerCredit;
-    if (!existingIcc || typeof existingIcc !== 'object') {
-      company.settings = {
-        ...existingCompanySettingsAfterQuotations,
-        internalCustomerCredit: { enabled: true },
-      };
-      await companyRepo.save(company);
-      console.log(`✅ Configuración de crédito interno cliente creada (enabled=true)`);
-    } else {
-      console.log(`✅ Configuración de crédito interno ya existía; no se sobrescribe`);
-    }
+  /**
+   * Settings de empresa (Parabrisas Don Walter): medios de pago, cheques,
+   * cotizaciones y crédito interno. Se sincronizan en cada seed.
+   */
+    const seedCompanyPaymentCatalog = buildSeedCompanyPaymentCatalog();
+    company.settings = buildSeedCompanySettings(
+      company.settings as Record<string, unknown> | undefined,
+      seedCompanyPaymentCatalog,
+    );
+    await companyRepo.save(company);
+    console.log(
+      `✅ Settings empresa sincronizados: medios (${seedCompanyPaymentCatalog
+        .map((c) => c.method)
+        .join(', ')}), cotizaciones 10/20 días, cheques off, crédito interno off`,
+    );
 
     /**
      * A partir de aquí, todo el resto del seed se ejecuta dentro del
@@ -1817,7 +1680,7 @@ async function bootstrap() {
         branchId: seedBranch.id,
         type: StorageType.STORE,
         category: StorageCategory.IN_BRANCH,
-        isDefault: false,
+        isDefault: true,
         isActive: true,
       });
       await storageRepo.save(seedSalaVenta);
@@ -1832,7 +1695,7 @@ async function bootstrap() {
       seedSalaVenta.branchId = seedBranch.id;
       seedSalaVenta.type = StorageType.STORE;
       seedSalaVenta.category = StorageCategory.IN_BRANCH;
-      seedSalaVenta.isDefault = false;
+      seedSalaVenta.isDefault = true;
       seedSalaVenta.isActive = true;
       await storageRepo.save(seedSalaVenta);
       console.log(
@@ -1864,7 +1727,7 @@ async function bootstrap() {
       seedDepositoPrincipal.branchId = null;
       seedDepositoPrincipal.type = StorageType.WAREHOUSE;
       seedDepositoPrincipal.category = StorageCategory.CENTRAL;
-      seedDepositoPrincipal.isDefault = true;
+      seedDepositoPrincipal.isDefault = false;
       seedDepositoPrincipal.isActive = true;
       await storageRepo.save(seedDepositoPrincipal);
       console.log(
@@ -2114,13 +1977,25 @@ async function bootstrap() {
       throw new Error('Seed minimal: atributo AÑO no sincronizado');
     }
 
-    // Price lists (ejemplos): MINORISTA (RETAIL, default) y MAYORISTA (WHOLESALE)
-    const existingRetail = await priceListRepo.findOne({
-      where: { name: SEED_PRICE_LIST_RETAIL_NAME },
+    // Lista de precios única (UNICA, default). Listas legacy se desactivan.
+    for (const legacyName of ['MINORISTA', 'MAYORISTA'] as const) {
+      const legacy = await priceListRepo.findOne({ where: { name: legacyName } });
+      if (legacy) {
+        await priceListRepo.save({
+          ...legacy,
+          isDefault: false,
+          isActive: false,
+        });
+        console.log(`✅ Lista legacy «${legacyName}» desactivada: id=${legacy.id}`);
+      }
+    }
+
+    const existingUnica = await priceListRepo.findOne({
+      where: { name: SEED_PRICE_LIST_NAME },
     });
-    const minorista = existingRetail
+    const unica = existingUnica
       ? await priceListRepo.save({
-          ...existingRetail,
+          ...existingUnica,
           priceListType: PriceListType.RETAIL,
           currency: 'CLP',
           validFrom: undefined,
@@ -2132,7 +2007,7 @@ async function bootstrap() {
         })
       : await priceListRepo.save(
           priceListRepo.create({
-            name: SEED_PRICE_LIST_RETAIL_NAME,
+            name: SEED_PRICE_LIST_NAME,
             priceListType: PriceListType.RETAIL,
             currency: 'CLP',
             validFrom: undefined,
@@ -2144,39 +2019,7 @@ async function bootstrap() {
           }),
         );
     console.log(
-      `✅ Lista de precios ${minorista.name} ${existingRetail ? 'ya existía' : 'creada'}: id=${minorista.id}`,
-    );
-
-    const existingWholesale = await priceListRepo.findOne({
-      where: { name: SEED_PRICE_LIST_WHOLESALE_NAME },
-    });
-    const mayorista = existingWholesale
-      ? await priceListRepo.save({
-          ...existingWholesale,
-          priceListType: PriceListType.WHOLESALE,
-          currency: 'CLP',
-          validFrom: undefined,
-          validUntil: undefined,
-          priority: 0,
-          isDefault: false,
-          isActive: true,
-          description: undefined,
-        })
-      : await priceListRepo.save(
-          priceListRepo.create({
-            name: SEED_PRICE_LIST_WHOLESALE_NAME,
-            priceListType: PriceListType.WHOLESALE,
-            currency: 'CLP',
-            validFrom: undefined,
-            validUntil: undefined,
-            priority: 0,
-            isDefault: false,
-            isActive: true,
-            description: undefined,
-          }),
-        );
-    console.log(
-      `✅ Lista de precios ${mayorista.name} ${existingWholesale ? 'ya existía' : 'creada'}: id=${mayorista.id}`,
+      `✅ Lista de precios ${unica.name} ${existingUnica ? 'ya existía' : 'creada'}: id=${unica.id} (default)`,
     );
 
     // ---------------------------------------------------------------------
@@ -2632,17 +2475,10 @@ async function bootstrap() {
         const savedVariant = await variantRepo.save(variant);
 
         await upsertPriceListItem({
-          priceListId: minorista.id,
+          priceListId: unica.id,
           productId: product.id,
           productVariantId: savedVariant.id,
           net: vd.retailNet,
-          taxId: ivaTax.id,
-        });
-        await upsertPriceListItem({
-          priceListId: mayorista.id,
-          productId: product.id,
-          productVariantId: savedVariant.id,
-          net: vd.wholesaleNet,
           taxId: ivaTax.id,
         });
       }
@@ -2766,17 +2602,10 @@ async function bootstrap() {
       const savedVariant = await variantRepo.save(variant);
 
       await upsertPriceListItem({
-        priceListId: minorista.id,
+        priceListId: unica.id,
         productId: product.id,
         productVariantId: savedVariant.id,
         net: retailNet,
-        taxId: ivaTax.id,
-      });
-      await upsertPriceListItem({
-        priceListId: mayorista.id,
-        productId: product.id,
-        productVariantId: savedVariant.id,
-        net: wholesaleNet,
         taxId: ivaTax.id,
       });
     }
@@ -2786,10 +2615,7 @@ async function bootstrap() {
     );
 
     // Point of sale (ejemplo): CAJA LOCAL en sucursal seed con listas de precios
-    const priceListsJson = [
-      { id: minorista.id, name: minorista.name, isActive: true },
-      { id: mayorista.id, name: mayorista.name, isActive: true },
-    ];
+    const priceListsJson = [{ id: unica.id, name: unica.name, isActive: true }];
     const existingPos = await posRepo.findOne({
       where: { name: SEED_POS_NAME },
     });
@@ -2800,7 +2626,7 @@ async function bootstrap() {
           storageId: seedSalaVenta.id,
           isActive: true,
           deviceId: undefined,
-          defaultPriceListId: minorista.id,
+          defaultPriceListId: unica.id,
           priceLists: priceListsJson,
         })
       : await posRepo.save(
@@ -2810,7 +2636,7 @@ async function bootstrap() {
             storageId: seedSalaVenta.id,
             isActive: true,
             deviceId: undefined,
-            defaultPriceListId: minorista.id,
+            defaultPriceListId: unica.id,
             priceLists: priceListsJson,
           }),
         );
@@ -2850,15 +2676,7 @@ async function bootstrap() {
       `✅ Stock demo en «${SEED_STORAGE_SALA_NAME}»: ${trackedVariants.length} variante(s) a ${demoStockBase} u. base`,
     );
 
-    /**
-     * Configuración de medios de pago a nivel POS
-     * (`points_of_sale.settings.paymentMethods`).
-     *
-     * Idempotente: solo se siembra si está vacío.
-     * Usa el catálogo recién persistido en `company.settings.paymentMethods`
-     * para que los `companyPaymentMethodId` referencien IDs válidos.
-     * `buildDefaultPosList` precarga `CASH` y lo deja como default-vuelto.
-     */
+    /** Medios de pago POS (CAJA LOCAL): sincronizados con catálogo empresa en cada seed. */
     {
       const reloadedCompany = await companyRepo.findOne({
         where: { id: company.id },
@@ -2868,45 +2686,32 @@ async function bootstrap() {
         typeof reloadedCompany.settings === 'object' &&
         Array.isArray((reloadedCompany.settings as any).paymentMethods)
           ? ((reloadedCompany.settings as any).paymentMethods as Array<any>)
-          : [];
+          : seedCompanyPaymentCatalog;
 
       const existingPosSettings =
         (caja.settings && typeof caja.settings === 'object'
           ? (caja.settings as Record<string, any>)
           : {}) ?? {};
-      const existingPosPMs = Array.isArray(existingPosSettings.paymentMethods)
-        ? (existingPosSettings.paymentMethods as Array<unknown>)
-        : [];
-      if (existingPosPMs.length === 0 && companyCatalog.length > 0) {
-        const posList = buildDefaultPosList(companyCatalog as any);
-        caja.settings = {
-          ...existingPosSettings,
-          paymentMethods: posList,
-        };
-        await posRepo.save(caja);
-        console.log(
-          `✅ Medios de pago POS «${caja.name}» creados (${posList.length}): default vuelto = CASH`,
-        );
-      } else if (existingPosPMs.length > 0) {
-        console.log(
-          `✅ Medios de pago POS «${caja.name}» ya existían (${existingPosPMs.length}); no se sobrescriben`,
-        );
-      } else {
-        console.log(
-          `⚠️  POS «${caja.name}»: catálogo de empresa vacío, no se siembran medios de pago en el POS`,
-        );
-      }
+      const posList = buildSeedPosPaymentList(companyCatalog);
+      caja.settings = {
+        ...existingPosSettings,
+        paymentMethods: posList,
+      };
+      await posRepo.save(caja);
+      console.log(
+        `✅ Medios de pago POS «${caja.name}» sincronizados (${posList.length}): CASH precargado y vuelto por defecto`,
+      );
     }
 
     // Centro de acopio demo: vinculado a sucursal seed y al POS «CAJA LOCAL».
     let seedCashHub = await cashHubRepo.findOne({
-      where: { companyId: company.id, code: 'CENTRAL' },
+      where: { companyId: company.id, code: SEED_CASH_HUB_CODE },
     });
     if (!seedCashHub) {
       seedCashHub = cashHubRepo.create({
         companyId: company.id,
-        name: 'Centro de efectivo central',
-        code: 'CENTRAL',
+        name: SEED_CASH_HUB_NAME,
+        code: SEED_CASH_HUB_CODE,
         isActive: true,
       });
       await cashHubRepo.save(seedCashHub);
