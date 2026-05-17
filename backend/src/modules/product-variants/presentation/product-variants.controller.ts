@@ -28,6 +28,14 @@ export class ProductVariantsController {
     return this.variantsService.searchForPurchasing(query);
   }
 
+  @Get('scan/by-code')
+  async lookupByCode(
+    @Query('value') value: string,
+    @Query('by') by: 'barcode' | 'sku',
+  ) {
+    return this.variantsService.lookupByCode(value, by);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.variantsService.findOne(id);

@@ -5,7 +5,7 @@ import { TransactionsController } from './presentation/transactions.controller';
 import { SupplierPaymentsController } from './presentation/supplier-payments.controller';
 import { PurchaseOrdersController } from './presentation/purchase-orders.controller';
 import { OperatingExpenseTransactionsController } from './presentation/operating-expense-transactions.controller';
-import { InventoryController } from './presentation/controllers/inventory.controller';
+import { InventoryTransactionsController } from './presentation/controllers/inventory.controller';
 import { TransactionsService } from './application/transactions.service';
 import { PurchaseOrdersService } from './application/purchase-orders.service';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
@@ -91,7 +91,7 @@ import { ProductVariantsModule } from '@modules/product-variants/product-variant
     SupplierPaymentsController,
     PurchaseOrdersController,
     OperatingExpenseTransactionsController,
-    InventoryController,
+    InventoryTransactionsController,
   ],
   providers: [
     DocumentSequencesBootstrap,

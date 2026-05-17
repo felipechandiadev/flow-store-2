@@ -297,6 +297,43 @@ export class ProductVariantsService {
     return parts.join(', ') || 'Variante sin nombre';
   }
 
+  /** Exact match by SKU or barcode (stock PWA scanner). */
+  async lookupByCode(value: string, by: 'barcode' | 'sku') {
+    const v = String(value || '').trim();
+    if (!v) {
+      throw new BadRequestException('value es obligatorio');
+    }
+    const mode = by === 'sku' ? 'sku' : 'barcode';
+    const qb = this.variantOrm
+      .createQueryBuilder('variant')
+      .leftJoinAndSelect('variant.product', 'product')
+      .where('variant.deletedAt IS NULL')
+      .andWhere('(product.deletedAt IS NULL OR product.id IS NULL)');
+    if (mode === 'sku') {
+      qb.andWhere('LOWER(variant.sku) = LOWER(:v)', { v });
+    } else {
+      qb.andWhere(
+        'variant.barcode IS NOT NULL AND LOWER(variant.barcode) = LOWER(:v)',
+        { v },
+      );
+    }
+    const variants = await qb.getMany();
+    const items = variants.map((variant) => {
+      const product: any = variant.product;
+      return {
+        variantId: variant.id,
+        sku: variant.sku || '',
+        barcode: variant.barcode ?? null,
+        productName: product?.name || '',
+        attributeValues: variant.attributeValues || {},
+      };
+    });
+    if (items.length === 1) {
+      return items[0];
+    }
+    return { items };
+  }
+
   async findOne(id: string) {
     const v =
       typeof (this.variantRepository as any).findById === 'function'

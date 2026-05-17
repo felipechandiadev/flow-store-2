@@ -28,6 +28,14 @@ export class InventoryController {
     return { items };
   }
 
+  @Get('variant-lookup')
+  async variantLookup(
+    @Query('value') value: string,
+    @Query('by') by: 'barcode' | 'sku',
+  ) {
+    return this.inventoryService.lookupVariantByCode(value, by);
+  }
+
   @Get()
   async getInventory(
     @Query()

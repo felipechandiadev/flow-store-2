@@ -17,6 +17,7 @@ import {
 import { User } from '@modules/users/domain/user.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
+import { ProductVariantsService } from '@modules/product-variants/application/product-variants.service';
 import { Storage } from '@modules/storages/domain/storage.entity';
 import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
 import { UpdateStockLevelThresholdsDto } from './dto/update-stock-level-thresholds.dto';
@@ -49,6 +50,7 @@ export class InventoryService {
     private readonly storagesService: StoragesService,
     private readonly dataSource: DataSource,
     private readonly transactionsService: TransactionsService,
+    private readonly productVariantsService: ProductVariantsService,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {}
@@ -67,6 +69,14 @@ export class InventoryService {
       units: [],
       attributes: [],
     };
+  }
+
+  /**
+   * Exact lookup of a product variant by SKU or barcode (stock PWA scanner).
+   * @deprecated Prefer GET /product-variants/lookup — kept for backward compatibility.
+   */
+  async lookupVariantByCode(value: string, by: 'barcode' | 'sku') {
+    return this.productVariantsService.lookupByCode(value, by);
   }
 
   /**

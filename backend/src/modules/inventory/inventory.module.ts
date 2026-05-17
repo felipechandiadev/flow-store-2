@@ -6,6 +6,7 @@ import { InventoryService } from './application/inventory.service';
 import { InventoryServiceAdapter } from './application/inventory.service.adapter';
 import { StoragesModule } from '../storages/storages.module';
 import { TransactionsModule } from '../transactions/transactions.module';
+import { ProductVariantsModule } from '../product-variants/product-variants.module';
 import { User } from '@modules/users/domain/user.entity';
 import { StockLevelOrmEntity } from '@modules/stock-levels/infrastructure/orm-mappers/stock-level.orm-entity';
 import { STOCK_LEVELS_REPOSITORY } from './application/ports/stock-levels.repository.port';
@@ -24,6 +25,7 @@ import { StockLevelThresholdSchemaBootstrap } from './application/stock-level-th
     TypeOrmModule.forFeature([User, StockLevelOrmEntity]),
     StoragesModule,
     TransactionsModule,
+    ProductVariantsModule,
     CqrsModule,
   ],
   controllers: [InventoryController],

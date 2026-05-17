@@ -1,0 +1,149 @@
+/**
+ * IconButton: estados hover/active con --color-* (misma idea que Button: sin depender
+ * de utilidades / opacity de Tailwind sobre variables hexa).
+ */
+.fs-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 0.25rem;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.fs-icon-button:focus-visible {
+  outline: 2px solid var(--color-accent, #0a7cad);
+  outline-offset: 2px;
+}
+
+.fs-icon-button:disabled,
+.fs-icon-button:disabled:hover,
+.fs-icon-button:disabled:active {
+  cursor: not-allowed;
+}
+
+/* Contained (relleno) */
+.fs-icon-button--contained-primary {
+  background-color: var(--color-primary, #002b59);
+  color: var(--color-background, #ffffff);
+  border-color: transparent;
+}
+.fs-icon-button--contained-primary:hover:not(:disabled) {
+  background-color: var(--color-accent, #0a7cad);
+}
+.fs-icon-button--contained-primary:active:not(:disabled) {
+  background-color: var(--color-primary, #002b59);
+  filter: brightness(0.92);
+}
+
+.fs-icon-button--contained-secondary {
+  background-color: var(--color-secondary, #35e3ff);
+  color: var(--color-background, #ffffff);
+  border-color: transparent;
+}
+.fs-icon-button--contained-secondary:hover:not(:disabled) {
+  background-color: var(--color-accent, #0a7cad);
+}
+.fs-icon-button--contained-secondary:active:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+/* Text: icono a color de marca, hover suave */
+.fs-icon-button--text {
+  background-color: transparent;
+  color: var(--color-primary, #002b59);
+  border-color: transparent;
+}
+.fs-icon-button--text:hover:not(:disabled) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-primary, #002b59) 12%,
+    var(--color-background, #ffffff) 88%
+  );
+}
+.fs-icon-button--text:active:not(:disabled) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-primary, #002b59) 20%,
+    var(--color-background, #ffffff) 80%
+  );
+}
+
+/* Basic: default UI */
+.fs-icon-button--basic {
+  background-color: transparent;
+  color: var(--color-foreground, #131615);
+  border-color: transparent;
+}
+.fs-icon-button--basic:hover:not(:disabled) {
+  background-color: var(--color-hover, #f1f1f1);
+}
+.fs-icon-button--basic:active:not(:disabled) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-foreground, #131615) 8%,
+    var(--color-background, #ffffff) 92%
+  );
+}
+
+/* Basic secondary (tablas, cards, acciones secundarias): hover sin fondo, solo color */
+.fs-icon-button--basic-secondary {
+  background-color: transparent;
+  color: var(--color-secondary, #35e3ff);
+  border-color: transparent;
+}
+.fs-icon-button--basic-secondary:hover:not(:disabled) {
+  color: var(--color-primary, #002b59);
+  background-color: transparent;
+}
+.fs-icon-button--basic-secondary:active:not(:disabled) {
+  color: var(--color-primary, #002b59);
+  background-color: transparent;
+  opacity: 0.88;
+}
+
+/* Outlined */
+.fs-icon-button--outlined {
+  background-color: transparent;
+  color: var(--color-primary, #002b59);
+  border-color: var(--color-primary, #002b59);
+}
+.fs-icon-button--outlined:hover:not(:disabled) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-primary, #002b59) 10%,
+    var(--color-background, #ffffff) 90%
+  );
+}
+.fs-icon-button--outlined:active:not(:disabled) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-primary, #002b59) 18%,
+    var(--color-background, #ffffff) 82%
+  );
+}
+
+/* Ghost: solo sutil (sin default text color en el diseño antiguo) */
+.fs-icon-button--ghost {
+  background-color: transparent;
+  color: var(--color-foreground, #131615);
+  border-color: transparent;
+}
+.fs-icon-button--ghost:hover:not(:disabled) {
+  background-color: var(--color-hover, #f1f1f1);
+}
+.fs-icon-button--ghost:active:not(:disabled) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-foreground, #131615) 6%,
+    var(--color-background, #ffffff) 94%
+  );
+}

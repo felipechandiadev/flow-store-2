@@ -23,8 +23,8 @@ import { InventoryBlockSummary } from '../../application/queries/inventory/get-i
 import { InventoryCountSummary } from '../../application/queries/inventory/get-inventory-counts.query';
 
 @ApiTags('Inventory Transactions')
-@Controller('inventory')
-export class InventoryController {
+@Controller('inventory-transactions')
+export class InventoryTransactionsController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
