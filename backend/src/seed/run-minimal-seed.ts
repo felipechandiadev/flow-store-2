@@ -78,9 +78,8 @@ const SEED_HONORARIUM_RETENTION_NAME = 'Retención pago Honorarios';
 const SEED_HONORARIUM_RETENTION_DESCRIPTION =
   'Retención de impuesto aplicable al pago de honorarios (tasa referencial 15,25%).';
 
-/** Depósito central opcional (sin sucursal); la sala de venta es el almacén por defecto. */
-const SEED_STORAGE_DEPOSITO_NAME = 'Depósito principal';
-const SEED_STORAGE_DEPOSITO_CODE = 'SEED-DEP-PRINCIPAL';
+/** Almacén seed retirado; se elimina (soft) si quedó de corridas anteriores. */
+const SEED_REMOVED_STORAGE_CODE = 'SEED-DEP-PRINCIPAL';
 
 const SEED_UNIT_BASE_NAME = 'Unidad';
 const SEED_UNIT_BASE_SYMBOL = 'un';
@@ -1668,7 +1667,7 @@ async function bootstrap() {
       );
     }
 
-    // Almacenes (ejemplos): sala de venta en sucursal seed; depósito principal central
+    // Almacén ejemplo: sala de venta en sucursal seed (único almacén del seed)
     const storageRepo = dataSource.getRepository(Storage);
 
     let seedSalaVenta = await storageRepo.findOne({
@@ -1705,36 +1704,17 @@ async function bootstrap() {
       );
     }
 
-    let seedDepositoPrincipal = await storageRepo.findOne({
-      where: { code: SEED_STORAGE_DEPOSITO_CODE },
+    const legacyDeposito = await storageRepo.findOne({
+      where: { code: SEED_REMOVED_STORAGE_CODE },
       withDeleted: true,
     });
-    if (!seedDepositoPrincipal) {
-      seedDepositoPrincipal = storageRepo.create({
-        name: SEED_STORAGE_DEPOSITO_NAME,
-        code: SEED_STORAGE_DEPOSITO_CODE,
-        branchId: null,
-        type: StorageType.WAREHOUSE,
-        category: StorageCategory.CENTRAL,
-        isDefault: true,
-        isActive: true,
-      });
-      await storageRepo.save(seedDepositoPrincipal);
-      console.log(`✅ Almacén ejemplo creado: «${SEED_STORAGE_DEPOSITO_NAME}» id=${seedDepositoPrincipal.id} (central)`);
-    } else {
-      if (seedDepositoPrincipal.deletedAt) {
-        seedDepositoPrincipal = await storageRepo.recover(seedDepositoPrincipal);
+    if (legacyDeposito && !legacyDeposito.deletedAt) {
+      if (legacyDeposito.isDefault) {
+        legacyDeposito.isDefault = false;
+        await storageRepo.save(legacyDeposito);
       }
-      seedDepositoPrincipal.name = SEED_STORAGE_DEPOSITO_NAME;
-      seedDepositoPrincipal.branchId = null;
-      seedDepositoPrincipal.type = StorageType.WAREHOUSE;
-      seedDepositoPrincipal.category = StorageCategory.CENTRAL;
-      seedDepositoPrincipal.isDefault = false;
-      seedDepositoPrincipal.isActive = true;
-      await storageRepo.save(seedDepositoPrincipal);
-      console.log(
-        `✅ Almacén «${SEED_STORAGE_DEPOSITO_NAME}» ya existía: id=${seedDepositoPrincipal.id} (sincronizado con seed)`,
-      );
+      await storageRepo.softRemove(legacyDeposito);
+      console.log('🗑️  Almacén seed eliminado: «Depósito principal»');
     }
 
     // Units: UNIDAD (predeterminada) + volumen (ml, L). Sin docena / gramo / kilogramo en seed.
@@ -2703,6 +2683,9 @@ async function bootstrap() {
         code: SEED_CASH_HUB_CODE,
         isActive: true,
       });
+      await cashHubRepo.save(seedCashHub);
+    } else if (seedCashHub.name !== SEED_CASH_HUB_NAME) {
+      seedCashHub.name = SEED_CASH_HUB_NAME;
       await cashHubRepo.save(seedCashHub);
     }
     const seedBranchRow = await branchRepo.findOne({ where: { id: seedBranch.id } });

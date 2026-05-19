@@ -81,6 +81,7 @@ function normalizeRow(raw: unknown): CashSessionListRow | null {
     openingAmount: toNumber(o.openingAmount) ?? 0,
     closingAmount: toNumber(o.closingAmount),
     expectedAmount: toNumber(o.expectedAmount),
+    salesTotal: toNumber(o.salesTotal) ?? 0,
     difference: toNumber(o.difference),
     createdAt: toIsoString(o.createdAt),
   };

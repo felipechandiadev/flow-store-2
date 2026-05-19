@@ -3,6 +3,7 @@ import {
   SALES_PAYMENT_METHOD_LABEL,
   type SalesPaymentMethod,
 } from "@/features/sales-payments/types/sales-payment.types";
+import { formatSalePaymentMethodDisplay } from "../lib/format-sale-payment-method";
 import type { SaleTransactionDetail } from "../types/sale-transaction-detail.types";
 import type { BackorderDocumentPrintData } from "./backorder-document-print.types";
 
@@ -12,8 +13,23 @@ export function mapBackorderDetailToPrintData(
 ): BackorderDocumentPrintData {
   const deposit = detail.backorderDepositAmount ?? detail.amountPaid;
   const orderTotal = detail.total;
-  const method = detail.paymentMethod as SalesPaymentMethod;
-  const paymentLabel = SALES_PAYMENT_METHOD_LABEL[method] ?? detail.paymentMethod;
+  const paymentRows =
+    detail.payments.length > 0
+      ? detail.payments.map((p) => {
+          const key = p.method as SalesPaymentMethod;
+          const label =
+            p.alias?.trim() ||
+            SALES_PAYMENT_METHOD_LABEL[key] ||
+            p.method;
+          return { label, amount: p.amount, detail: p.reference };
+        })
+      : [
+          {
+            label: formatSalePaymentMethodDisplay(detail.paymentMethod, 0),
+            amount: deposit,
+            detail: null as string | null,
+          },
+        ];
 
   return {
     folio: detail.documentNumber.trim() || "—",
@@ -63,6 +79,6 @@ export function mapBackorderDetailToPrintData(
       paid: deposit,
       change: detail.changeAmount ?? 0,
     },
-    payments: [{ label: paymentLabel, amount: deposit, detail: null }],
+    payments: paymentRows,
   };
 }

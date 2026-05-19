@@ -25,11 +25,9 @@ const currencyFmt = new Intl.NumberFormat("es-CL", {
 });
 
 function parseAmountCl(raw: string): number {
-  const s = raw.trim();
-  if (!s) return NaN;
-  const noThousands = s.replace(/\./g, "");
-  const normalized = noThousands.replace(",", ".");
-  const n = Number(normalized);
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return NaN;
+  const n = Number(digits);
   return Number.isFinite(n) ? Math.round(n) : NaN;
 }
 
@@ -98,7 +96,7 @@ export default function HubDepositPageClient() {
     if (!amountRaw.trim()) return null;
     if (!Number.isFinite(amountNum) || amountNum < 1) return "Ingresa un monto válido (entero, mayor a cero).";
     if (selectedHub && amountNum > selectedHub.currentBalance + 0.01) {
-      return "El monto supera el disponible en el centro de acopio.";
+      return "El monto supera el disponible en el centro de efectivo.";
     }
     return null;
   }, [amountRaw, amountNum, selectedHub]);
@@ -110,7 +108,7 @@ export default function HubDepositPageClient() {
     setFormError(null);
     setSuccessMsg(null);
     if (!cashSessionId || !hubId || !selectedHub) {
-      setFormError("Selecciona un centro de acopio.");
+      setFormError("Selecciona un centro de efectivo.");
       return;
     }
     if (!Number.isFinite(amountNum) || amountNum < 1) {
@@ -118,7 +116,7 @@ export default function HubDepositPageClient() {
       return;
     }
     if (amountNum > selectedHub.currentBalance + 0.01) {
-      setFormError("El monto supera el disponible en el centro de acopio.");
+      setFormError("El monto supera el disponible en el centro de efectivo.");
       return;
     }
     startTransition(async () => {
@@ -142,20 +140,20 @@ export default function HubDepositPageClient() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-5">
+    <div className="mx-auto max-w-3xl space-y-6 px-6 py-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--color-foreground)" }}>
-            Ingreso de efectivo desde centro de acopio
+            Ingreso de efectivo desde centro de efectivo
           </h1>
           <p className="mt-1 max-w-xl text-xs sm:text-sm" style={{ color: "var(--color-muted-foreground)" }}>
-            Elige el centro de acopio vinculado a este punto de venta, confirma el saldo disponible e ingresa el monto a
+            Elige el centro de efectivo vinculado a este punto de venta, confirma el saldo disponible e ingresa el monto a
             sumar en la caja de la sesión actual.
           </p>
         </div>
         <IconButton
           icon="ArrowLeft"
-          variant="basic"
+          variant="ghost"
           size="md"
           ariaLabel="Volver al punto de venta"
           title="Volver al punto de venta"
@@ -188,14 +186,14 @@ export default function HubDepositPageClient() {
         </div>
       ) : hubs.length === 0 && !loadError ? (
         <Alert variant="info" data-test-id="hub-deposit-no-hubs">
-          No hay centros de acopio configurados para este punto de venta. Configúralos en administración (vínculo POS
-          ↔ centro de acopio).
+          No hay centros de efectivo configurados para este punto de venta. Configúralos en administración (vínculo POS
+          ↔ centro de efectivo).
         </Alert>
       ) : (
-        <div className="flex max-w-lg flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <Select
-            label="Centro de acopio"
-            placeholder="Centro de acopio"
+            label="Centro de efectivo"
+            placeholder="Centro de efectivo"
             options={hubOptions}
             value={hubId}
             onChange={(id) => setHubId(id != null ? String(id) : null)}
@@ -209,7 +207,7 @@ export default function HubDepositPageClient() {
               style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-background)" }}
               data-test-id="hub-deposit-balance-box"
             >
-              <span className="text-muted-foreground">Disponible en el centro de acopio</span>
+              <span className="text-muted-foreground">Disponible en el centro de efectivo</span>
               <div className="mt-1 text-lg font-semibold tabular-nums" style={{ color: "var(--color-foreground)" }}>
                 {currencyFmt.format(selectedHub.currentBalance)}
               </div>
@@ -218,10 +216,10 @@ export default function HubDepositPageClient() {
 
           <TextField
             label="Monto a ingresar en caja"
-            placeholder="Monto a ingresar en caja"
+            placeholder="0"
+            type="currency"
             value={amountRaw}
             onChange={(e) => setAmountRaw(e.target.value)}
-            inputMode="numeric"
             data-test-id="hub-deposit-amount"
           />
           {amountError ? (
@@ -238,7 +236,7 @@ export default function HubDepositPageClient() {
             data-test-id="hub-deposit-reason"
           />
 
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex justify-end pt-1">
             <Button
               variant="primary"
               disabled={!canSubmit || isPending}
@@ -247,9 +245,6 @@ export default function HubDepositPageClient() {
               data-test-id="hub-deposit-submit"
             >
               Confirmar ingreso
-            </Button>
-            <Button variant="outlined" type="button" onClick={() => router.push("/cash/movements")}>
-              Ver movimientos
             </Button>
           </div>
         </div>

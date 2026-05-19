@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth/auth-options";
 import type {
   CustomerCreditNoteUsageStatus,
   LinkedCustomerCreditNoteDetail,
+  PaymentSnapshotRow,
   SaleTransactionDetail,
   SaleTransactionDetailLine,
 } from "../types/sale-transaction-detail.types";
@@ -89,6 +90,54 @@ function normalizeLinkedCreditNote(
           : "",
     status: typeof o.status === "string" ? o.status : "",
   };
+}
+
+function normalizePaymentSnapshots(
+  meta: Record<string, unknown> | null,
+): PaymentSnapshotRow[] {
+  if (!meta) return [];
+  const rawList =
+    (Array.isArray(meta.payments) && meta.payments.length > 0
+      ? meta.payments
+      : null) ??
+    (Array.isArray(meta.paymentSnapshots) && meta.paymentSnapshots.length > 0
+      ? meta.paymentSnapshots
+      : null) ??
+    (Array.isArray(meta.paymentDetails) && meta.paymentDetails.length > 0
+      ? meta.paymentDetails
+      : null);
+  if (!rawList) return [];
+
+  return rawList
+    .map((item): PaymentSnapshotRow | null => {
+      if (!item || typeof item !== "object") return null;
+      const o = item as Record<string, unknown>;
+      const method = String(
+        o.method ?? o.paymentMethod ?? "",
+      ).trim();
+      const amount = num(o.amount);
+      if (!method || amount <= 0) return null;
+      return {
+        method,
+        alias: typeof o.alias === "string" && o.alias.trim() ? o.alias.trim() : null,
+        amount,
+        reference:
+          typeof o.reference === "string" && o.reference.trim()
+            ? o.reference.trim()
+            : null,
+        bankAccountKey:
+          typeof o.bankAccountKey === "string" && o.bankAccountKey.trim()
+            ? o.bankAccountKey.trim()
+            : typeof o.bankAccountId === "string" && o.bankAccountId.trim()
+              ? o.bankAccountId.trim()
+              : null,
+        capturedAt:
+          typeof o.capturedAt === "string" && o.capturedAt.trim()
+            ? o.capturedAt.trim()
+            : null,
+      };
+    })
+    .filter((x): x is PaymentSnapshotRow => x != null);
 }
 
 function normalizeLine(raw: unknown): SaleTransactionDetailLine | null {
@@ -202,6 +251,7 @@ function normalizeDetail(raw: unknown): SaleTransactionDetail | null {
     total,
     paymentMethod:
       typeof o.paymentMethod === "string" ? o.paymentMethod : "",
+    payments: normalizePaymentSnapshots(meta),
     amountPaid,
     changeAmount: o.changeAmount == null ? null : num(o.changeAmount),
     notes: typeof o.notes === "string" && o.notes.trim() ? o.notes.trim() : null,

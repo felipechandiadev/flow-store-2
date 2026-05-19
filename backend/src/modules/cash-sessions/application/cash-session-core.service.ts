@@ -30,8 +30,7 @@ import {
 } from '@modules/transactions/domain/transaction.entity';
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { CashHubsService } from '@modules/cash-hubs/application/cash-hubs.service';
-import { saleTransactionCashFlows } from './sale-transaction-cash-flow.util';
-import { saleReturnTransactionCashFlows } from './sale-return-transaction-cash-flow.util';
+import { computeCashSessionExpectedAmount } from './cash-session-expected-amount.util';
 
 /**
  * CashSessionCoreService - Single Responsibility: Session Lifecycle Management
@@ -189,9 +188,40 @@ export class CashSessionCoreService {
     // Limit results to a reasonable default (no pagination in DTO)
     const [items, total] = await qb.take(100).getManyAndCount();
 
+    const sessionIds = items.map((cs) => cs.id);
+    const salesTotalBySessionId = new Map<string, number>();
+    if (sessionIds.length > 0) {
+      const salesRows = await this.transactionRepository
+        .createQueryBuilder('t')
+        .select('t.cashSessionId', 'cashSessionId')
+        .addSelect('COALESCE(SUM(t.total), 0)', 'salesTotal')
+        .where('t.cashSessionId IN (:...sessionIds)', { sessionIds })
+        .andWhere('t.transactionType = :saleType', {
+          saleType: TransactionType.SALE,
+        })
+        .groupBy('t.cashSessionId')
+        .getRawMany<{ cashSessionId: string; salesTotal: string }>();
+
+      for (const row of salesRows) {
+        if (row.cashSessionId) {
+          salesTotalBySessionId.set(
+            row.cashSessionId,
+            Number(row.salesTotal) || 0,
+          );
+        }
+      }
+    }
+
     // Map user fields for frontend convenience (same shape returned by older service)
     const mapped = items.map((cs) => ({
       ...cs,
+      openingAmount: Number(cs.openingAmount ?? 0),
+      closingAmount:
+        cs.closingAmount != null ? Number(cs.closingAmount) : null,
+      expectedAmount:
+        cs.expectedAmount != null ? Number(cs.expectedAmount) : null,
+      difference: cs.difference != null ? Number(cs.difference) : null,
+      salesTotal: salesTotalBySessionId.get(cs.id) ?? 0,
       pointOfSaleName: cs.pointOfSale?.name || null,
       branchName: cs.pointOfSale?.branch?.name || null,
       openedByUserName: cs.openedBy?.userName || null,
@@ -1016,45 +1046,9 @@ export class CashSessionCoreService {
         status: TransactionStatus.CONFIRMED,
       },
     });
-    let cashIn = 0;
-    let cashOut = 0;
-    for (const tx of transactions) {
-      const total = Number(tx.total) || 0;
-      switch (tx.transactionType) {
-        case TransactionType.CASH_SESSION_OPENING:
-        case TransactionType.CASH_SESSION_DEPOSIT:
-          cashIn += total;
-          break;
-        case TransactionType.PAYMENT_IN:
-          if (tx.paymentMethod === PaymentMethod.CASH) {
-            cashIn += total;
-          }
-          break;
-        case TransactionType.SALE: {
-          const { cashIn: saleIn, cashOut: saleOut } =
-            saleTransactionCashFlows(tx);
-          cashIn += saleIn;
-          cashOut += saleOut;
-          break;
-        }
-        case TransactionType.CASH_SESSION_WITHDRAWAL:
-        case TransactionType.CASH_SESSION_TO_HUB_TRANSFER:
-        case TransactionType.OPERATING_EXPENSE:
-        case TransactionType.SUPPLIER_PAYMENT:
-        case TransactionType.PAYROLL_PAYMENT:
-        case TransactionType.EXPENSE_PAYMENT:
-        case TransactionType.BANK_TO_CASH_TRANSFER:
-        case TransactionType.SALE_RETURN: {
-          const { cashOut: returnOut } = saleReturnTransactionCashFlows(tx);
-          cashOut += returnOut;
-          break;
-        }
-        default:
-          break;
-      }
-    }
-    const opening = Number(cashSession.openingAmount) || 0;
-    const expected = opening + cashIn - cashOut;
-    return Number(expected.toFixed(2));
+    return computeCashSessionExpectedAmount(
+      Number(cashSession.openingAmount) || 0,
+      transactions,
+    );
   }
 }

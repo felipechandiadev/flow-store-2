@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog";
-import { Button } from "@/shared/components/Button";
 import Alert from "@/shared/components/Alert/Alert";
 import { getCashSessionDetailAction } from "@/features/sales-cash-sessions/actions/cash-session-detail.action";
 import type { CashSessionListRow } from "@/features/sales-cash-sessions/types/cash-session-list.types";
 import type { CashSessionMovementRow } from "@/features/sales-cash-sessions/types/cash-session-movement.types";
-import { TRANSACTION_TYPE_OPTIONS } from "@/features/transactions/types/transaction-types";
+import { getTransactionTypeLabel } from "@/features/transactions/types/transaction-types";
 import {
   SALES_PAYMENT_METHOD_LABEL,
   type SalesPaymentMethod,
@@ -18,12 +17,6 @@ type Props = {
   open: boolean;
   onClose: () => void;
 };
-
-function transactionTypeLabel(type: string): string {
-  if (!type) return "—";
-  const opt = TRANSACTION_TYPE_OPTIONS.find((o) => o.id === type);
-  return opt?.label ?? type;
-}
 
 function paymentMethodLabel(method: string): string {
   if (!method || method === "—") return "—";
@@ -164,7 +157,7 @@ export default function CashSessionTransactionsDialog({
                     <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
                       {m.documentNumber}
                     </td>
-                    <td className="px-3 py-2">{transactionTypeLabel(m.transactionType)}</td>
+                    <td className="px-3 py-2">{getTransactionTypeLabel(m.transactionType)}</td>
                     <td className="whitespace-nowrap px-3 py-2">
                       {DIRECTION_LABEL[m.direction] ?? m.direction}
                     </td>
@@ -183,12 +176,6 @@ export default function CashSessionTransactionsDialog({
             </table>
           </div>
         ) : null}
-
-        <div className="flex justify-end border-t border-border pt-3">
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cerrar
-          </Button>
-        </div>
       </div>
     </Dialog>
   );

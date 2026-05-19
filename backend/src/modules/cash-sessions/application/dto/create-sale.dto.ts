@@ -189,8 +189,14 @@ export class CreateSaleDto {
   @IsString()
   cashSessionId: string;
 
+  /**
+   * Medio representativo para filtros/compatibilidad. Opcional si `payments`
+   * trae al menos un ítem con monto > 0; el backend deriva el representativo
+   * (mayor monto) desde los snapshots.
+   */
+  @IsOptional()
   @IsString()
-  paymentMethod: string;
+  paymentMethod?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

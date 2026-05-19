@@ -13,6 +13,7 @@ import {
 } from "@/shared/admin-shared";
 import type { Option } from "@/shared/components/Select/Select";
 import { readPosContextClient, patchPosContextClient } from "@/features/session/lib/pos-context-storage";
+import { listOpenCashSessionsAction } from "@/features/session/actions/cash-session.action";
 import { listCashHubsForDepositAction } from "@/features/session/actions/cash-hub-deposit.action";
 import { closeCashSessionAction } from "@/features/session/actions/close-cash-session.action";
 import { getEffectivePosPaymentMethodsAction } from "@/features/pos-payment-methods/actions/payment-methods-pos.action";
@@ -66,6 +67,44 @@ function parseAmountCLPInput(raw: string): number {
 
 type CloseOk = Extract<Awaited<ReturnType<typeof closeCashSessionAction>>, { success: true }>;
 
+function formatClosingHeaderDate(iso: string | null | undefined): string {
+  const d = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" });
+}
+
+type CashClosingPageHeaderProps = {
+  title: string;
+  dateLabel: string;
+  description: string;
+  onBack: () => void;
+};
+
+function CashClosingPageHeader({ title, dateLabel, description, onBack }: CashClosingPageHeaderProps) {
+  return (
+    <div className="flex items-start gap-4">
+      <div className="min-w-0 flex-1">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
+          <p className="mt-1 text-xs text-muted-foreground">{dateLabel}</p>
+          <p className="mt-2 text-xs text-muted-foreground sm:text-sm">{description}</p>
+        </div>
+      </div>
+      <div className="shrink-0">
+        <IconButton
+          icon="ArrowLeft"
+          variant="ghost"
+          size="md"
+          ariaLabel="Volver al punto de venta"
+          title="Volver al punto de venta"
+          onClick={onBack}
+          data-test-id="cash-closing-back-pos"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function CashClosingPageClient() {
   const router = useRouter();
   const { data: authSession, status: authStatus } = useSession();
@@ -73,6 +112,7 @@ export default function CashClosingPageClient() {
   const signOutStartedRef = useRef(false);
 
   const [cashSessionId, setCashSessionId] = useState<string | null>(null);
+  const [sessionOpenedAt, setSessionOpenedAt] = useState<string | null>(null);
   const [pointOfSaleId, setPointOfSaleId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingCtx, setLoadingCtx] = useState(true);
@@ -183,18 +223,40 @@ export default function CashClosingPageClient() {
     void loadHubs(cashSessionId);
   }, [cashSessionId, loadHubs]);
 
+  useEffect(() => {
+    if (!cashSessionId) {
+      setSessionOpenedAt(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const res = await listOpenCashSessionsAction();
+      if (cancelled || !res.success) return;
+      const row = res.items.find((s) => s.id === cashSessionId);
+      const iso = row?.openedAt ?? row?.createdAt ?? null;
+      if (!cancelled) setSessionOpenedAt(iso);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cashSessionId]);
+
+  const headerDateLabel = useMemo(
+    () => formatClosingHeaderDate(sessionOpenedAt),
+    [sessionOpenedAt],
+  );
+
+  const goBackToPos = useCallback(() => {
+    router.push("/pos");
+  }, [router]);
+
   const hubOptions: Option[] = useMemo(
     () =>
       hubs.map((h) => ({
         id: h.id,
-        label: `${h.name} · ${currencyFmt.format(h.currentBalance)}`,
+        label: h.name,
       })),
     [hubs],
-  );
-
-  const selectedHub = useMemo(
-    () => (hubId ? hubs.find((h) => h.id === hubId) ?? null : null),
-    [hubId, hubs],
   );
 
   const countedPayload = useMemo(() => {
@@ -270,17 +332,17 @@ export default function CashClosingPageClient() {
     const counted = closeResult.counted as Record<string, number> | undefined;
 
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">Cierre de caja</h1>
-            <p className="mt-1 max-w-xl text-xs text-muted-foreground sm:text-sm">
-              {blind
-                ? "Resultado del arqueo: comparación entre efectivo contado y el saldo teórico de la sesión."
-                : "La sesión de caja se cerró correctamente."}
-            </p>
-          </div>
-        </div>
+      <div className="mx-auto max-w-3xl space-y-6 px-6 py-6">
+        <CashClosingPageHeader
+          title="Cierre de caja"
+          dateLabel={headerDateLabel}
+          description={
+            blind
+              ? "Resultado del arqueo: comparación entre efectivo contado y el saldo teórico de la sesión."
+              : "La sesión de caja se cerró correctamente."
+          }
+          onBack={goBackToPos}
+        />
 
         <Alert variant="success" className="text-sm">
           {closeResult.message ?? "Sesión de caja cerrada correctamente."}
@@ -337,7 +399,7 @@ export default function CashClosingPageClient() {
           </section>
         ) : null}
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex justify-end pt-1">
           <Button type="button" variant="primary" onClick={finishUserSession} disabled={signingOut}>
             {signingOut ? "Cerrando sesión…" : "Cerrar sesión de usuario"}
           </Button>
@@ -347,25 +409,13 @@ export default function CashClosingPageClient() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">Cierre de caja (arqueo ciego)</h1>
-          <p className="mt-1 max-w-2xl text-xs text-muted-foreground sm:text-sm">
-            Declara los montos físicos por cada medio de pago habilitado en este POS. No se muestran totales del
-            sistema hasta después del cierre. La suma de todos los medios debe coincidir con lo que entregas en caja;
-            el sistema contrasta sobre todo el efectivo contado vs. el efectivo teórico de la sesión.
-          </p>
-        </div>
-        <IconButton
-          icon="ArrowLeft"
-          variant="basic"
-          size="md"
-          ariaLabel="Volver al POS"
-          title="Volver al POS"
-          onClick={() => router.push("/pos")}
-        />
-      </div>
+    <div className="mx-auto max-w-3xl space-y-6 px-6 py-6">
+      <CashClosingPageHeader
+        title="Cierre de caja (arqueo ciego)"
+        dateLabel={headerDateLabel}
+        description="Declara los montos físicos por cada medio de pago habilitado en este POS. No se muestran totales del sistema hasta después del cierre. La suma de todos los medios debe coincidir con lo que entregas en caja; el sistema contrasta sobre todo el efectivo contado vs. el efectivo teórico de la sesión."
+        onBack={goBackToPos}
+      />
 
       {loadError ? (
         <Alert variant="warning" className="text-sm">
@@ -437,11 +487,11 @@ export default function CashClosingPageClient() {
       </section>
 
       <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-foreground">Centro de acopio (opcional)</h2>
+        <h2 className="text-sm font-semibold text-foreground">Centro de efectivo (opcional)</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          El efectivo contado puede trasladarse al hub por defecto del POS o al que elijas aquí.
+          El efectivo contado puede trasladarse al centro de efectivo por defecto del POS o al que elijas aquí.
         </p>
-        <div className="mt-4 max-w-md">
+        <div className="mt-4">
           {loadingHubs ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
               <DotProgress /> Cargando centros…
@@ -450,7 +500,7 @@ export default function CashClosingPageClient() {
             <p className="text-xs text-muted-foreground">No hay centros disponibles; se usará el default del POS.</p>
           ) : (
             <Select
-              label="Centro de acopio"
+              label="Centro de efectivo"
               placeholder="Selecciona…"
               options={hubOptions}
               value={hubId}
@@ -458,11 +508,6 @@ export default function CashClosingPageClient() {
             />
           )}
         </div>
-        {selectedHub ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            Saldo hub: <span className="tabular-nums">{currencyFmt.format(selectedHub.currentBalance)}</span>
-          </p>
-        ) : null}
       </section>
 
       <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
@@ -476,7 +521,7 @@ export default function CashClosingPageClient() {
         />
       </section>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex justify-end pt-1">
         <Button type="button" variant="primary" disabled={!canSubmitBlind} onClick={onSubmitBlind}>
           {isPending ? "Procesando…" : "Cerrar sesión y cuadrar"}
         </Button>

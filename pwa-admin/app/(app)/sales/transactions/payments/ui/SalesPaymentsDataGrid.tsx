@@ -1,16 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import Badge, { type BadgeVariant } from "@/shared/components/Badge/Badge";
 import {
-  SALES_PAYMENT_METHOD_LABEL,
   SALES_PAYMENT_STATUS_LABEL,
   type SalesPaymentMethod,
   type SalesPaymentRow,
   type SalesPaymentStatus,
 } from "@/features/sales-payments/types/sales-payment.types";
+import { formatSalePaymentMethodDisplay } from "@/features/sales-transactions/lib/format-sale-payment-method";
+import SaleTransactionDetailDialog from "../../ui/SaleTransactionDetailDialog";
 
 type SalesPaymentsDataGridProps = {
   rows: SalesPaymentRow[];
@@ -50,16 +51,55 @@ export default function SalesPaymentsDataGrid({
   rows,
   total,
 }: SalesPaymentsDataGridProps) {
+  const [saleDetailId, setSaleDetailId] = useState<string | null>(null);
+
+  const openSaleDetail = useCallback((saleId: string | null | undefined) => {
+    const id = saleId?.trim();
+    if (id) setSaleDetailId(id);
+  }, []);
+
   const columns: DataGridColumn[] = useMemo(
     () => [
       {
         field: "documentNumber",
-        headerName: "Folio",
+        headerName: "Folio pago",
         sortable: false,
-        minWidth: 140,
-        flex: 0.7,
+        minWidth: 120,
+        flex: 0.6,
         valueGetter: ({ row }) =>
           (row as SalesPaymentRow).documentNumber || "—",
+      },
+      {
+        field: "relatedSaleDocumentNumber",
+        headerName: "Venta ref.",
+        sortable: false,
+        minWidth: 130,
+        flex: 0.6,
+        valueGetter: ({ row }) => {
+          const r = row as SalesPaymentRow;
+          return r.relatedSaleDocumentNumber?.trim() || "—";
+        },
+        renderCell: ({ row }) => {
+          const r = row as SalesPaymentRow;
+          const folio = r.relatedSaleDocumentNumber?.trim();
+          const saleId = r.relatedSaleId?.trim();
+          if (!folio || !saleId) {
+            return <span className="text-muted-foreground">—</span>;
+          }
+          return (
+            <button
+              type="button"
+              className="font-mono text-sm text-primary underline-offset-2 hover:underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                openSaleDetail(saleId);
+              }}
+              data-test-id={`sales-payment-sale-ref-${saleId}`}
+            >
+              {folio}
+            </button>
+          );
+        },
       },
       {
         field: "createdAt",
@@ -89,8 +129,11 @@ export default function SalesPaymentsDataGrid({
         sortable: false,
         width: 140,
         valueGetter: ({ row }) => {
-          const m = (row as SalesPaymentRow).paymentMethod as SalesPaymentMethod;
-          return SALES_PAYMENT_METHOD_LABEL[m] ?? m;
+          const r = row as SalesPaymentRow;
+          return formatSalePaymentMethodDisplay(
+            r.paymentMethod,
+            r.paymentLinesCount,
+          );
         },
       },
       {
@@ -135,20 +178,27 @@ export default function SalesPaymentsDataGrid({
         },
       },
     ],
-    [],
+    [openSaleDetail],
   );
 
   return (
-    <DataGrid
-      columns={columns}
-      rows={rows}
-      totalRows={total}
-      totalGeneral={total}
-      height="85vh"
-      showExportButton={false}
-      showSortButton={false}
-      showFilterButton={false}
-      data-test-id="sales-payments-data-grid"
-    />
+    <>
+      <DataGrid
+        columns={columns}
+        rows={rows}
+        totalRows={total}
+        totalGeneral={total}
+        height="85vh"
+        showExportButton={false}
+        showSortButton={false}
+        showFilterButton={false}
+        data-test-id="sales-payments-data-grid"
+      />
+      <SaleTransactionDetailDialog
+        transactionId={saleDetailId}
+        open={saleDetailId != null}
+        onClose={() => setSaleDetailId(null)}
+      />
+    </>
   );
 }

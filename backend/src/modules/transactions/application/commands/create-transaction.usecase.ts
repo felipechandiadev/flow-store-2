@@ -16,6 +16,8 @@ import { AccountingPeriodsService } from '../../../accounting-periods/applicatio
 import { CreateTransactionDto } from '../dto/create-transaction.dto';
 import { DocumentNumberService } from '../document-number.service';
 import { VariantQuantityConversionService } from '@modules/product-variants/application/variant-quantity-conversion.service';
+import { getPaymentSnapshots } from '../payment-snapshots.util';
+import { PaymentMethod } from '../../domain/transaction.entity';
 
 export class CreateTransactionCommand {
   constructor(public readonly dto: CreateTransactionDto) {}
@@ -211,19 +213,22 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
           savedTx.transactionType === TransactionType.SALE &&
           savedTx.customerId
         ) {
-          const paymentDetails = Array.isArray(savedTx.metadata?.paymentDetails)
-            ? savedTx.metadata?.paymentDetails
-            : [];
+          const snapshots = getPaymentSnapshots(savedTx);
+          const internalCreditAmount = snapshots
+            .filter(
+              (s) =>
+                String(s.method).toUpperCase() ===
+                  PaymentMethod.INTERNAL_CREDIT ||
+                String(s.method).toUpperCase() === 'CREDIT',
+            )
+            .reduce((sum, s) => sum + Number(s.amount || 0), 0);
 
-          const creditPayment = paymentDetails.find(
-            (p) => p.method === 'CREDIT',
-          );
-          if (creditPayment && creditPayment.amount > 0) {
+          if (internalCreditAmount > 0) {
             const customerRepo = manager.getRepository(Customer);
             await customerRepo.increment(
               { id: savedTx.customerId },
               'currentBalance',
-              creditPayment.amount,
+              internalCreditAmount,
             );
           }
         }

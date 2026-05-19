@@ -25,6 +25,7 @@ import {
   listEffectivePromotionsAction,
   redeemPromotionCodeAction,
 } from "@/features/promotions/actions/promotions-pos.action";
+import { redirectToLoginIfUnauthorized } from "@/lib/auth/pos-api-failure";
 
 type PosCartContextValue = {
   ready: boolean;
@@ -364,9 +365,11 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       branchId: ctx.branchId,
       pointOfSaleId: ctx.pointOfSaleId,
     });
-    if (res.success) {
-      setEffectivePromotions(res.promotions);
+    if (!res.success) {
+      redirectToLoginIfUnauthorized(res);
+      return;
     }
+    setEffectivePromotions(res.promotions);
   }, []);
 
   useEffect(() => {
@@ -467,7 +470,10 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
         branchId: ctx.branchId,
         pointOfSaleId: ctx.pointOfSaleId,
       });
-      if (!res.success) return { ok: false, message: res.message };
+      if (!res.success) {
+        if (redirectToLoginIfUnauthorized(res)) return { ok: false };
+        return { ok: false, message: res.message };
+      }
       // Agrega al listado efectivo si no estaba.
       setEffectivePromotions((prev) =>
         prev.some((p) => p.id === res.promotion.id) ? prev : [...prev, res.promotion],

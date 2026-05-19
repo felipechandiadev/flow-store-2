@@ -12,12 +12,13 @@ import { printBackorderDocument } from "@/features/sales-transactions/print/back
 import { mapBackorderDetailToPrintData } from "@/features/sales-transactions/print/map-backorder-detail-to-print-data";
 import type { SaleTransactionDetail } from "@/features/sales-transactions/types/sale-transaction-detail.types";
 import {
-  SALES_PAYMENT_METHOD_LABEL,
   SALES_PAYMENT_STATUS_LABEL,
   type SalesPaymentMethod,
   type SalesPaymentStatus,
 } from "@/features/sales-payments/types/sales-payment.types";
-import { TRANSACTION_TYPE_OPTIONS } from "@/features/transactions/types/transaction-types";
+import { formatSalePaymentMethodDisplay } from "@/features/sales-transactions/lib/format-sale-payment-method";
+import SalePaymentsBreakdownTable from "@/features/sales-transactions/ui/SalePaymentsBreakdownTable";
+import { getTransactionTypeLabel } from "@/features/transactions/types/transaction-types";
 
 type Props = {
   transactionId: string | null;
@@ -45,11 +46,6 @@ function formatDateTime(iso: string | null | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function typeLabel(type: string): string {
-  const opt = TRANSACTION_TYPE_OPTIONS.find((o) => o.id === type);
-  return opt?.label ?? type;
 }
 
 const CREDIT_NOTE_USAGE_LABEL: Record<
@@ -129,7 +125,7 @@ export default function SaleTransactionDetailDialog({
       onClose={onClose}
       title={
         detail
-          ? `${typeLabel(detail.transactionType)} ${detail.documentNumber || ""}`.trim()
+          ? `${getTransactionTypeLabel(detail.transactionType)} ${detail.documentNumber || ""}`.trim()
           : "Detalle de transacción"
       }
       size="xl"
@@ -170,7 +166,7 @@ export default function SaleTransactionDetailDialog({
         {detail && !loading ? (
           <>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary-outlined">{typeLabel(detail.transactionType)}</Badge>
+              <Badge variant="secondary-outlined">{getTransactionTypeLabel(detail.transactionType)}</Badge>
               <Badge variant="info-outlined">
                 {SALES_PAYMENT_STATUS_LABEL[status] ?? detail.status}
               </Badge>
@@ -201,7 +197,10 @@ export default function SaleTransactionDetailDialog({
               <div>
                 <dt className="text-muted-foreground">Medio de pago</dt>
                 <dd className="font-medium">
-                  {SALES_PAYMENT_METHOD_LABEL[paymentMethod] ?? detail.paymentMethod}
+                  {formatSalePaymentMethodDisplay(
+                    detail.paymentMethod,
+                    detail.payments.length,
+                  )}
                 </dd>
               </div>
               <div>
@@ -209,6 +208,10 @@ export default function SaleTransactionDetailDialog({
                 <dd className="font-medium">{detail.externalReference ?? "—"}</dd>
               </div>
             </dl>
+
+            {detail.payments.length > 0 ? (
+              <SalePaymentsBreakdownTable payments={detail.payments} />
+            ) : null}
 
             {detail.notes ? (
               <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">

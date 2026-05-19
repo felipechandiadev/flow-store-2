@@ -11,4 +11,5 @@ export interface CashSessionMovementRow {
   userUserName: string | null;
   direction: CashSessionMovementDirection;
   notes: string | null;
+  relatedTransactionId?: string | null;
 }

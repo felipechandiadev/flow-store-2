@@ -37,6 +37,7 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
     qb.leftJoinAndSelect('shareholder.person', 'shareholderPerson');
     qb.leftJoinAndSelect('tx.pointOfSale', 'pos');
     qb.leftJoinAndSelect('tx.cashSession', 'cashSession');
+    qb.leftJoinAndSelect('tx.relatedTransaction', 'relatedTransaction');
 
     // Apply filters (lista tiene prioridad sobre type simple)
     const allowedTypes = new Set<string>(Object.values(TransactionType));

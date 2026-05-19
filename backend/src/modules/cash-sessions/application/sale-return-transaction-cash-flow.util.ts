@@ -2,6 +2,7 @@ import {
   PaymentMethod,
   TransactionType,
 } from '@modules/transactions/domain/transaction.entity';
+import { getPaymentSnapshots } from '@modules/transactions/application/payment-snapshots.util';
 
 type SaleReturnTxLike = {
   transactionType: TransactionType;
@@ -28,16 +29,8 @@ export function isImmediateSaleReturnRefund(tx: SaleReturnTxLike): boolean {
   const mode = getSaleReturnRefundMode(tx.metadata);
   if (mode === 'document') return false;
   if (mode === 'immediate') return true;
-  const meta = tx.metadata;
-  const rawSnaps =
-    meta &&
-    typeof meta === 'object' &&
-    Array.isArray((meta as { paymentSnapshots?: unknown }).paymentSnapshots)
-      ? ((meta as { paymentSnapshots: unknown[] }).paymentSnapshots as Array<
-          Record<string, unknown>
-        >)
-      : null;
-  if (rawSnaps && rawSnaps.some((s) => (Number(s.amount) || 0) > 0)) return true;
+  const snapshots = getPaymentSnapshots(tx);
+  if (snapshots.some((s) => (Number(s.amount) || 0) > 0)) return true;
   return (Number(tx.amountPaid) || 0) > 0;
 }
 
@@ -57,18 +50,10 @@ export function saleReturnTransactionCashFlows(tx: SaleReturnTxLike): {
   }
 
   let cashOut = 0;
-  const meta = tx.metadata;
-  const rawSnaps =
-    meta &&
-    typeof meta === 'object' &&
-    Array.isArray((meta as { paymentSnapshots?: unknown }).paymentSnapshots)
-      ? ((meta as { paymentSnapshots: unknown[] }).paymentSnapshots as Array<
-          Record<string, unknown>
-        >)
-      : null;
+  const snapshots = getPaymentSnapshots(tx);
 
-  if (rawSnaps && rawSnaps.length > 0) {
-    for (const s of rawSnaps) {
+  if (snapshots.length > 0) {
+    for (const s of snapshots) {
       const m = String(s.method ?? '').toUpperCase();
       if (m === 'CASH') {
         cashOut += Math.max(0, Number(s.amount) || 0);

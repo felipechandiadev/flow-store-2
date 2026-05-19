@@ -1,4 +1,8 @@
 import type { TreasuryBankMovementApiRow } from "@/features/treasury-bank-operations/infrastructure/treasury-bank-movements.request";
+import {
+  getTransactionStatusLabel,
+  getTransactionTypeLabel,
+} from "@/features/transactions/types/transaction-types";
 
 export type TreasuryMovementGridRow = {
   id: string;
@@ -43,7 +47,9 @@ export function mapApiTxToMovementGridRow(tx: TreasuryBankMovementApiRow): Treas
     created && !Number.isNaN(created.getTime())
       ? new Intl.DateTimeFormat("es-CL", { dateStyle: "short", timeStyle: "short" }).format(created)
       : "—";
-  const tipo = String(tx.transactionType ?? "—");
+  const tipo = getTransactionTypeLabel(
+    tx.transactionType != null ? String(tx.transactionType) : null,
+  );
   const documento = String(tx.documentNumber ?? tx.documentFolio ?? "—");
   const totalNum = Number(tx.total ?? 0);
   const total = new Intl.NumberFormat("es-CL", {
@@ -51,7 +57,9 @@ export function mapApiTxToMovementGridRow(tx: TreasuryBankMovementApiRow): Treas
     currency: "CLP",
     maximumFractionDigits: 0,
   }).format(Number.isFinite(totalNum) ? totalNum : 0);
-  const estado = String(tx.status ?? "—");
+  const estado = getTransactionStatusLabel(
+    tx.status != null ? String(tx.status) : null,
+  );
   return {
     id,
     fecha,

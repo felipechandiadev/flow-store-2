@@ -192,6 +192,10 @@ export enum PaymentMethod {
   CUSTOMER_CREDIT_NOTE = 'CUSTOMER_CREDIT_NOTE',
   /** Anticipo de cliente por encargo / pedido especial. */
   ORDER_ADVANCE = 'ORDER_ADVANCE',
+  /**
+   * @deprecated Histórico en BD. Pagos múltiples se expresan en `metadata.payments[]`;
+   * la columna `paymentMethod` guarda el medio representativo (mayor monto).
+   */
   MIXED = 'MIXED',
 }
 

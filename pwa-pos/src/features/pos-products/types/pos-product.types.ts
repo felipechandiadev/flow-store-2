@@ -46,4 +46,4 @@ export type PosProductSearchResponse =
       pagination: PosProductSearchPagination;
       products: PosProductSearchItem[];
     }
-  | { success: false; message: string };
+  | { success: false; message: string; statusCode?: number };

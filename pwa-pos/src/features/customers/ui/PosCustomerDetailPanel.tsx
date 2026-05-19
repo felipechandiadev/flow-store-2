@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Alert } from "@/shared/admin-shared";
 import { Badge } from "@/shared/components/Badge";
 import { getCustomerPosDetailBundleAction } from "@/features/customers/actions/customers-pos.action";
@@ -22,28 +22,6 @@ import {
   formatCustomerDateTime,
 } from "@/features/customers/lib/pos-customer-detail-format";
 
-export type PosCustomerDetailSectionId =
-  | "summary"
-  | "credit"
-  | "purchases"
-  | "payments"
-  | "returns"
-  | "creditNotes"
-  | "quotas";
-
-const NAV_ITEMS: { id: PosCustomerDetailSectionId; label: string }[] = [
-  { id: "summary", label: "Resumen" },
-  { id: "credit", label: "Crédito" },
-  { id: "purchases", label: "Compras" },
-  { id: "payments", label: "Pagos" },
-  { id: "returns", label: "Devoluciones" },
-  { id: "creditNotes", label: "Notas de crédito" },
-  { id: "quotas", label: "Cuotas pendientes" },
-];
-
-const NAV_BTN =
-  "w-full cursor-pointer rounded-md px-3 py-2 text-left text-sm font-medium transition-colors";
-
 type Props = {
   customerId: string | null;
   initialBundle: PosCustomerDetailBundle | null;
@@ -60,6 +38,26 @@ function DetailField({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SectionCard({
+  title,
+  children,
+  testId,
+}: {
+  title: string;
+  children: ReactNode;
+  testId?: string;
+}) {
+  return (
+    <section
+      className="rounded-xl border border-border bg-background p-4 shadow-sm"
+      data-test-id={testId}
+    >
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
 function EmptyTableMsg({ children }: { children: string }) {
   return <p className="text-sm text-muted-foreground">{children}</p>;
 }
@@ -70,26 +68,25 @@ function refundModeLabel(mode: string | null): string {
   return "—";
 }
 
+function panelShell(className: string, children: ReactNode, testId?: string) {
+  return (
+    <article
+      className={`w-full min-w-0 rounded-xl border border-border bg-background p-4 shadow-sm ${className}`}
+      data-test-id={testId}
+    >
+      {children}
+    </article>
+  );
+}
+
 export default function PosCustomerDetailPanel({
   customerId,
   initialBundle,
   invalidId,
   internalCreditEnabled = false,
 }: Props) {
-  const [section, setSection] = useState<PosCustomerDetailSectionId>("summary");
   const [bundle, setBundle] = useState<PosCustomerDetailBundle | null>(initialBundle);
   const [loading, setLoading] = useState(false);
-
-  const navItems = useMemo(() => {
-    if (internalCreditEnabled) return NAV_ITEMS;
-    return NAV_ITEMS.filter((i) => i.id !== "credit" && i.id !== "quotas");
-  }, [internalCreditEnabled]);
-
-  useEffect(() => {
-    if (!internalCreditEnabled && (section === "credit" || section === "quotas")) {
-      setSection("summary");
-    }
-  }, [internalCreditEnabled, section]);
 
   useEffect(() => {
     const id = customerId?.trim();
@@ -122,55 +119,49 @@ export default function PosCustomerDetailPanel({
   }, [customerId, invalidId, initialBundle]);
 
   if (invalidId) {
-    return (
-      <aside
-        className="flex min-h-[min(48vh,520px)] w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-sm md:min-h-[76vh]"
-        data-test-id="pos-customer-detail-panel"
-      >
+    return panelShell(
+      "",
+      <>
         <h2 className="text-sm font-semibold text-foreground">Ficha del cliente</h2>
-        <Alert variant="error" className="text-sm">
+        <Alert variant="error" className="mt-3 text-sm">
           El identificador en la URL no es válido.
         </Alert>
-      </aside>
+      </>,
+      "pos-customer-detail-panel",
     );
   }
 
   if (!customerId?.trim()) {
-    return (
-      <aside
-        className="flex min-h-[min(48vh,520px)] md:min-h-[76vh] w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-sm"
-        data-test-id="pos-customer-detail-panel-empty"
-      >
+    return panelShell(
+      "",
+      <>
         <h2 className="text-sm font-semibold text-foreground">Ficha del cliente</h2>
-        <p className="text-sm text-muted-foreground">
-          Busca y elige un cliente en el panel izquierdo para ver su ficha completa.
+        <p className="mt-2 text-sm text-muted-foreground">
+          Busca y elige un cliente arriba para ver su ficha completa.
         </p>
-      </aside>
+      </>,
+      "pos-customer-detail-panel-empty",
     );
   }
 
   if (loading && (!bundle || !bundle.success)) {
-    return (
-      <aside
-        className="flex min-h-[min(48vh,520px)] md:min-h-[76vh] w-full min-w-0 items-center justify-center rounded-xl border border-border bg-background p-4 shadow-sm"
-        data-test-id="pos-customer-detail-panel-loading"
-      >
-        <p className="text-sm text-muted-foreground">Cargando ficha del cliente…</p>
-      </aside>
+    return panelShell(
+      "flex items-center justify-center py-12",
+      <p className="text-sm text-muted-foreground">Cargando ficha del cliente…</p>,
+      "pos-customer-detail-panel-loading",
     );
   }
 
   if (!bundle || !bundle.success) {
-    return (
-      <aside
-        className="flex min-h-[min(48vh,520px)] md:min-h-[76vh] w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-sm"
-        data-test-id="pos-customer-detail-panel-error"
-      >
+    return panelShell(
+      "",
+      <>
         <h2 className="text-sm font-semibold text-foreground">Ficha del cliente</h2>
-        <Alert variant="error" className="text-sm">
+        <Alert variant="error" className="mt-3 text-sm">
           {bundle && !bundle.success ? bundle.message : "No se pudo cargar el cliente."}
         </Alert>
-      </aside>
+      </>,
+      "pos-customer-detail-panel-error",
     );
   }
 
@@ -178,69 +169,50 @@ export default function PosCustomerDetailPanel({
   const { payments, quotas, purchases, returns, creditNotes } = bundle;
 
   return (
-    <aside
-      className="flex min-h-[min(48vh,520px)] md:min-h-[76vh] w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm"
-      data-test-id="pos-customer-detail-panel"
-    >
-      <header className="shrink-0 border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold text-foreground">Ficha del cliente</h2>
-        <p className="mt-1 text-lg font-semibold tracking-tight text-foreground">
-          {customer.displayName}
-        </p>
+    <article className="w-full min-w-0 space-y-4" data-test-id="pos-customer-detail-panel">
+      <header className="rounded-xl border border-border bg-background px-4 py-4 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ficha del cliente</p>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground">{customer.displayName}</h2>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Badge variant={customer.isActive ? "success-outlined" : "secondary-outlined"}>
             {customer.isActive ? "Activo" : "Inactivo"}
           </Badge>
-          {loading ? (
-            <span className="text-xs text-muted-foreground">Actualizando…</span>
-          ) : null}
+          {loading ? <span className="text-xs text-muted-foreground">Actualizando…</span> : null}
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
-        <nav
-          className="flex shrink-0 flex-row gap-1 overflow-x-auto border-b border-border bg-muted/20 p-2 sm:w-44 sm:flex-col sm:border-b-0 sm:border-r sm:p-3"
-          aria-label="Secciones de la ficha"
-        >
-          {navItems.map((item) => {
-            const active = section === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={[
-                  NAV_BTN,
-                  active
-                    ? "border-l-2 border-secondary bg-background text-foreground shadow-sm"
-                    : "border-l-2 border-transparent text-muted-foreground hover:bg-background/80",
-                ].join(" ")}
-                aria-current={active ? "true" : undefined}
-                onClick={() => setSection(item.id)}
-                data-test-id={`pos-customer-detail-nav-${item.id}`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
+      <SectionCard title="Datos de contacto" testId="pos-customer-detail-summary">
+        <SummarySection customer={customer} />
+      </SectionCard>
 
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
-          {section === "summary" ? (
-            <SummarySection customer={customer} />
-          ) : null}
-          {section === "credit" && internalCreditEnabled ? (
-            <CreditSection customer={customer} />
-          ) : null}
-          {section === "purchases" ? <PurchasesSection rows={purchases} /> : null}
-          {section === "payments" ? <PaymentsSection rows={payments} /> : null}
-          {section === "returns" ? <ReturnsSection rows={returns} /> : null}
-          {section === "creditNotes" ? <CreditNotesSection rows={creditNotes} /> : null}
-          {section === "quotas" && internalCreditEnabled ? (
-            <QuotasSection rows={quotas} />
-          ) : null}
-        </div>
-      </div>
-    </aside>
+      {internalCreditEnabled ? (
+        <SectionCard title="Crédito" testId="pos-customer-detail-credit">
+          <CreditSection customer={customer} />
+        </SectionCard>
+      ) : null}
+
+      {internalCreditEnabled ? (
+        <SectionCard title="Cuotas pendientes" testId="pos-customer-detail-quotas">
+          <QuotasSection rows={quotas} />
+        </SectionCard>
+      ) : null}
+
+      <SectionCard title="Compras" testId="pos-customer-detail-purchases">
+        <PurchasesSection rows={purchases} />
+      </SectionCard>
+
+      <SectionCard title="Pagos y cobros" testId="pos-customer-detail-payments">
+        <PaymentsSection rows={payments} />
+      </SectionCard>
+
+      <SectionCard title="Devoluciones" testId="pos-customer-detail-returns">
+        <ReturnsSection rows={returns} />
+      </SectionCard>
+
+      <SectionCard title="Notas de crédito" testId="pos-customer-detail-credit-notes">
+        <CreditNotesSection rows={creditNotes} />
+      </SectionCard>
+    </article>
   );
 }
 
@@ -253,7 +225,7 @@ function SummarySection({ customer }: { customer: PosCustomerDetail }) {
     .join(" ");
 
   return (
-    <section className="space-y-4" data-test-id="pos-customer-detail-summary">
+    <div className="space-y-4">
       <dl className="grid gap-3 sm:grid-cols-2">
         <DetailField label="Documento" value={docLine} />
         <DetailField label="Teléfono" value={customer.phone ?? ""} />
@@ -268,27 +240,25 @@ function SummarySection({ customer }: { customer: PosCustomerDetail }) {
           <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{customer.notes.trim()}</p>
         </div>
       ) : null}
-    </section>
+    </div>
   );
 }
 
 function CreditSection({ customer }: { customer: PosCustomerDetail }) {
   return (
-    <section data-test-id="pos-customer-detail-credit">
-      <dl className="grid gap-3 sm:grid-cols-2">
-        <DetailField label="Límite de crédito" value={fmtClp(customer.creditLimit)} />
-        <DetailField label="Utilizado" value={fmtClp(customer.usedCredit)} />
-        <DetailField label="Disponible" value={fmtClp(customer.availableCredit)} />
-        <DetailField
-          label="Día de pago"
-          value={
-            customer.paymentDayOfMonth != null && Number.isFinite(customer.paymentDayOfMonth)
-              ? String(customer.paymentDayOfMonth)
-              : ""
-          }
-        />
-      </dl>
-    </section>
+    <dl className="grid gap-3 sm:grid-cols-2">
+      <DetailField label="Límite de crédito" value={fmtClp(customer.creditLimit)} />
+      <DetailField label="Utilizado" value={fmtClp(customer.usedCredit)} />
+      <DetailField label="Disponible" value={fmtClp(customer.availableCredit)} />
+      <DetailField
+        label="Día de pago"
+        value={
+          customer.paymentDayOfMonth != null && Number.isFinite(customer.paymentDayOfMonth)
+            ? String(customer.paymentDayOfMonth)
+            : ""
+        }
+      />
+    </dl>
   );
 }
 
@@ -298,7 +268,6 @@ function PurchasesSection({ rows }: { rows: PosCustomerPurchaseRow[] }) {
   }
   return (
     <DataTable
-      testId="pos-customer-detail-purchases"
       headers={["Folio", "Tipo", "Estado", "Total", "Fecha"]}
       rows={rows.map((r) => {
         const typeKey = r.transactionType ?? "";
@@ -320,7 +289,6 @@ function PaymentsSection({ rows }: { rows: PosCustomerPaymentRow[] }) {
   }
   return (
     <DataTable
-      testId="pos-customer-detail-payments"
       headers={["Folio", "Tipo", "Estado", "Medio", "Monto", "Fecha"]}
       rows={rows.map((r) => {
         const typeKey = r.type ?? "";
@@ -342,7 +310,7 @@ function ReturnsSection({ rows }: { rows: PosCustomerReturnRow[] }) {
     return <EmptyTableMsg>No hay devoluciones registradas.</EmptyTableMsg>;
   }
   return (
-    <div className="overflow-auto rounded-lg border border-border" data-test-id="pos-customer-detail-returns">
+    <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[640px] border-collapse text-xs">
         <thead>
           <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-semibold uppercase text-muted-foreground">
@@ -386,10 +354,7 @@ function CreditNotesSection({ rows }: { rows: PosCustomerCreditNoteRow[] }) {
     return <EmptyTableMsg>No hay notas de crédito registradas.</EmptyTableMsg>;
   }
   return (
-    <div
-      className="overflow-auto rounded-lg border border-border"
-      data-test-id="pos-customer-detail-credit-notes"
-    >
+    <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[560px] border-collapse text-xs">
         <thead>
           <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-semibold uppercase text-muted-foreground">
@@ -432,7 +397,6 @@ function QuotasSection({ rows }: { rows: PosCustomerQuotaRow[] }) {
   }
   return (
     <DataTable
-      testId="pos-customer-detail-quotas"
       headers={["Documento", "Vencimiento", "Monto"]}
       rows={rows.map((q) => [
         q.documentNumber ?? q.transactionId ?? "—",
@@ -443,17 +407,9 @@ function QuotasSection({ rows }: { rows: PosCustomerQuotaRow[] }) {
   );
 }
 
-function DataTable({
-  testId,
-  headers,
-  rows,
-}: {
-  testId: string;
-  headers: string[];
-  rows: string[][];
-}) {
+function DataTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
   return (
-    <div className="overflow-auto rounded-lg border border-border" data-test-id={testId}>
+    <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[480px] border-collapse text-xs">
         <thead>
           <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-semibold uppercase text-muted-foreground">

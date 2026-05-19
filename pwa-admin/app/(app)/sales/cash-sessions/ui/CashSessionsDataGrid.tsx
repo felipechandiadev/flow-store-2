@@ -63,10 +63,10 @@ export default function CashSessionsDataGrid({
           data-test-id={`cash-sessions-row-actions-${r.id}`}
         >
           <IconButton
-            icon="ScrollText"
+            icon="MoreHorizontal"
             variant="basicSecondary"
             size="sm"
-            ariaLabel="Ver transacciones de la sesión"
+            ariaLabel="Ver movimientos de la sesión"
             onClick={() => openTransactions(r)}
             data-test-id={`cash-sessions-row-transactions-${r.id}`}
           />
@@ -150,6 +150,15 @@ export default function CashSessionsDataGrid({
         align: "right",
         valueGetter: ({ row }) =>
           formatMoney((row as CashSessionListRow).closingAmount),
+      },
+      {
+        field: "salesTotal",
+        headerName: "Total ventas ($)",
+        sortable: false,
+        width: 140,
+        align: "right",
+        valueGetter: ({ row }) =>
+          formatMoney((row as CashSessionListRow).salesTotal),
       },
       {
         field: "difference",

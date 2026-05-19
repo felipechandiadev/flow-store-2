@@ -33,8 +33,13 @@ import { VariantQuantityConversionService } from '@modules/product-variants/appl
 import { GetCashSessionsDto } from './dto/get-cash-sessions.dto';
 import { OpenCashSessionDto } from './dto/open-cash-session.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
-import { saleTransactionCashFlows } from './sale-transaction-cash-flow.util';
-import { saleReturnTransactionCashFlows } from './sale-return-transaction-cash-flow.util';
+import { computeCashSessionExpectedAmount } from './cash-session-expected-amount.util';
+import {
+  buildPaymentSnapshotsFromSalePayments,
+  buildPaymentsMetadataFields,
+  getRepresentativePaymentMethod,
+  type SalePaymentInput,
+} from '@modules/transactions/application/payment-snapshots.util';
 
 @Injectable()
 export class CashSessionsService {
@@ -400,28 +405,32 @@ export class CashSessionsService {
 
     const paymentsUsed = paymentsForSale ?? [];
 
-    // Determinar método de pago final.
-    // Cuando hay múltiples pagos, el sistema infiere "mixto" leyendo
-    // `metadata.paymentSnapshots.length > 1` (o `metadata.mixedPayments`),
-    // por lo que NO se asigna `paymentMethod = MIXED`. En la columna
-    // `paymentMethod` se guarda el medio del pago de mayor monto
-    // (o el primero si todos son iguales) para que reportes/asientos
-    // tengan un valor representativo.
-    let finalPaymentMethod = paymentMethod;
-    let paymentDetails: typeof payments | undefined;
-    const isMixedPayment = paymentsUsed.length > 1;
-
-    if (paymentsUsed.length > 1) {
-      const dominant = [...paymentsUsed].sort(
-        (a, b) => Number(b.amount ?? 0) - Number(a.amount ?? 0),
-      )[0];
-      finalPaymentMethod =
-        dominant?.paymentMethod ?? paymentsUsed[0].paymentMethod;
-      paymentDetails = paymentsUsed;
-    } else if (paymentsUsed.length === 1) {
-      finalPaymentMethod = paymentsUsed[0].paymentMethod;
-      paymentDetails = paymentsUsed;
+    if (paymentsUsed.length === 0 && !paymentMethod?.trim()) {
+      throw new BadRequestException(
+        'Debes enviar paymentMethod o al menos un pago con monto > 0 en payments.',
+      );
     }
+
+    const salePaymentInputs: SalePaymentInput[] = paymentsUsed.map((p) => ({
+      paymentMethod: p.paymentMethod,
+      amount: Number(p.amount) || 0,
+      companyPaymentMethodId: (p as { companyPaymentMethodId?: string })
+        .companyPaymentMethodId,
+      bankAccountId: p.bankAccountId,
+      reference: (p as { reference?: string }).reference,
+      checkData: (p as { checkData?: Record<string, unknown> }).checkData,
+    }));
+    const paymentSnapshots = buildPaymentSnapshotsFromSalePayments(
+      salePaymentInputs,
+      [],
+    );
+    const finalPaymentMethod: string =
+      paymentsUsed.length > 0
+        ? getRepresentativePaymentMethod(
+            paymentSnapshots,
+            paymentMethod ?? PaymentMethod.CASH,
+          )
+        : paymentMethod!.trim();
 
     // Parsear método de pago
     const paymentMethodEnum = this.parsePaymentMethod(finalPaymentMethod);
@@ -602,9 +611,7 @@ export class CashSessionsService {
         notes: notes || undefined,
         metadata: {
           ...(metadata || {}),
-          ...(isMixedPayment && paymentDetails
-            ? { mixedPayments: paymentDetails, isMixedPayment: true }
-            : {}),
+          ...buildPaymentsMetadataFields(paymentSnapshots),
         },
       };
 
@@ -693,16 +700,17 @@ export class CashSessionsService {
         );
       }
 
-      // Update cash session expected amount for change (cash outflow)
-      if (changeAmount && changeAmount > 0) {
-        const prev =
-          cashSession.expectedAmount ?? cashSession.openingAmount ?? 0;
-        cashSession.expectedAmount = Number(prev) - Number(changeAmount);
-        await manager.getRepository(CashSession).save(cashSession);
-      }
-
-      // Nota: El recálculo completo del expectedAmount se hace en el servicio de pagos
-      // después de procesar todos los pagos de la venta
+      const sessionTxs = await manager.getRepository(Transaction).find({
+        where: {
+          cashSessionId: cashSession.id,
+          status: TransactionStatus.CONFIRMED,
+        },
+      });
+      cashSession.expectedAmount = computeCashSessionExpectedAmount(
+        Number(cashSession.openingAmount) || 0,
+        sessionTxs,
+      );
+      await manager.getRepository(CashSession).save(cashSession);
 
       return {
         success: true,
@@ -1050,53 +1058,9 @@ export class CashSessionsService {
         status: TransactionStatus.CONFIRMED,
       },
     });
-
-    let cashIn = 0;
-    let cashOut = 0;
-
-    for (const tx of transactions) {
-      const total = Number(tx.total) || 0;
-      const amountPaid = Number(tx.amountPaid) || 0;
-      const changeAmount = Number(tx.changeAmount) || 0;
-
-      switch (tx.transactionType) {
-        case TransactionType.CASH_SESSION_OPENING:
-        case TransactionType.CASH_SESSION_DEPOSIT:
-          // Entradas de efectivo
-          cashIn += total;
-          break;
-        case TransactionType.PAYMENT_IN:
-          // Pagos recibidos en efectivo
-          if (tx.paymentMethod === PaymentMethod.CASH) {
-            cashIn += total;
-          }
-          break;
-        case TransactionType.SALE: {
-          const { cashIn: saleIn, cashOut: saleOut } =
-            saleTransactionCashFlows(tx);
-          cashIn += saleIn;
-          cashOut += saleOut;
-          break;
-        }
-        case TransactionType.CASH_SESSION_WITHDRAWAL:
-        case TransactionType.CASH_SESSION_TO_HUB_TRANSFER:
-        case TransactionType.OPERATING_EXPENSE:
-        case TransactionType.SUPPLIER_PAYMENT:
-        case TransactionType.PAYROLL_PAYMENT:
-        case TransactionType.EXPENSE_PAYMENT:
-        case TransactionType.BANK_TO_CASH_TRANSFER:
-        case TransactionType.SALE_RETURN: {
-          const { cashOut: returnOut } = saleReturnTransactionCashFlows(tx);
-          cashOut += returnOut;
-          break;
-        }
-        default:
-          break;
-      }
-    }
-
-    const opening = Number(cashSession.openingAmount) || 0;
-    const expected = opening + cashIn - cashOut;
-    return Number(expected.toFixed(2));
+    return computeCashSessionExpectedAmount(
+      Number(cashSession.openingAmount) || 0,
+      transactions,
+    );
   }
 }

@@ -49,11 +49,11 @@ export class ProductsPosRequest {
           (typeof data?.message === "string" && data.message) ||
           (Array.isArray(data?.message) ? (data.message as string[]).join("; ") : null) ||
           `HTTP ${res.status}`;
-        return { success: false, message: String(msg) };
+        return { success: false, message: String(msg), statusCode: res.status };
       }
 
       if (data?.success !== true) {
-        return { success: false, message: "Respuesta inválida del servidor" };
+        return { success: false, message: "Respuesta inválida del servidor", statusCode: res.status };
       }
 
       return data as unknown as PosProductSearchResponse;
@@ -75,7 +75,7 @@ export class ProductsPosRequest {
         availableStock: number | null;
         availableStockBase: number | null;
       }
-    | { success: false; message: string }
+    | { success: false; message: string; statusCode?: number }
   > {
     const base = process.env.BACKEND_API_URL;
     if (!base) {
@@ -108,10 +108,10 @@ export class ProductsPosRequest {
           (typeof data?.message === "string" && data.message) ||
           (Array.isArray(data?.message) ? (data.message as string[]).join("; ") : null) ||
           `HTTP ${res.status}`;
-        return { success: false, message: String(msg) };
+        return { success: false, message: String(msg), statusCode: res.status };
       }
       if (data?.success !== true) {
-        return { success: false, message: "Respuesta inválida del servidor" };
+        return { success: false, message: "Respuesta inválida del servidor", statusCode: res.status };
       }
       return {
         success: true,

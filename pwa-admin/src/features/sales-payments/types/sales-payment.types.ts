@@ -16,8 +16,7 @@ export type SalesPaymentMethod =
   | "TRANSFER"
   | "CHECK"
   | "CREDIT"
-  | "INTERNAL_CREDIT"
-  | "MIXED";
+  | "INTERNAL_CREDIT";
 
 export interface SalesPaymentRow {
   id: string;
@@ -36,8 +35,12 @@ export interface SalesPaymentRow {
   amountPaid: number;
   currency: string;
   paymentMethod: SalesPaymentMethod;
+  paymentLinesCount: number;
   status: SalesPaymentStatus;
   relatedTransactionId: string | null;
+  /** Venta (SALE) que originó el cobro, si `relatedTransactionId` apunta a una venta. */
+  relatedSaleId: string | null;
+  relatedSaleDocumentNumber: string | null;
   notes: string | null;
   createdAt: string;
 }
@@ -69,5 +72,4 @@ export const SALES_PAYMENT_METHOD_LABEL: Record<SalesPaymentMethod, string> = {
   CHECK: "Cheque",
   CREDIT: "Crédito",
   INTERNAL_CREDIT: "Crédito interno",
-  MIXED: "Mixto",
 };

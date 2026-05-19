@@ -2,8 +2,11 @@
 //! Solo en Unix: `lsof` + `SIGTERM` a procesos cuya línea de comando parece este binario.
 //! En Windows no hace nada (ampliar con netstat si hace falta).
 
+#[cfg(unix)]
 use std::collections::HashSet;
+#[cfg(unix)]
 use std::process::Command;
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 use crate::db::Db;

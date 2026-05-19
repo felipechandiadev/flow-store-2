@@ -6,6 +6,7 @@ import type {
   SalesPaymentStatus,
   SalesPaymentsListResult,
 } from "../types/sales-payment.types";
+import { countPaymentSnapshotsFromMetadata } from "@/features/sales-transactions/lib/format-sale-payment-method";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -88,6 +89,28 @@ function normalizeRow(raw: unknown): SalesPaymentRow | null {
   const customer = o.customer as Record<string, unknown> | null | undefined;
   const branch = o.branch as Record<string, unknown> | null | undefined;
   const pos = o.pointOfSale as Record<string, unknown> | null | undefined;
+  const meta =
+    o.metadata && typeof o.metadata === "object"
+      ? (o.metadata as Record<string, unknown>)
+      : null;
+  const relatedTx = o.relatedTransaction as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const relatedTransactionId =
+    typeof o.relatedTransactionId === "string" && o.relatedTransactionId.trim()
+      ? o.relatedTransactionId.trim()
+      : null;
+  const relatedSaleId =
+    relatedTx && typeof relatedTx.id === "string" && relatedTx.id.trim()
+      ? relatedTx.id.trim()
+      : relatedTransactionId;
+  const relatedSaleDocumentNumber =
+    relatedTx &&
+    typeof relatedTx.documentNumber === "string" &&
+    relatedTx.documentNumber.trim()
+      ? relatedTx.documentNumber.trim()
+      : null;
   return {
     id,
     documentNumber:
@@ -126,11 +149,11 @@ function normalizeRow(raw: unknown): SalesPaymentRow | null {
     amountPaid: toNumber(o.amountPaid),
     currency: typeof o.currency === "string" && o.currency ? o.currency : "CLP",
     paymentMethod: (o.paymentMethod as SalesPaymentMethod) ?? "CASH",
+    paymentLinesCount: countPaymentSnapshotsFromMetadata(meta),
     status: (o.status as SalesPaymentStatus) ?? "CONFIRMED",
-    relatedTransactionId:
-      typeof o.relatedTransactionId === "string" && o.relatedTransactionId.trim()
-        ? o.relatedTransactionId
-        : null,
+    relatedTransactionId,
+    relatedSaleId,
+    relatedSaleDocumentNumber,
     notes: typeof o.notes === "string" && o.notes.trim() ? o.notes : null,
     createdAt: typeof o.createdAt === "string" ? o.createdAt : "",
   };

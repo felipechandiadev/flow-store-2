@@ -21,7 +21,7 @@ import { TextField } from "@/shared/components/TextField/TextField";
 import Select from "@/shared/components/Select/Select";
 import type { Option } from "@/shared/components/Select";
 import TreasuryCashMovementsGrid from "./TreasuryCashMovementsGrid";
-import type { TreasuryMovementGridRow } from "../bank/treasury-movements-mapper";
+import type { TreasuryCashMovementGridRow } from "./treasury-cash-hub-movements-mapper";
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat("es-CL", {
@@ -52,7 +52,7 @@ type Props = {
   company: CompanyDetails | null;
   hubs: CashHubRow[];
   selectedCashHubId: string | null;
-  movementRows: TreasuryMovementGridRow[];
+  movementRows: TreasuryCashMovementGridRow[];
   movementsTotal: number;
   branches: BranchListItem[];
   pointsOfSale: PointOfSaleListItem[];
@@ -491,9 +491,12 @@ export default function TreasuryCashTabContent({
           />
           <TextField
             label="Monto"
+            type="currency"
+            currencySymbol="$"
+            startSymbol="$"
             value={amountStr}
             onChange={(e) => setAmountStr(e.target.value)}
-            inputMode="numeric"
+            required
           />
           <TextField label="Notas (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
@@ -529,9 +532,12 @@ export default function TreasuryCashTabContent({
           />
           <TextField
             label="Monto"
+            type="currency"
+            currencySymbol="$"
+            startSymbol="$"
             value={amountStr}
             onChange={(e) => setAmountStr(e.target.value)}
-            inputMode="numeric"
+            required
           />
           <TextField label="Notas (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>

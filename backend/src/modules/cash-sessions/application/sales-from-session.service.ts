@@ -12,6 +12,7 @@ import {
   TransactionType,
   TransactionStatus,
   PaymentMethod,
+  PaymentStatus,
 } from '@modules/transactions/domain/transaction.entity';
 import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
 import {
@@ -42,6 +43,13 @@ import { Storage } from '@modules/storages/domain/storage.entity';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { CustomerPaymentSourcesService } from '@modules/customers/application/customer-payment-sources.service';
 import { StockCommitmentService } from '@modules/stock-levels/application/stock-commitment.service';
+import { computeCashSessionExpectedAmount } from './cash-session-expected-amount.util';
+import {
+  buildPaymentSnapshotsFromSalePayments,
+  buildPaymentsMetadataFields,
+  getRepresentativePaymentMethod,
+  type SalePaymentInput,
+} from '@modules/transactions/application/payment-snapshots.util';
 
 type PosCommercialRegisterConfig = {
   transactionType:
@@ -502,25 +510,39 @@ export class SalesFromSessionService {
       ? []
       : (paymentsForSale ?? []);
 
-    // Determinar método de pago final.
-    // Si hay múltiples pagos, NO se marca como `MIXED`: el sistema
-    // infiere "mixto" leyendo `metadata.paymentSnapshots.length > 1`.
-    // Para `paymentMethod` se usa el medio del pago de mayor monto
-    // (fallback al primero) para que reportes/asientos sigan teniendo
-    // un valor representativo.
-    let finalPaymentMethod =
+    if (
+      !isSaleReturn &&
+      paymentsUsed.length === 0 &&
+      !paymentMethod?.trim()
+    ) {
+      throw new BadRequestException(
+        'Debes enviar paymentMethod o al menos un pago con monto > 0 en payments.',
+      );
+    }
+
+    const salePaymentInputs: SalePaymentInput[] = paymentsUsed.map((p) => ({
+      paymentMethod: p.paymentMethod,
+      amount: Number(p.amount) || 0,
+      companyPaymentMethodId: (p as { companyPaymentMethodId?: string })
+        .companyPaymentMethodId,
+      bankAccountId: p.bankAccountId,
+      reference: (p as { reference?: string }).reference,
+      checkData: (p as { checkData?: Record<string, unknown> }).checkData,
+    }));
+
+    let finalPaymentMethod: PaymentMethod =
       isSaleReturn && !immediateReturnRefund
         ? PaymentMethod.CASH
-        : paymentMethod;
-    const isMixedPayment = paymentsUsed.length > 1;
-    if (paymentsUsed.length > 1) {
-      const dominant = [...paymentsUsed].sort(
-        (a, b) => Number(b.amount ?? 0) - Number(a.amount ?? 0),
-      )[0];
-      finalPaymentMethod =
-        dominant?.paymentMethod ?? paymentsUsed[0].paymentMethod;
-    } else if (paymentsUsed.length === 1) {
-      finalPaymentMethod = paymentsUsed[0].paymentMethod;
+        : (paymentMethod as PaymentMethod);
+    if (paymentsUsed.length > 0) {
+      const preliminarySnapshots = buildPaymentSnapshotsFromSalePayments(
+        salePaymentInputs,
+        [],
+      );
+      finalPaymentMethod = getRepresentativePaymentMethod(
+        preliminarySnapshots,
+        finalPaymentMethod,
+      );
     }
 
     const customerIdTrimmed = customerId?.trim() ?? '';
@@ -850,19 +872,9 @@ export class SalesFromSessionService {
         serverAppliedPromotions = serverResult.appliedPromotions;
       }
 
-      // Construir snapshots inmutables de medios de pago (trazabilidad).
-      // Si una entrada incluye `companyPaymentMethodId`, hidratamos alias,
-      // bankAccountKey y método desde el catálogo vivo de la empresa.
-      let paymentSnapshots: Array<{
-        companyPaymentMethodId: string | null;
-        method: string;
-        alias: string | null;
-        bankAccountKey: string | null;
-        amount: number;
-        reference: string | null;
-        capturedAt: string;
-        checkData?: Record<string, any> | null;
-      }> = [];
+      let paymentSnapshots: ReturnType<
+        typeof buildPaymentSnapshotsFromSalePayments
+      > = [];
       if (paymentsUsed.length > 0) {
         const companyId = pointOfSale.companyId;
         let catalog: Awaited<
@@ -875,27 +887,14 @@ export class SalesFromSessionService {
         } catch {
           catalog = [];
         }
-        const now = new Date().toISOString();
-        paymentSnapshots = paymentsUsed.map((p) => {
-          const cmpId = (p as any).companyPaymentMethodId as string | undefined;
-          const cmp = cmpId ? catalog.find((c) => c.id === cmpId) : undefined;
-          const rawCheckData = (p as any).checkData as
-            | Record<string, any>
-            | undefined;
-          return {
-            companyPaymentMethodId: cmp?.id ?? null,
-            method: cmp?.method ?? p.paymentMethod,
-            alias: cmp?.alias ?? null,
-            bankAccountKey: cmp?.bankAccountKey ?? p.bankAccountId ?? null,
-            amount: Number(p.amount) || 0,
-            reference: ((p as any).reference as string | undefined) ?? null,
-            capturedAt: now,
-            checkData:
-              rawCheckData && typeof rawCheckData === 'object'
-                ? rawCheckData
-                : null,
-          };
-        });
+        paymentSnapshots = buildPaymentSnapshotsFromSalePayments(
+          salePaymentInputs,
+          catalog,
+        );
+        finalPaymentMethod = getRepresentativePaymentMethod(
+          paymentSnapshots,
+          finalPaymentMethod,
+        );
       }
 
       // Almacén para stock y automation: debe persistirse en `transactions.storageId`
@@ -1071,6 +1070,12 @@ export class SalesFromSessionService {
         discountAmount,
         total,
         paymentMethod: finalPaymentMethod,
+        paymentStatus:
+          isSale && paymentsUsed.length > 0
+            ? Math.abs(paidForTx - total) <= 1
+              ? PaymentStatus.PAID
+              : PaymentStatus.PARTIAL
+            : undefined,
         amountPaid: paidForTx,
         changeAmount: isSaleReturn ? 0 : changeAmount || 0,
         externalReference: externalReference || undefined,
@@ -1080,12 +1085,7 @@ export class SalesFromSessionService {
           ...metadata,
           ...saleReturnMeta,
           ...(backorderMeta ? { backorder: backorderMeta } : {}),
-          paymentDetails: paymentsUsed.length > 0 ? paymentsUsed : undefined,
-          paymentSnapshots:
-            paymentSnapshots.length > 0 ? paymentSnapshots : undefined,
-          paymentSnapshot:
-            paymentSnapshots.length === 1 ? paymentSnapshots[0] : undefined,
-          isMixedPayment,
+          ...buildPaymentsMetadataFields(paymentSnapshots),
           storageId: isBackorder ? undefined : effectiveStorageId || undefined,
           promotionSnapshot:
             serverAppliedPromotions.length > 0
@@ -1132,6 +1132,41 @@ export class SalesFromSessionService {
         );
       }
 
+      // Cobro explícito: la grilla «Pagos recibidos» lista PAYMENT_IN, no la venta SALE.
+      if (isSale && !isBackorder && paymentsUsed.length > 0) {
+        const paidTotal = paymentsUsed.reduce(
+          (acc, p) => acc + (Number(p.amount) || 0),
+          0,
+        );
+        if (paidTotal > 0) {
+          const paymentInDto = new CreateTransactionDto();
+          Object.assign(paymentInDto, {
+            transactionType: TransactionType.PAYMENT_IN,
+            branchId: pointOfSale.branchId,
+            userId: user.id,
+            pointOfSaleId: pointOfSale.id,
+            cashSessionId: cashSession.id,
+            customerId: customerId || undefined,
+            relatedTransactionId: finalTransaction.id,
+            subtotal: paidTotal,
+            taxAmount: 0,
+            discountAmount: 0,
+            total: paidTotal,
+            paymentMethod: finalPaymentMethod,
+            paymentStatus: PaymentStatus.PAID,
+            amountPaid: paidTotal,
+            changeAmount: changeAmount || 0,
+            metadata: {
+              saleTransactionId: finalTransaction.id,
+              ...buildPaymentsMetadataFields(paymentSnapshots),
+              source: 'pos_sale',
+            },
+          });
+          paymentInDto.lines = [];
+          await this.transactionsService.createTransaction(paymentInDto);
+        }
+      }
+
       if (isBackorder) {
         await this.createBackorderStockReservation(manager, {
           companyId: pointOfSale.companyId!,
@@ -1160,33 +1195,19 @@ export class SalesFromSessionService {
         }
       }
 
-      // Actualizar `expectedAmount` de la sesión solo con el efectivo
-      // realmente recibido. Antes se sumaba el `amountPaid` total cuando
-      // el método era `CASH` o `MIXED`, lo cual sobre-contaba en pagos
-      // mixtos (sumaba también la parte tarjeta/transferencia). Ahora
-      // se suma exactamente la porción `CASH` declarada en los pagos con monto > 0.
-      const cashPortion = (() => {
-        if (paymentsUsed.length > 0) {
-          return paymentsUsed
-            .filter((p) => p.paymentMethod === PaymentMethod.CASH)
-            .reduce((acc, p) => acc + Number(p.amount ?? 0), 0);
-        }
-        if (finalPaymentMethod === PaymentMethod.CASH) {
-          return Number(amountPaid || total) || 0;
-        }
-        return 0;
-      })();
-      if (!isSaleReturn && cashPortion > 0) {
-        const previousExpected =
-          cashSession.expectedAmount || cashSession.openingAmount || 0;
-        cashSession.expectedAmount = Number(previousExpected) + cashPortion;
-        await manager.getRepository(CashSession).save(cashSession);
-      } else if (immediateReturnRefund && cashPortion > 0) {
-        const previousExpected =
-          cashSession.expectedAmount || cashSession.openingAmount || 0;
-        cashSession.expectedAmount = Number(previousExpected) - cashPortion;
-        await manager.getRepository(CashSession).save(cashSession);
-      }
+      // Recalcular efectivo esperado (entradas − vuelto − salidas) con la misma
+      // regla que cierre de caja y tesorería.
+      const sessionTxs = await manager.getRepository(Transaction).find({
+        where: {
+          cashSessionId: cashSession.id,
+          status: TransactionStatus.CONFIRMED,
+        },
+      });
+      cashSession.expectedAmount = computeCashSessionExpectedAmount(
+        Number(cashSession.openingAmount) || 0,
+        sessionTxs,
+      );
+      await manager.getRepository(CashSession).save(cashSession);
 
       return {
         success: true,

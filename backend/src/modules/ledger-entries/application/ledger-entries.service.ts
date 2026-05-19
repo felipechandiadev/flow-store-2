@@ -23,6 +23,14 @@ import { CustomerRepositoryPort } from './ports/customer.repository.port';
 import { SupplierRepositoryPort } from './ports/supplier.repository.port';
 import { ShareholderRepositoryPort } from './ports/shareholder.repository.port';
 import { EmployeeRepositoryPort } from './ports/employee.repository.port';
+import {
+  getPaymentSnapshots,
+  isMultiPayment,
+} from '@modules/transactions/application/payment-snapshots.util';
+import {
+  allocateSalePaymentDebits,
+  isSalePaymentAssetAccountCode,
+} from './sale-payment-debits.util';
 
 interface ValidationError {
   code: string;
@@ -91,6 +99,23 @@ export class LedgerEntriesService {
     const errors: ValidationError[] = [];
 
     try {
+      const metaSkip = (transaction.metadata || {}) as Record<string, unknown>;
+      if (
+        transaction.transactionType === TransactionType.PAYMENT_IN &&
+        metaSkip.source === 'pos_sale'
+      ) {
+        return {
+          status: 'SUCCESS',
+          transactionId: transaction.id,
+          entriesGenerated: 0,
+          entriesIds: [],
+          balanceValidated: true,
+          errors: [],
+          executedAt: new Date(),
+          executionTimeMs: Date.now() - startTime,
+        };
+      }
+
       // PRE-RESOLUCIÓN: Obtener personId una sola vez al principio
       // Esto evita múltiples queries dentro de calculateEntries
       const personId = await this.getPersonIdForTransaction(transaction);
@@ -368,6 +393,11 @@ export class LedgerEntriesService {
       order: { priority: 'ASC' },
     });
 
+    const snapshots = getPaymentSnapshots(transaction);
+    const saleMultiPay =
+      transaction.transactionType === TransactionType.SALE &&
+      isMultiPayment(snapshots);
+
     // Filtrar por condiciones opcionales (si existen se aplican)
     return rules.filter((rule) => {
       // Si la regla especifica categoría, debe coincidir
@@ -377,10 +407,11 @@ export class LedgerEntriesService {
       ) {
         return false;
       }
-      // Si la regla especifica método de pago, debe coincidir
+      // Venta multi-medio: reglas con paymentMethod concreto no bloquean ingreso/IVA
       if (
         rule.paymentMethod &&
-        rule.paymentMethod !== transaction.paymentMethod
+        rule.paymentMethod !== transaction.paymentMethod &&
+        !saleMultiPay
       ) {
         return false;
       }
@@ -506,7 +537,77 @@ export class LedgerEntriesService {
       }
     }
 
+    if (transaction.transactionType === TransactionType.SALE) {
+      return this.applySalePaymentDebitAllocation(
+        transaction,
+        entries,
+        personId,
+        companyId,
+      );
+    }
+
     return entries;
+  }
+
+  /**
+   * Reemplaza el debe único de cobro (caja/banco) por un debe por snapshot de pago.
+   */
+  private async applySalePaymentDebitAllocation(
+    transaction: Transaction,
+    entries: LedgerEntryDto[],
+    personId: string | null,
+    companyId: string,
+  ): Promise<LedgerEntryDto[]> {
+    const snapshots = getPaymentSnapshots(transaction);
+    if (snapshots.length === 0) {
+      return entries;
+    }
+
+    const accounts = await this.accountRepo.findByCompanyId(companyId);
+    const accountByCode = new Map(accounts.map((a) => [a.code, a.id]));
+    const assetAccountIds = new Set(
+      accounts
+        .filter((a) => isSalePaymentAssetAccountCode(a.code))
+        .map((a) => a.id),
+    );
+
+    const withoutRulePaymentDebits = entries.filter(
+      (e) =>
+        !(
+          e.debit > 0 &&
+          assetAccountIds.has(e.accountId) &&
+          e.metadata?.scope === RuleScope.TRANSACTION
+        ),
+    );
+
+    const baseDescription =
+      transaction.notes ||
+      transaction.documentNumber ||
+      `Venta ${transaction.id}`;
+
+    const { lines, warnings } = allocateSalePaymentDebits(
+      snapshots,
+      accountByCode,
+      baseDescription,
+    );
+    for (const msg of warnings) {
+      this.logger.warn(
+        `[ledger] SALE ${transaction.id} payment debit: ${msg}`,
+      );
+    }
+
+    const paymentEntries: LedgerEntryDto[] = lines.map((line) => ({
+      transactionId: transaction.id,
+      accountId: line.accountId,
+      personId,
+      entryDate: transaction.createdAt,
+      description: line.description,
+      debit: line.debit,
+      credit: 0,
+      metadata: line.metadata,
+    }));
+
+    return [...withoutRulePaymentDebits, ...paymentEntries];
   }
 
   /** Depósito desde centro de acopio (1110) hacia banco (1102): Debe banco / Haber efectivo acopio. */

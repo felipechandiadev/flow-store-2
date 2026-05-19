@@ -13,6 +13,8 @@ export interface SalesTransactionListRow {
   backorderDepositAmount: number | null;
   backorderPercent: number | null;
   paymentMethod: SalesPaymentMethod;
+  /** Cantidad de líneas en metadata.payments (0 = desconocido / legacy). */
+  paymentLinesCount: number;
   branchName: string | null;
   pointOfSaleName: string | null;
   counterpartyLabel: string | null;

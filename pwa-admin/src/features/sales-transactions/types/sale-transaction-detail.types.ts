@@ -14,6 +14,15 @@ export type LinkedCustomerCreditNoteDetail = {
   status: string;
 };
 
+export type PaymentSnapshotRow = {
+  method: string;
+  alias: string | null;
+  amount: number;
+  reference: string | null;
+  bankAccountKey: string | null;
+  capturedAt: string | null;
+};
+
 export type SaleTransactionDetailLine = {
   id: string;
   productName: string;
@@ -39,6 +48,8 @@ export type SaleTransactionDetail = {
   discountAmount: number;
   total: number;
   paymentMethod: string;
+  /** Colección canónica desde `metadata.payments` (o legacy snapshots). */
+  payments: PaymentSnapshotRow[];
   amountPaid: number;
   changeAmount: number | null;
   notes: string | null;

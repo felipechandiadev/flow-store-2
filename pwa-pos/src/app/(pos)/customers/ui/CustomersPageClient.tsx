@@ -11,9 +11,9 @@ import PosCustomerSearchPanel, {
 } from "@/features/customers/ui/PosCustomerSearchPanel";
 import { PosCreateCustomerDialog } from "@/features/customers/ui/PosCreateCustomerDialog";
 import PosCustomerDetailPanel from "@/features/customers/ui/PosCustomerDetailPanel";
+import { IconButton } from "@/shared/admin-shared";
 
-const PANEL_VH = 76;
-const PANEL_VH_WITH_DETAIL = 42;
+const SEARCH_PANEL_VH = 76;
 
 type Props = {
   initialCustomerSearch: PosCustomerSearchInitial;
@@ -99,16 +99,27 @@ export default function CustomersPageClient({
     });
   }, [pushParams]);
 
-  const searchHeightVh = selectedCustomerId ? PANEL_VH_WITH_DETAIL : PANEL_VH;
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-5">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">Clientes</h1>
-        <p className="mt-1 max-w-2xl text-xs text-muted-foreground sm:text-sm">
-          Busca y elige un cliente. La ficha completa aparece a la derecha (o debajo en pantallas
-          estrechas).
-        </p>
+    <div className="flex min-h-0 flex-1 flex-col gap-5 px-6 py-6">
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">Clientes</h1>
+          <p className="mt-1 max-w-2xl text-xs text-muted-foreground sm:text-sm">
+            Busca y elige un cliente a la izquierda. La ficha completa aparece a la derecha (o debajo en
+            pantallas estrechas).
+          </p>
+        </div>
+        <div className="shrink-0">
+          <IconButton
+            icon="ArrowLeft"
+            variant="ghost"
+            size="md"
+            ariaLabel="Volver al punto de venta"
+            title="Volver al punto de venta"
+            onClick={() => router.push("/pos")}
+            data-test-id="customers-back-pos"
+          />
+        </div>
       </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[minmax(260px,360px)_minmax(0,1fr)] md:items-stretch">
@@ -117,17 +128,19 @@ export default function CustomersPageClient({
           selectedCustomer={selectedForSearch}
           onPick={onPick}
           onClearSelected={onClearSelected}
-          heightVh={searchHeightVh}
+          heightVh={SEARCH_PANEL_VH}
           variant="split"
           showAddCustomer
           onAddCustomerClick={() => setCreateCustomerOpen(true)}
         />
-        <PosCustomerDetailPanel
-          customerId={selectedCustomerId}
-          initialBundle={detailBundleForSelection}
-          invalidId={invalidId}
-          internalCreditEnabled={internalCreditEnabled}
-        />
+        <div className="min-h-0 min-w-0 overflow-y-auto md:max-h-[76vh]">
+          <PosCustomerDetailPanel
+            customerId={selectedCustomerId}
+            initialBundle={detailBundleForSelection}
+            invalidId={invalidId}
+            internalCreditEnabled={internalCreditEnabled}
+          />
+        </div>
       </div>
 
       <PosCreateCustomerDialog

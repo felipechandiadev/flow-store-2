@@ -15,7 +15,6 @@ export const PAYMENT_METHOD_OPTIONS: { id: string; label: string }[] = [
   { id: "CHECK", label: "Cheque" },
   { id: "CREDIT", label: "Crédito" },
   { id: "INTERNAL_CREDIT", label: "Crédito interno" },
-  { id: "MIXED", label: "Mixto" },
 ];
 
 export const RULE_LINE_SIDE_OPTIONS: { id: string; label: string }[] = [

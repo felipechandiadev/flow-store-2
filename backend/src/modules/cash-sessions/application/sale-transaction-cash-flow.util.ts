@@ -2,6 +2,7 @@ import {
   PaymentMethod,
   TransactionType,
 } from '@modules/transactions/domain/transaction.entity';
+import { getPaymentSnapshots } from '@modules/transactions/application/payment-snapshots.util';
 
 type SaleTxLike = {
   transactionType: TransactionType;
@@ -14,7 +15,7 @@ type SaleTxLike = {
 
 /**
  * Efectivo de caja asociado a una venta (SALE): entrega neta al cajón vs. vuelto.
- * Usa `metadata.paymentSnapshots` cuando existe (POS / pagos mixtos); si no, cae a `paymentMethod` CASH.
+ * Usa `metadata.payments` (o legacy snapshots) cuando existe; si no, cae a `paymentMethod` CASH.
  */
 export function saleTransactionCashFlows(tx: SaleTxLike): {
   cashIn: number;
@@ -27,14 +28,10 @@ export function saleTransactionCashFlows(tx: SaleTxLike): {
   const change = Math.max(0, Number(tx.changeAmount) || 0);
   let cashIn = 0;
 
-  const meta = tx.metadata;
-  const rawSnaps =
-    meta && typeof meta === 'object' && Array.isArray((meta as { paymentSnapshots?: unknown }).paymentSnapshots)
-      ? ((meta as { paymentSnapshots: unknown[] }).paymentSnapshots as Array<Record<string, unknown>>)
-      : null;
+  const snapshots = getPaymentSnapshots(tx);
 
-  if (rawSnaps && rawSnaps.length > 0) {
-    for (const s of rawSnaps) {
+  if (snapshots.length > 0) {
+    for (const s of snapshots) {
       const m = String(s.method ?? '').toUpperCase();
       if (m === 'CASH') {
         cashIn += Math.max(0, Number(s.amount) || 0);

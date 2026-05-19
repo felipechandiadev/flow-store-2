@@ -99,16 +99,18 @@ Al crear una transacción se publica `TransactionCreatedEvent` (evento de domini
 ### 4.3 Venta con pago mixto
 **Definición práctica**:
 - `transactionType=SALE`
-- `paymentMethod=MIXED` y/o `metadata.paymentDetails[]`
+- `metadata.payments[]` (colección canónica; compat `metadata.paymentSnapshots[]` / legacy `paymentDetails[]`)
+- `paymentMethod` en columna = medio **representativo** (mayor monto), no `MIXED`
 - `paymentStatus=PAID` o `PARTIAL` según suma de pagos
 
 **Derivadas típicas**:
-- 1 `PAYMENT_IN` (recomendado) con `metadata.paymentDetails` detallando cada medio
+- 1 `PAYMENT_IN` POS con `metadata.payments` copiado de la venta y `metadata.source = 'pos_sale'`
   - `relatedTransactionId = SALE.id`
 - Alternativa: múltiples `PAYMENT_IN` (uno por medio), todos con `relatedTransactionId = SALE.id`
 
 **Side-effects**:
 - Stock y contabilidad igual que venta contado/crédito, según status final.
+- Contabilidad: un **Debe** por línea de `metadata.payments` (caja/banco/clientes según método); el `PAYMENT_IN` POS no genera debe duplicado (`source: pos_sale`).
 
 ### 4.4 Venta con entrega diferida (despacho)
 Si tu operación requiere separar “venta” de “entrega”, existen dos patrones comunes:

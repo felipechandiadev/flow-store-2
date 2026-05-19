@@ -65,6 +65,10 @@ function normalizeMovement(raw: unknown): CashSessionMovementRow | null {
         : null,
     direction: direction === "IN" || direction === "OUT" ? direction : "NEUTRAL",
     notes: typeof o.notes === "string" && o.notes.trim() ? o.notes.trim() : null,
+    relatedTransactionId:
+      typeof o.relatedTransactionId === "string" && o.relatedTransactionId.trim()
+        ? o.relatedTransactionId.trim()
+        : null,
   };
 }
 

@@ -100,7 +100,7 @@ export default function HubWithdrawalPageClient() {
     () =>
       hubs.map((h) => ({
         id: h.id,
-        label: `${h.name} · hub ${currencyFmt.format(h.currentBalance)}`,
+        label: `${h.name} · ${currencyFmt.format(h.currentBalance)}`,
       })),
     [hubs],
   );
@@ -133,7 +133,7 @@ export default function HubWithdrawalPageClient() {
     setFormError(null);
     setSuccessMsg(null);
     if (!cashSessionId || !hubId || !selectedHub) {
-      setFormError("Selecciona un centro de acopio.");
+      setFormError("Selecciona un centro de efectivo.");
       return;
     }
     if (!Number.isFinite(amountNum) || amountNum < 1) {
@@ -156,7 +156,7 @@ export default function HubWithdrawalPageClient() {
         return;
       }
       setSuccessMsg(
-        `Traslado registrado: ${res.transaction.documentNumber} por ${currencyFmt.format(res.transaction.total)} al centro de acopio.`,
+        `Traslado registrado: ${res.transaction.documentNumber} por ${currencyFmt.format(res.transaction.total)} al centro de efectivo.`,
       );
       setAmountRaw("");
       setReason("");
@@ -165,20 +165,20 @@ export default function HubWithdrawalPageClient() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-5">
+    <div className="mx-auto max-w-3xl space-y-6 px-6 py-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--color-foreground)" }}>
-            Egreso de efectivo a centro de acopio
+            Egreso de efectivo a centro de efectivo
           </h1>
           <p className="mt-1 max-w-xl text-xs sm:text-sm" style={{ color: "var(--color-muted-foreground)" }}>
-            Traslada efectivo desde la sesión de caja actual hacia el centro de acopio elegido (aumenta el saldo del
-            hub). El monto no puede superar el efectivo teórico disponible en sesión.
+            Traslada efectivo desde la sesión de caja actual hacia el centro de efectivo elegido (aumenta el saldo del
+            centro). El monto no puede superar el efectivo teórico disponible en sesión.
           </p>
         </div>
         <IconButton
           icon="ArrowLeft"
-          variant="basic"
+          variant="ghost"
           size="md"
           ariaLabel="Volver al punto de venta"
           title="Volver al punto de venta"
@@ -211,10 +211,10 @@ export default function HubWithdrawalPageClient() {
         </div>
       ) : hubs.length === 0 && !loadError ? (
         <Alert variant="info" data-test-id="hub-withdrawal-no-hubs">
-          No hay centros de acopio configurados para este punto de venta.
+          No hay centros de efectivo configurados para este punto de venta.
         </Alert>
       ) : (
-        <div className="flex max-w-lg flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <div
             className="rounded-lg border px-4 py-3 text-sm"
             style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-background)" }}
@@ -227,8 +227,8 @@ export default function HubWithdrawalPageClient() {
           </div>
 
           <Select
-            label="Centro de acopio (destino)"
-            placeholder="Centro de acopio (destino)"
+            label="Centro de efectivo (destino)"
+            placeholder="Centro de efectivo (destino)"
             options={hubOptions}
             value={hubId}
             onChange={(id) => setHubId(id != null ? String(id) : null)}
@@ -242,7 +242,9 @@ export default function HubWithdrawalPageClient() {
               style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-background)" }}
               data-test-id="hub-withdrawal-hub-balance"
             >
-              <span className="text-muted-foreground">Saldo actual del hub (tras el movimiento aumentará)</span>
+              <span className="text-muted-foreground">
+                Saldo actual del centro de efectivo (tras el movimiento aumentará)
+              </span>
               <div className="mt-1 text-lg font-semibold tabular-nums" style={{ color: "var(--color-foreground)" }}>
                 {currencyFmt.format(selectedHub.currentBalance)}
               </div>
@@ -250,8 +252,8 @@ export default function HubWithdrawalPageClient() {
           ) : null}
 
           <TextField
-            label="Monto a trasladar al hub"
-            placeholder="Monto a trasladar al hub"
+            label="Monto a trasladar al centro de efectivo"
+            placeholder="Monto a trasladar al centro de efectivo"
             value={amountRaw}
             onChange={(e) => setAmountRaw(e.target.value)}
             inputMode="numeric"
@@ -271,7 +273,7 @@ export default function HubWithdrawalPageClient() {
             data-test-id="hub-withdrawal-reason"
           />
 
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex justify-end pt-1">
             <Button
               variant="primary"
               disabled={!canSubmit || isPending}
@@ -279,10 +281,7 @@ export default function HubWithdrawalPageClient() {
               onClick={onSubmit}
               data-test-id="hub-withdrawal-submit"
             >
-              Confirmar traslado
-            </Button>
-            <Button variant="outlined" type="button" onClick={() => router.push("/cash/movements")}>
-              Ver movimientos
+              Confirmar egreso
             </Button>
           </div>
         </div>

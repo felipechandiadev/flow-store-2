@@ -318,3 +318,36 @@ export const TRANSACTION_TYPE_OPTIONS: TransactionTypeOption[] = [
   },
 ];
 
+/** Mapa id → etiqueta en español (derivado de TRANSACTION_TYPE_OPTIONS). */
+export const TRANSACTION_TYPE_LABEL: Record<string, string> = {
+  ...Object.fromEntries(TRANSACTION_TYPE_OPTIONS.map((o) => [o.id, o.label])),
+  /** Fila virtual en movimientos de sesión de caja (no es TransactionType en BD). */
+  CASH_CHANGE: "Vuelto en efectivo",
+};
+
+/** Etiqueta en español para un TransactionType; si no está catalogado, devuelve el código. */
+export function getTransactionTypeLabel(type: string | null | undefined): string {
+  const key = type?.trim();
+  if (!key) return "—";
+  return TRANSACTION_TYPE_LABEL[key] ?? key;
+}
+
+/** Estados de transacción (TransactionStatus) en español. */
+export const TRANSACTION_STATUS_LABEL: Record<string, string> = {
+  DRAFT: "Borrador",
+  CONFIRMED: "Confirmado",
+  PARTIALLY_RECEIVED: "Recepción parcial",
+  RECEIVED: "Recibido",
+  CANCELLED: "Anulado",
+  COMPLETED: "Completado",
+  VOIDED: "Anulado",
+  PENDING: "Pendiente",
+  EXPIRED: "Vencido",
+};
+
+export function getTransactionStatusLabel(status: string | null | undefined): string {
+  const key = status?.trim();
+  if (!key) return "—";
+  return TRANSACTION_STATUS_LABEL[key] ?? key;
+}
+

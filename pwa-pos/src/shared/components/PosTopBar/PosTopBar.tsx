@@ -273,8 +273,8 @@ export default function PosTopBar({
               icon="BanknoteArrowDown"
               variant="basic"
               size="md"
-              ariaLabel="Ingreso de efectivo desde centro de acopio"
-              title="Ingreso desde centro de acopio"
+              ariaLabel="Ingreso de efectivo desde centro de efectivo"
+              title="Ingreso desde centro de efectivo"
               onClick={() => router.push("/cash/hub-deposit")}
               data-test-id="pos-topbar-hub-deposit"
             />
@@ -282,8 +282,8 @@ export default function PosTopBar({
               icon="BanknoteArrowUp"
               variant="basic"
               size="md"
-              ariaLabel="Egreso de efectivo a centro de acopio"
-              title="Egreso a centro de acopio"
+              ariaLabel="Egreso de efectivo a centro de efectivo"
+              title="Egreso a centro de efectivo"
               onClick={() => router.push("/cash/hub-withdrawal")}
               data-test-id="pos-topbar-hub-withdrawal"
             />

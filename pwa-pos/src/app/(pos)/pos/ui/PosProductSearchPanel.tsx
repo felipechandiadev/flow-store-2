@@ -17,6 +17,7 @@ import {
 } from "@/features/pos-products/lib/posProductSearchStorage";
 import { InlineSepDot, formatMoney, PosProductNameWithAttributes } from "@/features/pos-products/ui/posProductPreview";
 import { patchPosContextClient, type PosPriceListSnapshot } from "@/features/session/lib/pos-context-storage";
+import { redirectToLoginIfUnauthorized } from "@/lib/auth/pos-api-failure";
 import {
   Button,
   Dialog,
@@ -171,6 +172,7 @@ export default function PosProductSearchPanel({
       });
       if (!res.success) {
         scanAutoAddRef.current = false;
+        if (redirectToLoginIfUnauthorized(res)) return;
         setError(res.message);
         setItems([]);
         setTotal(0);

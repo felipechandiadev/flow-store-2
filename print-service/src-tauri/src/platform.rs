@@ -253,7 +253,7 @@ pub fn print_pdf_to_printer(
     pdf_path: &Path,
     printer: &str,
     copies: u32,
-    thermal_80mm: bool,
+    _thermal_80mm: bool,
 ) -> Result<()> {
     #[cfg(target_os = "macos")]
     {
@@ -262,7 +262,7 @@ pub fn print_pdf_to_printer(
             .arg(printer)
             .arg("-n")
             .arg(copies.max(1).to_string());
-        if thermal_80mm {
+        if _thermal_80mm {
             cmd.arg("-o")
                 .arg("media=Custom.80x297mm")
                 .arg("-o")

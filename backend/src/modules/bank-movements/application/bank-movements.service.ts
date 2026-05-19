@@ -7,6 +7,7 @@ import {
   TransactionType,
   PaymentMethod,
 } from '@modules/transactions/domain/transaction.entity';
+import { getPaymentSnapshots } from '@modules/transactions/application/payment-snapshots.util';
 
 @Injectable()
 export class BankMovementsService {
@@ -98,16 +99,14 @@ export class BankMovementsService {
     const movements = transactions.map((transaction) => {
       const movementKind = this.resolveMovementKind(transaction);
       const direction = this.resolveDirection(movementKind, transaction);
-      const paymentDetails = Array.isArray(transaction.metadata?.paymentDetails)
-        ? transaction.metadata.paymentDetails
-        : [];
-      const transferPayment = paymentDetails.find(
-        (payment: any) =>
-          payment?.paymentMethod === PaymentMethod.TRANSFER &&
-          payment?.bankAccountId,
+      const snapshots = getPaymentSnapshots(transaction);
+      const transferSnapshot = snapshots.find(
+        (s) =>
+          String(s.method).toUpperCase() === PaymentMethod.TRANSFER &&
+          s.bankAccountKey,
       );
       const bankAccountKey =
-        transaction.bankAccountKey || transferPayment?.bankAccountId || null;
+        transaction.bankAccountKey || transferSnapshot?.bankAccountKey || null;
       const accountInfo = bankAccountKey
         ? bankAccountMap.get(bankAccountKey)
         : undefined;

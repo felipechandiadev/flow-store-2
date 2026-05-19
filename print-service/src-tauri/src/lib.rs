@@ -20,7 +20,9 @@ use serde::Deserialize;
 use serde_json::json;
 use state::{AppState, ListenerControl};
 use tauri::image::Image;
-use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{Menu, MenuItem};
+#[cfg(target_os = "macos")]
+use tauri::menu::{AboutMetadata, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::Emitter;
 use tauri::Manager;

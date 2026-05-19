@@ -7,6 +7,7 @@ import {
 } from '@modules/transactions/domain/transaction.entity';
 import { ChecksService } from '../checks.service';
 import { CheckDirection } from '../../domain/check.entity';
+import { getPaymentSnapshots } from '@modules/transactions/application/payment-snapshots.util';
 
 const INCOMING_PAYMENT_TX_TYPES = new Set<TransactionType>([
   TransactionType.SALE,
@@ -34,19 +35,11 @@ type CheckDataSnapshot = {
   dueDate?: string | null;
 };
 
-interface PaymentSnapshot {
-  method?: string;
-  amount?: number;
-  bankAccountKey?: string | null;
-  reference?: string | null;
-  checkData?: CheckDataSnapshot | null;
-}
-
 /**
  * Materializa cheques (entrante/saliente) cuando se crea una transacción
  * de venta o de pago con `paymentMethod = CHECK`.
  *
- * - Para ventas: revisa `metadata.paymentSnapshots[]` y por cada entry con
+ * - Para ventas: revisa `metadata.payments[]` y por cada entry con
  *   `method === 'CHECK'` crea un `Check { direction: INCOMING }` ligado a
  *   esa transacción.
  * - Para pagos salientes: si `paymentMethod === CHECK`, crea un cheque
@@ -85,16 +78,12 @@ export class CheckFromTransactionHandler
 
       if (!incoming && !outgoing) return;
 
-      const snapshots: PaymentSnapshot[] = Array.isArray(
-        metadata.paymentSnapshots,
-      )
-        ? (metadata.paymentSnapshots as PaymentSnapshot[])
-        : [];
+      const snapshots = getPaymentSnapshots(metadata);
 
       if (incoming) {
         const checkSnaps = snapshots.filter((s) => s?.method === 'CHECK');
         for (const snap of checkSnaps) {
-          const cd = snap.checkData ?? {};
+          const cd = (snap.checkData ?? {}) as CheckDataSnapshot;
           if (!cd.checkNumber || !cd.bankName) {
             this.logger.warn(
               `Sale tx ${tx.id} has a CHECK payment without checkNumber/bankName; skipping check creation`,

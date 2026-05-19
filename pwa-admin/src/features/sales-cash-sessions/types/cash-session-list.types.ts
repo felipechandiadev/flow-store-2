@@ -12,6 +12,8 @@ export interface CashSessionListRow {
   openingAmount: number;
   closingAmount: number | null;
   expectedAmount: number | null;
+  /** Suma de transacciones SALE de la sesión. */
+  salesTotal: number;
   difference: number | null;
   createdAt: string;
 }

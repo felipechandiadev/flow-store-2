@@ -26,7 +26,7 @@ export function addAmountToCloseCounted(
   const a = Math.max(0, Math.round(Number(amount) || 0));
   if (a <= 0) return;
   const m = String(method || "").trim().toUpperCase();
-  switch (m as PosPaymentMethodId | "CREDIT" | "INTERNAL_CREDIT" | "MIXED") {
+  switch (m as PosPaymentMethodId | "CREDIT" | "INTERNAL_CREDIT") {
     case "CASH":
       acc.cash += a;
       break;

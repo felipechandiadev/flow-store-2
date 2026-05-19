@@ -54,7 +54,7 @@ function filterVisibleMenuItems(
 
 const APP_TITLE = "KaiStore";
 const APP_SUBTITLE = "StockControl";
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "2.1.0";
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.0.0";
 
 export const SIDE_BAR_MENU_ITEM_CLASSNAMES =
   "px-3 py-1 rounded text-foreground font-medium text-sm tracking-tighter transition-all duration-200 hover:bg-background/80 hover:backdrop-blur-sm hover:shadow-sm hover:text-secondary";

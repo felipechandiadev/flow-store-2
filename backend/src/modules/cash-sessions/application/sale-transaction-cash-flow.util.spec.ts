@@ -12,6 +12,22 @@ describe('saleTransactionCashFlows', () => {
     ).toEqual({ cashIn: 0, cashOut: 0 });
   });
 
+  it('reads canonical metadata.payments', () => {
+    const r = saleTransactionCashFlows({
+      transactionType: TransactionType.SALE,
+      paymentMethod: PaymentMethod.DEBIT_CARD,
+      total: 1300,
+      metadata: {
+        payments: [
+          { method: 'CASH', amount: 400, capturedAt: 'x' },
+          { method: 'DEBIT_CARD', amount: 900, capturedAt: 'x' },
+        ],
+      },
+    });
+    expect(r.cashIn).toBe(400);
+    expect(r.cashOut).toBe(0);
+  });
+
   it('mixed payment: sums only CASH snapshots and adds change as out', () => {
     const r = saleTransactionCashFlows({
       transactionType: TransactionType.SALE,

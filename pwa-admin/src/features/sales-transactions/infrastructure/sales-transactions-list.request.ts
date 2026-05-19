@@ -8,6 +8,7 @@ import type {
   SalesTransactionListRow,
   SalesTransactionsListResult,
 } from "../types/sales-transaction-list.types";
+import { countPaymentSnapshotsFromMetadata } from "../lib/format-sale-payment-method";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -220,6 +221,7 @@ function normalizeRow(raw: unknown): SalesTransactionListRow | null {
         ? Math.round(Number(bo.depositPercent))
         : null,
     paymentMethod: (o.paymentMethod as SalesPaymentMethod) ?? "CASH",
+    paymentLinesCount: countPaymentSnapshotsFromMetadata(meta),
     branchName:
       branch && typeof branch.name === "string" && branch.name.trim()
         ? branch.name

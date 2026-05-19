@@ -32,7 +32,7 @@ export const SEED_STORAGE_SALA_CODE = 'SEED-SALA-VENTA';
 export const SEED_PRICE_LIST_NAME = 'UNICA';
 export const SEED_POS_NAME = 'CAJA LOCAL';
 export const SEED_CASH_HUB_CODE = 'CENTRAL';
-export const SEED_CASH_HUB_NAME = 'Centro de efectivo central';
+export const SEED_CASH_HUB_NAME = 'Principal';
 
 const SEED_PM_NAMESPACE = 'flowstore-seed-pm-parabrisas-v1';
 

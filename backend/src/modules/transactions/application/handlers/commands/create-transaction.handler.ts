@@ -16,6 +16,7 @@ import { BranchOrmEntity } from '@modules/branches/infrastructure/orm-mappers/br
 import { AccountingPeriodsService } from '@modules/accounting-periods/application/accounting-periods.service';
 import { TransactionCreatedEvent } from '@shared/events/transaction-created.event';
 import { DocumentNumberService } from '@modules/transactions/application/document-number.service';
+import { getPaymentSnapshots } from '@modules/transactions/application/payment-snapshots.util';
 
 @CommandHandler(CreateTransactionCommand)
 export class CreateTransactionCommandHandler implements ICommandHandler<CreateTransactionCommand> {
@@ -153,15 +154,15 @@ export class CreateTransactionCommandHandler implements ICommandHandler<CreateTr
         savedTx.transactionType === TransactionType.SALE &&
         savedTx.customerId
       ) {
-        const paymentDetails = Array.isArray(savedTx.metadata?.paymentDetails)
-          ? savedTx.metadata?.paymentDetails
-          : [];
+        const snapshots = getPaymentSnapshots(savedTx);
 
-        let internalCreditAmount = paymentDetails
+        let internalCreditAmount = snapshots
           .filter(
-            (p: any) => p?.paymentMethod === PaymentMethod.INTERNAL_CREDIT,
+            (s) =>
+              String(s.method).toUpperCase() ===
+              PaymentMethod.INTERNAL_CREDIT,
           )
-          .reduce((sum: number, p: any) => sum + Number(p?.amount || 0), 0);
+          .reduce((sum, s) => sum + Number(s.amount || 0), 0);
 
         if (
           internalCreditAmount <= 0 &&

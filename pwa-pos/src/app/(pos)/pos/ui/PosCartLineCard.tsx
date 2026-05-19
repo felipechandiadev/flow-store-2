@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getPosVariantStockAction } from "@/features/pos-products/actions/pos-products.action";
 import type { PosProductSearchItem } from "@/features/pos-products/types/pos-product.types";
+import { redirectToLoginIfUnauthorized } from "@/lib/auth/pos-api-failure";
 import type { ResolvedLineDiscount } from "@/features/promotions/lib/discount-engine.types";
 import { InlineSepDot, PosProductNameWithAttributes } from "@/features/pos-products/ui/posProductPreview";
 import IconButton from "@/shared/components/IconButton/IconButton";
@@ -70,6 +71,7 @@ export default function PosCartLineCard({
       });
       setStockLoading(false);
       if (!res.success) {
+        if (redirectToLoginIfUnauthorized(res)) return;
         setStockError(res.message);
         return;
       }

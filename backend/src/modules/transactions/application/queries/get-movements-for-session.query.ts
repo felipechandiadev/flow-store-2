@@ -2,24 +2,33 @@ import { Injectable } from '@nestjs/common';
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Transaction, TransactionType } from '../../domain/transaction.entity';
+import {
+  PaymentMethod,
+  Transaction,
+  TransactionType,
+} from '../../domain/transaction.entity';
 import { isImmediateSaleReturnRefund } from '@modules/cash-sessions/application/sale-return-transaction-cash-flow.util';
+
+/** Tipo virtual en listados de sesión (no es TransactionType persistido). */
+export const CASH_SESSION_CHANGE_MOVEMENT_TYPE = 'CASH_CHANGE' as const;
 
 export interface SessionMovement {
   id: string;
-  transactionType: TransactionType;
+  transactionType: TransactionType | typeof CASH_SESSION_CHANGE_MOVEMENT_TYPE;
   documentNumber: string;
-  createdAt: Date;
+  createdAt?: Date;
   total: number;
-  paymentMethod: string;
-  paymentMethodLabel: string | undefined;
-  userId: string | null;
-  userFullName: string | null;
-  userUserName: string | null;
-  notes: string | null;
-  reason: string | null;
-  metadata: any;
+  paymentMethod?: string;
+  paymentMethodLabel?: string;
+  userId?: string | null;
+  userFullName?: string | null;
+  userUserName?: string | null;
+  notes?: string | null;
+  reason?: string | null;
+  metadata?: any;
   direction: 'IN' | 'OUT' | 'NEUTRAL';
+  /** Transacción origen cuando la fila es vuelto derivado de una SALE. */
+  relatedTransactionId?: string | null;
 }
 
 export class GetMovementsForSessionQuery {
@@ -43,29 +52,68 @@ export class GetMovementsForSessionQueryHandler implements IQueryHandler<GetMove
       order: { createdAt: 'DESC' },
     });
 
-    return txs.map((tx) => {
-      const userFullName = tx.user?.person
-        ? `${tx.user.person.firstName} ${tx.user.person.lastName}`
-        : null;
-      const userUserName = tx.user?.userName || null;
+    const movements: SessionMovement[] = [];
 
-      return {
-        id: tx.id,
-        transactionType: tx.transactionType,
-        documentNumber: tx.documentNumber,
-        createdAt: tx.createdAt,
-        total: Number(tx.total || 0),
-        paymentMethod: tx.paymentMethod,
-        paymentMethodLabel: undefined, // frontend can translate
-        userId: tx.userId || null,
-        userFullName,
-        userUserName,
-        notes: tx.notes || null,
-        reason: tx.metadata?.reason || null,
-        metadata: tx.metadata || null,
-        direction: this.computeDirection(tx),
-      };
+    for (const tx of txs) {
+      movements.push(this.mapTransaction(tx));
+
+      if (tx.transactionType === TransactionType.SALE) {
+        const change = Math.max(0, Number(tx.changeAmount) || 0);
+        if (change > 0) {
+          movements.push(this.mapChangeMovement(tx, change));
+        }
+      }
+    }
+
+    movements.sort((a, b) => {
+      const ta = a.createdAt?.getTime() ?? 0;
+      const tb = b.createdAt?.getTime() ?? 0;
+      if (tb !== ta) return tb - ta;
+      if (a.transactionType === CASH_SESSION_CHANGE_MOVEMENT_TYPE) return -1;
+      if (b.transactionType === CASH_SESSION_CHANGE_MOVEMENT_TYPE) return 1;
+      return String(b.id).localeCompare(String(a.id));
     });
+
+    return movements;
+  }
+
+  private mapTransaction(tx: Transaction): SessionMovement {
+    const userFullName = tx.user?.person
+      ? `${tx.user.person.firstName} ${tx.user.person.lastName}`
+      : null;
+    const userUserName = tx.user?.userName || null;
+
+    return {
+      id: tx.id,
+      transactionType: tx.transactionType,
+      documentNumber: tx.documentNumber,
+      createdAt: tx.createdAt,
+      total: Number(tx.total || 0),
+      paymentMethod: tx.paymentMethod,
+      paymentMethodLabel: undefined,
+      userId: tx.userId || null,
+      userFullName,
+      userUserName,
+      notes: tx.notes || null,
+      reason: tx.metadata?.reason || null,
+      metadata: tx.metadata || null,
+      direction: this.computeDirection(tx),
+      relatedTransactionId: tx.relatedTransactionId ?? null,
+    };
+  }
+
+  private mapChangeMovement(tx: Transaction, change: number): SessionMovement {
+    const base = this.mapTransaction(tx);
+    return {
+      ...base,
+      id: `${tx.id}:change`,
+      transactionType: CASH_SESSION_CHANGE_MOVEMENT_TYPE,
+      total: change,
+      paymentMethod: PaymentMethod.CASH,
+      direction: 'OUT',
+      notes: 'Vuelto en efectivo',
+      relatedTransactionId: tx.id,
+    };
   }
 
   private computeDirection(tx: Transaction): 'IN' | 'OUT' | 'NEUTRAL' {

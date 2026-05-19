@@ -8,7 +8,7 @@ import { listCashSessionsAction } from "@/features/sales-cash-sessions/actions/c
 import { ShareholderRequest } from "@/features/settings-shareholders/infrastructure/shareholder.request";
 import { redirect } from "next/navigation";
 import { resolveTreasuryCashHubSelection } from "./treasury-cash-hubs";
-import { mapApiTxToMovementGridRow, type TreasuryMovementGridRow } from "../bank/treasury-movements-mapper";
+import { mapCashHubMovementsToGridRows, type TreasuryCashMovementGridRow } from "./treasury-cash-hub-movements-mapper";
 import TreasuryCashTabContent from "./TreasuryCashTabContent";
 
 export const dynamic = "force-dynamic";
@@ -67,8 +67,10 @@ export default async function TreasuryCashPage({
     redirect(`/treasury/accounts/cash?cashHub=${encodeURIComponent(selectedId)}`);
   }
 
-  let movementRows: TreasuryMovementGridRow[] = [];
+  let movementRows: TreasuryCashMovementGridRow[] = [];
   let movementsTotal = 0;
+  const selectedHubBalance =
+    hubs.find((h) => String(h.id) === String(selectedId ?? ""))?.currentBalance ?? 0;
   if (selectedId) {
     try {
       const r = await TreasuryCashHubMovementsRequest.listByCashHubId({
@@ -76,7 +78,7 @@ export default async function TreasuryCashPage({
         page: 1,
         limit: 200,
       });
-      movementRows = r.rows.map(mapApiTxToMovementGridRow);
+      movementRows = mapCashHubMovementsToGridRows(r.rows, selectedHubBalance);
       movementsTotal = r.total;
     } catch {
       movementRows = [];

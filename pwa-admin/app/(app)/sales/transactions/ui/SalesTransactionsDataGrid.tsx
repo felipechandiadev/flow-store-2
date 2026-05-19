@@ -12,6 +12,7 @@ import {
   type SalesPaymentStatus,
 } from "@/features/sales-payments/types/sales-payment.types";
 import type { SalesTransactionListRow } from "@/features/sales-transactions/types/sales-transaction-list.types";
+import { formatSalePaymentMethodDisplay } from "@/features/sales-transactions/lib/format-sale-payment-method";
 import SaleTransactionDetailDialog from "./SaleTransactionDetailDialog";
 
 type SalesTransactionsDataGridProps = {
@@ -140,9 +141,11 @@ export default function SalesTransactionsDataGrid({
         sortable: false,
         width: 140,
         valueGetter: ({ row }) => {
-          const m = (row as SalesTransactionListRow)
-            .paymentMethod as SalesPaymentMethod;
-          return SALES_PAYMENT_METHOD_LABEL[m] ?? m;
+          const r = row as SalesTransactionListRow;
+          return formatSalePaymentMethodDisplay(
+            r.paymentMethod as SalesPaymentMethod,
+            r.paymentLinesCount,
+          );
         },
       },
       {

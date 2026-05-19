@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
-import type { TreasuryMovementGridRow } from "../bank/treasury-movements-mapper";
+import type { TreasuryCashMovementGridRow } from "./treasury-cash-hub-movements-mapper";
 
 const columns: DataGridColumn[] = [
   { field: "fecha", headerName: "Fecha", width: 140, sortable: false, filterable: false },
@@ -11,14 +11,14 @@ const columns: DataGridColumn[] = [
   { field: "documento", headerName: "Documento", minWidth: 100, flex: 1, sortable: false, filterable: false },
   { field: "contraparte", headerName: "Contraparte", minWidth: 120, flex: 1, sortable: false, filterable: false },
   { field: "total", headerName: "Monto", width: 120, align: "right", sortable: false, filterable: false },
-  { field: "estado", headerName: "Estado", width: 100, sortable: false, filterable: false },
+  { field: "saldo", headerName: "Saldo", width: 130, align: "right", sortable: false, filterable: false },
 ];
 
 export default function TreasuryCashMovementsGrid({
   rows,
   total,
 }: {
-  rows: TreasuryMovementGridRow[];
+  rows: TreasuryCashMovementGridRow[];
   total: number;
 }) {
   const safeRows = useMemo(() => rows.map((r) => ({ ...r })), [rows]);

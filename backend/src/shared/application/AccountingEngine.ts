@@ -16,6 +16,11 @@ import { TransactionLine } from '@modules/transaction-lines/domain/transaction-l
 import { LedgerEntry } from '@modules/ledger-entries/domain/ledger-entry.entity';
 import { ResultCenter } from '@modules/result-centers/domain/result-center.entity';
 import { randomUUID } from 'crypto';
+import {
+  getPaymentSnapshots,
+  isMultiPayment,
+} from '@modules/transactions/application/payment-snapshots.util';
+import { resolveAssetAccountCodeForPaymentMethod } from '@modules/ledger-entries/application/sale-payment-debits.util';
 
 export interface LedgerPosting {
   id: string;
@@ -125,7 +130,16 @@ function matchesTransactionRule(
     return false;
   }
 
-  if (rule.paymentMethod && rule.paymentMethod !== transaction.paymentMethod) {
+  const snapshots = getPaymentSnapshots(transaction);
+  const saleMultiPay =
+    transaction.transactionType === TransactionType.SALE &&
+    isMultiPayment(snapshots);
+
+  if (
+    rule.paymentMethod &&
+    rule.paymentMethod !== transaction.paymentMethod &&
+    !saleMultiPay
+  ) {
     return false;
   }
 
@@ -153,10 +167,18 @@ function matchesLineRule(
     return false;
   }
 
+  const snapshots =
+    transaction != null ? getPaymentSnapshots(transaction) : [];
+  const saleMultiPay =
+    transaction != null &&
+    transaction.transactionType === TransactionType.SALE &&
+    isMultiPayment(snapshots);
+
   if (
     rule.paymentMethod &&
     transaction &&
-    rule.paymentMethod !== transaction.paymentMethod
+    rule.paymentMethod !== transaction.paymentMethod &&
+    !saleMultiPay
   ) {
     return false;
   }
@@ -630,6 +652,34 @@ export async function recordPayment(
   transaction: Transaction,
   bankAccountId?: string | null,
 ): Promise<void> {
+  const meta = (transaction.metadata || {}) as Record<string, unknown>;
+  if (
+    transaction.transactionType === TransactionType.PAYMENT_IN &&
+    meta.source === 'pos_sale'
+  ) {
+    return;
+  }
+
+  const snapshots = getPaymentSnapshots(transaction);
+  if (
+    transaction.transactionType === TransactionType.SALE &&
+    snapshots.length > 0
+  ) {
+    for (const snap of snapshots) {
+      const amount = Number(snap.amount) || 0;
+      if (amount <= 0) continue;
+      const debitCode = resolveAssetAccountCodeForPaymentMethod(snap.method);
+      await createBasicPosting(
+        manager,
+        transaction,
+        debitCode,
+        '4.1.01',
+        amount,
+      );
+    }
+    return;
+  }
+
   const paymentMethod = transaction.paymentMethod;
   const amount = transaction.total;
 
