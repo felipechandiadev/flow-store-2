@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readPosContextClient, type PosContextV1 } from "@/features/session/lib/pos-context-storage";
 import { Button, IconButton } from "@/shared/admin-shared";
-import { ArrowUpFromLine, RotateCcw } from "lucide-react";
+import { ArrowUpFromLine, Package, RotateCcw } from "lucide-react";
 import PosProductSearchPanel, { POS_PRODUCT_SEARCH_PANEL_HEIGHT_VH } from "./PosProductSearchPanel";
 import PosCartLineCard from "./PosCartLineCard";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { LoadQuotationDialog } from "./LoadQuotationDialog";
 import { LoadReturnSaleDialog } from "./LoadReturnSaleDialog";
+import { LoadBackorderDialog } from "./LoadBackorderDialog";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(
@@ -24,7 +25,10 @@ export default function PosWorkspace() {
   const cart = usePosCart();
   const [loadQuotationOpen, setLoadQuotationOpen] = useState(false);
   const [loadReturnOpen, setLoadReturnOpen] = useState(false);
+  const [loadBackorderOpen, setLoadBackorderOpen] = useState(false);
   const isReturnMode = cart.isReturnMode;
+  const isFulfillBackorderMode = cart.isFulfillBackorderMode;
+  const cartLocked = isReturnMode || isFulfillBackorderMode;
 
   useEffect(() => {
     const c = readPosContextClient();
@@ -84,9 +88,13 @@ export default function PosWorkspace() {
         branchId={branchId}
         pointOfSaleId={ctx.pointOfSaleId}
         onPriceListChange={setPriceListId}
-        onPickProduct={isReturnMode ? undefined : addProduct}
-        disabled={isReturnMode}
-        disabledHint="En devolución solo puedes quitar líneas del carrito. Usa «Desvincular» para salir."
+        onPickProduct={cartLocked ? undefined : addProduct}
+        disabled={cartLocked}
+        disabledHint={
+          isFulfillBackorderMode
+            ? "En liquidación de encargo no puedes agregar productos. Usa «Desvincular» para salir."
+            : "En devolución solo puedes quitar líneas del carrito. Usa «Desvincular» para salir."
+        }
       />
 
       <aside
@@ -100,7 +108,7 @@ export default function PosWorkspace() {
               variant="outlined"
               size="sm"
               onClick={() => setLoadQuotationOpen(true)}
-              disabled={isReturnMode}
+              disabled={cartLocked}
               data-test-id="pos-load-quotation-btn"
               className="shrink-0"
             >
@@ -111,17 +119,35 @@ export default function PosWorkspace() {
               variant="outlined"
               size="sm"
               onClick={() => setLoadReturnOpen(true)}
-              disabled={isReturnMode && cart.lines.length > 0}
+              disabled={(isReturnMode || isFulfillBackorderMode) && cart.lines.length > 0}
               title={
-                isReturnMode && cart.lines.length > 0
-                  ? "Desvincule la devolución actual para cargar otra venta"
-                  : "Cargar venta origen para devolución"
+                isFulfillBackorderMode && cart.lines.length > 0
+                  ? "Desvincule el encargo actual para cargar una devolución"
+                  : isReturnMode && cart.lines.length > 0
+                    ? "Desvincule la devolución actual para cargar otra venta"
+                    : "Cargar venta origen para devolución"
               }
               data-test-id="pos-load-return-btn"
               className="shrink-0"
             >
               <RotateCcw size={14} className="shrink-0" aria-hidden />
               <span>Devolución</span>
+            </Button>
+            <Button
+              variant="outlined"
+              size="sm"
+              onClick={() => setLoadBackorderOpen(true)}
+              disabled={isFulfillBackorderMode && cart.lines.length > 0}
+              title={
+                isFulfillBackorderMode && cart.lines.length > 0
+                  ? "Desvincule el encargo actual para cargar otro"
+                  : "Cargar encargo abierto para liquidar"
+              }
+              data-test-id="pos-load-backorder-btn"
+              className="shrink-0"
+            >
+              <Package size={14} className="shrink-0" aria-hidden />
+              <span>Encargo</span>
             </Button>
           </div>
           <div className="flex items-center gap-2">
@@ -137,6 +163,31 @@ export default function PosWorkspace() {
             />
           </div>
         </div>
+
+        {cart.loadedBackorder ? (
+          <div
+            className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-secondary/50 bg-secondary/10 px-3 py-2 text-xs"
+            data-test-id="pos-cart-backorder-banner"
+          >
+            <div>
+              <span className="text-muted-foreground">Liquidar encargo:</span>{" "}
+              <span className="font-mono font-semibold">
+                {cart.loadedBackorder.documentNumber}
+              </span>
+              <span className="ml-2 text-muted-foreground">
+                Abono {formatMoney(cart.loadedBackorder.depositAvailable)}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={() => cart.exitFulfillBackorderMode()}
+              data-test-id="pos-cart-backorder-detach"
+            >
+              Desvincular
+            </button>
+          </div>
+        ) : null}
 
         {cart.loadedReturnSale ? (
           <div
@@ -160,7 +211,7 @@ export default function PosWorkspace() {
           </div>
         ) : null}
 
-        {cart.loadedQuotation && !isReturnMode ? (
+        {cart.loadedQuotation && !cartLocked ? (
           <div
             className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-xs"
             data-test-id="pos-cart-quotation-banner"
@@ -199,8 +250,15 @@ export default function PosWorkspace() {
                 pointOfSaleId={ctx.pointOfSaleId}
                 onIncrement={() => cart.increment(line.variantId)}
                 onDecrement={() => cart.decrement(line.variantId)}
-                onRemove={() => cart.remove(line.variantId)}
+                onRemove={
+                  isFulfillBackorderMode ? undefined : () => cart.remove(line.variantId)
+                }
                 onSetQuantity={(q) => cart.setQuantity(line.variantId, q)}
+                maxQuantity={
+                  isFulfillBackorderMode
+                    ? cart.loadedBackorder?.lineMaxQtyByVariantId[line.variantId]
+                    : undefined
+                }
               />
             ))}
         </div>
@@ -226,9 +284,17 @@ export default function PosWorkspace() {
               variant="outlined"
               size="lg"
               className="mx-6 shrink-0"
-              ariaLabel={isReturnMode ? "Ir a devolución" : "Ir a cobro"}
+              ariaLabel={
+                isReturnMode ? "Ir a devolución" : isFulfillBackorderMode ? "Ir a cobro" : "Ir a cobro"
+              }
               disabled={cart.lines.length === 0}
-              title={isReturnMode ? "Ir a devolución" : "Ir a cobro"}
+              title={
+                isReturnMode
+                  ? "Ir a devolución"
+                  : isFulfillBackorderMode
+                    ? "Liquidar encargo"
+                    : "Ir a cobro"
+              }
               onClick={() => router.push("/pos/payment")}
               data-test-id="pos-cart-checkout-icon"
             />
@@ -242,6 +308,10 @@ export default function PosWorkspace() {
       />
 
       <LoadReturnSaleDialog open={loadReturnOpen} onClose={() => setLoadReturnOpen(false)} />
+      <LoadBackorderDialog
+        open={loadBackorderOpen}
+        onClose={() => setLoadBackorderOpen(false)}
+      />
     </div>
   );
 }

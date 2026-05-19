@@ -55,7 +55,7 @@ export type CreateProductVariantFormInput = {
   purchaseUnitId?: string;
   isActive?: boolean;
   priceListItems: CreateProductVariantPriceListItemInput[];
-  /** PMP (precio medio ponderado) guardado en la variante; entero ≥ 0 (omitir → 0). */
+  /** Ignorado: el PMP lo asigna el backend con la primera compra valorada. */
   pmp?: number;
   /** Mapa attributeId → texto de opción (catálogo de atributos). Opcional. */
   attributeValues?: Record<string, string>;
@@ -248,11 +248,6 @@ export async function createProductVariantAction(
     return { success: false, error: "El precio de referencia no puede ser negativo" };
   }
 
-  const pmpToSend = Math.max(0, Math.round(Number(input.pmp ?? 0)));
-  if (!Number.isFinite(pmpToSend)) {
-    return { success: false, error: "El PMP no es válido." };
-  }
-
   let attributeValuesToSend: Record<string, string> | undefined;
   if (input.attributeValues != null && typeof input.attributeValues === "object") {
     const cleaned: Record<string, string> = {};
@@ -301,7 +296,6 @@ export async function createProductVariantAction(
     stockBaseQtyPerCountPurchaseUnit: input.stockBaseQtyPerCountPurchaseUnit,
     isActive: input.isActive !== false,
     priceListItems: items,
-    pmp: pmpToSend,
     attributeValues: attributeValuesToSend,
     trackInventory: input.trackInventory,
     allowNegativeStock: input.allowNegativeStock,
@@ -360,11 +354,6 @@ export async function updateProductVariantAction(
     return { success: false, error: "El precio de referencia no puede ser negativo" };
   }
 
-  const pmpToSend = Math.max(0, Math.round(Number(input.pmp ?? 0)));
-  if (!Number.isFinite(pmpToSend)) {
-    return { success: false, error: "El PMP no es válido." };
-  }
-
   let attributeValuesToSend: Record<string, string> | undefined;
   if (input.attributeValues != null && typeof input.attributeValues === "object") {
     const cleaned: Record<string, string> = {};
@@ -413,7 +402,6 @@ export async function updateProductVariantAction(
     stockBaseQtyPerCountPurchaseUnit: input.stockBaseQtyPerCountPurchaseUnit,
     isActive: input.isActive !== false,
     priceListItems: items,
-    pmp: pmpToSend,
     attributeValues: attributeValuesToSend,
     trackInventory: input.trackInventory,
     allowNegativeStock: input.allowNegativeStock,
@@ -556,11 +544,10 @@ export async function updateProductVariantIdentityPartialAction(
 export type UpdateProductVariantPricingPartialInput = {
   productId: string;
   basePrice: number;
-  pmp: number;
   priceListItems: CreateProductVariantPriceListItemInput[];
 };
 
-/** Actualiza precios por lista, precio de referencia y PMP vía `PUT` parcial. */
+/** Actualiza precios por lista y precio de referencia vía `PUT` parcial (PMP solo vía compras). */
 export async function updateProductVariantPricingPartialAction(
   variantId: string,
   input: UpdateProductVariantPricingPartialInput,
@@ -584,10 +571,6 @@ export async function updateProductVariantPricingPartialAction(
   if (basePrice < 0) {
     return { success: false, error: "El precio de referencia no puede ser negativo" };
   }
-  const pmpToSend = Math.max(0, Math.round(Number(input.pmp ?? 0)));
-  if (!Number.isFinite(pmpToSend)) {
-    return { success: false, error: "El PMP no es válido." };
-  }
   const seen = new Set<string>();
   for (const it of items) {
     const lid = it.priceListId?.trim() ?? "";
@@ -608,7 +591,6 @@ export async function updateProductVariantPricingPartialAction(
   const body: Record<string, unknown> = {
     productId,
     basePrice,
-    pmp: pmpToSend,
     priceListItems: items.map((item) => ({
       priceListId: item.priceListId.trim(),
       netPrice: Math.round(Number(item.netPrice)) || 0,

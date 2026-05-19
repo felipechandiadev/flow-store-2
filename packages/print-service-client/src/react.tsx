@@ -136,9 +136,8 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
   const [lastError, setLastError] = useState<string | null>(null);
   const [attemptedWsUrl, setAttemptedWsUrl] = useState<string | null>(null);
   const storageClientId = opts.clientId ?? "pwa";
-  const [notifications, setNotifications] = useState<PrintServiceNotification[]>(() =>
-    readPrintServiceNotificationsFromStorage(storageClientId),
-  );
+  /** Inicia vacío: leer localStorage en el initializer rompe la hidratación (SSR = 0, cliente = N). */
+  const [notifications, setNotifications] = useState<PrintServiceNotification[]>([]);
   const connRef = useRef<PrintServiceConnection | null>(null);
   const retryRef = useRef(0);
   const timerRef = useRef<number | null>(null);

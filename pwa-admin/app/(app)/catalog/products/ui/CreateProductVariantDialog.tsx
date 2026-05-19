@@ -112,7 +112,6 @@ export function CreateProductVariantDialog({
   const [priceRows, setPriceRows] = useState<VariantPriceRowModel[]>([]);
   /** Fila para la que está abierta la calculadora PMP (null = cerrado). */
   const [pmpCalculatorRowKey, setPmpCalculatorRowKey] = useState<string | null>(null);
-  const [draftPmp, setDraftPmp] = useState(0);
   const [attributes, setAttributes] = useState<AttributeListItem[]>([]);
   /** attributeId → valor de opción elegido (null = sin definir). */
   const [attributeSelections, setAttributeSelections] = useState<Record<string, string | null>>({});
@@ -192,13 +191,6 @@ export function CreateProductVariantDialog({
     }
     return deriveBasePriceFromPriceRows(completedPriceRows);
   }, [completedPriceRows]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    setDraftPmp(Math.max(0, Math.round(Number(referencePmp) || 0)));
-  }, [open, referencePmp]);
 
   useEffect(() => {
     if (!open) {
@@ -376,7 +368,6 @@ export function CreateProductVariantDialog({
           purchaseUnitId: String(purchaseUnitId),
           isActive,
           priceListItems,
-          pmp: draftPmp,
           attributeValues: attributeValuesPayload,
           trackInventory,
           allowNegativeStock,
@@ -412,8 +403,7 @@ export function CreateProductVariantDialog({
     });
   };
 
-  const handlePmpCalculatorApply = (pmp: number, net: number, priceRowKey: string) => {
-    setDraftPmp(Math.max(0, Math.round(pmp)));
+  const handlePmpCalculatorApply = (_pmp: number, net: number, priceRowKey: string) => {
     setPriceRows((prev) =>
       prev.map((r) => {
         if (r.key !== priceRowKey) {
@@ -656,6 +646,10 @@ export function CreateProductVariantDialog({
             </div>
           ) : null}
 
+          <p className="text-xs text-muted-foreground">
+            El PMP (precio medio ponderado) se asigna con la primera compra valorada; la calculadora solo ayuda a
+            fijar precios de venta.
+          </p>
           <VariantPriceRowsEditor
             priceLists={priceLists}
             ivaTaxes={ivaTaxes}
@@ -741,7 +735,7 @@ export function CreateProductVariantDialog({
       <VariantPmpPriceCalculatorDialog
         open={pmpCalculatorRowKey != null}
         onClose={() => setPmpCalculatorRowKey(null)}
-        initialPmp={draftPmp}
+        initialPmp={Math.max(0, Math.round(Number(referencePmp) || 0))}
         priceRowKey={pmpCalculatorRowKey}
         taxIdsForPreview={
           pmpCalculatorRowKey != null

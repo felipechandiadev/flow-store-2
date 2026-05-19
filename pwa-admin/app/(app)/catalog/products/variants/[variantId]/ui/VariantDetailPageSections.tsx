@@ -630,7 +630,6 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
   const [priceLists, setPriceLists] = useState<PriceListListItem[]>([]);
   const [taxes, setTaxes] = useState<TaxListItem[]>([]);
   const [priceRows, setPriceRows] = useState<VariantPriceRowModel[]>([]);
-  const [draftPmp, setDraftPmp] = useState(0);
   const [pmpCalculatorRowKey, setPmpCalculatorRowKey] = useState<string | null>(null);
 
   const ivaTaxes = useMemo(
@@ -662,7 +661,6 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
     }
     const defaultIva = catalogDefaultIvaTaxIds(taxes);
     setPriceRows(priceListItemsToVariantRows(variant.priceListItems ?? [], defaultIva));
-    setDraftPmp(Math.max(0, Math.round(Number(variant.pmp ?? 0))));
   }, [variant, taxes, editing]);
 
   const formatMoney = (amount: number, currency: string) => {
@@ -678,7 +676,6 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
     if (!editing) {
       const defaultIva = catalogDefaultIvaTaxIds(taxes);
       setPriceRows(priceListItemsToVariantRows(variant.priceListItems ?? [], defaultIva));
-      setDraftPmp(Math.max(0, Math.round(Number(variant.pmp ?? 0))));
       setEditing(true);
       return;
     }
@@ -724,7 +721,6 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
         const r = await updateProductVariantPricingPartialAction(vid, {
           productId: pid,
           basePrice,
-          pmp: draftPmp,
           priceListItems,
         });
         if (r.success) {
@@ -737,8 +733,7 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
     });
   };
 
-  const handlePmpCalculatorApply = (pmp: number, net: number, priceRowKey: string) => {
-    setDraftPmp(Math.max(0, Math.round(pmp)));
+  const handlePmpCalculatorApply = (_pmp: number, net: number, priceRowKey: string) => {
     setPriceRows((prev) =>
       prev.map((r) => {
         if (r.key !== priceRowKey) {
@@ -767,7 +762,7 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
             value={
               variant.pmp != null && Number.isFinite(variant.pmp)
                 ? formatMoney(variant.pmp, "CLP")
-                : "—"
+                : "Sin PMP — pendiente primera compra"
             }
             onChange={noop}
             readOnly
@@ -790,15 +785,15 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
       ) : (
         <div className="space-y-3 border-t border-border pt-3">
           <TextField
-            label="PMP (entero, moneda empresa)"
+            label="PMP (precio medio ponderado)"
             name="pv-pr-pmp-edit"
-            value={draftPmp === 0 ? "" : String(draftPmp)}
-            onChange={(e) => {
-              const digits = e.target.value.replace(/\D/g, "");
-              setDraftPmp(digits === "" ? 0 : Math.max(0, Math.round(Number(digits))));
-            }}
-            inputMode="numeric"
-            placeholder="0"
+            value={
+              variant.pmp != null && Number.isFinite(variant.pmp)
+                ? formatMoney(variant.pmp, "CLP")
+                : "Sin PMP — se define con la primera compra"
+            }
+            onChange={noop}
+            readOnly
           />
           <VariantPriceRowsEditor
             priceLists={priceLists}
@@ -827,7 +822,9 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
       <VariantPmpPriceCalculatorDialog
         open={pmpCalculatorRowKey != null}
         onClose={() => setPmpCalculatorRowKey(null)}
-        initialPmp={draftPmp}
+        initialPmp={
+          variant.pmp != null && Number.isFinite(variant.pmp) ? Math.max(0, Math.round(variant.pmp)) : 0
+        }
         priceRowKey={pmpCalculatorRowKey}
         taxIdsForPreview={
           pmpCalculatorRowKey != null

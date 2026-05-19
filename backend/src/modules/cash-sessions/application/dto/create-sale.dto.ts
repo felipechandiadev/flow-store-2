@@ -221,6 +221,11 @@ export class CreateSaleDto {
   @IsString()
   customerId?: string;
 
+  /** Liquidar reserva (`BACKORDER` abierta): valida líneas y libera stock comprometido. */
+  @IsOptional()
+  @IsUUID()
+  fulfillBackorderId?: string;
+
   @IsOptional()
   @IsString()
   documentNumber?: string;

@@ -47,7 +47,7 @@ export type ProductVariantGridRow = {
   basePrice?: number;
   baseCost?: number;
   /** Precio medio ponderado (inventario); 0 si no aplica. */
-  pmp?: number;
+  pmp?: number | null;
   /** Nombre legible derivado de atributos (API). */
   displayName?: string | null;
   /** Mapa attributeId → valor de opción. */

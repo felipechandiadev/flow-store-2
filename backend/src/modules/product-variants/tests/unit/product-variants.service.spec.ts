@@ -271,43 +271,23 @@ describe('ProductVariantsService', () => {
     );
   });
 
-  it('should append pmpHistory when pmp is updated via API', async () => {
-    variantRepository.findById
-      .mockResolvedValueOnce({
-        id: 'variant-1',
-        productId: 'product-1',
-        sku: 'SKU-1',
-        pmp: 100,
-        pmpHistory: null,
-        companyId: 'company-1',
-        unitId: 'unit-1',
-        saleUnitId: 'unit-1',
-        stockBaseUnitId: 'unit-1',
-        purchaseUnitId: 'unit-1',
-      })
-      .mockResolvedValueOnce({
-        id: 'variant-1',
-        productId: 'product-1',
-        sku: 'SKU-1',
-        pmp: 250,
-      });
-    variantRepository.save.mockImplementation(async (row: any) => ({ ...row }));
-    multimediaService.listByEntity.mockResolvedValue([]);
+  it('should reject manual pmp update via API', async () => {
+    variantRepository.findById.mockResolvedValueOnce({
+      id: 'variant-1',
+      productId: 'product-1',
+      sku: 'SKU-1',
+      pmp: 100,
+      companyId: 'company-1',
+      unitId: 'unit-1',
+      saleUnitId: 'unit-1',
+      stockBaseUnitId: 'unit-1',
+      purchaseUnitId: 'unit-1',
+    });
 
-    await service.update('variant-1', { pmp: 250 });
-
-    expect(variantRepository.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pmp: 250,
-        pmpHistory: expect.arrayContaining([
-          expect.objectContaining({
-            previousPmp: 100,
-            newPmp: 250,
-            source: 'manual_api',
-          }),
-        ]),
-      }),
+    await expect(service.update('variant-1', { pmp: 250 })).rejects.toBeInstanceOf(
+      BadRequestException,
     );
+    expect(variantRepository.save).not.toHaveBeenCalled();
   });
 
   it('should strip pmpHistory from client payload on update', async () => {
@@ -336,7 +316,7 @@ describe('ProductVariantsService', () => {
     expect(saved.pmpHistory).toBeUndefined();
   });
 
-  it('should set pmpHistory on create when initial pmp is non-zero', async () => {
+  it('should create variant with null pmp and reject explicit pmp in payload', async () => {
     variantRepository.save.mockImplementation(async (row: any) => ({
       id: 'variant-new',
       ...row,
@@ -353,20 +333,23 @@ describe('ProductVariantsService', () => {
       sku: 'SKU-PMP',
       basePrice: 1,
       unitId: 'unit-1',
-      pmp: 99.5,
     });
 
     expect(variantRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({
-        pmp: 99.5,
-        pmpHistory: expect.arrayContaining([
-          expect.objectContaining({
-            previousPmp: 0,
-            newPmp: 99.5,
-            source: 'initial',
-          }),
-        ]),
+        pmp: null,
+        pmpHistory: null,
       }),
     );
+
+    await expect(
+      service.create({
+        productId: 'product-1',
+        sku: 'SKU-PMP-2',
+        basePrice: 1,
+        unitId: 'unit-1',
+        pmp: 99.5,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

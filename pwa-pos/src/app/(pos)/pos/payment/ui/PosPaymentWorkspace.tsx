@@ -154,8 +154,11 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     setEncargoModeEnabled,
     disableEncargoMode,
     isReturnMode,
+    isFulfillBackorderMode,
     loadedReturnSale,
+    loadedBackorder,
     exitReturnMode,
+    exitFulfillBackorderMode,
   } = cart;
   const saleTitleId = useId();
   const [addOpen, setAddOpen] = useState(false);
@@ -472,7 +475,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   );
   const discounts = lineDiscountsTotal + (cart.orderDiscount ?? 0);
   const saleTotal = Math.max(0, totals.gross - discounts);
-  const isEncargoMode = !isReturnMode && encargoModeEnabled;
+  const isEncargoMode = !isReturnMode && !isFulfillBackorderMode && encargoModeEnabled;
   const amountToPay =
     isEncargoMode && backorderDeposit && backorderDeposit.amount >= 1
       ? Math.round(backorderDeposit.amount)
@@ -502,14 +505,18 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
 
   const flowTitle = isReturnMode
     ? "Devolución en curso"
-    : isEncargoMode
-      ? "Encargo en curso"
-      : "Venta en curso";
+    : isFulfillBackorderMode
+      ? "Liquidar encargo"
+      : isEncargoMode
+        ? "Encargo en curso"
+        : "Venta en curso";
   const summarySectionLabel = isReturnMode
     ? "Resumen de devolución"
-    : isEncargoMode
-      ? "Resumen de encargo"
-      : "Resumen de venta";
+    : isFulfillBackorderMode
+      ? "Resumen de liquidación"
+      : isEncargoMode
+        ? "Resumen de encargo"
+        : "Resumen de venta";
   const amountDueLabel = isReturnMode ? "Total a devolver" : "Total a pagar";
   const showReturnRefundUi = !isReturnMode || immediateReturnRefund;
   /** Devolución sin reembolso en caja: CTA con icono de documento en lugar de cobro. */
@@ -545,6 +552,23 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     if (!effectiveLoaded) return;
     setPayments((prev) => {
       if (prev.length > 0) return prev;
+      if (isFulfillBackorderMode && loadedBackorder) {
+        const advance = Math.min(
+          Math.round(loadedBackorder.depositAvailable),
+          Math.round(amountToPay),
+        );
+        if (advance > 0) {
+          return [
+            {
+              id: makePaymentLineId(),
+              type: "ORDER_ADVANCE",
+              amount: advance,
+              reference: loadedBackorder.documentNumber,
+              backorderTransactionId: loadedBackorder.id,
+            },
+          ];
+        }
+      }
       // Catálogo efectivo: precargar líneas marcadas como `preloadOnPaymentScreen`,
       // ordenadas por `preloadOrder` (el backend ya las devuelve ordenadas).
       const preload = effectiveMethods.filter((m) => m.preloadOnPaymentScreen);
@@ -568,7 +592,16 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         },
       ];
     });
-  }, [cart.ready, amountToPay, payments.length, setPayments, effectiveLoaded, effectiveMethods]);
+  }, [
+    cart.ready,
+    amountToPay,
+    payments.length,
+    setPayments,
+    effectiveLoaded,
+    effectiveMethods,
+    isFulfillBackorderMode,
+    loadedBackorder,
+  ]);
 
   const appliedTotal = useMemo(() => payments.reduce((a, p) => a + p.amount, 0), [payments]);
   const nonCashTotal = useMemo(
@@ -996,7 +1029,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     amountToPay > 0 &&
     payments.length > 0 &&
     remaining <= 0.01 &&
-    (!isEncargoMode || hasSaleCustomer);
+    ((!isEncargoMode && !isFulfillBackorderMode) || hasSaleCustomer);
 
   const canConfirm =
     canConfirmReturnDocument || canConfirmReturnWithRefund || canConfirmSale;
@@ -1016,6 +1049,12 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       if (payments.length === 0) return "Agrega al menos un método de pago";
       if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar";
       return "Confirmar reembolso";
+    }
+    if (isFulfillBackorderMode && !hasSaleCustomer) {
+      return "Selecciona el cliente del encargo";
+    }
+    if (isFulfillBackorderMode && !hasSaleCustomer) {
+      return "Selecciona el cliente del encargo";
     }
     if (isEncargoMode && !hasSaleCustomer) {
       return "Selecciona un cliente para confirmar el encargo";
@@ -1069,6 +1108,9 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     if (isReturnMode) {
       return "La confirmación de devoluciones se habilitará en una próxima etapa.";
     }
+    if (isFulfillBackorderMode && !hasSaleCustomer) {
+      return "Selecciona el cliente del encargo para liquidarlo.";
+    }
     if (isEncargoMode && !hasSaleCustomer) {
       return "Selecciona un cliente para confirmar el encargo.";
     }
@@ -1094,6 +1136,17 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           return "Selecciona la cuenta bancaria destino para la transferencia.";
         }
       }
+      if (p.type === "ORDER_ADVANCE" && isFulfillBackorderMode) {
+        if (!p.backorderTransactionId?.trim()) {
+          return "El abono debe estar vinculado al encargo.";
+        }
+        if (p.backorderTransactionId.trim() !== loadedBackorder?.id) {
+          return "El abono no corresponde al encargo cargado.";
+        }
+      }
+    }
+    if (isFulfillBackorderMode && !loadedBackorder?.id?.trim()) {
+      return "Vincula el encargo antes de confirmar.";
     }
     return "";
   };
@@ -1274,6 +1327,9 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
             appliedPromotions,
             appliedTotal,
             overpay,
+            fulfillBackorderId: isFulfillBackorderMode
+              ? loadedBackorder?.id ?? null
+              : null,
           }),
         );
 
@@ -1485,6 +1541,20 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                   labelPosition="left"
                 />
               </div>
+            ) : isFulfillBackorderMode ? (
+              loadedBackorder ? (
+                <span
+                  className="max-w-full truncate text-xs text-muted-foreground"
+                  data-test-id="pos-payment-backorder-banner"
+                >
+                  Encargo{" "}
+                  <span className="font-mono font-semibold text-foreground">
+                    {loadedBackorder.documentNumber}
+                  </span>
+                  {" · "}
+                  Abono {formatMoney(loadedBackorder.depositAvailable)}
+                </span>
+              ) : null
             ) : (
               <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
                 <Button

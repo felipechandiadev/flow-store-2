@@ -56,7 +56,6 @@ export const mainMenuItems: SideBarMenuItem[] = [
   {
     id: 'nav-purchasing',
     label: 'Compras',
-    hidden: true,
     children: [
       {
         id: 'purchasing-transactions',

@@ -312,7 +312,7 @@ export class ReceptionsService {
 
       // Build transaction DTO (stock movement)
       const dto = new CreateTransactionDto();
-      dto.transactionType = TransactionType.ADJUSTMENT_IN;
+      dto.transactionType = TransactionType.PURCHASE;
       dto.branchId = branchId;
       let resolvedUserId = reception.userId;
       if (!resolvedUserId) {
@@ -392,9 +392,12 @@ export class ReceptionsService {
             productSku: l.sku || l.productSku || undefined,
             variantName: l.variantName || undefined,
             quantity: qty,
-            // In stock-in movement we value with unitCost when available; fallback to unitPrice
-            unitPrice: Number(l.unitCost ?? 0) > 0 ? Number(l.unitCost ?? 0) : unitPrice,
-            unitCost: Number(l.unitCost ?? 0) || 0,
+            // Valorización de inventario: costo unitario de compra (unitCost o precio de línea)
+            unitPrice:
+              Number(l.unitCost ?? l.unitPrice ?? 0) > 0
+                ? Number(l.unitCost ?? l.unitPrice ?? 0)
+                : unitPrice,
+            unitCost: Number(l.unitCost ?? l.unitPrice ?? 0) || 0,
             discountPercentage: 0,
             discountAmount: 0,
             taxRate: 0,
@@ -421,7 +424,7 @@ export class ReceptionsService {
       // Create inventory transaction
       const created = await this.transactionsService.createTransaction(dto);
       this.logger.log(
-        `Created ADJUSTMENT_IN transaction ${created.id} for reception ${reception.id}`,
+        `Created PURCHASE transaction ${created.id} for reception ${reception.id}`,
       );
       // Persist link back to reception object (in-memory) for UI and diagnostics
       try {
@@ -505,7 +508,7 @@ export class ReceptionsService {
           quantity: qty,
           receivedQuantity: Number(l.receivedQuantity ?? qty),
           unitPrice,
-          unitCost: Number(l.unitCost ?? 0) || 0,
+          unitCost: Number(l.unitCost ?? l.unitPrice ?? 0) || 0,
           subtotal: lineSubtotal,
           lineNumber: i + 1,
         });
@@ -597,7 +600,7 @@ export class ReceptionsService {
           quantity: qty,
           receivedQuantity: Number(l.receivedQuantity ?? qty),
           unitPrice,
-          unitCost: Number(l.unitCost ?? 0) || 0,
+          unitCost: Number(l.unitCost ?? l.unitPrice ?? 0) || 0,
           subtotal: lineSubtotal,
           lineNumber: i + 1,
         });
@@ -707,7 +710,7 @@ export class ReceptionsService {
           quantity: qty,
           receivedQuantity: Number(l.receivedQuantity ?? qty),
           unitPrice,
-          unitCost: Number(l.unitCost ?? 0) || 0,
+          unitCost: Number(l.unitCost ?? l.unitPrice ?? 0) || 0,
           subtotal: lineSubtotal,
           lineNumber: i + 1,
         });

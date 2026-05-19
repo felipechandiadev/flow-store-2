@@ -113,7 +113,7 @@ export class StockLevelsRepository implements StockLevelsRepositoryPort {
           committedStock: 0,
           availableStock: 0,
           incomingStock: 0,
-          pmp: 0,
+          pmp: null,
           lastTransactionId: null,
           lastUpdated: new Date(),
           updatedAt: new Date(),
@@ -137,8 +137,13 @@ export class StockLevelsRepository implements StockLevelsRepositoryPort {
 
       row.physicalStock += qty;
       row.availableStock += Number(entity.availableStock || 0);
-      row.pmp = Number(variant?.pmp || 0);
-      row.totalValue = row.physicalStock * row.pmp;
+      const variantPmp =
+        variant?.pmp != null && Number.isFinite(Number(variant.pmp))
+          ? Number(variant.pmp)
+          : null;
+      row.pmp = variantPmp;
+      row.totalValue =
+        variantPmp != null ? row.physicalStock * variantPmp : null;
       row.storageName = entity.storage?.name || '';
       row.branchName = entity.storage?.branch?.name || '';
 

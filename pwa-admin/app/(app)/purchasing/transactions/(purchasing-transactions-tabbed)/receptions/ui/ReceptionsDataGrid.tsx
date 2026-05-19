@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
+import IconButton from "@/shared/components/IconButton/IconButton";
 import type { ReceptionGridRow } from "@/features/receptions/types/reception.types";
+import ReceptionDetailDialog from "@/features/purchasing-document/ui/ReceptionDetailDialog";
 
 type ReceptionsDataGridProps = {
   rows: ReceptionGridRow[];
@@ -33,9 +35,34 @@ const TYPE_LABEL: Record<string, string> = {
 
 export default function ReceptionsDataGrid({ rows, total }: ReceptionsDataGridProps) {
   const router = useRouter();
+  const [detailReceptionId, setDetailReceptionId] = useState<string | null>(null);
+
+  const openDetail = useCallback((r: ReceptionGridRow) => {
+    setDetailReceptionId(r.id);
+  }, []);
 
   const columns: DataGridColumn[] = useMemo(
-    () => [
+    () => {
+      function ReceptionActionsCell({ row }: { row: unknown; column: DataGridColumn }) {
+        const r = row as ReceptionGridRow;
+        return (
+          <div
+            className="flex items-center justify-center"
+            data-test-id={`receptions-row-actions-${r.id}`}
+          >
+            <IconButton
+              icon="MoreHorizontal"
+              variant="basicSecondary"
+              size="sm"
+              ariaLabel="Ver detalle de la recepción"
+              onClick={() => openDetail(r)}
+              data-test-id={`receptions-row-detail-${r.id}`}
+            />
+          </div>
+        );
+      }
+
+      return [
       {
         field: "documentNumber",
         headerName: "Documento / ref.",
@@ -77,24 +104,43 @@ export default function ReceptionsDataGrid({ rows, total }: ReceptionsDataGridPr
           return TYPE_LABEL[k] ?? (k || "—");
         },
       },
-    ],
-    [],
+      {
+        field: "actions",
+        headerName: "",
+        width: 72,
+        minWidth: 72,
+        align: "center",
+        sortable: false,
+        filterable: false,
+        actionComponent: ReceptionActionsCell,
+      },
+    ];
+    },
+    [openDetail],
   );
 
   return (
-    <DataGrid
-      title="Recepciones"
-      columns={columns}
-      rows={rows}
-      totalRows={total}
-      totalGeneral={total}
-      height="85vh"
-      showExportButton={false}
-      showSortButton={false}
-      showFilterButton={false}
-      showSearch={false}
-      onAddClick={() => router.push("/purchasing/transactions/receptions/new")}
-      data-test-id="receptions-data-grid"
-    />
+    <>
+      <DataGrid
+        title="Recepciones"
+        columns={columns}
+        rows={rows}
+        totalRows={total}
+        totalGeneral={total}
+        height="85vh"
+        showExportButton={false}
+        showSortButton={false}
+        showFilterButton={false}
+        showSearch={false}
+        pinActionsColumn
+        onAddClick={() => router.push("/purchasing/transactions/receptions/new")}
+        data-test-id="receptions-data-grid"
+      />
+      <ReceptionDetailDialog
+        receptionId={detailReceptionId}
+        open={detailReceptionId != null}
+        onClose={() => setDetailReceptionId(null)}
+      />
+    </>
   );
 }

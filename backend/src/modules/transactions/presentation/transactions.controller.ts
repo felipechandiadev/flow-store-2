@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { CurrentCompany } from '@common/tenant';
 import { PosSaleLookupService } from '../application/pos-sale-lookup.service';
+import { PosBackorderLookupService } from '../application/pos-backorder-lookup.service';
 import {
   ApiTags,
   ApiOperation,
@@ -26,6 +27,7 @@ export class TransactionsController {
   constructor(
     private readonly queryBus: QueryBus,
     private readonly posSaleLookup: PosSaleLookupService,
+    private readonly posBackorderLookup: PosBackorderLookupService,
   ) {}
 
   /**
@@ -179,6 +181,23 @@ export class TransactionsController {
       documentNumber,
     );
     return { success: true, sale };
+  }
+
+  @Get('backorders/by-document-number/:documentNumber')
+  @ApiOperation({
+    summary: 'Buscar reserva (encargo) por folio interno (POS)',
+    description:
+      'Devuelve transacción `BACKORDER` abierta con líneas para liquidar en el POS. `backorder: null` si no existe.',
+  })
+  async getBackorderByDocumentNumber(
+    @Param('documentNumber') documentNumber: string,
+    @CurrentCompany() companyId: string,
+  ) {
+    const backorder = await this.posBackorderLookup.findBackorderByDocumentNumber(
+      companyId,
+      documentNumber,
+    );
+    return { success: true, backorder };
   }
 
   @Get('customer-returns')

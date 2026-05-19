@@ -34,6 +34,8 @@ import { VariantPmpPriceCalculatorDialog } from "./VariantPmpPriceCalculatorDial
 import { VariantAttributesPickerDialog } from "./VariantAttributesPickerDialog";
 import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
 
+function noop() {}
+
 function catalogDefaultIvaTaxIds(taxes: TaxListItem[]): string[] {
   const iva = taxes.filter((t) => t.isActive && t.taxType === "IVA");
   const defaults = iva.filter((t) => t.isDefault).map((t) => t.id);
@@ -87,7 +89,6 @@ export function EditProductVariantDialog({
   const [taxes, setTaxes] = useState<TaxListItem[]>([]);
   const [priceRows, setPriceRows] = useState<VariantPriceRowModel[]>([]);
   const [pmpCalculatorRowKey, setPmpCalculatorRowKey] = useState<string | null>(null);
-  const [draftPmp, setDraftPmp] = useState(0);
   const [attributes, setAttributes] = useState<AttributeListItem[]>([]);
   const [attributeSelections, setAttributeSelections] = useState<Record<string, string | null>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -265,8 +266,6 @@ export function EditProductVariantDialog({
             ? String(Math.round(Number(variant.volumetricDivisorK)))
             : "",
         );
-        setDraftPmp(Math.max(0, Math.round(Number(variant.pmp ?? 0))));
-
         const attrSel: Record<string, string | null> = {};
         const activeAttrs = [...attrs]
           .filter((a) => a.isActive && Array.isArray(a.options) && a.options.length > 0)
@@ -442,7 +441,6 @@ export function EditProductVariantDialog({
           purchaseUnitId: String(purchaseUnitId),
           isActive,
           priceListItems,
-          pmp: draftPmp,
           attributeValues: attributeValuesPayload,
           trackInventory,
           allowNegativeStock,
@@ -470,8 +468,7 @@ export function EditProductVariantDialog({
     });
   };
 
-  const handlePmpCalculatorApply = (pmp: number, net: number, priceRowKey: string) => {
-    setDraftPmp(Math.max(0, Math.round(pmp)));
+  const handlePmpCalculatorApply = (_pmp: number, net: number, priceRowKey: string) => {
     setPriceRows((prev) =>
       prev.map((r) => {
         if (r.key !== priceRowKey) {
@@ -658,6 +655,18 @@ export function EditProductVariantDialog({
             </div>
           ) : null}
 
+          <TextField
+            label="PMP (precio medio ponderado)"
+            name="pv-edit-pmp-readonly"
+            value={
+              variant.pmp != null && Number.isFinite(variant.pmp)
+                ? String(Math.round(variant.pmp))
+                : "Sin PMP — se define con la primera compra"
+            }
+            onChange={noop}
+            readOnly
+            data-test-id="product-variant-edit-pmp-readonly"
+          />
           <VariantPriceRowsEditor
             priceLists={priceLists}
             ivaTaxes={ivaTaxes}
@@ -792,7 +801,9 @@ export function EditProductVariantDialog({
       <VariantPmpPriceCalculatorDialog
         open={pmpCalculatorRowKey != null}
         onClose={() => setPmpCalculatorRowKey(null)}
-        initialPmp={draftPmp}
+        initialPmp={
+          variant.pmp != null && Number.isFinite(variant.pmp) ? Math.max(0, Math.round(variant.pmp)) : 0
+        }
         priceRowKey={pmpCalculatorRowKey}
         taxIdsForPreview={
           pmpCalculatorRowKey != null

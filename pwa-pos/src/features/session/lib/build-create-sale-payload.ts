@@ -38,6 +38,7 @@ export type CreateSaleApiBody = {
   amountPaid?: number;
   changeAmount?: number;
   customerId?: string;
+  fulfillBackorderId?: string;
   metadata?: Record<string, unknown>;
   promotionSnapshot?: Array<{
     promotionId: string;
@@ -137,6 +138,7 @@ export function buildCreateSaleClientPayload(input: {
   appliedPromotions: AppliedSnapshot[];
   appliedTotal: number;
   overpay: number;
+  fulfillBackorderId?: string | null;
 }): CreateSaleClientPayload {
   const paymentLines = input.payments.filter((p) => (Number(p.amount) || 0) > 0);
   const promotionSnapshot = buildPromotionSnapshot(input.appliedPromotions);
@@ -149,6 +151,7 @@ export function buildCreateSaleClientPayload(input: {
     amountPaid: Math.round(input.appliedTotal),
     changeAmount: Math.round(Math.max(0, input.overpay)),
     customerId: input.customer?.customerId?.trim() || undefined,
+    fulfillBackorderId: input.fulfillBackorderId?.trim() || undefined,
     promotionSnapshot,
   };
 }

@@ -156,7 +156,6 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
           unitId: defaultUnit.id,
           isActive: true,
           priceListItems,
-          pmp: 0,
           trackInventory: !isService,
           allowNegativeStock: false,
           minimumStock: 0,

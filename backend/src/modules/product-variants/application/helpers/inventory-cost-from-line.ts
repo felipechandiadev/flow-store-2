@@ -81,3 +81,40 @@ export function weightedAveragePmpAfterInventoryMove(input: {
   }
   return { newPmp: Number(newPmpRaw.toFixed(2)) };
 }
+
+export type ResolvePmpAfterValuedInboundInput = {
+  /** PMP vigente; `null` = aún no hubo primera compra valorada. */
+  prevPmp: number | null;
+  globalStockBefore: number;
+  outQtyBase: number;
+  inQtyBase: number;
+  inCostTotal: number;
+};
+
+/**
+ * Asigna o recalcula PMP tras una entrada valorada (p. ej. compra).
+ * - Sin PMP previo: costo unitario base de esta entrada (ignora stock previo sin costo).
+ * - Con PMP previo: promedio ponderado global.
+ */
+export function resolvePmpAfterValuedInbound(
+  input: ResolvePmpAfterValuedInboundInput,
+): { newPmp: number } | null {
+  const inQ = Math.max(0, Number(input.inQtyBase) || 0);
+  const inC = Math.max(0, Number(input.inCostTotal) || 0);
+  if (inQ <= 0 || inC <= 0) {
+    return null;
+  }
+
+  if (input.prevPmp == null || !Number.isFinite(Number(input.prevPmp))) {
+    const per = costPerStockBaseUnit(inC, inQ);
+    return per > 0 ? { newPmp: Number(per.toFixed(2)) } : null;
+  }
+
+  return weightedAveragePmpAfterInventoryMove({
+    globalStockBefore: input.globalStockBefore,
+    prevPmp: Number(input.prevPmp),
+    outQtyBase: input.outQtyBase,
+    inQtyBase: inQ,
+    inCostTotal: inC,
+  });
+}

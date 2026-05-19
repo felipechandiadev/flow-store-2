@@ -22,7 +22,6 @@ import { AttributesService } from '@modules/attributes/application/attributes.se
 import { Product } from '@modules/products/domain/product.entity';
 import { VariantQuantityConversionService } from './variant-quantity-conversion.service';
 import { SearchPurchasingVariantsDto } from './dto/search-purchasing-variants.dto';
-import { appendPmpHistory } from './helpers/pmp-history';
 import {
   foldPurchasingSearchText,
   mysqlFoldLowerColumnExpr,
@@ -30,6 +29,13 @@ import {
   PG_PURCHASING_SEARCH_TRANSLATE_TO,
   purchasingSearchLikePattern,
 } from './helpers/purchasing-search-text-fold';
+
+/** PMP en API: `null` si no hubo primera compra; nunca forzar 0 por defecto. */
+function pmpForApi(value: unknown): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
 
 @Injectable()
 export class ProductVariantsService {
@@ -149,7 +155,7 @@ export class ProductVariantsService {
         barcode: variant.barcode,
         basePrice: Number(variant.basePrice),
         baseCost: Number(variant.baseCost),
-        pmp: Number(variant.pmp ?? 0),
+        pmp: pmpForApi(variant.pmp),
         unitId: variant.unitId,
         stockBaseUnitId: variant.stockBaseUnitId,
         saleUnitId: variant.saleUnitId,
@@ -373,7 +379,16 @@ export class ProductVariantsService {
       normalizedAttrValues,
     );
 
-    const initialPmp = Number(sanitizedData.pmp ?? 0) || 0;
+    if (
+      Object.prototype.hasOwnProperty.call(sanitizedData, 'pmp') &&
+      sanitizedData.pmp != null &&
+      Number(sanitizedData.pmp) > 0
+    ) {
+      throw new BadRequestException(
+        'El PMP se asigna con la primera compra registrada; no puede definirse al crear la variante.',
+      );
+    }
+    delete (sanitizedData as { pmp?: unknown }).pmp;
 
     if (!sanitizedData.productId) {
       throw new BadRequestException('productId es obligatorio para crear variante.');
@@ -425,16 +440,8 @@ export class ProductVariantsService {
       barcode: sanitizedData.barcode || null,
       basePrice: sanitizedData.basePrice ?? 0,
       baseCost: sanitizedData.baseCost ?? 0,
-      pmp: initialPmp,
-      ...(initialPmp !== 0
-        ? {
-            pmpHistory: appendPmpHistory(undefined, {
-              previousPmp: 0,
-              newPmp: initialPmp,
-              source: 'initial',
-            }),
-          }
-        : {}),
+      pmp: null,
+      pmpHistory: null,
       unitId: saleId,
       stockBaseUnitId: stockId,
       saleUnitId: saleId,
@@ -529,11 +536,12 @@ export class ProductVariantsService {
       delete sanitizedData.attributeValues;
     }
 
-    const pmpProvided = Object.prototype.hasOwnProperty.call(
-      sanitizedData,
-      'pmp',
-    );
-    const prevPmp = Number((v as any).pmp ?? 0) || 0;
+    if (Object.prototype.hasOwnProperty.call(sanitizedData, 'pmp')) {
+      throw new BadRequestException(
+        'El PMP no se edita en catálogo; se actualiza al registrar compras.',
+      );
+    }
+    delete (sanitizedData as { pmp?: unknown }).pmp;
 
     Object.assign(v, sanitizedData);
     if (normalizedAttrValues !== undefined) {
@@ -543,16 +551,6 @@ export class ProductVariantsService {
         id,
       );
       (v as any).attributeValues = normalizedAttrValues;
-    }
-
-    if (pmpProvided) {
-      // `pmp` es por unidad base de stock (coherente con saldos y automation).
-      const newPmp = Number((v as any).pmp ?? 0) || 0;
-      (v as any).pmpHistory = appendPmpHistory((v as any).pmpHistory, {
-        previousPmp: prevPmp,
-        newPmp,
-        source: 'manual_api',
-      });
     }
 
     const companyId = String((v as any).companyId ?? '').trim();
@@ -717,7 +715,7 @@ export class ProductVariantsService {
       categoryName: v.product?.category?.name ?? null,
       sku: v.sku,
       barcode: v.barcode ?? null,
-      pmp: Number(v.pmp) || 0,
+      pmp: pmpForApi(v.pmp),
       attributeValues:
         v.attributeValues && typeof v.attributeValues === 'object' && !Array.isArray(v.attributeValues)
           ? (v.attributeValues as Record<string, string>)

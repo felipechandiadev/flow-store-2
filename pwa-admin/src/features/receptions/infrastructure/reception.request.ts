@@ -73,6 +73,28 @@ function normalizeReceptionDetail(raw: unknown): ReceptionDetailForReturn {
     supplierId: typeof o.supplierId === "string" ? o.supplierId : null,
     storageId: typeof o.storageId === "string" ? o.storageId : null,
     createdAt: typeof o.createdAt === "string" ? o.createdAt : undefined,
+    documentNumber:
+      typeof o.documentNumber === "string" && o.documentNumber.trim()
+        ? o.documentNumber.trim()
+        : null,
+    supplierName:
+      typeof o.supplierName === "string" && o.supplierName.trim()
+        ? o.supplierName.trim()
+        : null,
+    storageName:
+      typeof o.storageName === "string" && o.storageName.trim()
+        ? o.storageName.trim()
+        : null,
+    reference:
+      typeof o.reference === "string" && o.reference.trim() ? o.reference.trim() : null,
+    dteNumber:
+      typeof o.dteNumber === "string" && o.dteNumber.trim() ? o.dteNumber.trim() : null,
+    dteType: typeof o.dteType === "string" && o.dteType.trim() ? o.dteType.trim() : null,
+    subtotal: Number(o.subtotal) || 0,
+    taxAmount: Number(o.taxAmount) || 0,
+    total: Number(o.total) || 0,
+    notes: typeof o.notes === "string" && o.notes.trim() ? o.notes.trim() : null,
+    type: typeof o.type === "string" && o.type.trim() ? o.type.trim() : null,
     lines,
   };
 }

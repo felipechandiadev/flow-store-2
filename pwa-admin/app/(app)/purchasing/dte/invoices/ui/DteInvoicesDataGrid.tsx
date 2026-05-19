@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
+import IconButton from "@/shared/components/IconButton/IconButton";
 import type { SupplierInvoiceListItem } from "@/features/purchasing-invoices/types/supplier-invoice.types";
 import { dteFolioDisplay } from "@/features/purchasing-dte/lib/dte-folio-display";
+import PurchasingDteDetailDialog from "@/features/purchasing-document/ui/PurchasingDteDetailDialog";
 import { CreateSupplierInvoiceDialogForm } from "./CreateSupplierInvoiceDialogForm";
 
 function pad2(n: number): string {
@@ -36,8 +38,33 @@ type DteInvoicesDataGridProps = {
 };
 
 export default function DteInvoicesDataGrid({ rows, total }: DteInvoicesDataGridProps) {
-  const columns: DataGridColumn[] = useMemo(
-    () => [
+  const [detailTxId, setDetailTxId] = useState<string | null>(null);
+
+  const openDetail = useCallback((r: SupplierInvoiceListItem) => {
+    setDetailTxId(r.id);
+  }, []);
+
+  const columns: DataGridColumn[] = useMemo(() => {
+    function DteInvoiceActionsCell({ row }: { row: unknown; column: DataGridColumn }) {
+      const r = row as SupplierInvoiceListItem;
+      return (
+        <div
+          className="flex items-center justify-center"
+          data-test-id={`dte-invoices-row-actions-${r.id}`}
+        >
+          <IconButton
+            icon="MoreHorizontal"
+            variant="basicSecondary"
+            size="sm"
+            ariaLabel="Ver detalle de factura y recepción"
+            onClick={() => openDetail(r)}
+            data-test-id={`dte-invoices-row-detail-${r.id}`}
+          />
+        </div>
+      );
+    }
+
+    return [
       {
         field: "documentNumber",
         headerName: "Folio",
@@ -103,24 +130,42 @@ export default function DteInvoicesDataGrid({ rows, total }: DteInvoicesDataGrid
         width: 120,
         valueGetter: ({ row }) => String((row as SupplierInvoiceListItem).status || "—"),
       },
-    ],
-    [],
-  );
+      {
+        field: "actions",
+        headerName: "",
+        width: 72,
+        minWidth: 72,
+        align: "center",
+        sortable: false,
+        filterable: false,
+        actionComponent: DteInvoiceActionsCell,
+      },
+    ];
+  }, [openDetail]);
 
   return (
-    <DataGrid
-      title="Facturas"
-      columns={columns}
-      rows={rows}
-      totalRows={total}
-      totalGeneral={total}
-      height="85vh"
-      showExportButton={false}
-      showSortButton={false}
-      showFilterButton={false}
-      createFormTitle="Ingresar factura"
-      createForm={<CreateSupplierInvoiceDialogForm />}
-      data-test-id="dte-invoices-data-grid"
-    />
+    <>
+      <DataGrid
+        title="Facturas"
+        columns={columns}
+        rows={rows}
+        totalRows={total}
+        totalGeneral={total}
+        height="85vh"
+        showExportButton={false}
+        showSortButton={false}
+        showFilterButton={false}
+        pinActionsColumn
+        createFormTitle="Ingresar factura"
+        createForm={<CreateSupplierInvoiceDialogForm />}
+        data-test-id="dte-invoices-data-grid"
+      />
+      <PurchasingDteDetailDialog
+        transactionId={detailTxId}
+        open={detailTxId != null}
+        onClose={() => setDetailTxId(null)}
+        documentLabel="Factura proveedor"
+      />
+    </>
   );
 }

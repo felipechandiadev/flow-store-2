@@ -7,9 +7,11 @@ import { readPosContextClient } from "@/features/session/lib/pos-context-storage
 import { readCartClient, writeCartClient, type LoadedQuotationMeta } from "./cart-storage";
 import type { BackorderDepositConfig } from "./types/backorder-deposit.types";
 import type {
+  LoadedBackorderMeta,
   LoadedReturnSaleMeta,
   PosCartMode,
 } from "./types/pos-cart-mode.types";
+import type { PosBackorderForFulfill } from "@/features/pos-backorders/types/pos-backorder-for-fulfill.types";
 import type { PosSaleForReturn } from "@/features/pos-returns/types/pos-sale-for-return.types";
 import type { PosSaleCustomer } from "@/features/customers/types/pos-customer.types";
 import type { PosPaymentLine } from "./pos-payment.types";
@@ -41,11 +43,17 @@ type PosCartContextValue = {
   /** Modalidad actual: venta normal o devolución de venta previa. */
   cartMode: PosCartMode;
   isReturnMode: boolean;
+  isFulfillBackorderMode: boolean;
   loadedReturnSale: LoadedReturnSaleMeta | null;
+  loadedBackorder: LoadedBackorderMeta | null;
   /** Carga carrito en modo devolución desde una venta (folio interno). */
   loadReturnFromSale: (sale: PosSaleForReturn, lines: PosCartLine[]) => void;
+  /** Carga reserva/encargo abierto para liquidar (venta + abono). */
+  loadBackorderForFulfill: (backorder: PosBackorderForFulfill, lines: PosCartLine[]) => void;
   /** Sale del modo devolución y vuelve a venta normal. */
   exitReturnMode: () => void;
+  /** Sale del modo reserva y vuelve a venta normal. */
+  exitFulfillBackorderMode: () => void;
   clear: () => void;
   /** Cliente de la venta (persistido con el carrito en localStorage). */
   saleCustomer: PosSaleCustomer | null;
@@ -119,6 +127,15 @@ function readPosContextFull(): {
   return { companyId, branchId, pointOfSaleId };
 }
 
+function maxQtyForVariant(
+  loadedBackorder: LoadedBackorderMeta | null,
+  variantId: string,
+): number | null {
+  if (!loadedBackorder) return null;
+  const n = loadedBackorder.lineMaxQtyByVariantId[variantId];
+  return typeof n === "number" && n > 0 ? n : null;
+}
+
 export default function PosCartProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [lines, setLines] = useState<PosCartLine[]>([]);
@@ -132,6 +149,8 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
   const [cartMode, setCartMode] = useState<PosCartMode>("sale");
   const [loadedReturnSale, setLoadedReturnSale] =
     useState<LoadedReturnSaleMeta | null>(null);
+  const [loadedBackorder, setLoadedBackorder] =
+    useState<LoadedBackorderMeta | null>(null);
   const [scope, setScope] = useState<{ pointOfSaleId: string; priceListId: string } | null>(null);
 
   // ── Promociones ─────────────────────────────────────────────────
@@ -155,6 +174,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       setEncargoModeEnabled(false);
       setCartMode("sale");
       setLoadedReturnSale(null);
+      setLoadedBackorder(null);
       setReady(true);
       return;
     }
@@ -166,6 +186,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       encargoModeEnabled: loadedEncargoMode,
       cartMode: loadedMode,
       loadedReturnSale: loadedReturn,
+      loadedBackorder: loadedBo,
     } = readCartClient(s);
     setLines(loadedLines);
     setSaleCustomer(customer);
@@ -175,6 +196,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     setEncargoModeEnabled(loadedEncargoMode);
     setCartMode(loadedMode);
     setLoadedReturnSale(loadedReturn);
+    setLoadedBackorder(loadedBo);
     setReady(true);
   }, []);
 
@@ -190,6 +212,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       cartMode,
       loadedReturnSale,
       encargoModeEnabled,
+      loadedBackorder,
     );
   }, [
     lines,
@@ -199,6 +222,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     encargoModeEnabled,
     cartMode,
     loadedReturnSale,
+    loadedBackorder,
     ready,
     scope,
   ]);
@@ -219,6 +243,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
         setEncargoModeEnabled(false);
         setCartMode("sale");
         setLoadedReturnSale(null);
+        setLoadedBackorder(null);
         return;
       }
       const {
@@ -229,6 +254,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
         encargoModeEnabled: nextEncargoMode,
         cartMode: nextMode,
         loadedReturnSale: nextReturn,
+        loadedBackorder: nextBo,
       } = readCartClient(s);
       setLines(nextLines);
       setSaleCustomer(customer);
@@ -238,6 +264,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       setEncargoModeEnabled(nextEncargoMode);
       setCartMode(nextMode);
       setLoadedReturnSale(nextReturn);
+      setLoadedBackorder(nextBo);
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -246,7 +273,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
   const itemsCount = useMemo(() => lines.reduce((a, l) => a + (Number(l.quantity) || 0), 0), [lines]);
 
   const addItem = useCallback((item: PosProductSearchItem, quantity = 1) => {
-    if (cartMode === "return") return;
+    if (cartMode === "return" || cartMode === "fulfill_backorder") return;
     const q = Math.max(1, Math.round(Number(quantity) || 1));
     setLines((prev) => {
       const i = prev.findIndex((l) => l.variantId === item.variantId);
@@ -259,9 +286,20 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     });
   }, [cartMode]);
 
-  const increment = useCallback((variantId: string) => {
-    setLines((prev) => prev.map((l) => (l.variantId === variantId ? { ...l, quantity: l.quantity + 1 } : l)));
-  }, []);
+  const increment = useCallback(
+    (variantId: string) => {
+      setLines((prev) =>
+        prev.map((l) => {
+          if (l.variantId !== variantId) return l;
+          const max = maxQtyForVariant(loadedBackorder, variantId);
+          const nextQty = l.quantity + 1;
+          if (max != null && nextQty > max) return l;
+          return { ...l, quantity: nextQty };
+        }),
+      );
+    },
+    [loadedBackorder],
+  );
 
   const decrement = useCallback((variantId: string) => {
     setLines((prev) =>
@@ -272,20 +310,27 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
   }, []);
 
   const remove = useCallback((variantId: string) => {
+    if (cartMode === "fulfill_backorder") return;
     setLines((prev) => prev.filter((l) => l.variantId !== variantId));
-  }, []);
+  }, [cartMode]);
 
-  const setQuantity = useCallback((variantId: string, quantity: number) => {
-    const q = Number(quantity);
-    if (!Number.isFinite(q) || q <= 0) return;
-    setLines((prev) =>
-      prev.map((l) => (l.variantId === variantId ? { ...l, quantity: q } : l)),
-    );
-  }, []);
+  const setQuantity = useCallback(
+    (variantId: string, quantity: number) => {
+      const q = Number(quantity);
+      if (!Number.isFinite(q) || q <= 0) return;
+      const max = maxQtyForVariant(loadedBackorder, variantId);
+      const capped = max != null ? Math.min(q, max) : q;
+      setLines((prev) =>
+        prev.map((l) => (l.variantId === variantId ? { ...l, quantity: capped } : l)),
+      );
+    },
+    [loadedBackorder],
+  );
 
   const replaceLines = useCallback((next: PosCartLine[]) => {
     setCartMode("sale");
     setLoadedReturnSale(null);
+    setLoadedBackorder(null);
     setLines(next);
   }, []);
 
@@ -299,6 +344,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
         createdAt: sale.createdAt,
       });
       setLoadedQuotation(null);
+      setLoadedBackorder(null);
       setBackorderDeposit(null);
       setEncargoModeEnabled(false);
       setPayments([]);
@@ -318,9 +364,58 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     [],
   );
 
+  const loadBackorderForFulfill = useCallback(
+    (backorder: PosBackorderForFulfill, nextLines: PosCartLine[]) => {
+      const lineMaxQtyByVariantId: Record<string, number> = {};
+      for (const l of nextLines) {
+        lineMaxQtyByVariantId[l.variantId] = l.quantity;
+      }
+      setCartMode("fulfill_backorder");
+      setLoadedReturnSale(null);
+      setLoadedQuotation(null);
+      setBackorderDeposit(null);
+      setEncargoModeEnabled(false);
+      setPayments([]);
+      setManualSelections([]);
+      setLoadedBackorder({
+        id: backorder.id,
+        documentNumber: backorder.documentNumber,
+        orderTotal: Number(backorder.total) || 0,
+        depositAvailable: Number(backorder.depositAvailable) || 0,
+        createdAt: backorder.createdAt,
+        lineMaxQtyByVariantId,
+      });
+      setLines(nextLines);
+      if (backorder.customerId) {
+        setSaleCustomer({
+          customerId: backorder.customerId,
+          name: backorder.customerName?.trim() || "Cliente",
+          document: backorder.customerDocument?.trim() ?? "",
+          phone: "",
+          email: null,
+        });
+      } else {
+        setSaleCustomer(null);
+      }
+    },
+    [],
+  );
+
   const exitReturnMode = useCallback(() => {
     setCartMode("sale");
     setLoadedReturnSale(null);
+    setLines([]);
+    setPayments([]);
+    setSaleCustomer(null);
+    setManualSelections([]);
+    setAppliedPromotions([]);
+    setOrderDiscount(0);
+    setPromotionWarnings([]);
+  }, []);
+
+  const exitFulfillBackorderMode = useCallback(() => {
+    setCartMode("sale");
+    setLoadedBackorder(null);
     setLines([]);
     setPayments([]);
     setSaleCustomer(null);
@@ -348,6 +443,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     setEncargoModeEnabled(false);
     setCartMode("sale");
     setLoadedReturnSale(null);
+    setLoadedBackorder(null);
     setManualSelections([]);
     setAppliedPromotions([]);
     setOrderDiscount(0);
@@ -411,7 +507,9 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       unitPrice: Number(l.unitPriceWithTax) || 0,
       quantity: Number(l.quantity) || 0,
       frozenDiscount:
-        loadedQuotation || cartMode === "return" ? (l.discount ?? null) : null,
+        loadedQuotation || cartMode === "return" || cartMode === "fulfill_backorder"
+          ? (l.discount ?? null)
+          : null,
     }));
 
     const result = applyPromotions({
@@ -502,9 +600,13 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       replaceLines,
       cartMode,
       isReturnMode: cartMode === "return",
+      isFulfillBackorderMode: cartMode === "fulfill_backorder",
       loadedReturnSale,
+      loadedBackorder,
       loadReturnFromSale,
+      loadBackorderForFulfill,
       exitReturnMode,
+      exitFulfillBackorderMode,
       clear,
       saleCustomer,
       setSaleCustomer,
@@ -539,8 +641,11 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       replaceLines,
       cartMode,
       loadedReturnSale,
+      loadedBackorder,
       loadReturnFromSale,
+      loadBackorderForFulfill,
       exitReturnMode,
+      exitFulfillBackorderMode,
       clear,
       saleCustomer,
       payments,

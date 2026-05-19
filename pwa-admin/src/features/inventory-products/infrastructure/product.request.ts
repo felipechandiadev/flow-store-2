@@ -202,7 +202,12 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
     isActive: o.isActive !== false,
     basePrice: typeof o.basePrice === "number" ? o.basePrice : o.basePrice != null ? Number(o.basePrice) : undefined,
     baseCost: typeof o.baseCost === "number" ? o.baseCost : o.baseCost != null ? Number(o.baseCost) : undefined,
-    pmp: typeof o.pmp === "number" ? o.pmp : o.pmp != null ? Number(o.pmp) : undefined,
+    pmp:
+      typeof o.pmp === "number" && Number.isFinite(o.pmp)
+        ? o.pmp
+        : o.pmp != null && o.pmp !== "" && Number.isFinite(Number(o.pmp))
+          ? Number(o.pmp)
+          : null,
     displayName:
       o.displayName != null && String(o.displayName).trim() ? String(o.displayName).trim() : null,
     attributeValues: parseAttributeValuesRecord(o.attributeValues),
@@ -490,7 +495,6 @@ export class ProductRequest {
       grossPrice: number;
       taxIds?: string[];
     }>;
-    pmp: number;
     attributeValues?: Record<string, string>;
     trackInventory?: boolean;
     allowNegativeStock?: boolean;
@@ -507,7 +511,6 @@ export class ProductRequest {
       stockBaseUnitId: body.stockBaseUnitId,
       purchaseUnitId: body.purchaseUnitId,
       isActive: body.isActive !== false,
-      pmp: Math.max(0, Math.round(Number(body.pmp) || 0)),
       priceListItems: body.priceListItems.map((item) => ({
         priceListId: item.priceListId,
         netPrice: Math.round(Number(item.netPrice)) || 0,
@@ -600,7 +603,6 @@ export class ProductRequest {
         grossPrice: number;
         taxIds?: string[];
       }>;
-      pmp: number;
       attributeValues?: Record<string, string>;
       trackInventory?: boolean;
       allowNegativeStock?: boolean;
@@ -630,7 +632,6 @@ export class ProductRequest {
       stockBaseUnitId: body.stockBaseUnitId,
       purchaseUnitId: body.purchaseUnitId,
       isActive: body.isActive !== false,
-      pmp: Math.max(0, Math.round(Number(body.pmp) || 0)),
       priceListItems: body.priceListItems.map((item) => ({
         priceListId: item.priceListId,
         netPrice: Math.round(Number(item.netPrice)) || 0,

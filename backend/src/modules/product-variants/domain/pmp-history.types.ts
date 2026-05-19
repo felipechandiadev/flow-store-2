@@ -1,4 +1,8 @@
-export type PmpHistorySource = 'transaction_cost' | 'manual_api' | 'initial';
+export type PmpHistorySource =
+  | 'transaction_cost'
+  | 'first_purchase'
+  | 'manual_api'
+  | 'initial';
 
 /**
  * Entrada del historial de PMP almacenado en JSON en `product_variants.pmpHistory`.

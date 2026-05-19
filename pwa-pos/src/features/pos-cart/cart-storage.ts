@@ -2,6 +2,7 @@ import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
 import type { PosSaleCustomer } from "@/features/customers/types/pos-customer.types";
 import type { BackorderDepositConfig } from "@/features/pos-cart/types/backorder-deposit.types";
 import type {
+  LoadedBackorderMeta,
   LoadedReturnSaleMeta,
   PosCartMode,
 } from "@/features/pos-cart/types/pos-cart-mode.types";
@@ -38,6 +39,7 @@ type StoredCart = {
   encargoModeEnabled?: boolean;
   cartMode?: PosCartMode;
   loadedReturnSale?: LoadedReturnSaleMeta | null;
+  loadedBackorder?: LoadedBackorderMeta | null;
 };
 
 function parseDiscount(value: unknown): ResolvedLineDiscount | null {
@@ -83,7 +85,30 @@ function parseBackorderDeposit(value: unknown): BackorderDepositConfig | null {
 }
 
 function parseCartMode(value: unknown): PosCartMode {
-  return value === "return" ? "return" : "sale";
+  if (value === "return") return "return";
+  if (value === "fulfill_backorder") return "fulfill_backorder";
+  return "sale";
+}
+
+function parseLoadedBackorder(value: unknown): LoadedBackorderMeta | null {
+  if (!value || typeof value !== "object") return null;
+  const o = value as LoadedBackorderMeta;
+  if (typeof o.id !== "string" || typeof o.documentNumber !== "string") return null;
+  const lineMaxQtyByVariantId: Record<string, number> = {};
+  if (o.lineMaxQtyByVariantId && typeof o.lineMaxQtyByVariantId === "object") {
+    for (const [k, v] of Object.entries(o.lineMaxQtyByVariantId)) {
+      const n = Number(v);
+      if (k && Number.isFinite(n) && n > 0) lineMaxQtyByVariantId[k] = Math.round(n);
+    }
+  }
+  return {
+    id: o.id,
+    documentNumber: o.documentNumber,
+    orderTotal: Number(o.orderTotal) || 0,
+    depositAvailable: Number(o.depositAvailable) || 0,
+    createdAt: typeof o.createdAt === "string" ? o.createdAt : "",
+    lineMaxQtyByVariantId,
+  };
 }
 
 function parseLoadedReturnSale(value: unknown): LoadedReturnSaleMeta | null {
@@ -106,6 +131,7 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
   encargoModeEnabled: boolean;
   cartMode: PosCartMode;
   loadedReturnSale: LoadedReturnSaleMeta | null;
+  loadedBackorder: LoadedBackorderMeta | null;
 } {
   const empty = {
     lines: [] as PosCartLine[],
@@ -115,6 +141,7 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
     encargoModeEnabled: false,
     cartMode: "sale" as PosCartMode,
     loadedReturnSale: null,
+    loadedBackorder: null,
   };
   if (typeof window === "undefined") return empty;
   try {
@@ -184,6 +211,10 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
       parsed.v === CART_STORAGE_VERSION
         ? parseLoadedReturnSale(parsed.loadedReturnSale)
         : null;
+    const loadedBackorder =
+      parsed.v === CART_STORAGE_VERSION
+        ? parseLoadedBackorder(parsed.loadedBackorder)
+        : null;
 
     return {
       lines,
@@ -193,6 +224,7 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
       encargoModeEnabled,
       cartMode,
       loadedReturnSale,
+      loadedBackorder,
     };
   } catch {
     return empty;
@@ -208,6 +240,7 @@ export function writeCartClient(
   cartMode: PosCartMode = "sale",
   loadedReturnSale: LoadedReturnSaleMeta | null = null,
   encargoModeEnabled = false,
+  loadedBackorder: LoadedBackorderMeta | null = null,
 ): void {
   if (typeof window === "undefined") return;
   try {
@@ -223,9 +256,11 @@ export function writeCartClient(
       customer: customer ?? null,
       quotation: quotation ?? null,
       backorderDeposit: backorderDeposit ?? null,
-      encargoModeEnabled: cartMode === "return" ? false : encargoModeEnabled,
+      encargoModeEnabled:
+        cartMode === "return" || cartMode === "fulfill_backorder" ? false : encargoModeEnabled,
       cartMode,
       loadedReturnSale: cartMode === "return" ? loadedReturnSale : null,
+      loadedBackorder: cartMode === "fulfill_backorder" ? loadedBackorder : null,
     };
     window.localStorage.setItem(keyFor(input), JSON.stringify(payload));
   } catch {

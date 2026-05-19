@@ -5,8 +5,8 @@ import { ProductVariant } from '@modules/product-variants/domain/product-variant
 import { appendPmpHistory } from '@modules/product-variants/application/helpers/pmp-history';
 import {
   costPerStockBaseUnit,
+  resolvePmpAfterValuedInbound,
   totalInventoryLineCost,
-  weightedAveragePmpAfterInventoryMove,
 } from '@modules/product-variants/application/helpers/inventory-cost-from-line';
 import { Transaction, TransactionType } from '@modules/transactions/domain/transaction.entity';
 import { AutomationEventType } from '../../../domain/automation-event-type.enum';
@@ -59,6 +59,9 @@ export class UpdateStockActionHandler {
     if (![...incomingTypes, ...outgoingTypes].includes(type)) {
       return;
     }
+
+    /** Solo compras valoradas actualizan PMP (no ajustes, transferencias ni devoluciones). */
+    const updatesPmpFromTransaction = type === TransactionType.PURCHASE;
 
     const stockEmitMap = new Map<string, StockUpdatedPayload>();
     const pendingNotifications: PublishNotificationCommand[] = [];
@@ -238,58 +241,70 @@ export class UpdateStockActionHandler {
           pendingNotifications.push(...cmds);
         }
 
-        let acc = pmpAccByVariant.get(variantId);
-        if (!acc) {
-          acc = { inQty: 0, inCost: 0, outQty: 0 };
-          pmpAccByVariant.set(variantId, acc);
-        }
-        if (moveQty < 0) {
-          acc.outQty += Math.abs(moveQty);
-        }
-        const totalLineCost = totalInventoryLineCost(line);
-        if (totalLineCost > 0 && moveQty > 0) {
-          const costPerBase = costPerStockBaseUnit(totalLineCost, qtyBase);
-          if (costPerBase > 0) {
-            acc.inQty += qtyBase;
-            acc.inCost += totalLineCost;
+        if (updatesPmpFromTransaction) {
+          let acc = pmpAccByVariant.get(variantId);
+          if (!acc) {
+            acc = { inQty: 0, inCost: 0, outQty: 0 };
+            pmpAccByVariant.set(variantId, acc);
+          }
+          if (moveQty < 0) {
+            acc.outQty += Math.abs(moveQty);
+          }
+          const totalLineCost = totalInventoryLineCost(line);
+          if (totalLineCost > 0 && moveQty > 0) {
+            const costPerBase = costPerStockBaseUnit(totalLineCost, qtyBase);
+            if (costPerBase > 0) {
+              acc.inQty += qtyBase;
+              acc.inCost += totalLineCost;
+            }
+          } else if (line.productVariantId && moveQty > 0) {
+            this.logger.warn(
+              `PURCHASE ${tx.id}: línea variante ${line.productVariantId} sin costo; PMP no actualizado.`,
+            );
           }
         }
       }
 
-      const variantRepo = manager.getRepository(ProductVariant);
-      for (const [variantId, acc] of pmpAccByVariant) {
-        if (acc.inQty <= 0 || acc.inCost <= 0) {
-          continue;
+      if (updatesPmpFromTransaction) {
+        const variantRepo = manager.getRepository(ProductVariant);
+        for (const [variantId, acc] of pmpAccByVariant) {
+          if (acc.inQty <= 0 || acc.inCost <= 0) {
+            continue;
+          }
+          const variant = await variantRepo.findOne({ where: { id: variantId } });
+          if (!variant) {
+            continue;
+          }
+          const rawPmp = (variant as { pmp?: number | null }).pmp;
+          const prevPmp =
+            rawPmp != null && Number.isFinite(Number(rawPmp)) ? Number(rawPmp) : null;
+          const G0 = globalStockBeforeTx.get(variantId) ?? 0;
+          const pmpResult = resolvePmpAfterValuedInbound({
+            prevPmp,
+            globalStockBefore: G0,
+            outQtyBase: acc.outQty,
+            inQtyBase: acc.inQty,
+            inCostTotal: acc.inCost,
+          });
+          if (!pmpResult) {
+            continue;
+          }
+          const newPmp = pmpResult.newPmp;
+          const blendedUnitCost =
+            acc.inQty > 0 ? Number((acc.inCost / acc.inQty).toFixed(6)) : undefined;
+          (variant as any).pmp = newPmp;
+          (variant as any).pmpHistory = appendPmpHistory((variant as any).pmpHistory, {
+              previousPmp: prevPmp ?? 0,
+              newPmp,
+              source: prevPmp == null ? 'first_purchase' : 'transaction_cost',
+              transactionId: tx.id,
+              storageId,
+              unitCost: blendedUnitCost,
+              quantity: acc.inQty,
+            },
+          );
+          await variantRepo.save(variant);
         }
-        const variant = await variantRepo.findOne({ where: { id: variantId } });
-        if (!variant) {
-          continue;
-        }
-        const prevPmp = Number((variant as any).pmp ?? 0);
-        const G0 = globalStockBeforeTx.get(variantId) ?? 0;
-        const pmpResult = weightedAveragePmpAfterInventoryMove({
-          globalStockBefore: G0,
-          prevPmp,
-          outQtyBase: acc.outQty,
-          inQtyBase: acc.inQty,
-          inCostTotal: acc.inCost,
-        });
-        if (!pmpResult) {
-          continue;
-        }
-        const newPmp = pmpResult.newPmp;
-        const blendedUnitCost = acc.inQty > 0 ? Number((acc.inCost / acc.inQty).toFixed(6)) : undefined;
-        (variant as any).pmp = newPmp;
-        (variant as any).pmpHistory = appendPmpHistory((variant as any).pmpHistory, {
-          previousPmp: prevPmp,
-          newPmp,
-          source: 'transaction_cost',
-          transactionId: tx.id,
-          storageId,
-          unitCost: blendedUnitCost,
-          quantity: acc.inQty,
-        });
-        await variantRepo.save(variant);
       }
     });
 

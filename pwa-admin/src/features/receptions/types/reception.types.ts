@@ -18,6 +18,9 @@ export type CreateDirectReceptionLineInput = {
   sku?: string;
   quantity: number;
   unitPrice: number;
+  /** Costo unitario para inventario / PMP (si no se envía, el backend usa unitPrice). */
+  unitCost?: number;
+  subtotal?: number;
   receivedQuantity?: number;
 };
 
@@ -81,6 +84,17 @@ export type ReceptionDetailForReturn = {
   supplierId?: string | null;
   storageId?: string | null;
   createdAt?: string;
+  documentNumber?: string | null;
+  supplierName?: string | null;
+  storageName?: string | null;
+  reference?: string | null;
+  dteNumber?: string | null;
+  dteType?: string | null;
+  subtotal?: number;
+  taxAmount?: number;
+  total?: number;
+  notes?: string | null;
+  type?: string | null;
   lines: ReceptionLineForReturn[];
 };
 

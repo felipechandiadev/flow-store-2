@@ -47,8 +47,8 @@ export type StockGridRow = {
   totalStock: number;
   availableStock: number;
   inventoryValueCost: number;
-  pmp: number;
-  pmpValue: number;
+  pmp: number | null;
+  pmpValue: number | null;
   isBelowMinimum: boolean;
   primaryStorageName: string;
   primaryStorageQuantity: number;

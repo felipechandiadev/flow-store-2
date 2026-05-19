@@ -31,13 +31,16 @@ export default function PosCartLineCard({
   onDecrement,
   onRemove,
   onSetQuantity,
+  maxQuantity,
 }: {
   line: PosCartLine;
   pointOfSaleId: string;
   onIncrement: () => void;
   onDecrement: () => void;
-  onRemove: () => void;
+  onRemove?: () => void;
   onSetQuantity: (nextQuantity: number) => void;
+  /** Tope de cantidad (p. ej. liquidación de reserva). */
+  maxQuantity?: number;
 }) {
   const code = line.barcode?.trim() || line.sku?.trim() || "—";
   const stockLabel =
@@ -114,9 +117,16 @@ export default function PosCartLineCard({
       setQtyError(allowDecimals ? "Ingresa una cantidad válida." : "Ingresa una cantidad entera válida.");
       return;
     }
-    onSetQuantity(n);
+    const capped =
+      maxQuantity != null && Number.isFinite(maxQuantity) ? Math.min(n, maxQuantity) : n;
+    onSetQuantity(capped);
     setQtyDialogOpen(false);
   };
+
+  const atMaxQty =
+    maxQuantity != null &&
+    Number.isFinite(maxQuantity) &&
+    (Number(line.quantity) || 0) >= maxQuantity;
 
   const lineGross = (Number(line.unitPriceWithTax) || 0) * (Number(line.quantity) || 0);
   const lineDiscount = line.discount?.discountAmount ?? 0;
@@ -208,8 +218,9 @@ export default function PosCartLineCard({
                 <span className="min-w-[2ch] text-center text-sm font-semibold tabular-nums">{quantityLabel}</span>
                 <button
                   type="button"
-                  className="rounded px-2 py-1 text-lg leading-none text-zinc-700 hover:bg-white dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  className="rounded px-2 py-1 text-lg leading-none text-zinc-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-200 dark:hover:bg-zinc-800"
                   onClick={onIncrement}
+                  disabled={atMaxQty}
                   aria-label="Aumentar cantidad"
                 >
                   +
@@ -225,15 +236,17 @@ export default function PosCartLineCard({
                 />
               </div>
             </div>
-            <IconButton
-              icon="Trash2"
-              variant="basicSecondary"
-              size="sm"
-              ariaLabel="Eliminar producto del carrito"
-              title="Eliminar"
-              onClick={onRemove}
-              data-test-id="pos-cart-line-remove"
-            />
+            {onRemove ? (
+              <IconButton
+                icon="Trash2"
+                variant="basicSecondary"
+                size="sm"
+                ariaLabel="Eliminar producto del carrito"
+                title="Eliminar"
+                onClick={onRemove}
+                data-test-id="pos-cart-line-remove"
+              />
+            ) : null}
           </div>
         </div>
       </div>

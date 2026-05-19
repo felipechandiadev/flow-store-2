@@ -15,7 +15,7 @@ export class StockLevelDto {
   committedStock: number;
   availableStock: number;
   incomingStock: number;
-  pmp: number;
+  pmp: number | null;
   lastTransactionId: string | null;
   lastUpdated: Date;
   updatedAt: Date;
@@ -78,7 +78,7 @@ export class StockLevelWithDetailsDto extends StockLevelDto {
   unitOfMeasure?: string;
   minimumStock?: number;
   baseCost?: number;
-  totalValue?: number; // physical * pmp
+  totalValue?: number | null; // physical * pmp; null sin PMP
   isBelowMinimum?: boolean;
 }
 

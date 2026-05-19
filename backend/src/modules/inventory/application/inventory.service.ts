@@ -210,7 +210,10 @@ export class InventoryService {
         reservedStock: 0,
         availableAfterReservation: 0,
         inventoryValueCost: 0,
-        pmp: Number(variant.pmp || 0),
+        pmp:
+          variant.pmp != null && Number.isFinite(Number(variant.pmp))
+            ? Number(variant.pmp)
+            : null,
         storageBreakdown: [] as any[],
         movements: [] as any[],
         primaryStorageName: '',
@@ -296,10 +299,16 @@ export class InventoryService {
 
     const rows = variants.map((v) => grouped[v.id]).filter(Boolean);
     for (const r of rows) {
-      r.pmpValue = Number(((r.totalStock || 0) * (r.pmp || 0)).toFixed(2));
+      r.pmpValue =
+        r.pmp != null && Number.isFinite(Number(r.pmp))
+          ? Number(((r.totalStock || 0) * Number(r.pmp)).toFixed(2))
+          : null;
     }
 
-    const sumPmpValue = rows.reduce((acc, r) => acc + Number(r.pmpValue || 0), 0);
+    const sumPmpValue = rows.reduce(
+      (acc, r) => acc + (r.pmpValue != null ? Number(r.pmpValue) : 0),
+      0,
+    );
 
     const sortField = (params?.sortField || 'productName').trim();
     const sortDesc = params?.sort === 'desc';
@@ -328,12 +337,12 @@ export class InventoryService {
           vb = Number(b.availableStock);
           break;
         case 'pmp':
-          va = Number(a.pmp);
-          vb = Number(b.pmp);
+          va = a.pmp != null ? Number(a.pmp) : -1;
+          vb = b.pmp != null ? Number(b.pmp) : -1;
           break;
         case 'pmpValue':
-          va = Number(a.pmpValue);
-          vb = Number(b.pmpValue);
+          va = a.pmpValue != null ? Number(a.pmpValue) : -1;
+          vb = b.pmpValue != null ? Number(b.pmpValue) : -1;
           break;
         case 'inventoryValueCost':
           va = Number(a.inventoryValueCost);

@@ -1,5 +1,6 @@
 import {
   costPerStockBaseUnit,
+  resolvePmpAfterValuedInbound,
   totalInventoryLineCost,
   weightedAveragePmpAfterInventoryMove,
 } from './inventory-cost-from-line';
@@ -67,6 +68,42 @@ describe('inventory-cost-from-line', () => {
         inCostTotal: 35,
       });
       expect(r?.newPmp).toBe(3.5);
+    });
+  });
+
+  describe('resolvePmpAfterValuedInbound', () => {
+    it('primera compra: ignora stock previo sin costo', () => {
+      const r = resolvePmpAfterValuedInbound({
+        prevPmp: null,
+        globalStockBefore: 100,
+        outQtyBase: 0,
+        inQtyBase: 10,
+        inCostTotal: 1000,
+      });
+      expect(r?.newPmp).toBe(100);
+    });
+
+    it('con PMP previo: promedio ponderado', () => {
+      const r = resolvePmpAfterValuedInbound({
+        prevPmp: 2,
+        globalStockBefore: 100,
+        outQtyBase: 0,
+        inQtyBase: 50,
+        inCostTotal: 75,
+      });
+      expect(r?.newPmp).toBe(Number(((100 * 2 + 75) / 150).toFixed(2)));
+    });
+
+    it('sin entrada valorada → null', () => {
+      expect(
+        resolvePmpAfterValuedInbound({
+          prevPmp: null,
+          globalStockBefore: 10,
+          outQtyBase: 0,
+          inQtyBase: 0,
+          inCostTotal: 0,
+        }),
+      ).toBeNull();
     });
   });
 });

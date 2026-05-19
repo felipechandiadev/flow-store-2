@@ -6,7 +6,7 @@ export type VariantSearchItem = {
   categoryName: string | null;
   sku: string;
   barcode: string | null;
-  pmp: number;
+  pmp: number | null;
   attributeValues: Record<string, string>;
   unitLabel: string | null;
 };

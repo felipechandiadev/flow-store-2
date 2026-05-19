@@ -280,7 +280,10 @@ function VariantSearchCard({ item }: { item: VariantSearchItem }) {
         <p className="mt-0.5 text-[11px] text-muted-foreground">{item.categoryName}</p>
       ) : null}
       <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs tabular-nums text-foreground">
-        <span>PMP {formatMoney(item.pmp)}</span>
+        <span>
+          PMP{" "}
+          {item.pmp != null && Number.isFinite(item.pmp) ? formatMoney(item.pmp) : "—"}
+        </span>
         {item.unitLabel ? (
           <>
             <InlineSepDot />

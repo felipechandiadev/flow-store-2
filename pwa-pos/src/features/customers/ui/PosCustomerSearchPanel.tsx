@@ -236,8 +236,8 @@ export default function PosCustomerSearchPanel({
 
     return (
       <aside
-        className="flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-sm"
-        style={{ height: `${heightVh}vh` }}
+        className="flex min-h-0 w-full min-w-0 flex-col gap-3 self-stretch rounded-xl border border-border bg-background p-4 shadow-sm"
+        style={{ height: `${heightVh}vh`, minHeight: `${heightVh}vh` }}
         aria-label="Detalle del cliente seleccionado"
         data-test-id="pos-customer-search-panel-detail"
       >
@@ -251,19 +251,19 @@ export default function PosCustomerSearchPanel({
             onClick={onClearSelected}
             data-test-id="pos-customer-search-detail-back"
           />
-          <h2 className="text-sm font-semibold text-foreground">Cliente</h2>
           {showAddCustomer && onAddCustomerClick ? (
             <IconButton
               icon="Plus"
               variant="basicSecondary"
               size="sm"
-              className="ml-auto shrink-0"
+              className="shrink-0"
               ariaLabel="Crear cliente"
               title="Crear cliente"
               onClick={onAddCustomerClick}
               data-test-id="pos-customer-search-add-customer"
             />
           ) : null}
+          <h2 className="min-w-0 flex-1 text-sm font-semibold text-foreground">Cliente</h2>
         </div>
 
         <div
@@ -330,47 +330,35 @@ export default function PosCustomerSearchPanel({
   // ─── Modo BÚSQUEDA: lista de resultados con cards estilo "producto" ─────
   return (
     <aside
-      className="flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-sm"
-      style={{ height: `${heightVh}vh` }}
+      className="flex min-h-0 w-full min-w-0 flex-col gap-3 self-stretch rounded-xl border border-border bg-background p-4 shadow-sm"
+      style={{ height: `${heightVh}vh`, minHeight: `${heightVh}vh` }}
       aria-label="Buscador de clientes"
       data-test-id="pos-customer-search-panel"
     >
-      <div className="shrink-0 flex items-center justify-between gap-2">
+      <div className="flex shrink-0 items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h2 className="text-sm font-semibold text-foreground">Cliente</h2>
           {showAddCustomer && onAddCustomerClick ? (
             <IconButton
               icon="Plus"
               variant="basicSecondary"
               size="sm"
+              className="shrink-0"
               ariaLabel="Crear cliente"
               title="Crear cliente"
               onClick={onAddCustomerClick}
               data-test-id="pos-customer-search-add-customer"
             />
           ) : null}
+          <h2 className="text-sm font-semibold text-foreground">Cliente</h2>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {variant === "split" && selectedCustomer ? (
-            <Button
-              type="button"
-              variant="outlined"
-              size="sm"
-              onClick={onClearSelected}
-              data-test-id="pos-customer-search-clear-selection"
-            >
-              Limpiar
-            </Button>
-          ) : null}
-          {showLoading ? (
-            <span
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-              data-test-id="pos-customer-search-pending"
-            >
-              <DotProgress />
-            </span>
-          ) : null}
-        </div>
+        {showLoading ? (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
+            data-test-id="pos-customer-search-pending"
+          >
+            <DotProgress />
+          </span>
+        ) : null}
       </div>
 
       <TextField
@@ -403,6 +391,7 @@ export default function PosCustomerSearchPanel({
           se encargan de su propio padding y espaciado vertical. */}
       <div
         className="min-h-0 flex-1 space-y-2 overflow-y-auto"
+        style={{ minHeight: `calc(${heightVh}vh - 11rem)` }}
         aria-busy={showLoading}
         data-test-id="pos-customer-search-results"
       >
@@ -432,9 +421,9 @@ export default function PosCustomerSearchPanel({
                   key={row.customerId}
                   type="button"
                   onClick={() => onPick(row)}
-                  className={`block w-full rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-primary/60 hover:shadow focus:border-primary focus:outline-none dark:bg-zinc-950 ${
+                  className={`block w-full rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-secondary/60 hover:shadow focus:border-secondary focus:outline-none dark:bg-zinc-950 ${
                     picked
-                      ? "border-primary ring-2 ring-primary/25 dark:border-primary"
+                      ? "border-secondary ring-2 ring-secondary/25 dark:border-secondary"
                       : "border-zinc-200 dark:border-zinc-800"
                   }`}
                   data-test-id={`pos-customer-search-pick-${row.customerId}`}

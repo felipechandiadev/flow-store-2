@@ -719,15 +719,22 @@ export function PurchaseDocumentBuilder({
       reference: docReference.trim() || null,
       documentType: docKind as ReceptionDteType,
       notes: documentNotes.trim() || null,
-      lines: lines.map((l) => ({
-        productId: l.productId,
-        productVariantId: l.variantId,
-        productName: l.productName,
-        sku: l.sku,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-        receivedQuantity: l.quantity,
-      })),
+      lines: lines.map((l) => {
+        const qty = l.quantity;
+        const unit = l.unitPrice;
+        const lineSubtotal = qty * unit;
+        return {
+          productId: l.productId,
+          productVariantId: l.variantId,
+          productName: l.productName,
+          sku: l.sku,
+          quantity: qty,
+          unitPrice: unit,
+          unitCost: unit,
+          subtotal: lineSubtotal,
+          receivedQuantity: qty,
+        };
+      }),
     };
 
     if (docKind === "invoice" || docKind === "receipt") {

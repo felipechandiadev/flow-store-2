@@ -65,8 +65,8 @@ export class ProductVariant {
   /**
    * PMP global de la variante: moneda por **1 unidad base de stock** (alineado con `stock_levels.physicalStock`).
    */
-  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
-  pmp!: number;
+  @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
+  pmp!: number | null;
 
   /**
    * Historial de cambios de PMP (append-only en aplicación). El valor vigente sigue en `pmp`.

@@ -196,8 +196,18 @@ function normalizeRow(row: unknown): StockGridRow | null {
       typeof o.inventoryValueCost === "number" && Number.isFinite(o.inventoryValueCost)
         ? o.inventoryValueCost
         : Number(o.inventoryValueCost) || 0,
-    pmp: typeof o.pmp === "number" && Number.isFinite(o.pmp) ? o.pmp : Number(o.pmp) || 0,
-    pmpValue: typeof o.pmpValue === "number" && Number.isFinite(o.pmpValue) ? o.pmpValue : Number(o.pmpValue) || 0,
+    pmp:
+      typeof o.pmp === "number" && Number.isFinite(o.pmp)
+        ? o.pmp
+        : o.pmp != null && o.pmp !== "" && Number.isFinite(Number(o.pmp))
+          ? Number(o.pmp)
+          : null,
+    pmpValue:
+      typeof o.pmpValue === "number" && Number.isFinite(o.pmpValue)
+        ? o.pmpValue
+        : o.pmpValue != null && o.pmpValue !== "" && Number.isFinite(Number(o.pmpValue))
+          ? Number(o.pmpValue)
+          : null,
     isBelowMinimum: o.isBelowMinimum === true,
     primaryStorageName: o.primaryStorageName != null ? String(o.primaryStorageName) : "",
     primaryStorageQuantity:

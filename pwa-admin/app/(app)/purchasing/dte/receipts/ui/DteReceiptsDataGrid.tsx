@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
+import IconButton from "@/shared/components/IconButton/IconButton";
 import type { SupplierReceiptListItem } from "@/features/purchasing-supplier-receipts/types/supplier-receipt.types";
 import { dteFolioDisplay } from "@/features/purchasing-dte/lib/dte-folio-display";
+import PurchasingDteDetailDialog from "@/features/purchasing-document/ui/PurchasingDteDetailDialog";
 import { CreateSupplierReceiptDialogForm } from "./CreateSupplierReceiptDialogForm";
 
 function pad2(n: number): string {
@@ -36,8 +38,33 @@ type DteReceiptsDataGridProps = {
 };
 
 export default function DteReceiptsDataGrid({ rows, total }: DteReceiptsDataGridProps) {
-  const columns: DataGridColumn[] = useMemo(
-    () => [
+  const [detailTxId, setDetailTxId] = useState<string | null>(null);
+
+  const openDetail = useCallback((r: SupplierReceiptListItem) => {
+    setDetailTxId(r.id);
+  }, []);
+
+  const columns: DataGridColumn[] = useMemo(() => {
+    function DteReceiptActionsCell({ row }: { row: unknown; column: DataGridColumn }) {
+      const r = row as SupplierReceiptListItem;
+      return (
+        <div
+          className="flex items-center justify-center"
+          data-test-id={`dte-receipts-row-actions-${r.id}`}
+        >
+          <IconButton
+            icon="MoreHorizontal"
+            variant="basicSecondary"
+            size="sm"
+            ariaLabel="Ver detalle de boleta y recepción"
+            onClick={() => openDetail(r)}
+            data-test-id={`dte-receipts-row-detail-${r.id}`}
+          />
+        </div>
+      );
+    }
+
+    return [
       {
         field: "documentNumber",
         headerName: "Folio",
@@ -103,24 +130,42 @@ export default function DteReceiptsDataGrid({ rows, total }: DteReceiptsDataGrid
         width: 120,
         valueGetter: ({ row }) => String((row as SupplierReceiptListItem).status || "—"),
       },
-    ],
-    [],
-  );
+      {
+        field: "actions",
+        headerName: "",
+        width: 72,
+        minWidth: 72,
+        align: "center",
+        sortable: false,
+        filterable: false,
+        actionComponent: DteReceiptActionsCell,
+      },
+    ];
+  }, [openDetail]);
 
   return (
-    <DataGrid
-      title="Boletas"
-      columns={columns}
-      rows={rows}
-      totalRows={total}
-      totalGeneral={total}
-      height="85vh"
-      showExportButton={false}
-      showSortButton={false}
-      showFilterButton={false}
-      createFormTitle="Ingresar Boleta"
-      createForm={<CreateSupplierReceiptDialogForm />}
-      data-test-id="dte-receipts-data-grid"
-    />
+    <>
+      <DataGrid
+        title="Boletas"
+        columns={columns}
+        rows={rows}
+        totalRows={total}
+        totalGeneral={total}
+        height="85vh"
+        showExportButton={false}
+        showSortButton={false}
+        showFilterButton={false}
+        pinActionsColumn
+        createFormTitle="Ingresar Boleta"
+        createForm={<CreateSupplierReceiptDialogForm />}
+        data-test-id="dte-receipts-data-grid"
+      />
+      <PurchasingDteDetailDialog
+        transactionId={detailTxId}
+        open={detailTxId != null}
+        onClose={() => setDetailTxId(null)}
+        documentLabel="Boleta proveedor"
+      />
+    </>
   );
 }

@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, IsNull, In } from 'typeorm';
+import { Repository, DataSource, IsNull, In, type EntityManager } from 'typeorm';
 import {
   Transaction,
   TransactionType,
@@ -64,6 +64,8 @@ type PosCommercialRegisterConfig = {
   immediateRefund?: boolean;
   backorderDepositAmount?: number;
   backorderDepositPercent?: number;
+  /** Venta que liquida un encargo/reserva abierto. */
+  fulfillBackorderId?: string;
 };
 
 /**
@@ -199,9 +201,12 @@ export class SalesFromSessionService {
    * 9. Retornar transacción con asientos
    */
   async createSale(createSaleDto: CreateSaleDto) {
+    const fulfillBackorderId = createSaleDto.fulfillBackorderId?.trim() || undefined;
     return this.registerPosCommercial(createSaleDto, {
       transactionType: TransactionType.SALE,
       skipStockCheck: false,
+      skipStockAvailabilityCheck: Boolean(fulfillBackorderId),
+      fulfillBackorderId,
     });
   }
 
@@ -699,6 +704,21 @@ export class SalesFromSessionService {
         });
       }
 
+      if (config.fulfillBackorderId) {
+        if (!customerIdTrimmed) {
+          throw new BadRequestException(
+            'Liquidar una reserva requiere cliente en la venta.',
+          );
+        }
+        await this.assertFulfillBackorderMatches(
+          manager,
+          config.fulfillBackorderId,
+          customerIdTrimmed,
+          lines,
+          pointOfSale.companyId!,
+        );
+      }
+
       let total = subtotal - discountAmount + taxAmount;
 
       // ============================================================
@@ -1132,6 +1152,23 @@ export class SalesFromSessionService {
         );
       }
 
+      if (
+        isSale &&
+        config.fulfillBackorderId &&
+        effectiveStorageId?.trim()
+      ) {
+        await this.fulfillBackorderAfterSale(manager, {
+          fulfillBackorderId: config.fulfillBackorderId,
+          companyId: pointOfSale.companyId!,
+          storageId: effectiveStorageId.trim(),
+          saleTransaction: {
+            id: finalTransaction.id,
+            documentNumber: finalTransaction.documentNumber ?? '',
+          },
+          transactionLines,
+        });
+      }
+
       // Cobro explícito: la grilla «Pagos recibidos» lista PAYMENT_IN, no la venta SALE.
       if (isSale && !isBackorder && paymentsUsed.length > 0) {
         const paidTotal = paymentsUsed.reduce(
@@ -1274,8 +1311,138 @@ export class SalesFromSessionService {
     return `TEMP-${timestamp}-${random}`;
   }
 
+  private async assertFulfillBackorderMatches(
+    manager: EntityManager,
+    fulfillBackorderId: string,
+    customerId: string,
+    saleLines: CreateSaleDto['lines'],
+    companyId: string,
+  ): Promise<void> {
+    const backorder = await manager.getRepository(Transaction).findOne({
+      where: {
+        id: fulfillBackorderId,
+        companyId,
+        transactionType: TransactionType.BACKORDER,
+      },
+      relations: ['lines'],
+    });
+    if (!backorder) {
+      throw new NotFoundException('Reserva (encargo) no encontrada.');
+    }
+
+    const bo = (backorder.metadata?.backorder ??
+      {}) as TransactionBackorderMetadata;
+    const status = String(bo.reservationStatus ?? 'OPEN').toUpperCase();
+    if (status !== 'OPEN') {
+      throw new BadRequestException(
+        `La reserva ya no está abierta (estado: ${status}).`,
+      );
+    }
+
+    const backorderCustomerId = backorder.customerId?.trim() ?? '';
+    if (backorderCustomerId && backorderCustomerId !== customerId.trim()) {
+      throw new BadRequestException(
+        'El cliente de la venta no coincide con el de la reserva.',
+      );
+    }
+
+    const expected = new Map<string, number>();
+    for (const bl of backorder.lines ?? []) {
+      const vid = bl.productVariantId?.trim();
+      if (!vid) continue;
+      const qty =
+        Number(bl.quantityInBase) > 0
+          ? Number(bl.quantityInBase)
+          : Number(bl.quantity) || 0;
+      if (qty <= 0) continue;
+      expected.set(vid, (expected.get(vid) ?? 0) + qty);
+    }
+
+    const actual = new Map<string, number>();
+    for (const sl of saleLines) {
+      const vid = sl.productVariantId?.trim();
+      if (!vid) continue;
+      const qty = Number(sl.quantity) || 0;
+      if (qty <= 0) continue;
+      actual.set(vid, (actual.get(vid) ?? 0) + qty);
+    }
+
+    if (expected.size !== actual.size) {
+      throw new BadRequestException(
+        'Las líneas del carrito no coinciden con la reserva (productos distintos).',
+      );
+    }
+    for (const [vid, expQty] of expected) {
+      const actQty = actual.get(vid) ?? 0;
+      if (Math.abs(expQty - actQty) > 0.0001) {
+        throw new BadRequestException(
+          `Cantidad distinta a la reservada para variante ${vid}.`,
+        );
+      }
+    }
+  }
+
+  private async fulfillBackorderAfterSale(
+    manager: EntityManager,
+    params: {
+      fulfillBackorderId: string;
+      companyId: string;
+      storageId: string;
+      saleTransaction: { id: string; documentNumber: string };
+      transactionLines: Partial<TransactionLine>[];
+    },
+  ): Promise<void> {
+    const reservation = await manager.getRepository(Transaction).findOne({
+      where: {
+        companyId: params.companyId,
+        transactionType: TransactionType.INVENTORY_RESERVATION,
+        relatedTransactionId: params.fulfillBackorderId,
+      },
+      relations: ['lines'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const releaseLines = reservation?.lines?.length
+      ? reservation.lines
+      : params.transactionLines;
+
+    for (const rl of releaseLines) {
+      const vid = rl.productVariantId?.trim();
+      if (!vid) continue;
+      const qty =
+        Number(rl.quantityInBase) > 0
+          ? Number(rl.quantityInBase)
+          : Number(rl.quantity) || 0;
+      if (qty <= 0) continue;
+      await this.stockCommitment.release(manager, {
+        companyId: params.companyId,
+        variantId: vid,
+        storageId: params.storageId,
+        qty,
+        lastTransactionId: params.saleTransaction.id,
+      });
+    }
+
+    const backorder = await manager.getRepository(Transaction).findOne({
+      where: { id: params.fulfillBackorderId },
+    });
+    if (!backorder) return;
+
+    const meta = { ...(backorder.metadata ?? {}) } as Record<string, unknown>;
+    const bo = {
+      ...((meta.backorder ?? {}) as TransactionBackorderMetadata),
+    };
+    bo.reservationStatus = 'FULFILLED';
+    bo.fulfilledByTransactionId = params.saleTransaction.id;
+    bo.fulfilledByDocumentNumber =
+      params.saleTransaction.documentNumber?.trim() || null;
+    meta.backorder = bo;
+    backorder.metadata = meta;
+    await manager.getRepository(Transaction).save(backorder);
+  }
+
   private async createBackorderStockReservation(
-    manager: import('typeorm').EntityManager,
+    manager: EntityManager,
     params: {
       companyId: string;
       branchId: string;

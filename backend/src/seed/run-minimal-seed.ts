@@ -1,7 +1,7 @@
 #!/usr/bin/env ts-node
 
 import { NestFactory } from '@nestjs/core';
-import { DataSource, DeepPartial } from 'typeorm';
+import { DataSource, DeepPartial, IsNull, Not } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -44,7 +44,6 @@ import { assertValidChileCompanyRut } from '@shared/utils/chile-company-rut.util
 import { Product, ProductType } from '@modules/products/domain/product.entity';
 import { Brand } from '@modules/brands/domain/brand.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
-import { appendPmpHistory } from '@modules/product-variants/application/helpers/pmp-history';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import {
   Storage,
@@ -181,6 +180,93 @@ type CatalogoProductoSeedRow = {
   precioNeto?: number | null;
   precioNoDisponibleEnExcel?: boolean;
 };
+
+type PreciosSalaStockMaps = {
+  byCodigo: Map<string, number>;
+  byNombre: Map<string, number>;
+};
+
+function parsePreciosSalaStockQty(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    return null;
+  }
+  return n;
+}
+
+/** Stock físico por fila Excel (`N°`) en precios-sala-de-venta.json. */
+function loadPreciosSalaVentaStockMaps(): PreciosSalaStockMaps {
+  const candidates = [
+    path.resolve(__dirname, '../../../data-to-seed/precios-sala-de-venta.json'),
+    path.join(__dirname, 'data', 'precios-sala-de-venta.json'),
+  ];
+  const byCodigo = new Map<string, number>();
+  const byNombre = new Map<string, number>();
+  for (const filePath of candidates) {
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as { rows?: unknown[] };
+    if (!Array.isArray(raw.rows)) {
+      throw new Error(
+        `precios-sala-de-venta.json inválido en ${filePath}: falta array rows`,
+      );
+    }
+    for (const item of raw.rows) {
+      if (!item || typeof item !== 'object') {
+        continue;
+      }
+      const row = item as Record<string, unknown>;
+      const qty = parsePreciosSalaStockQty(row['N°']);
+      if (qty === null) {
+        continue;
+      }
+      const codigoRaw = row.CODIGO;
+      const codigo =
+        codigoRaw === null || codigoRaw === undefined
+          ? ''
+          : String(codigoRaw).trim();
+      if (codigo) {
+        byCodigo.set(codigo, qty);
+        continue;
+      }
+      const nombre =
+        typeof row.PRODUCTO === 'string' ? row.PRODUCTO.trim() : '';
+      if (nombre) {
+        byNombre.set(nombre, qty);
+      }
+    }
+    return { byCodigo, byNombre };
+  }
+  console.warn(
+    '⚠️  precios-sala-de-venta.json no encontrado; stock catálogo quedará en 0',
+  );
+  return { byCodigo, byNombre };
+}
+
+function resolvePreciosSalaStockQty(
+  row: CatalogoProductoSeedRow,
+  maps: PreciosSalaStockMaps,
+): number {
+  if (row.codigo) {
+    const byCode = maps.byCodigo.get(row.codigo);
+    if (byCode !== undefined) {
+      return byCode;
+    }
+  }
+  const bySku = maps.byCodigo.get(row.sku);
+  if (bySku !== undefined) {
+    return bySku;
+  }
+  const byName = maps.byNombre.get(row.nombre.trim());
+  if (byName !== undefined) {
+    return byName;
+  }
+  return 0;
+}
 
 /** Catálogo sala de venta / vidrios. Fuente: catalogo-productos-seed.json */
 function loadSeedCatalogoProductos(): CatalogoProductoSeedRow[] {
@@ -1079,6 +1165,10 @@ async function bootstrap() {
     await dataSource.query(
       `ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS "pmpHistory" json`,
     );
+    await dataSource.query(`ALTER TABLE product_variants ALTER COLUMN pmp DROP DEFAULT`);
+    await dataSource.query(
+      `ALTER TABLE product_variants ALTER COLUMN pmp DROP NOT NULL`,
+    );
 
     if (process.env.SEED_SKIP_TRUNCATE === 'true') {
       console.log(
@@ -1671,11 +1761,12 @@ async function bootstrap() {
     const storageRepo = dataSource.getRepository(Storage);
 
     let seedSalaVenta = await storageRepo.findOne({
-      where: { code: SEED_STORAGE_SALA_CODE },
+      where: { companyId: company.id, code: SEED_STORAGE_SALA_CODE },
       withDeleted: true,
     });
     if (!seedSalaVenta) {
       seedSalaVenta = storageRepo.create({
+        companyId: company.id,
         name: SEED_STORAGE_SALA_NAME,
         code: SEED_STORAGE_SALA_CODE,
         branchId: seedBranch.id,
@@ -1692,6 +1783,7 @@ async function bootstrap() {
       if (seedSalaVenta.deletedAt) {
         seedSalaVenta = await storageRepo.recover(seedSalaVenta);
       }
+      seedSalaVenta.companyId = company.id;
       seedSalaVenta.name = SEED_STORAGE_SALA_NAME;
       seedSalaVenta.branchId = seedBranch.id;
       seedSalaVenta.type = StorageType.STORE;
@@ -1705,7 +1797,7 @@ async function bootstrap() {
     }
 
     const legacyDeposito = await storageRepo.findOne({
-      where: { code: SEED_REMOVED_STORAGE_CODE },
+      where: { companyId: company.id, code: SEED_REMOVED_STORAGE_CODE },
       withDeleted: true,
     });
     if (legacyDeposito && !legacyDeposito.deletedAt) {
@@ -1715,6 +1807,33 @@ async function bootstrap() {
       }
       await storageRepo.softRemove(legacyDeposito);
       console.log('🗑️  Almacén seed eliminado: «Depósito principal»');
+    }
+
+    // Único almacén activo de la empresa seed: Sala de venta (predeterminado).
+    await storageRepo.update({ companyId: company.id }, { isDefault: false });
+    await storageRepo.update({ id: seedSalaVenta.id }, { isDefault: true, isActive: true });
+
+    const stockLevelRepoForStorage = dataSource.getRepository(StockLevel);
+    await stockLevelRepoForStorage.delete({
+      companyId: company.id,
+      storageId: Not(seedSalaVenta.id),
+    });
+
+    const extraStorages = await storageRepo.find({
+      where: { companyId: company.id, deletedAt: IsNull() },
+    });
+    let removedStorageCount = 0;
+    for (const st of extraStorages) {
+      if (st.id === seedSalaVenta.id) {
+        continue;
+      }
+      await storageRepo.softRemove(st);
+      removedStorageCount += 1;
+    }
+    if (removedStorageCount > 0) {
+      console.log(
+        `🗑️  Almacenes extra retirados: ${removedStorageCount} (predeterminado: «${SEED_STORAGE_SALA_NAME}»)`,
+      );
     }
 
     // Units: UNIDAD (predeterminada) + volumen (ml, L). Sin docena / gramo / kilogramo en seed.
@@ -2020,7 +2139,6 @@ async function bootstrap() {
       barcode?: string;
       basePrice: number;
       baseCost: number;
-      pmp: number;
       trackInventory: boolean;
       allowNegativeStock?: boolean;
       attributeValues?: Record<string, string>;
@@ -2058,7 +2176,6 @@ async function bootstrap() {
             barcode: '7800001002501',
             basePrice: 2790,
             baseCost: 1200,
-            pmp: 1400,
             trackInventory: true,
             retailNet: 2790,
             wholesaleNet: 2350,
@@ -2077,7 +2194,6 @@ async function bootstrap() {
             barcode: '7800001005001',
             basePrice: 4990,
             baseCost: 2200,
-            pmp: 2500,
             trackInventory: true,
             retailNet: 4990,
             wholesaleNet: 4200,
@@ -2096,7 +2212,6 @@ async function bootstrap() {
             barcode: '7800001010001',
             basePrice: 8990,
             baseCost: 4000,
-            pmp: 4500,
             trackInventory: true,
             retailNet: 8990,
             wholesaleNet: 7600,
@@ -2124,7 +2239,6 @@ async function bootstrap() {
             barcode: '7800002001001',
             basePrice: 12990,
             baseCost: 6000,
-            pmp: 6500,
             trackInventory: true,
             retailNet: 12990,
             wholesaleNet: 11000,
@@ -2151,7 +2265,6 @@ async function bootstrap() {
             sku: 'SEED-DEMO-SRV-ARM',
             basePrice: 3500,
             baseCost: 0,
-            pmp: 0,
             trackInventory: false,
             allowNegativeStock: false,
             retailNet: 3500,
@@ -2171,7 +2284,6 @@ async function bootstrap() {
             sku: 'SEED-DEMO-DIG-XLS',
             basePrice: 15000,
             baseCost: 0,
-            pmp: 0,
             trackInventory: false,
             retailNet: 15000,
             wholesaleNet: 12000,
@@ -2192,7 +2304,6 @@ async function bootstrap() {
             barcode: '7800003002501',
             basePrice: 18990,
             baseCost: 12000,
-            pmp: 12500,
             trackInventory: true,
             retailNet: 18990,
             wholesaleNet: 16500,
@@ -2211,7 +2322,6 @@ async function bootstrap() {
             barcode: '7800003005001',
             basePrice: 45990,
             baseCost: 28000,
-            pmp: 30000,
             trackInventory: true,
             retailNet: 45990,
             wholesaleNet: 39900,
@@ -2241,7 +2351,6 @@ async function bootstrap() {
             barcode: '7800004005002',
             basePrice: 5990,
             baseCost: 3200,
-            pmp: 3500,
             trackInventory: true,
             retailNet: 5990,
             wholesaleNet: 5100,
@@ -2260,7 +2369,6 @@ async function bootstrap() {
             barcode: '7800004010002',
             basePrice: 9990,
             baseCost: 5200,
-            pmp: 5800,
             trackInventory: true,
             retailNet: 9990,
             wholesaleNet: 8500,
@@ -2375,17 +2483,6 @@ async function bootstrap() {
         let variant: ProductVariant | null = await variantRepo.findOne({
           where: { sku: vd.sku },
         });
-        const initialPmp = Number(vd.pmp) || 0;
-        const seedPmpHistory =
-          initialPmp !== 0
-            ? appendPmpHistory(undefined, {
-                previousPmp: 0,
-                newPmp: initialPmp,
-                source: 'initial',
-                at: '2020-01-01T00:00:00.000Z',
-              })
-            : undefined;
-
         const triplet = vd.uom ?? { stock: 'UN', sale: 'UN', purchase: 'UN' };
         const saleId = seedUnitId[triplet.sale];
         const stockId = seedUnitId[triplet.stock];
@@ -2397,7 +2494,8 @@ async function bootstrap() {
           barcode: vd.barcode,
           basePrice: vd.basePrice,
           baseCost: vd.baseCost,
-          pmp: vd.pmp,
+          pmp: null,
+          pmpHistory: null,
           unitId: saleId,
           stockBaseUnitId: stockId,
           saleUnitId: saleId,
@@ -2425,20 +2523,9 @@ async function bootstrap() {
         }
 
         if (!variant) {
-          const createPayload: DeepPartial<ProductVariant> = {
-            ...variantPayload,
-          };
-          if (seedPmpHistory) {
-            createPayload.pmpHistory = seedPmpHistory;
-          }
-          variant = variantRepo.create(createPayload);
+          variant = variantRepo.create(variantPayload);
         } else {
           Object.assign(variant, variantPayload);
-          const h = variant.pmpHistory;
-          const historyEmpty = !h || !Array.isArray(h) || h.length === 0;
-          if (seedPmpHistory && historyEmpty) {
-            variant.pmpHistory = seedPmpHistory;
-          }
         }
 
         const savedVariant = await variantRepo.save(variant);
@@ -2461,9 +2548,12 @@ async function bootstrap() {
     // Catálogo Excel (catalogo-productos-seed.json): 1 producto / 1 variante por fila
     // ---------------------------------------------------------------------
     const catalogoRows = loadSeedCatalogoProductos();
+    const preciosSalaStockMaps = loadPreciosSalaVentaStockMaps();
+    const catalogStockByVariantId = new Map<string, number>();
     const unitUnId = seedUnitId.UN;
     let catalogVariantCreated = 0;
     let catalogVariantUpdated = 0;
+    let catalogStockFromExcel = 0;
 
     console.log(
       `📦 Catálogo Excel: sincronizando ${catalogoRows.length} productos (precio venta con IVA → neto ÷ ${1 + SEED_CATALOGO_IVA_TASA})…`,
@@ -2484,7 +2574,6 @@ async function bootstrap() {
           : 0;
       const wholesaleNet = retailNet;
       const baseCost = Math.max(0, Number(row.precioNeto) || 0);
-      const pmp = baseCost;
 
       const attributeValues =
         row.anio && atributoAno.id
@@ -2521,22 +2610,13 @@ async function bootstrap() {
       }
       product = await productRepo.save(product);
 
-      const seedPmpHistory =
-        pmp > 0
-          ? appendPmpHistory(undefined, {
-              previousPmp: 0,
-              newPmp: pmp,
-              source: 'initial',
-              at: new Date().toISOString(),
-            })
-          : undefined;
-
       const variantPayload: DeepPartial<ProductVariant> = {
         productId: product.id,
         sku: row.sku,
         basePrice: retailNet,
         baseCost,
-        pmp,
+        pmp: null,
+        pmpHistory: null,
         unitId: unitUnId,
         stockBaseUnitId: unitUnId,
         saleUnitId: unitUnId,
@@ -2552,19 +2632,10 @@ async function bootstrap() {
       };
 
       if (!variant) {
-        const createPayload: DeepPartial<ProductVariant> = { ...variantPayload };
-        if (seedPmpHistory) {
-          createPayload.pmpHistory = seedPmpHistory;
-        }
-        variant = variantRepo.create(createPayload);
+        variant = variantRepo.create(variantPayload);
         catalogVariantCreated += 1;
       } else {
         Object.assign(variant, variantPayload);
-        const h = variant.pmpHistory;
-        const historyEmpty = !h || !Array.isArray(h) || h.length === 0;
-        if (seedPmpHistory && historyEmpty) {
-          variant.pmpHistory = seedPmpHistory;
-        }
         catalogVariantUpdated += 1;
       }
 
@@ -2577,11 +2648,23 @@ async function bootstrap() {
         net: retailNet,
         taxId: ivaTax.id,
       });
+
+      const physicalQty = resolvePreciosSalaStockQty(row, preciosSalaStockMaps);
+      catalogStockByVariantId.set(savedVariant.id, physicalQty);
+      if (physicalQty > 0) {
+        catalogStockFromExcel += 1;
+      }
     }
 
     console.log(
-      `✅ Catálogo Excel sincronizado: ${catalogoRows.length} productos (variantes nuevas=${catalogVariantCreated}, actualizadas=${catalogVariantUpdated})`,
+      `✅ Catálogo Excel sincronizado: ${catalogoRows.length} productos (variantes nuevas=${catalogVariantCreated}, actualizadas=${catalogVariantUpdated}, con stock N°>0=${catalogStockFromExcel})`,
     );
+
+    await variantRepo.update(
+      { companyId: company.id },
+      { pmp: null, pmpHistory: null },
+    );
+    console.log('✅ PMP e historial en null para todas las variantes de la empresa seed');
 
     // Point of sale (ejemplo): CAJA LOCAL en sucursal seed con listas de precios
     const priceListsJson = [{ id: unica.id, name: unica.name, isActive: true }];
@@ -2618,8 +2701,12 @@ async function bootstrap() {
       where: { companyId: company.id, trackInventory: true, deletedAt: null as never },
       select: ['id'],
     });
-    const demoStockBase = 100000;
+    let catalogStockLevelsWritten = 0;
     for (const v of trackedVariants) {
+      const physicalQty = catalogStockByVariantId.get(v.id) ?? 0;
+      if (catalogStockByVariantId.has(v.id)) {
+        catalogStockLevelsWritten += 1;
+      }
       let sl = await stockLevelRepo.findOne({
         where: { productVariantId: v.id, storageId: seedSalaVenta.id },
       });
@@ -2628,21 +2715,21 @@ async function bootstrap() {
           companyId: company.id,
           productVariantId: v.id,
           storageId: seedSalaVenta.id,
-          physicalStock: demoStockBase,
+          physicalStock: physicalQty,
           committedStock: 0,
-          availableStock: demoStockBase,
+          availableStock: physicalQty,
           incomingStock: 0,
         });
       } else {
-        sl.physicalStock = demoStockBase;
+        sl.physicalStock = physicalQty;
         sl.committedStock = 0;
-        sl.availableStock = demoStockBase;
+        sl.availableStock = physicalQty;
         sl.incomingStock = 0;
       }
       await stockLevelRepo.save(sl);
     }
     console.log(
-      `✅ Stock demo en «${SEED_STORAGE_SALA_NAME}»: ${trackedVariants.length} variante(s) a ${demoStockBase} u. base`,
+      `✅ Stock «${SEED_STORAGE_SALA_NAME}»: ${catalogStockLevelsWritten} variante(s) del catálogo Excel (columna N°), ${trackedVariants.length - catalogStockLevelsWritten} demo/otras en 0`,
     );
 
     /** Medios de pago POS (CAJA LOCAL): sincronizados con catálogo empresa en cada seed. */
@@ -2857,24 +2944,17 @@ async function bootstrap() {
 
     const seedShareholders = [
       {
-        firstName: 'Ana',
-        lastName: 'López',
+        firstName: 'Walter',
+        lastName: 'Parada Vargas',
         documentType: DocumentType.RUN,
-        documentNumber: '15234567-8',
-        ownershipPercentage: 40,
+        documentNumber: '11.566.882-K',
+        ownershipPercentage: 100,
         partnerType: 'FOUNDING_PARTNER',
         joinDate: '2020-01-15',
       },
-      {
-        firstName: 'Roberto',
-        lastName: 'Martínez',
-        documentType: DocumentType.RUN,
-        documentNumber: '18222333-4',
-        ownershipPercentage: 60,
-        partnerType: 'INVESTING_PARTNER',
-        joinDate: '2021-06-01',
-      },
     ] as const;
+
+    let seedShareholderPersonId: string | null = null;
 
     for (const sh of seedShareholders) {
       let person = await personRepo.findOne({
@@ -2894,6 +2974,7 @@ async function bootstrap() {
         person.documentType = sh.documentType;
       }
       person = await personRepo.save(person);
+      seedShareholderPersonId = person.id;
 
       let shRow = await shareholderRepo.findOne({
         where: { companyId: company.id, personId: person.id, deletedAt: null as never },
@@ -2917,6 +2998,18 @@ async function bootstrap() {
       console.log(
         `✅ Socio seed: ${sh.firstName} ${sh.lastName} participación=${sh.ownershipPercentage}% partnerType=${sh.partnerType}`,
       );
+    }
+
+    if (seedShareholderPersonId) {
+      const otherShareholders = await shareholderRepo.find({
+        where: { companyId: company.id, deletedAt: null as never },
+      });
+      for (const row of otherShareholders) {
+        if (row.personId !== seedShareholderPersonId) {
+          await shareholderRepo.softRemove(row);
+          console.log(`🗑️ Socio fuera de seed retirado: shareholderId=${row.id}`);
+        }
+      }
     }
 
     // Helper idempotente: asegura un usuario seed con su persona asociada.

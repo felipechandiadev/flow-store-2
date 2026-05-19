@@ -36,8 +36,8 @@ export class ProductVariantOrmEntity {
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   baseCost!: number;
 
-  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
-  pmp!: number;
+  @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
+  pmp!: number | null;
 
   @Column({ type: 'json', nullable: true })
   pmpHistory?: PmpHistoryEntry[] | null;

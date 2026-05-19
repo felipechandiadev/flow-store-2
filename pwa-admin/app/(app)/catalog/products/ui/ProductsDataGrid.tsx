@@ -22,8 +22,10 @@ type ProductsDataGridProps = {
 
 function averageReferencePmp(row: ProductGridRow): number {
   const positives = (row.variants ?? [])
-    .map((v) => (typeof v.pmp === "number" && Number.isFinite(v.pmp) ? v.pmp : 0))
-    .filter((n) => n > 0);
+    .map((v) =>
+      typeof v.pmp === "number" && Number.isFinite(v.pmp) && v.pmp > 0 ? v.pmp : null,
+    )
+    .filter((n): n is number => n != null);
   if (positives.length === 0) {
     return 0;
   }

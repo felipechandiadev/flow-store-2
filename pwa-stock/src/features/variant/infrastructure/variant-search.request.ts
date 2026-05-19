@@ -28,7 +28,12 @@ function normalizeItem(row: unknown): VariantSearchItem | null {
       o.categoryName != null && String(o.categoryName).trim() ? String(o.categoryName).trim() : null,
     sku: o.sku != null ? String(o.sku) : "",
     barcode: o.barcode != null && String(o.barcode).trim() ? String(o.barcode).trim() : null,
-    pmp: typeof o.pmp === "number" && Number.isFinite(o.pmp) ? o.pmp : Number(o.pmp) || 0,
+    pmp:
+      typeof o.pmp === "number" && Number.isFinite(o.pmp)
+        ? o.pmp
+        : o.pmp != null && o.pmp !== "" && Number.isFinite(Number(o.pmp))
+          ? Number(o.pmp)
+          : null,
     attributeValues,
     unitLabel: o.unitLabel != null && String(o.unitLabel).trim() ? String(o.unitLabel).trim() : null,
   };

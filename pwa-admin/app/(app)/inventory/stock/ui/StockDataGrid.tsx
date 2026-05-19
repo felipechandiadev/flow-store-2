@@ -695,6 +695,9 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         align: "right",
         renderCell: ({ row }) => {
           const r = row as StockGridRow;
+          if (r.pmpValue == null || !Number.isFinite(r.pmpValue)) {
+            return <span className="text-muted-foreground">Sin PMP</span>;
+          }
           return <span className="tabular-nums text-foreground">{formatMoney(r.pmpValue)}</span>;
         },
       },
