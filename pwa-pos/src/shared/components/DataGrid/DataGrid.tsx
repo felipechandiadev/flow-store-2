@@ -4,7 +4,14 @@ import Header from './components/Header';
 import Body from './components/Body';
 import Footer from './components/Footer';
 import { ColHeader } from './components/ColHeader';
-import { calculateColumnStyles, DataGridStyles, useScreenSize } from './utils/columnStyles';
+import {
+  calculateColumnStyles,
+  DataGridStyles,
+  useScreenSize,
+  type DataGridCellOverflow,
+} from './utils/columnStyles';
+
+export type { DataGridCellOverflow };
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
@@ -34,6 +41,11 @@ export interface DataGridColumn {
   align?: 'left' | 'right' | 'center';
   headerAlign?: 'left' | 'right' | 'center';
   hide?: boolean;
+  /**
+   * Contenido largo en la celda: `truncate` (ellipsis, default), `wrap`, `clip` u `visible`.
+   * Aplica a texto por defecto, `renderCell` y `actionComponent` (contenedor con `min-w-0`).
+   */
+  cellOverflow?: DataGridCellOverflow;
   sticky?: boolean; // Fijar columna al lado derecho (compatibilidad hacia atrás)
   /**
    * Acciones de fila. Norma: columna con `field` típ. `'actions'`, `headerName: ''`, `filterable: false`, `sortable: false`;
@@ -254,10 +266,7 @@ const DataGrid: React.FC<DataGridProps> = ({
         {/* Column Headers Row */}
         <div 
           ref={columnHeaderRowRef}
-          className={`${DataGridStyles.headerRow} sticky top-0 z-30 bg-background`}
-          style={{
-            minWidth: 'max-content'
-          }}
+          className={`${DataGridStyles.headerRow} sticky top-0 z-30 w-full min-w-0 bg-background`}
         >
           {/* Expand column header placeholder */}
           {expandable && (

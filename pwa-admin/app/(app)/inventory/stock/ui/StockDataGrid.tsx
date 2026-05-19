@@ -601,14 +601,14 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         sortable: true,
         minWidth: 200,
         flex: 1,
+        cellOverflow: "wrap",
         renderCell: ({ row }) => {
           const r = row as StockGridRow;
+          const attrs = formatAttrs(r.attributeValues);
           return (
-            <div className="min-w-0">
-              <p className="truncate font-medium text-foreground" title={r.productName}>
-                {r.productName}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">{formatAttrs(r.attributeValues)}</p>
+            <div className="min-w-0 w-full space-y-0.5">
+              <p className="font-medium text-foreground">{r.productName}</p>
+              {attrs ? <p className="text-xs text-muted-foreground">{attrs}</p> : null}
             </div>
           );
         },

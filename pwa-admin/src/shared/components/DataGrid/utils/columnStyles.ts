@@ -9,6 +9,49 @@ export interface ColumnStyle {
   flex?: string;
 }
 
+/** Cómo trata el contenido largo la celda respecto al ancho de columna. */
+export type DataGridCellOverflow = 'truncate' | 'wrap' | 'clip' | 'visible';
+
+const DEFAULT_CELL_OVERFLOW: DataGridCellOverflow = 'truncate';
+
+/**
+ * Clases Tailwind para celda y contenedor interno según `cellOverflow`.
+ * La celda incluye `min-w-0` para que flex no la expanda por contenido largo.
+ */
+export function getCellOverflowClassNames(
+  mode: DataGridCellOverflow = DEFAULT_CELL_OVERFLOW,
+): { cell: string; content: string } {
+  switch (mode) {
+    case 'wrap':
+      return {
+        cell: 'min-w-0 max-w-full overflow-hidden',
+        content: 'block min-w-0 w-full break-words [overflow-wrap:anywhere] whitespace-pre-wrap',
+      };
+    case 'clip':
+      return {
+        cell: 'min-w-0 overflow-hidden',
+        content: 'min-w-0 w-full overflow-hidden',
+      };
+    case 'visible':
+      return {
+        cell: 'min-w-0 overflow-visible',
+        content: 'min-w-0 w-full',
+      };
+    case 'truncate':
+    default:
+      return {
+        cell: 'min-w-0 overflow-hidden',
+        content: 'min-w-0 w-full truncate',
+      };
+  }
+}
+
+export function resolveColumnCellOverflow(
+  column: { cellOverflow?: DataGridCellOverflow },
+): DataGridCellOverflow {
+  return column.cellOverflow ?? DEFAULT_CELL_OVERFLOW;
+}
+
 /**
  * Hook personalizado para detectar tamaño de pantalla
  */
@@ -127,8 +170,32 @@ export function calculateColumnStyles(columns: DataGridColumn[], screenWidth: nu
       style.maxWidth = col.maxWidth;
     }
 
-    return style;
+    return applyOverflowConstraints(style, col);
   });
+}
+
+/** Columna flex con contenido acotado: evita que min-content del texto ensanche la fila. */
+function isFlexGrowColumn(style: ColumnStyle, col: DataGridColumn): boolean {
+  if (typeof col.flex === 'number' && col.flex > 0) return true;
+  if (typeof style.flex !== 'string') return false;
+  const grow = Number.parseFloat(style.flex.trim().split(/\s+/)[0] ?? '0');
+  return grow > 0;
+}
+
+function applyOverflowConstraints(style: ColumnStyle, col: DataGridColumn): ColumnStyle {
+  const mode = resolveColumnCellOverflow(col);
+  if (mode === 'visible') return style;
+
+  if (!isFlexGrowColumn(style, col)) {
+    return { ...style, overflow: 'hidden' };
+  }
+
+  return {
+    ...style,
+    width: 0,
+    minWidth: style.minWidth ?? 0,
+    overflow: 'hidden',
+  };
 }
 
 /**

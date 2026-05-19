@@ -83,6 +83,7 @@ const DATAGRID_COLUMN_PROPS: PropRow[] = [
   { prop: 'width', type: "number (opcional)", default: "—", desc: "Ancho en px; participa en el cálculo de layout (`calculateColumnStyles`)." },
   { prop: 'minWidth', type: "number (opcional)", default: "—", desc: "Ancho mínimo de la columna." },
   { prop: 'maxWidth', type: "number (opcional)", default: "—", desc: "Ancho máximo de la columna." },
+  { prop: 'cellOverflow', type: "'truncate' | 'wrap' | 'clip' | 'visible' (opcional)", default: "'truncate'", desc: "Contenido largo: ellipsis (`truncate`), salto de línea (`wrap`), recorte sin ellipsis (`clip`) o desborde visible (`visible`). Aplica a texto por defecto, `renderCell` y `actionComponent`." },
   { prop: 'flex', type: "number (opcional)", default: "—", desc: "Factor flex para repartir espacio sobrante en la fila de cabecera/cuerpo." },
   { prop: 'type', type: "DataGridColumnType (opcional)", default: "—", desc: "Hint de tipo: 'string' | 'number' | 'date' | 'dateTime' | 'boolean' | 'id' (p. ej. alineación o formato en celdas)." },
   { prop: 'sortable', type: "boolean (opcional)", default: "—", desc: "Si true, al ordenar se escribe `sort` y `sortField` en la URL; iconos de orden en cabecera." },

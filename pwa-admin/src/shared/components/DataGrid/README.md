@@ -191,7 +191,9 @@ export default function UsersDataGrid({ data, total, page, limit }: Props) {
 | `headerName` | `string` | **requerido** | Texto del encabezado |
 | `width` | `number` | - | Ancho fijo en píxeles |
 | `minWidth` | `number` | - | Ancho mínimo |
+| `maxWidth` | `number` | - | Ancho máximo |
 | `flex` | `number` | - | Factor de crecimiento flexible |
+| `cellOverflow` | `'truncate' \| 'wrap' \| 'clip' \| 'visible'` | `'truncate'` | Cómo recorta o envuelve contenido largo sin desplazar columnas vecinas |
 | `sortable` | `boolean` | `false` | Si la columna es ordenable |
 | `filterable` | `boolean` | `true` | Si la columna es filtrable |
 | `hide` | `boolean` | `false` | Ocultar la columna |
@@ -204,6 +206,13 @@ export default function UsersDataGrid({ data, total, page, limit }: Props) {
 
 ## 🎯 Ejemplos
 
+### Columna con texto largo (`cellOverflow`)
+
+```tsx
+{ field: 'name', headerName: 'Nombre', flex: 1, minWidth: 160, cellOverflow: 'truncate' },
+{ field: 'notes', headerName: 'Notas', flex: 1, minWidth: 200, maxWidth: 320, cellOverflow: 'wrap' },
+```
+
 ### Columna con renderizado personalizado
 
 ```tsx
@@ -211,6 +220,7 @@ export default function UsersDataGrid({ data, total, page, limit }: Props) {
   field: 'status',
   headerName: 'Estado',
   width: 100,
+  cellOverflow: 'truncate',
   renderCell: ({ value }) => (
     <span className={`px-2 py-1 rounded-full text-xs ${
       value === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'

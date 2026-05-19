@@ -1,9 +1,20 @@
 'use client'
 import React from 'react';
 import { useState } from 'react';
-import { calculateColumnStyles } from '../utils/columnStyles';
+import {
+  calculateColumnStyles,
+  getCellOverflowClassNames,
+  resolveColumnCellOverflow,
+} from '../utils/columnStyles';
 import type { DataGridColumn } from '../DataGrid';
 import IconButton from '@/shared/components/IconButton';
+
+const CELL_BASE_CLASS =
+  'px-3 py-1 border-b border-border text-xs flex items-center justify-start';
+
+function cellOverflowClasses(column: DataGridColumn) {
+  return getCellOverflowClassNames(resolveColumnCellOverflow(column));
+}
 
 interface BodyProps {
   columns?: DataGridColumn[];
@@ -22,10 +33,10 @@ interface BodyProps {
   selectedRowId?: string | number | null;
 }
 
-const Body: React.FC<BodyProps> = ({ 
-  columns = [], 
-  rows = [], 
-  filterMode = false, 
+const Body: React.FC<BodyProps> = ({
+  columns = [],
+  rows = [],
+  filterMode = false,
   screenWidth = 1024,
   expandable = false,
   expandedRowIds = new Set(),
@@ -51,7 +62,7 @@ const Body: React.FC<BodyProps> = ({
         const isExpanded = expandedRowIds.has(rowId);
         const isSelected =
           selectedRowId != null && selectedRowId !== '' && String(rowId) === String(selectedRowId);
-        
+
         return (
           <React.Fragment key={rowId}>
             <div
@@ -68,7 +79,7 @@ const Body: React.FC<BodyProps> = ({
                   : undefined
               }
               onClick={onRowClick ? () => onRowClick(row) : undefined}
-              className={`flex min-w-full items-stretch data-grid-row ${
+              className={`flex w-full min-w-0 items-stretch data-grid-row ${
                 onRowClick ? 'cursor-pointer' : ''
               } ${
                 expandable && isExpanded && stickyExpandedRowTopPx != null
@@ -76,7 +87,6 @@ const Body: React.FC<BodyProps> = ({
                   : ''
               }`}
               style={{
-                minWidth: 'max-content',
                 ...(expandable && isExpanded && stickyExpandedRowTopPx != null
                   ? { top: stickyExpandedRowTopPx }
                   : undefined),
@@ -88,8 +98,8 @@ const Body: React.FC<BodyProps> = ({
               {expandable && (
                 <div
                   className="w-10 min-w-[40px] px-1 py-1 border-b border-border flex items-center justify-center"
-                    style={{
-                    backgroundColor: hoveredRowId === rowId ? "var(--color-hover)" : "transparent",
+                  style={{
+                    backgroundColor: hoveredRowId === rowId ? 'var(--color-hover)' : 'transparent',
                   }}
                   onMouseEnter={() => setHoveredRowId(rowId)}
                   onMouseLeave={() => setHoveredRowId(null)}
@@ -111,10 +121,10 @@ const Body: React.FC<BodyProps> = ({
                 const isPinnedActionsColumn =
                   pinActionsColumn && column.field === actionsColumnField;
                 const rowBackgroundColor = isSelected
-                  ? "color-mix(in srgb, var(--color-primary) 16%, var(--color-background))"
+                  ? 'color-mix(in srgb, var(--color-primary) 16%, var(--color-background))'
                   : hoveredRowId === rowId
-                    ? "var(--color-hover)"
-                    : "var(--color-background)";
+                    ? 'var(--color-hover)'
+                    : 'var(--color-background)';
 
                 const cellStyle = {
                   ...style,
@@ -124,7 +134,7 @@ const Body: React.FC<BodyProps> = ({
                         position: 'sticky' as const,
                         right: 0,
                         zIndex: 8,
-                        borderLeft: "1px solid var(--color-border)",
+                        borderLeft: '1px solid var(--color-border)',
                         flex: '0 0 auto',
                       }
                     : {}),
@@ -135,18 +145,32 @@ const Body: React.FC<BodyProps> = ({
                   ? column.valueGetter({ row, value: rawValue, column, rowIndex })
                   : rawValue;
 
+                const overflow = cellOverflowClasses(column);
+                const overflowMode = resolveColumnCellOverflow(column);
+                const cellClassName = `${CELL_BASE_CLASS} ${
+                  overflowMode === 'wrap' ? 'items-start' : 'items-center'
+                } ${overflow.cell}`;
+                const displayText =
+                  value !== null && value !== undefined ? String(value) : '-';
+                const cellTitle =
+                  resolveColumnCellOverflow(column) === 'truncate' && displayText !== '-'
+                    ? displayText
+                    : undefined;
+
                 // Renderizar actionComponent si existe
                 if (column.actionComponent) {
                   const ActionComponent = column.actionComponent;
                   return (
                     <div
                       key={`${column.field}-${rowId}`}
-                      className="px-3 py-1 border-b border-border text-xs flex items-center justify-start"
+                      className={cellClassName}
                       style={cellStyle}
                       onMouseEnter={() => setHoveredRowId(rowId)}
                       onMouseLeave={() => setHoveredRowId(null)}
                     >
-                      <ActionComponent row={row} column={column} />
+                      <div className={overflow.content}>
+                        <ActionComponent row={row} column={column} />
+                      </div>
                     </div>
                   );
                 }
@@ -156,12 +180,14 @@ const Body: React.FC<BodyProps> = ({
                   return (
                     <div
                       key={`${column.field}-${rowId}`}
-                      className="px-3 py-1 border-b border-border text-xs flex items-center justify-start"
+                      className={cellClassName}
                       style={cellStyle}
                       onMouseEnter={() => setHoveredRowId(rowId)}
                       onMouseLeave={() => setHoveredRowId(null)}
                     >
-                      {column.renderCell({ row, value, column })}
+                      <div className={overflow.content}>
+                        {column.renderCell({ row, value, column })}
+                      </div>
                     </div>
                   );
                 }
@@ -169,12 +195,14 @@ const Body: React.FC<BodyProps> = ({
                 return (
                   <div
                     key={`${column.field}-${rowId}`}
-                    className="px-3 py-1 border-b border-border text-xs flex items-center justify-start"
+                    className={cellClassName}
                     style={cellStyle}
                     onMouseEnter={() => setHoveredRowId(rowId)}
                     onMouseLeave={() => setHoveredRowId(null)}
                   >
-                    <span className="truncate">{value !== null && value !== undefined ? String(value) : '-'}</span>
+                    <span className={overflow.content} title={cellTitle}>
+                      {displayText}
+                    </span>
                   </div>
                 );
               })}
@@ -183,7 +211,7 @@ const Body: React.FC<BodyProps> = ({
             {expandable && isExpanded && expandableRowContent && (
               <div
                 className="min-w-full w-full max-w-none bg-neutral/50 border-b border-border"
-                style={{ minWidth: "max-content" }}
+                style={{ minWidth: 'max-content' }}
                 data-test-id="data-grid-expanded-row"
               >
                 <div className="w-full min-w-0 max-w-none p-4">

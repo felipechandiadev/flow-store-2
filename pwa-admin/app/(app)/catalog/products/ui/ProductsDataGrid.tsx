@@ -393,7 +393,14 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
     }
 
     return [
-      { field: "name", headerName: "Nombre", sortable: true, minWidth: 200, flex: 1 },
+      {
+        field: "name",
+        headerName: "Nombre",
+        sortable: true,
+        minWidth: 200,
+        flex: 1,
+        cellOverflow: "wrap",
+      },
       {
         field: "productType",
         headerName: "Tipo",
