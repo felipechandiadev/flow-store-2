@@ -179,13 +179,37 @@ fn list_mac() -> Result<Vec<PrinterInfo>> {
 }
 
 #[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// PowerShell sin ventana de consola (evita flashes en Windows al listar impresoras).
+#[cfg(target_os = "windows")]
+fn windows_powershell_output(script: &str) -> Result<std::process::Output> {
+    use std::os::windows::process::CommandExt;
+    Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
+            "-Command",
+            script,
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .context("powershell")
+}
+
+#[cfg(target_os = "windows")]
 fn list_windows() -> Result<Vec<PrinterInfo>> {
     let ps = r#"Get-CimInstance Win32_Printer | Select-Object Name,Default,WorkOffline | ConvertTo-Json"#;
-    let out = Command::new("powershell")
-        .args(["-NoProfile", "-Command", ps])
-        .output()
-        .context("powershell printers")?;
+    let out = windows_powershell_output(ps).context("powershell printers")?;
     if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        tracing::warn!(
+            code = ?out.status.code(),
+            %stderr,
+            "powershell list printers failed"
+        );
         return Ok(vec![]);
     }
     let s = String::from_utf8_lossy(&out.stdout);

@@ -112,11 +112,16 @@ pub fn printer_health(db: &Db, system: &[PrinterInfo], required: &[String]) -> V
     })
 }
 
-pub fn emit_printer_health_json(db: &Db, required: &[String]) -> Result<Value> {
-    let sys = platform::list_system_printers().unwrap_or_default();
-    Ok(json!({
+/// Evento `printer_health` reutilizando la lista de impresoras ya obtenida (evita un segundo PowerShell en Windows).
+pub fn printer_health_event_json(db: &Db, system: &[PrinterInfo], required: &[String]) -> Value {
+    json!({
         "version": crate::protocol::PROTOCOL_VERSION,
         "event": "printer_health",
-        "payload": printer_health(db, &sys, required),
-    }))
+        "payload": printer_health(db, system, required),
+    })
+}
+
+pub fn emit_printer_health_json(db: &Db, required: &[String]) -> Result<Value> {
+    let sys = platform::list_system_printers().unwrap_or_default();
+    Ok(printer_health_event_json(db, &sys, required))
 }

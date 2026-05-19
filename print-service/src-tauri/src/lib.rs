@@ -237,7 +237,7 @@ fn get_dashboard(state: tauri::State<'_, Arc<AppState>>) -> Result<serde_json::V
     let printers = platform::list_system_printers().map_err(|e| e.to_string())?;
     let mappings = state.db.get_mappings().map_err(|e| e.to_string())?;
     let mapping_lines = state.db.list_mapping_lines().map_err(|e| e.to_string())?;
-    let ph = events::emit_printer_health_json(&state.db, &[]).map_err(|e| e.to_string())?;
+    let ph = events::printer_health_event_json(&state.db, &printers, &[]);
     let jobs = state.db.list_jobs_queue(40).map_err(|e| e.to_string())?;
     let wss_on = state
         .db
