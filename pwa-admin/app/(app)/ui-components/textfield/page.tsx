@@ -51,6 +51,33 @@ export default function TextFieldPage() {
       </section>
 
       <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">selectOnFocus</h2>
+        <p className="text-sm text-muted-foreground">
+          Al enfocar (Tab o primer clic) se selecciona todo el texto para reemplazarlo rápido. Si el campo ya tenía foco,
+          un clic coloca el cursor donde corresponda. Con <code className="rounded bg-muted/50 px-1">type=&quot;number&quot;</code>{" "}
+          el control se renderiza como texto con teclado numérico para que la selección funcione en todos los navegadores.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField
+            label="Cantidad"
+            type="number"
+            value={numero}
+            onChange={(e) => setNumero(e.target.value)}
+            selectOnFocus
+            min={0}
+          />
+          <TextField
+            label="Código"
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value)}
+            startSymbol="#"
+            selectOnFocus
+            placeholder="Tab o clic para seleccionar todo"
+          />
+        </div>
+      </section>
+
+      <section className="space-y-4">
         <h2 className="text-2xl font-semibold">Placeholder distinto al label</h2>
         <TextField
           label="Búsqueda"
@@ -216,11 +243,11 @@ export default function TextFieldPage() {
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
-            label="Código"
+            label="Código (sin selectOnFocus)"
             value={codigo}
             onChange={(e) => setCodigo(e.target.value)}
             startSymbol="#"
-            placeholder="Solo demostración"
+            placeholder="Edición normal con clic"
             className="w-full"
           />
           <TextField
