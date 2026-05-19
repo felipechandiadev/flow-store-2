@@ -14,7 +14,7 @@ import type { StockGridRow, StockStorageBreakdownRow } from "@/features/inventor
 import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { adjustStockAction, transferStockAction } from "@/features/inventory-stock/actions/stock.action";
-import { useStockRealtime } from "@/features/inventory-stock/realtime/stock-realtime-context";
+import { useNotificationsRealtime } from "@/features/notifications/realtime/notifications-realtime-context";
 import { EditVariantStockConfigDialog } from "./EditVariantStockConfigDialog";
 
 type StockDataGridProps = {
@@ -447,21 +447,19 @@ function StockExpandPanel({
 
 export default function StockDataGrid({ rows, total, storages, branchId }: StockDataGridProps) {
   const router = useRouter();
-  const { lastStockEvents } = useStockRealtime();
-  const lastRealtimeRefreshAt = useRef<number | undefined>(undefined);
+  const { stockRefreshToken } = useNotificationsRealtime();
+  const lastRealtimeRefreshAt = useRef(0);
 
   useEffect(() => {
-    const latest = lastStockEvents[0];
-    const ra = latest?.receivedAt;
-    if (ra == null || ra === lastRealtimeRefreshAt.current) {
+    if (!stockRefreshToken || stockRefreshToken === lastRealtimeRefreshAt.current) {
       return;
     }
-    lastRealtimeRefreshAt.current = ra;
+    lastRealtimeRefreshAt.current = stockRefreshToken;
     const t = window.setTimeout(() => {
       router.refresh();
     }, 400);
     return () => window.clearTimeout(t);
-  }, [lastStockEvents, router]);
+  }, [stockRefreshToken, router]);
 
   const [adjust, setAdjust] = useState<AdjustState | null>(null);
   const [transfer, setTransfer] = useState<TransferState | null>(null);
@@ -599,8 +597,8 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         field: "productName",
         headerName: "Producto",
         sortable: true,
-        minWidth: 200,
-        flex: 1,
+        minWidth: 140,
+        flex: 1.5,
         cellOverflow: "wrap",
         renderCell: ({ row }) => {
           const r = row as StockGridRow;
@@ -613,7 +611,24 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
           );
         },
       },
-      { field: "sku", headerName: "SKU", sortable: true, width: 120 },
+      { field: "sku", headerName: "SKU", sortable: true, width: 160 },
+      {
+        field: "barcode",
+        headerName: "Cód. barras",
+        sortable: true,
+        width: 150,
+        renderCell: ({ row }) => {
+          const r = row as StockGridRow;
+          const code = r.barcode?.trim();
+          return code ? (
+            <span className="font-mono text-sm text-foreground" title={code}>
+              {code}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          );
+        },
+      },
       {
         field: "unitOfMeasure",
         headerName: "Unidad stock",
@@ -684,21 +699,11 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         },
       },
       {
-        field: "pmp",
-        headerName: "PMP",
-        sortable: true,
-        width: 100,
-        align: "right",
-        renderCell: ({ row }) => {
-          const r = row as StockGridRow;
-          return <span className="tabular-nums text-foreground">{formatMoney(r.pmp)}</span>;
-        },
-      },
-      {
         field: "actions",
         headerName: "",
-        width: 56,
-        minWidth: 56,
+        width: 44,
+        minWidth: 44,
+        maxWidth: 44,
         align: "center",
         sortable: false,
         filterable: false,

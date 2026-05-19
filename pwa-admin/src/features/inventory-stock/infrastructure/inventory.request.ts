@@ -172,6 +172,7 @@ function normalizeRow(row: unknown): StockGridRow | null {
     productId: o.productId != null ? String(o.productId) : null,
     productName: o.productName != null ? String(o.productName) : "",
     sku: o.sku != null ? String(o.sku) : "",
+    barcode: o.barcode != null ? String(o.barcode) : "",
     unitOfMeasure: o.unitOfMeasure != null ? String(o.unitOfMeasure) : "",
     saleUnitOfMeasure: o.saleUnitOfMeasure != null ? String(o.saleUnitOfMeasure) : "",
     stockUnitSymbol: o.stockUnitSymbol != null ? String(o.stockUnitSymbol) : "",

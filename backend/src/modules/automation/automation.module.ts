@@ -11,6 +11,7 @@ import { CreateDerivedTransactionActionHandler } from './application/handlers/ac
 import { UpdateStockActionHandler } from './application/handlers/actions/update-stock.action';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 import { StockRealtimeModule } from '@modules/stock-realtime/stock-realtime.module';
+import { NotificationsModule } from '@modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { StockRealtimeModule } from '@modules/stock-realtime/stock-realtime.modu
     CqrsModule,
     TransactionsModule,
     StockRealtimeModule,
+    NotificationsModule,
   ],
   controllers: [AutomationRulesController],
   providers: [

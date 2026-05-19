@@ -19,6 +19,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 use serde_json::json;
 use state::{AppState, ListenerControl};
+use tauri::image::Image;
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::Emitter;
@@ -28,6 +29,18 @@ use tracing_subscriber::prelude::*;
 
 fn install_rustls_crypto_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
+/// Icono de barra de menú (macOS), generado desde `public/KaiPrinters-mac-bar.png`.
+fn load_tray_icon() -> Option<Image<'static>> {
+    const TRAY_PNG: &[u8] = include_bytes!("../icons/tray-icon.png");
+    match Image::from_bytes(TRAY_PNG) {
+        Ok(img) => Some(img),
+        Err(e) => {
+            tracing::warn!("tray-icon.png embebido inválido: {e}");
+            None
+        }
+    }
 }
 
 fn init_tracing() -> anyhow::Result<()> {
@@ -466,8 +479,12 @@ pub fn run() {
                     }
                 });
 
-            if let Some(icon) = handle.default_window_icon().cloned() {
+            if let Some(icon) = load_tray_icon() {
                 tray = tray.icon(icon);
+                #[cfg(target_os = "macos")]
+                {
+                    tray = tray.icon_as_template(true);
+                }
             }
 
             tray.build(&handle).map_err(|e| format!("tray: {e}"))?;

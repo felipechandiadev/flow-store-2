@@ -6,7 +6,7 @@ import IconButton from '@/shared/components/IconButton';
 import { useImageWithPlaceholder } from '@/shared/hooks/useImageWithPlaceholder';
 import CompanySwitcher from '@/features/companies/components/CompanySwitcher';
 import SideBar, { SideBarMenuItem } from './SideBar';
-import { StockAlertsDropdown } from '@/features/inventory-stock/ui/StockAlertsDropdown';
+import { NotificationsDropdown } from '@/features/notifications/ui/NotificationsDropdown';
 import {
   PrintServiceTopBarDropdown,
   usePrintServiceConnection,
@@ -210,12 +210,9 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
               <CompanySwitcher fallbackCompanyLabel={companySwitcherFallbackLabel} />
             </div>
 
-            <StockAlertsDropdown />
+            <NotificationsDropdown />
 
-            <div
-              className="relative flex shrink-0 items-center overflow-visible pt-px"
-              data-test-id="top-bar-print-service"
-            >
+            <div className="relative z-[100] shrink-0" data-test-id="top-bar-print-service">
               <PrintServiceTopBarDropdown
                 settingsHref="/settings/local-printing"
                 panelVariant="pos"

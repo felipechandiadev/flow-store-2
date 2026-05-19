@@ -5,6 +5,8 @@ import {
   CreateTransferDto,
 } from '../application/dto/stock-level.dto';
 import { CurrentCompany } from '@common/tenant';
+import { CurrentUser } from '@common/tenant/current-user.decorator';
+import type { CurrentUserPayload } from '@common/tenant/current-user.decorator';
 import { UpdateStockLevelThresholdsDto } from '../application/dto/update-stock-level-thresholds.dto';
 
 @Controller('inventory')
@@ -19,11 +21,13 @@ export class InventoryController {
   @Get('threshold-alerts')
   async getThresholdAlerts(
     @CurrentCompany() companyId: string,
+    @CurrentUser() user: CurrentUserPayload,
     @Query('storageId') storageId?: string,
   ) {
     const items = await this.inventoryService.getThresholdAlerts(
       companyId,
       storageId?.trim() || undefined,
+      user.id,
     );
     return { items };
   }

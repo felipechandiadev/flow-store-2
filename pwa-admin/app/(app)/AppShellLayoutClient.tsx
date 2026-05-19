@@ -7,7 +7,7 @@ import TopBar from "@/shared/components/TopBar/TopBar";
 import ChangePasswordDialog from "@/shared/components/Dialog/ChangePasswordDialog";
 import { mainMenuItems } from "@/navigation/mainMenu";
 import { useCompany } from "@/providers/CompanyProvider";
-import { StockRealtimeProvider } from "@/features/inventory-stock/realtime/stock-realtime-context";
+import { NotificationsRealtimeProvider } from "@/features/notifications/realtime/notifications-realtime-context";
 
 export default function AppShellLayoutClient({ children }: { children: React.ReactNode }) {
   const { status, data: session } = useSession();
@@ -39,7 +39,7 @@ export default function AppShellLayoutClient({ children }: { children: React.Rea
   }
 
   return (
-    <StockRealtimeProvider>
+    <NotificationsRealtimeProvider>
       <div className="flex h-screen overflow-hidden flex-col">
         <TopBar
         title="KaiStore"
@@ -58,6 +58,6 @@ export default function AppShellLayoutClient({ children }: { children: React.Rea
         onClose={() => setIsDialogOpen(false)}
       />
     </div>
-    </StockRealtimeProvider>
+    </NotificationsRealtimeProvider>
   );
 }

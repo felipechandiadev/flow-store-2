@@ -9,6 +9,9 @@ export type StockUpdatedPayload = {
   productVariantId: string;
   physicalStock: number;
   availableStock: number;
+  /** Total físico en todos los almacenes (umbrales a nivel variante). */
+  totalPhysicalStock?: number;
+  thresholdScope?: 'storage' | 'variant_total';
   transactionId?: string | null;
   alerts: StockAlertKind[];
 };

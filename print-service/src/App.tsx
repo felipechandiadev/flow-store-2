@@ -402,8 +402,8 @@ export default function App() {
             }
             className={`shrink-0 ${
               serviceOperational
-                ? "!text-success hover:!text-success hover:!bg-transparent"
-                : "!text-error hover:!text-error hover:!bg-transparent"
+                ? "text-success! hover:text-success! hover:bg-transparent!"
+                : "text-error! hover:text-error! hover:bg-transparent!"
             }`}
             onClick={() => void togglePrintNetwork()}
           />
@@ -411,7 +411,7 @@ export default function App() {
       </header>
 
       <main className="print-app-main relative mx-auto max-w-[400px] min-w-0 overflow-x-hidden">
-      <div className="min-w-0 divide-y divide-border [&>*]:min-w-0 [&>*]:max-w-full [&>*]:px-1">
+      <div className="min-w-0 divide-y divide-border *:min-w-0 *:max-w-full *:px-1">
         <details className="print-acc min-w-0 max-w-full overflow-hidden py-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 py-2 font-semibold [&::-webkit-details-marker]:hidden">
           <ChevronDown className="print-acc-chevron h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden />
@@ -648,7 +648,7 @@ export default function App() {
               <tr className="border-b border-border bg-neutral/50">
                 <th
                   scope="col"
-                  className="sticky left-0 z-[41] min-w-[2.75rem] border-border border-r bg-neutral/50 px-1 py-1.5 text-center font-semibold shadow-[4px_0_10px_-3px_rgb(0_0_0/0.12)]"
+                  className="sticky left-0 z-41 min-w-11 border-border border-r bg-neutral/50 px-1 py-1.5 text-center font-semibold shadow-[4px_0_10px_-3px_rgb(0_0_0/0.12)]"
                 >
                   <span className="sr-only">Eliminar</span>
                 </th>
@@ -669,7 +669,7 @@ export default function App() {
               ) : (
                 jobs.map((j) => (
                   <tr key={j.id ?? `${j.createdAt}-${j.filename}`} className="border-b border-border last:border-b-0">
-                    <td className="sticky left-0 z-[40] min-w-[2.75rem] border-border border-r bg-background px-0.5 py-1.5 align-middle shadow-[4px_0_10px_-3px_rgb(0_0_0/0.12)]">
+                    <td className="sticky left-0 z-40 min-w-11 border-border border-r bg-background px-0.5 py-1.5 align-middle shadow-[4px_0_10px_-3px_rgb(0_0_0/0.12)]">
                       <div className="flex justify-center">
                         {j.id ? (
                           <IconButton
@@ -686,12 +686,12 @@ export default function App() {
                     <td className="p-1.5 align-top">
                       <code className="print-code text-[0.65rem]">{escapeHtml(j.status)}</code>
                     </td>
-                    <td className="max-w-[4.5rem] truncate p-1.5 align-top" title={escapeHtml(j.documentType || j.filename || "")}>
+                    <td className="max-w-18 truncate p-1.5 align-top" title={escapeHtml(j.documentType || j.filename || "")}>
                       {escapeHtml(j.documentType || j.filename || "—")}
                     </td>
-                    <td className="max-w-[4rem] truncate p-1.5 align-top">{escapeHtml(j.internalFolio || "—")}</td>
-                    <td className="max-w-[4rem] truncate p-1.5 align-top">{escapeHtml(j.sourceApp || "—")}</td>
-                    <td className="max-w-[4rem] truncate p-1.5 align-top">{escapeHtml(j.requestedBy || "—")}</td>
+                    <td className="max-w-16 truncate p-1.5 align-top">{escapeHtml(j.internalFolio || "—")}</td>
+                    <td className="max-w-16 truncate p-1.5 align-top">{escapeHtml(j.sourceApp || "—")}</td>
+                    <td className="max-w-16 truncate p-1.5 align-top">{escapeHtml(j.requestedBy || "—")}</td>
                   </tr>
                 ))
               )}

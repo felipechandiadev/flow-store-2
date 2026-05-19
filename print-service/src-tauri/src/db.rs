@@ -256,25 +256,6 @@ impl Db {
             .unwrap_or(Self::default_wss_port())
     }
 
-    pub fn shared_token(&self) -> Option<String> {
-        self.get_setting("shared_token")
-            .ok()
-            .flatten()
-            .filter(|s| !s.trim().is_empty())
-    }
-
-    pub fn delete_setting(&self, key: &str) -> Result<()> {
-        let c = self.inner.lock();
-        c.execute("DELETE FROM settings WHERE key = ?1", params![key])?;
-        Ok(())
-    }
-
-    pub fn allowed_origins_json(&self) -> Result<String> {
-        Ok(self
-            .get_setting("allowed_origins_json")?
-            .unwrap_or_else(|| "[]".to_string()))
-    }
-
     pub fn set_allowed_origins_json(&self, json: &str) -> Result<()> {
         self.set_setting("allowed_origins_json", json)
     }

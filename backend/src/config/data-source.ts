@@ -99,6 +99,12 @@ import { BackorderTransactionType1756050000000 } from '../migrations/17560500000
 import { AddCustomerCreditNoteAndOrderAdvancePaymentMethods1756060000000 } from '../migrations/1756060000000-AddCustomerCreditNoteAndOrderAdvancePaymentMethods';
 import { SyncCommittedStockFromReservations1756070000000 } from '../migrations/1756070000000-SyncCommittedStockFromReservations';
 import { UnitIsDefault1756080000000 } from '../migrations/1756080000000-UnitIsDefault';
+import { NotificationsCore1756090000000 } from '../migrations/1756090000000-NotificationsCore';
+import { Notification } from '@modules/notifications/domain/notification.entity';
+import { NotificationDelivery } from '@modules/notifications/domain/notification-delivery.entity';
+import { NotificationAudience } from '@modules/notifications/domain/notification-audience.entity';
+import { NotificationPreference } from '@modules/notifications/domain/notification-preference.entity';
+import { NotificationRetentionPolicy } from '@modules/notifications/domain/notification-retention-policy.entity';
 
 /**
  * DataSource usado por `typeorm` CLI (`migration:run`, `schema:log`, …).
@@ -178,6 +184,11 @@ export const AppDataSource = new DataSource({
     PromotionScopeCustomer,
     PromotionScopePaymentMethod,
     PromotionRedemption,
+    Notification,
+    NotificationDelivery,
+    NotificationAudience,
+    NotificationPreference,
+    NotificationRetentionPolicy,
   ],
   subscribers: [AuditSubscriber, TenantSubscriber],
   migrations: [
@@ -206,6 +217,7 @@ export const AppDataSource = new DataSource({
     AddCustomerCreditNoteAndOrderAdvancePaymentMethods1756060000000,
     SyncCommittedStockFromReservations1756070000000,
     UnitIsDefault1756080000000,
+    NotificationsCore1756090000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',

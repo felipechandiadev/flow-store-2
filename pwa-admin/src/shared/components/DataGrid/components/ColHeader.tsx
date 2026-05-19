@@ -163,12 +163,14 @@ export const ColHeader: React.FC<ColHeaderProps> = ({
     iconColor = "text-muted hover:text-secondary";
   }
 
-  const headerStyle = {
-    ...(flex !== undefined ? { flex } : {}),
-    ...(width !== undefined ? { width } : {}),
-    ...(minWidth !== undefined ? { minWidth } : {}),
-    ...(maxWidth !== undefined ? { maxWidth } : {}),
-  };
+  const fallbackHeaderStyle = computedStyle
+    ? {}
+    : {
+        ...(flex !== undefined ? { flex } : {}),
+        ...(width !== undefined ? { width } : {}),
+        ...(minWidth !== undefined ? { minWidth } : {}),
+        ...(maxWidth !== undefined ? { maxWidth } : {}),
+      };
 
   return (
     <div
@@ -178,7 +180,7 @@ export const ColHeader: React.FC<ColHeaderProps> = ({
         height: '56px',
         minHeight: '56px',
         maxHeight: '56px',
-        ...headerStyle,
+        ...fallbackHeaderStyle,
         ...(computedStyle || {}),
         ...(isPinned
           ? {
@@ -186,7 +188,13 @@ export const ColHeader: React.FC<ColHeaderProps> = ({
               top: 0,
               right: 0,
               zIndex: 40,
-              flex: '0 0 auto',
+              flex:
+                typeof column.width === 'number'
+                  ? `0 0 ${column.width}px`
+                  : '0 0 auto',
+              width: column.width,
+              minWidth: column.minWidth ?? column.width,
+              maxWidth: column.maxWidth ?? column.width,
             }
           : {}),
       }}

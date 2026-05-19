@@ -135,7 +135,13 @@ const Body: React.FC<BodyProps> = ({
                         right: 0,
                         zIndex: 8,
                         borderLeft: '1px solid var(--color-border)',
-                        flex: '0 0 auto',
+                        flex:
+                          typeof column.width === 'number'
+                            ? `0 0 ${column.width}px`
+                            : '0 0 auto',
+                        width: column.width,
+                        minWidth: column.minWidth ?? column.width,
+                        maxWidth: column.maxWidth ?? column.width,
                       }
                     : {}),
                 };

@@ -65,6 +65,11 @@ import { PromotionScopeCategory } from '@modules/promotions/domain/promotion-sco
 import { PromotionScopeCustomer } from '@modules/promotions/domain/promotion-scope-customer.entity';
 import { PromotionScopePaymentMethod } from '@modules/promotions/domain/promotion-scope-payment-method.entity';
 import { PromotionRedemption } from '@modules/promotions/domain/promotion-redemption.entity';
+import { Notification } from '@modules/notifications/domain/notification.entity';
+import { NotificationDelivery } from '@modules/notifications/domain/notification-delivery.entity';
+import { NotificationAudience } from '@modules/notifications/domain/notification-audience.entity';
+import { NotificationPreference } from '@modules/notifications/domain/notification-preference.entity';
+import { NotificationRetentionPolicy } from '@modules/notifications/domain/notification-retention-policy.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
 import { TenantSubscriber } from '../common/tenant/tenant.subscriber';
 
@@ -143,6 +148,11 @@ export const typeOrmConfig = (
       PromotionScopeCustomer,
       PromotionScopePaymentMethod,
       PromotionRedemption,
+      Notification,
+      NotificationDelivery,
+      NotificationAudience,
+      NotificationPreference,
+      NotificationRetentionPolicy,
     ],
 
     // Register subscribers (TypeORM EventSubscribers)

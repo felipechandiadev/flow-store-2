@@ -33,6 +33,7 @@ export type StockGridRow = {
   productId: string | null;
   productName: string;
   sku: string;
+  barcode: string;
   unitOfMeasure: string;
   /** Unidad de venta (POS); puede coincidir con stock si son la misma. */
   saleUnitOfMeasure: string;

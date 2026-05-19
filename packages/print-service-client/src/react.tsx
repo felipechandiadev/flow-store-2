@@ -15,6 +15,13 @@ import {
   type PrintServiceNotification,
   type PrintServiceWsCloseInfo,
 } from "./core";
+import {
+  clearPrintServiceNotificationsStorage,
+  formatPrintJobFailedMessage,
+  PRINT_SERVICE_DISCONNECTED_MESSAGE,
+  readPrintServiceNotificationsFromStorage,
+  writePrintServiceNotificationsToStorage,
+} from "./print-notifications-storage";
 
 export type UsePrintServiceConnectionOptions = {
   defaultHost?: string;
@@ -31,15 +38,14 @@ export type UsePrintServiceConnectionOptions = {
   /** Punto de venta (POS) — visible en KaiPrinters. */
   pointOfSaleName?: string;
   /**
-   * Si es false, no se apilan entradas en `notifications` (conexión, salud del agente, trabajos, etc.).
-   * El estado sigue en `visual`, `connected`, `lastError`. Pensado para el POS minimalista.
+   * Si es false, no se apilan notificaciones en el dropdown (desconexión / fallo de impresión).
+   * El estado sigue en `visual`, `connected`, `lastError`.
    * @default true
    */
   enableInAppNotifications?: boolean;
   /**
-   * Mensajes muy cortos ante cierre anómalo del WebSocket y **no encola ese fallo en `notifications`** (el POS usa estado visual +
-   * `lastError`; evita repetir cada reintento en la lista). Ayuda técnica larga solo en consola si `debug` está activo.
-   * Otros tipos (`invalid_token`, apagado del agente, trabajos) siguen pudiendo notificar con normalidad.
+   * Mensajes cortos en `lastError` ante cierre anómalo del WebSocket (no afecta el texto de la notificación de desconexión).
+   * Ayuda técnica larga solo en consola si `debug` está activo.
    * @default false
    */
   briefWsErrorMessages?: boolean;
@@ -129,14 +135,17 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
   const [health, setHealth] = useState<PrinterHealthPayload | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [attemptedWsUrl, setAttemptedWsUrl] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState<PrintServiceNotification[]>([]);
+  const storageClientId = opts.clientId ?? "pwa";
+  const [notifications, setNotifications] = useState<PrintServiceNotification[]>(() =>
+    readPrintServiceNotificationsFromStorage(storageClientId),
+  );
   const connRef = useRef<PrintServiceConnection | null>(null);
   const retryRef = useRef(0);
   const timerRef = useRef<number | null>(null);
   const healthOverallRef = useRef<string | undefined>(undefined);
   const lastWsErrorRef = useRef<{ msg: string; at: number }>({ msg: "", at: 0 });
-  /** Tras un cierre con `PRINT_WS_CLOSE_REASON_SERVICE_STOPPED`, el siguiente open emite aviso en el dropdown. */
-  const awaitingAgentRestartNotifyRef = useRef(false);
+  /** Evita repetir la notificación de desconexión hasta volver a conectar. */
+  const disconnectNotifiedRef = useRef(false);
   const debugRef = useRef(false);
   debugRef.current = Boolean(opts.debug);
 
@@ -170,28 +179,70 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
 
   const visual: PrintAgentVisualStatus = healthToVisual(connected, health, socketConnecting);
 
-  const pushNotification = useCallback((partial: Omit<PrintServiceNotification, "id" | "read" | "at">) => {
-    if (opts.enableInAppNotifications === false) return;
-    setNotifications((prev) =>
-      [
-        {
-          id: newNotificationId(),
-          at: Date.now(),
-          read: false,
-          ...partial,
-        },
-        ...prev,
-      ].slice(0, 50),
-    );
-  }, [opts.enableInAppNotifications]);
+  const persistNotifications = useCallback(
+    (items: PrintServiceNotification[]) => {
+      writePrintServiceNotificationsToStorage(storageClientId, items);
+    },
+    [storageClientId],
+  );
+
+  const pushNotification = useCallback(
+    (partial: Omit<PrintServiceNotification, "id" | "read" | "at" | "level">) => {
+      if (opts.enableInAppNotifications === false) return;
+      setNotifications((prev) => {
+        const next: PrintServiceNotification[] = [
+          {
+            id: newNotificationId(),
+            at: Date.now(),
+            read: false,
+            level: "error",
+            ...partial,
+          },
+          ...prev,
+        ].slice(0, 30);
+        persistNotifications(next);
+        return next;
+      });
+    },
+    [opts.enableInAppNotifications, persistNotifications],
+  );
+
+  const notifyDisconnected = useCallback(() => {
+    if (disconnectNotifiedRef.current) return;
+    disconnectNotifiedRef.current = true;
+    pushNotification({
+      kind: "disconnected",
+      message: PRINT_SERVICE_DISCONNECTED_MESSAGE,
+    });
+  }, [pushNotification]);
+
+  const notifyJobFailed = useCallback(
+    (_jobId: string, error: string) => {
+      pushNotification({
+        kind: "job_failed",
+        message: formatPrintJobFailedMessage(error),
+      });
+    },
+    [pushNotification],
+  );
 
   const markNotificationsRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }, []);
+    setNotifications((prev) => {
+      const next = prev.map((n) => ({ ...n, read: true }));
+      persistNotifications(next);
+      return next;
+    });
+  }, [persistNotifications]);
 
   const clearNotifications = useCallback(() => {
     setNotifications([]);
-  }, []);
+    clearPrintServiceNotificationsStorage(storageClientId);
+  }, [storageClientId]);
+
+  useEffect(() => {
+    setNotifications(readPrintServiceNotificationsFromStorage(storageClientId));
+    disconnectNotifiedRef.current = false;
+  }, [storageClientId]);
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 
@@ -293,14 +344,7 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
         setConnected(true);
         setLastError(null);
         retryRef.current = 0;
-        if (awaitingAgentRestartNotifyRef.current && !cancelled) {
-          awaitingAgentRestartNotifyRef.current = false;
-          pushNotification({
-            level: "info",
-            message:
-              "El agente de impresión volvió a escuchar WS/WSS (volviste a habilitarlo en KaiPrinters).",
-          });
-        }
+        disconnectNotifiedRef.current = false;
       },
       onClose: (ev) => {
         if (opts.debug) {
@@ -318,17 +362,8 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
           ev.wasClean &&
           typeof ev.reason === "string" &&
           ev.reason.includes(PRINT_WS_CLOSE_REASON_SERVICE_STOPPED);
-        if (stoppedFromAgentUi && !cancelled) {
-          awaitingAgentRestartNotifyRef.current = true;
-          pushNotification({
-            level: "info",
-            message:
-              "El agente detuvo WS/WSS desde su ventana (botón Energía). La POS seguirá reintentando la conexión.",
-          });
-        }
-
         const abnormal = !stoppedFromAgentUi && (ev.code !== 1000 || !ev.wasClean);
-        if (abnormal && !cancelled) {
+        if (!cancelled) {
           const briefErr = opts.briefWsErrorMessages === true;
           const wssPortForHint = fromLs.wssPort || envDefaults.wssPort;
           const hint =
@@ -357,16 +392,15 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
                 typeof window !== "undefined" ? window.location.origin : undefined,
             });
           }
-          const detail = hint;
-          setLastError(detail);
-          const now = Date.now();
-          const prev = lastWsErrorRef.current;
-          if (!(prev.msg === detail && now - prev.at < 5000)) {
-            lastWsErrorRef.current = { msg: detail, at: now };
-            if (opts.briefWsErrorMessages !== true) {
-              pushNotification({ level: "error", message: detail });
+          if (abnormal || stoppedFromAgentUi) {
+            const now = Date.now();
+            const prev = lastWsErrorRef.current;
+            if (!(prev.msg === hint && now - prev.at < 5000)) {
+              lastWsErrorRef.current = { msg: hint, at: now };
+              setLastError(hint);
             }
           }
+          notifyDisconnected();
         }
         if (!cancelled) scheduleReconnect();
       },
@@ -381,9 +415,6 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
         if (prev.msg === human && now - prev.at < 800) return;
         lastWsErrorRef.current = { msg: human, at: now };
         setLastError(human);
-        if (m !== "WebSocket error") {
-          pushNotification({ level: "error", message: human });
-        }
       },
       onHello: (d: HelloResponseData) => {
         if (opts.debug) {
@@ -399,45 +430,22 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
           const p = d.printerHealth;
           setHealth(p);
           const o = p.overall;
-          const prev = healthOverallRef.current;
-          if (o && o !== prev && (o === "degraded" || o === "error")) {
-            pushNotification({
-              level: o === "error" ? "error" : "warn",
-              message: p.message ?? `Estado de impresoras: ${o}`,
-            });
-          }
           if (o) healthOverallRef.current = o;
         }
       },
       onPrinterHealth: (p) => {
         setHealth(p);
         const o = p.overall;
-        const prev = healthOverallRef.current;
-        if (o && o !== prev && (o === "degraded" || o === "error")) {
-          pushNotification({
-            level: o === "error" ? "error" : "warn",
-            message: p.message ?? `Estado de impresoras: ${o}`,
-          });
-        }
         if (o) healthOverallRef.current = o;
       },
       onConfigChanged: () => {
-        pushNotification({
-          level: "info",
-          message: "El agente local actualizó la configuración de impresión.",
-        });
+        /* sin notificación: solo desconexión y fallo de impresión */
       },
-      onPrintJobDone: (jobId) => {
-        pushNotification({
-          level: "info",
-          message: `Impresión finalizada correctamente (trabajo ${jobId}).`,
-        });
+      onPrintJobDone: () => {
+        /* sin notificación de éxito */
       },
       onPrintJobFailed: (jobId, error) => {
-        pushNotification({
-          level: "error",
-          message: `Fallo al imprimir (trabajo ${jobId}): ${error || "error desconocido"}`,
-        });
+        if (!cancelled) notifyJobFailed(jobId, error);
       },
     });
     connRef.current = c;
@@ -467,7 +475,8 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
     opts.userDisplayName,
     opts.companyName,
     opts.pointOfSaleName,
-    pushNotification,
+    notifyDisconnected,
+    notifyJobFailed,
   ]);
 
   const reconnect = useCallback(() => {

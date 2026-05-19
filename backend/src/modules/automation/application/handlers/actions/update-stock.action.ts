@@ -13,6 +13,14 @@ import { AutomationEventType } from '../../../domain/automation-event-type.enum'
 import { StockRealtimePublisher } from '@modules/stock-realtime/stock-realtime.publisher';
 import type { StockUpdatedPayload } from '@modules/stock-realtime/stock-realtime.types';
 import { buildStockUpdatedPayload } from '@modules/stock-realtime/stock-threshold-alert-payload.util';
+import {
+  hasStorageSpecificMinimum,
+  sumVariantPhysicalStock,
+} from '@modules/stock-realtime/stock-threshold-resolution.util';
+import { StockNotificationEvaluator } from '@modules/notifications/application/stock-notification.evaluator';
+import { NotificationPublisherService } from '@modules/notifications/application/notification-publisher.service';
+import type { PublishNotificationCommand } from '@modules/notifications/application/dto/publish-notification.command';
+import { Storage } from '@modules/storages/domain/storage.entity';
 
 @Injectable()
 export class UpdateStockActionHandler {
@@ -21,6 +29,8 @@ export class UpdateStockActionHandler {
   constructor(
     private readonly dataSource: DataSource,
     private readonly stockRealtime: StockRealtimePublisher,
+    private readonly stockNotificationEvaluator: StockNotificationEvaluator,
+    private readonly notificationPublisher: NotificationPublisherService,
   ) {}
 
   async execute(ctx: { companyId: string; eventType: AutomationEventType; payload: any }, rule: any) {
@@ -39,11 +49,19 @@ export class UpdateStockActionHandler {
       TransactionType.TRANSFER_OUT,
       TransactionType.ADJUSTMENT_OUT,
     ];
+    /** pwa-stock /inventory: alertas las publica InventoryService (evita duplicados). */
+    const inventoryMovementTypes = [
+      TransactionType.ADJUSTMENT_IN,
+      TransactionType.ADJUSTMENT_OUT,
+      TransactionType.TRANSFER_IN,
+      TransactionType.TRANSFER_OUT,
+    ];
     if (![...incomingTypes, ...outgoingTypes].includes(type)) {
       return;
     }
 
     const stockEmitMap = new Map<string, StockUpdatedPayload>();
+    const pendingNotifications: PublishNotificationCommand[] = [];
 
     await this.dataSource.transaction(async (manager) => {
       const txRepo = manager.getRepository(Transaction);
@@ -126,13 +144,7 @@ export class UpdateStockActionHandler {
         let companyIdForStock = ctx.companyId;
         const variantRow = await manager.getRepository(ProductVariant).findOne({
           where: { id: variantId },
-          select: [
-            'id',
-            'companyId',
-            'minimumStock',
-            'maximumStock',
-            'reorderPoint',
-          ],
+          relations: ['product'],
         });
         if (variantRow?.companyId) {
           companyIdForStock = variantRow.companyId;
@@ -182,13 +194,49 @@ export class UpdateStockActionHandler {
 
         await stockRepo.save(stockEntry as StockLevel);
 
+        let totalPhysicalStock: number | undefined;
+        if (!hasStorageSpecificMinimum(stockEntry as StockLevel)) {
+          const levelRows = await stockRepo.find({
+            where: {
+              companyId: companyIdForStock,
+              productVariantId: variantId,
+            },
+            select: ['storageId', 'physicalStock'],
+          });
+          totalPhysicalStock = sumVariantPhysicalStock(levelRows, {
+            storageId,
+            physical: Number(stockEntry.physicalStock ?? 0),
+          });
+        }
+
         const payload = buildStockUpdatedPayload(
           companyIdForStock,
           variantRow,
           stockEntry as StockLevel,
           tx.id,
+          { totalPhysicalStock },
         );
         stockEmitMap.set(`${storageId}:${variantId}`, payload);
+
+        if (
+          payload.alerts.length > 0 &&
+          !inventoryMovementTypes.includes(type) &&
+          this.notificationPublisher.isStockNotificationsEnabled()
+        ) {
+          const storageRow = await manager.getRepository(Storage).findOne({
+            where: { id: storageId },
+            select: { id: true, name: true },
+          });
+          const cmds = this.stockNotificationEvaluator.evaluate({
+            companyId: companyIdForStock,
+            variant: variantRow,
+            stockLevel: stockEntry as StockLevel,
+            transactionId: tx.id,
+            storageName: storageRow?.name ?? null,
+            totalPhysicalStock,
+          });
+          pendingNotifications.push(...cmds);
+        }
 
         let acc = pmpAccByVariant.get(variantId);
         if (!acc) {
@@ -247,6 +295,16 @@ export class UpdateStockActionHandler {
 
     for (const payload of stockEmitMap.values()) {
       this.stockRealtime.emitStockUpdated(payload);
+    }
+
+    for (const cmd of pendingNotifications) {
+      try {
+        await this.notificationPublisher.publish(cmd);
+      } catch (e) {
+        this.logger.warn(
+          `Notification publish failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     }
   }
 }

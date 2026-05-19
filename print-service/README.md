@@ -8,13 +8,21 @@ Protocolo y comportamiento: [docs/print_service_app_developer_guide_v2.md](../do
 
 ## Iconos de la app (macOS / Windows)
 
-El logo maestro está en `pwa-admin/public/logo.png`. Para KaiPrinters:
+Assets en `public/`:
+
+| Archivo | Uso |
+|---------|-----|
+| `kai-printers.png` | Dock, Control Center, `.icns` / `.ico` |
+| `KaiPrinters-mac-bar.png` | Barra de menú superior (macOS) |
+| `logo.png` | Footer de la UI (`/logo.png`) |
+
+Tras cambiar los PNG:
 
 ```bash
 npm run generate-icons
 ```
 
-Eso copia el logo a `assets/logo.png`, genera `assets/logo-square.png` y produce `src-tauri/icons/` (`icon.icns`, `icon.ico`, PNGs de Windows). Se ejecuta automáticamente antes de `npm run tauri:build`.
+Regenera `src-tauri/icons/` (app) y `src-tauri/icons/tray-icon.png` (barra). Se ejecuta automáticamente antes de `npm run tauri:build`. Recompilá la app Tauri para ver los cambios en Dock y tray.
 
 ## Valores por defecto
 

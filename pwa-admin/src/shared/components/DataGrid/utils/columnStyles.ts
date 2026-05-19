@@ -142,9 +142,15 @@ export function calculateColumnStyles(columns: DataGridColumn[], screenWidth: nu
     const style: ColumnStyle = {};
 
     // Lógica de dimensionamiento
-    if (typeof col.width === 'number') {
+    if (typeof col.width === 'number' && typeof col.flex === 'number') {
+      style.flex = `${col.flex} 1 ${col.width}px`;
+      style.minWidth =
+        typeof col.minWidth === 'number'
+          ? col.minWidth
+          : col.width;
+    } else if (typeof col.width === 'number') {
       style.width = col.width;
-      style.flex = '0 0 auto';
+      style.flex = `0 0 ${col.width}px`;
     } else if (typeof col.flex === 'number') {
       style.flex = `${col.flex} 1 0`;
     } else {
@@ -176,7 +182,12 @@ export function calculateColumnStyles(columns: DataGridColumn[], screenWidth: nu
 
 /** Columna flex con contenido acotado: evita que min-content del texto ensanche la fila. */
 function isFlexGrowColumn(style: ColumnStyle, col: DataGridColumn): boolean {
-  if (typeof col.flex === 'number' && col.flex > 0) return true;
+  if (typeof col.width === 'number' && typeof col.flex !== 'number') {
+    return false;
+  }
+  if (typeof col.flex === 'number' && col.flex > 0 && typeof col.width !== 'number') {
+    return true;
+  }
   if (typeof style.flex !== 'string') return false;
   const grow = Number.parseFloat(style.flex.trim().split(/\s+/)[0] ?? '0');
   return grow > 0;

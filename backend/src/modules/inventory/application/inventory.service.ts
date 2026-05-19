@@ -23,6 +23,8 @@ import { TransactionLine } from '@modules/transaction-lines/domain/transaction-l
 import { UpdateStockLevelThresholdsDto } from './dto/update-stock-level-thresholds.dto';
 import type { StockUpdatedPayload } from '@modules/stock-realtime/stock-realtime.types';
 import { buildStockUpdatedPayload } from '@modules/stock-realtime/stock-threshold-alert-payload.util';
+import { NotificationInboxService } from '@modules/notifications/application/notification-inbox.service';
+import { StockAlertNotificationService } from '@modules/notifications/application/stock-alert-notification.service';
 
 function compactUnitSymbol(u: { symbol?: string | null; name?: string | null } | null | undefined): string {
   if (!u) {
@@ -53,6 +55,8 @@ export class InventoryService {
     private readonly productVariantsService: ProductVariantsService,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly notificationInbox: NotificationInboxService,
+    private readonly stockAlertNotifications: StockAlertNotificationService,
   ) {}
 
   /**
@@ -166,6 +170,7 @@ export class InventoryService {
         variantId: variant.id,
         productName: product?.name || '',
         sku: variant.sku || '',
+        barcode: variant.barcode || '',
         unitOfMeasure: (() => {
           const u = variant.stockBaseUnit ?? variant.unit;
           if (!u) {
@@ -537,6 +542,29 @@ export class InventoryService {
     ];
     const tx = await this.transactionsService.createTransaction(txDto);
 
+    const companyIdForNotify =
+      variant.companyId ||
+      (
+        await this.dataSource.getRepository(Branch).findOne({
+          where: { id: branchId },
+          select: { companyId: true },
+        })
+      )?.companyId;
+    if (companyIdForNotify) {
+      const committed = Math.max(
+        0,
+        Number(stockLevel?.committedStock ?? 0) || 0,
+      );
+      await this.stockAlertNotifications.publishForVariantStorage({
+        companyId: companyIdForNotify,
+        productVariantId: variantId,
+        storageId,
+        transactionId: tx.id,
+        physicalStockOverride: targetQty,
+        availableStockOverride: Math.max(0, targetQty - committed),
+      });
+    }
+
     return {
       success: true,
       message: `Stock físico establecido en ${targetQty} (antes ${actualCurrent})`,
@@ -559,6 +587,10 @@ export class InventoryService {
       where: { productVariantId: variantId, storageId: sourceStorageId },
     });
     const srcQty = Number(srcLevel?.physicalStock ?? 0);
+    const tgtLevelBefore = await this.dataSource.getRepository(StockLevel).findOne({
+      where: { productVariantId: variantId, storageId: targetStorageId },
+    });
+    const tgtQtyBefore = Number(tgtLevelBefore?.physicalStock ?? 0);
     if (srcQty + 1e-9 < quantity) {
       throw new BadRequestException(
         `Stock insuficiente en origen: hay ${srcQty}, se solicitan ${quantity}.`,
@@ -672,6 +704,43 @@ export class InventoryService {
     txIn.lines = [{ ...transferLine }];
     const inn = await this.transactionsService.createTransaction(txIn);
 
+    const companyIdForNotify =
+      variant.companyId ||
+      (
+        await this.dataSource.getRepository(Branch).findOne({
+          where: { id: branchId },
+          select: { companyId: true },
+        })
+      )?.companyId;
+    if (companyIdForNotify) {
+      const srcCommitted = Math.max(
+        0,
+        Number(srcLevel?.committedStock ?? 0) || 0,
+      );
+      const tgtCommitted = Math.max(
+        0,
+        Number(tgtLevelBefore?.committedStock ?? 0) || 0,
+      );
+      const srcPhysicalAfter = Math.max(0, srcQty - qty);
+      const tgtPhysicalAfter = Math.max(0, tgtQtyBefore + qty);
+      await this.stockAlertNotifications.publishForVariantStorage({
+        companyId: companyIdForNotify,
+        productVariantId: variantId,
+        storageId: sourceStorageId,
+        transactionId: out.id,
+        physicalStockOverride: srcPhysicalAfter,
+        availableStockOverride: Math.max(0, srcPhysicalAfter - srcCommitted),
+      });
+      await this.stockAlertNotifications.publishForVariantStorage({
+        companyId: companyIdForNotify,
+        productVariantId: variantId,
+        storageId: targetStorageId,
+        transactionId: inn.id,
+        physicalStockOverride: tgtPhysicalAfter,
+        availableStockOverride: Math.max(0, tgtPhysicalAfter - tgtCommitted),
+      });
+    }
+
     return {
       success: true,
       message: 'Transferencia registrada',
@@ -733,7 +802,16 @@ export class InventoryService {
   async getThresholdAlerts(
     companyId: string,
     storageId?: string | null,
+    userId?: string,
   ): Promise<StockUpdatedPayload[]> {
+    if (userId) {
+      return this.notificationInbox.listStockThresholdAlertsLegacy(
+        userId,
+        companyId,
+        storageId ?? undefined,
+      ) as Promise<StockUpdatedPayload[]>;
+    }
+
     const qb = this.dataSource
       .getRepository(StockLevel)
       .createQueryBuilder('sl')

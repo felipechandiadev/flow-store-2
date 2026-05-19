@@ -1,58 +1,35 @@
-import { computeStockAlertsFromThresholds } from './stock-alert.util';
+import {
+  resolveStockThresholds,
+  type StockLevelThresholdSlice,
+  type VariantThresholds,
+} from './stock-threshold-resolution.util';
 import type { StockUpdatedPayload } from './stock-realtime.types';
 
-type VariantThresholds = {
-  minimumStock?: number;
-  maximumStock?: number;
-  reorderPoint?: number;
-} | null;
-
-type StockLevelThresholdSlice = {
-  storageId: string;
-  productVariantId: string;
-  physicalStock: unknown;
-  availableStock: unknown;
-  minimumStock?: number | null;
-  maximumStock?: number | null;
-  reorderPoint?: number | null;
-};
+export type { StockLevelThresholdSlice, VariantThresholds };
 
 /**
- * Misma lógica que el ajuste de stock vía automatización: umbrales efectivos
- * (override en `stock_levels` o valores en variante).
+ * Umbrales: override en `stock_levels` (> 0) → solo ese almacén.
+ * Si no, mínimo/máximo/reposición de variante → stock físico total en todos los almacenes.
  */
 export function buildStockUpdatedPayload(
   companyId: string,
   variantRow: VariantThresholds,
   stockEntry: StockLevelThresholdSlice,
   transactionId: string | null | undefined,
+  options?: { totalPhysicalStock?: number },
 ): StockUpdatedPayload {
-  const physical = Number(stockEntry.physicalStock ?? 0);
+  const resolved = resolveStockThresholds(variantRow, stockEntry, options);
   const available = Number(stockEntry.availableStock ?? 0);
-  const effMin =
-    stockEntry.minimumStock != null
-      ? Number(stockEntry.minimumStock)
-      : Number(variantRow?.minimumStock ?? 0);
-  const effMax =
-    stockEntry.maximumStock != null
-      ? Number(stockEntry.maximumStock)
-      : Number(variantRow?.maximumStock ?? 0);
-  const effReorder =
-    stockEntry.reorderPoint != null
-      ? Number(stockEntry.reorderPoint)
-      : Number(variantRow?.reorderPoint ?? 0);
-  const alerts = computeStockAlertsFromThresholds(physical, {
-    min: effMin,
-    max: effMax,
-    reorder: effReorder,
-  });
+
   return {
     companyId,
     storageId: stockEntry.storageId,
     productVariantId: stockEntry.productVariantId,
-    physicalStock: physical,
-    availableStock: available,
+    physicalStock: resolved.storagePhysical,
+    availableStock: Number.isFinite(available) ? available : resolved.storagePhysical,
+    totalPhysicalStock: resolved.totalPhysical,
+    thresholdScope: resolved.scope,
     transactionId: transactionId ?? null,
-    alerts,
+    alerts: resolved.alerts,
   };
 }

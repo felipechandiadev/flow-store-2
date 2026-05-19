@@ -19,6 +19,7 @@ import { GetStockByIdQueryHandler } from './application/handlers/queries/get-sto
 import { GetLowStockItemsQueryHandler } from './application/handlers/queries/get-stock.handlers';
 import { GetStockMovementHistoryQueryHandler } from './application/handlers/queries/get-stock.handlers';
 import { StockLevelThresholdSchemaBootstrap } from './application/stock-level-threshold-schema.bootstrap';
+import { NotificationsModule } from '@modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { StockLevelThresholdSchemaBootstrap } from './application/stock-level-th
     TransactionsModule,
     ProductVariantsModule,
     CqrsModule,
+    NotificationsModule,
   ],
   controllers: [InventoryController],
   providers: [

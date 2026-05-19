@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { PrintServiceNotification, PrintAgentVisualStatus, PrinterHealthPayload } from "./core";
 
@@ -18,21 +18,15 @@ function httpsPageForLocalTlsCert(wssUrl: string): string | null {
   }
 }
 
-/** Círculo de “hay no leídas”: gris del tema, sin borde. */
-const PRINT_SERVICE_UNREAD_DOT_CSS: CSSProperties = {
-  position: "absolute",
-  top: 6,
-  right: 2,
-  width: 7.168,
-  height: 7.168,
-  borderRadius: "50%",
-  boxSizing: "border-box",
-  backgroundColor: "var(--color-muted, #9ca3af)",
-  boxShadow: "0 1px 2px rgb(0 0 0 / 0.2)",
-  zIndex: 1000,
-  pointerEvents: "none",
-  display: "block",
-};
+/** Mismo badge que `NotificationsDropdown` en pwa-admin (campana de stock). */
+function PrintServiceUnreadBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="pointer-events-none absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
 
 export type PrintServiceDropdownProps = {
   connected: boolean;
@@ -378,8 +372,8 @@ export function PrintServiceTopBarDropdown({
           className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-md border border-transparent text-foreground hover:bg-black/5 dark:hover:bg-white/10"
           aria-label={
             posMinimal
-              ? `${connected ? "Conectado" : "Sin conexión"} al servicio local de impresión${hasUnreadNotifications ? ". Hay notificaciones nuevas." : ""}`
-              : `Impresión local y notificaciones${hasUnreadNotifications ? " (hay notificaciones nuevas)" : ""}`
+              ? `${connected ? "Conectado" : "Sin conexión"} al servicio local de impresión${unreadCount > 0 ? `: ${unreadCount} sin leer` : ""}`
+              : `Impresión local y notificaciones${unreadCount > 0 ? `: ${unreadCount} sin leer` : ""}`
           }
           aria-expanded={open}
           data-test-id="pos-print-service-trigger"
@@ -402,14 +396,7 @@ export function PrintServiceTopBarDropdown({
             ) : null}
           </span>
         </button>
-        {hasUnreadNotifications && !open ? (
-          <span
-            style={PRINT_SERVICE_UNREAD_DOT_CSS}
-            title="Hay notificaciones de impresión sin leer"
-            data-test-id="pos-print-service-unread-dot"
-            aria-hidden
-          />
-        ) : null}
+        <PrintServiceUnreadBadge count={unreadCount} />
       </div>
       {typeof document !== "undefined" && panel ? createPortal(panel, document.body) : null}
     </div>

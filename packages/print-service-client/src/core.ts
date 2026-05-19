@@ -500,10 +500,13 @@ export function healthToVisual(
   return "error";
 }
 
+export type PrintServiceNotificationKind = "disconnected" | "job_failed";
+
 export type PrintServiceNotification = {
   id: string;
   at: number;
-  level: "info" | "warn" | "error";
+  kind: PrintServiceNotificationKind;
+  level: "error";
   message: string;
   read: boolean;
 };
