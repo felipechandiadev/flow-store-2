@@ -29,6 +29,45 @@ function formatQty(n: number): string {
   return new Intl.NumberFormat("es-CL", { maximumFractionDigits: 3 }).format(n);
 }
 
+function findStorageQuantity(
+  rows: StockGridRow[],
+  variantId: string,
+  storageId: string,
+): number | undefined {
+  const row = rows.find((r) => r.variantId === variantId);
+  const breakdown = row?.storageBreakdown?.find((b) => b.storageId === storageId);
+  if (!breakdown) {
+    return undefined;
+  }
+  const q = Number(breakdown.quantity);
+  return Number.isFinite(q) ? Math.max(0, q) : undefined;
+}
+
+function usesSaleUnitCount(row: StockGridRow | undefined): boolean {
+  const bridge = row?.stockBaseQtyPerCountSaleUnit;
+  return bridge != null && bridge > 0 && Boolean((row?.saleUnitSymbol || "").trim());
+}
+
+function physicalToCountQty(physicalQty: number, row: StockGridRow | undefined): number {
+  if (!usesSaleUnitCount(row)) {
+    return physicalQty;
+  }
+  const bridge = row!.stockBaseQtyPerCountSaleUnit!;
+  return physicalQty / bridge;
+}
+
+function countQtyToPhysical(countQty: number, row: StockGridRow | undefined): number {
+  if (!usesSaleUnitCount(row)) {
+    return countQty;
+  }
+  const bridge = row!.stockBaseQtyPerCountSaleUnit!;
+  return countQty * bridge;
+}
+
+function roundCountQty(n: number): number {
+  return Math.max(0, Math.round(n * 1000) / 1000);
+}
+
 /** Izquierda: stock base por 1 unidad de venta (puente). Derecha: cantidad actual en unidades de venta. Ej. 250gr/2UN */
 function formatStockSlashPair(qty: number, row: StockGridRow): string {
   const n = Number(qty);
@@ -60,6 +99,38 @@ function formatMoney(n: number): string {
 function formatAttrs(av: Record<string, string>): string {
   const v = Object.values(av).filter((x) => x.trim());
   return v.length > 0 ? v.join(" · ") : "—";
+}
+
+function formatThreshold(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(Number(n))) {
+    return "—";
+  }
+  return formatQty(Math.max(0, Number(n)));
+}
+
+function StockThresholdBadge({
+  abbr,
+  label,
+  value,
+  "data-test-id": dataTestId,
+}: {
+  abbr: string;
+  label: string;
+  value: number | null | undefined;
+  "data-test-id"?: string;
+}) {
+  const display = formatThreshold(value);
+  return (
+    <span data-test-id={dataTestId} title={`${label}: ${display}`}>
+      <Badge
+        variant="secondary-outlined"
+        className="!inline-flex !items-center !gap-1.5 !px-1.5 !py-0 text-[10px] font-medium leading-5 tabular-nums"
+      >
+        <span className="text-muted-foreground">{abbr}</span>
+        <span className="font-mono text-foreground">{display}</span>
+      </Badge>
+    </span>
+  );
 }
 
 /**
@@ -156,9 +227,13 @@ type AdjustState = {
   variantId: string;
   storageId: string;
   title: string;
-  currentQty: number;
+  /** Stock físico en unidad base (como en BD). */
+  physicalCurrentQty: number;
   targetQty: string;
   note: string;
+  countInSaleUnits: boolean;
+  stockUnitSymbol: string;
+  saleUnitSymbol: string;
 };
 
 type TransferState = {
@@ -174,25 +249,59 @@ type TransferState = {
 function StockStorageCard({
   row,
   b,
-  onAdjust,
+  busy,
+  onRecount,
+  onQuickDelta,
   onTransfer,
+  canTransfer,
 }: {
   row: StockGridRow;
   b: StockStorageBreakdownRow;
-  onAdjust: (p: { variantId: string; storageId: string; title: string; currentQty: number }) => void;
+  busy: boolean;
+  onRecount: (p: { variantId: string; storageId: string; title: string; currentQty: number }) => void;
+  onQuickDelta: (p: { variantId: string; storageId: string; currentQty: number; delta: number }) => void;
   onTransfer: (p: { variantId: string; sourceStorageId: string; sourceLabel: string }) => void;
+  canTransfer: boolean;
 }) {
   const title = [b.storageName, b.branchName].filter(Boolean).join(" · ");
+  const min = b.effectiveMinimumStock;
+  const max = b.effectiveMaximumStock;
+  const reorder = b.effectiveReorderPoint;
   return (
     <article
       className="flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-background p-3 shadow-sm"
       data-test-id={`stock-storage-card-${row.variantId}-${b.storageId}`}
     >
-      <div className="min-w-0">
-        <h4 className="truncate text-sm font-semibold text-foreground" title={title}>
-          {b.storageName}
-        </h4>
-        {b.branchName ? <p className="text-xs text-muted-foreground">{b.branchName}</p> : null}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <h4 className="truncate text-sm font-semibold text-foreground" title={title}>
+            {b.storageName}
+          </h4>
+          {b.branchName ? <p className="text-xs text-muted-foreground">{b.branchName}</p> : null}
+        </div>
+        <div
+          className="flex max-w-[58%] shrink-0 flex-wrap items-center justify-end gap-1"
+          data-test-id={`stock-thresholds-${b.storageId}`}
+        >
+          <StockThresholdBadge
+            abbr="Mín"
+            label="Mínimo"
+            value={min}
+            data-test-id={`stock-threshold-min-${b.storageId}`}
+          />
+          <StockThresholdBadge
+            abbr="Máx"
+            label="Máximo"
+            value={max}
+            data-test-id={`stock-threshold-max-${b.storageId}`}
+          />
+          <StockThresholdBadge
+            abbr="Rep"
+            label="Punto de reposición"
+            value={reorder}
+            data-test-id={`stock-threshold-rep-${b.storageId}`}
+          />
+        </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
         <dt className="text-muted-foreground">Físico</dt>
@@ -216,25 +325,61 @@ function StockStorageCard({
           {formatStockSlashPair(b.availableStock, row)}
         </dd>
       </dl>
-      <div className="mt-1 flex flex-wrap gap-1 border-t border-border pt-2">
-        <Button
-          variant="outlined"
+      <div className="mt-1 flex flex-wrap items-center justify-end gap-0.5 border-t border-border pt-2">
+        <IconButton
+          icon="RefreshCcw"
+          variant="basicSecondary"
           size="sm"
+          ariaLabel="Reconteo"
+          disabled={busy}
           onClick={() =>
-            onAdjust({
+            onRecount({
               variantId: row.variantId,
               storageId: b.storageId,
               title,
               currentQty: b.quantity,
             })
           }
-          data-test-id={`stock-adjust-open-${b.storageId}`}
-        >
-          Ajustar
-        </Button>
-        <Button
-          variant="outlined"
+          data-test-id={`stock-recount-${b.storageId}`}
+        />
+        <IconButton
+          icon="Minus"
+          variant="basicSecondary"
           size="sm"
+          ariaLabel="Disminuir stock"
+          disabled={busy || b.quantity <= 0}
+          onClick={() =>
+            onQuickDelta({
+              variantId: row.variantId,
+              storageId: b.storageId,
+              currentQty: b.quantity,
+              delta: -1,
+            })
+          }
+          data-test-id={`stock-decrease-${b.storageId}`}
+        />
+        <IconButton
+          icon="Plus"
+          variant="basicSecondary"
+          size="sm"
+          ariaLabel="Aumentar stock"
+          disabled={busy}
+          onClick={() =>
+            onQuickDelta({
+              variantId: row.variantId,
+              storageId: b.storageId,
+              currentQty: b.quantity,
+              delta: 1,
+            })
+          }
+          data-test-id={`stock-increase-${b.storageId}`}
+        />
+        <IconButton
+          icon="ArrowLeftRight"
+          variant="basicSecondary"
+          size="sm"
+          ariaLabel="Transferir stock"
+          disabled={busy || !canTransfer}
           onClick={() =>
             onTransfer({
               variantId: row.variantId,
@@ -243,9 +388,7 @@ function StockStorageCard({
             })
           }
           data-test-id={`stock-transfer-open-${b.storageId}`}
-        >
-          Transferir
-        </Button>
+        />
       </div>
     </article>
   );
@@ -255,13 +398,19 @@ function StockExpandPanel({
   row,
   storages,
   branchId,
-  onAdjust,
+  busy,
+  canTransfer,
+  onRecount,
+  onQuickDelta,
   onTransfer,
 }: {
   row: StockGridRow;
   storages: StorageListItem[];
   branchId?: string;
-  onAdjust: (p: { variantId: string; storageId: string; title: string; currentQty: number }) => void;
+  busy: boolean;
+  canTransfer: boolean;
+  onRecount: (p: { variantId: string; storageId: string; title: string; currentQty: number }) => void;
+  onQuickDelta: (p: { variantId: string; storageId: string; currentQty: number; delta: number }) => void;
   onTransfer: (p: { variantId: string; sourceStorageId: string; sourceLabel: string }) => void;
 }) {
   const cards = useMemo(
@@ -279,7 +428,16 @@ function StockExpandPanel({
       ) : (
         <div className="grid max-h-[min(24rem,55vh)] w-full grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((b) => (
-            <StockStorageCard key={b.storageId} row={row} b={b} onAdjust={onAdjust} onTransfer={onTransfer} />
+            <StockStorageCard
+              key={b.storageId}
+              row={row}
+              b={b}
+              busy={busy}
+              canTransfer={canTransfer}
+              onRecount={onRecount}
+              onQuickDelta={onQuickDelta}
+              onTransfer={onTransfer}
+            />
           ))}
         </div>
       )}
@@ -312,21 +470,85 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
   /** No usar `startTransition` para el action + refresh: retrasa el RSC y la grilla puede quedar con datos viejos. */
   const [isSaving, setIsSaving] = useState(false);
 
-  const openAdjust = useCallback(
+  const canTransferStock = useMemo(
+    () => storages.filter((s) => s.isActive !== false).length > 1,
+    [storages],
+  );
+
+  const openRecount = useCallback(
     (p: { variantId: string; storageId: string; title: string; currentQty: number }) => {
+      const row = rows.find((r) => r.variantId === p.variantId);
+      const fromGrid = findStorageQuantity(rows, p.variantId, p.storageId);
+      const physicalCurrentQty =
+        fromGrid !== undefined ? fromGrid : Math.max(0, Number(p.currentQty) || 0);
+      const countInSaleUnits = usesSaleUnitCount(row);
+      const displayQty = roundCountQty(physicalToCountQty(physicalCurrentQty, row));
       setError(null);
       setAdjust({
         open: true,
         variantId: p.variantId,
         storageId: p.storageId,
         title: p.title,
-        currentQty: p.currentQty,
-        targetQty: String(Math.max(0, Math.round(p.currentQty * 1000) / 1000)),
+        physicalCurrentQty,
+        targetQty: String(displayQty),
         note: "",
+        countInSaleUnits,
+        stockUnitSymbol: row?.stockUnitSymbol?.trim() || row?.unitOfMeasure?.trim() || "",
+        saleUnitSymbol: row?.saleUnitSymbol?.trim() || "",
       });
     },
-    [],
+    [rows],
   );
+
+  const submitQuickDelta = useCallback(
+    (p: { variantId: string; storageId: string; currentQty: number; delta: number }) => {
+      const fromGrid = findStorageQuantity(rows, p.variantId, p.storageId);
+      const currentQty =
+        fromGrid !== undefined ? fromGrid : Math.max(0, Number(p.currentQty) || 0);
+      const target = Math.max(0, Math.round((currentQty + p.delta) * 1000) / 1000);
+      setError(null);
+      void (async () => {
+        setIsSaving(true);
+        try {
+          const r = await adjustStockAction({
+            variantId: p.variantId,
+            storageId: p.storageId,
+            currentQuantity: currentQty,
+            targetQuantity: target,
+          });
+          if (r.success) {
+            await router.refresh();
+          } else {
+            setError(r.error);
+          }
+        } finally {
+          setIsSaving(false);
+        }
+      })();
+    },
+    [router, rows],
+  );
+
+  useEffect(() => {
+    if (!adjust?.open) {
+      return;
+    }
+    const row = rows.find((r) => r.variantId === adjust.variantId);
+    const fromGrid = findStorageQuantity(rows, adjust.variantId, adjust.storageId);
+    if (fromGrid === undefined || fromGrid === adjust.physicalCurrentQty) {
+      return;
+    }
+    const displayQty = roundCountQty(physicalToCountQty(fromGrid, row));
+    setAdjust((prev) =>
+      prev
+        ? {
+            ...prev,
+            physicalCurrentQty: fromGrid,
+            targetQty: String(displayQty),
+          }
+        : null,
+    );
+  }, [rows, adjust?.open, adjust?.variantId, adjust?.storageId, adjust?.physicalCurrentQty]);
 
   const openTransfer = useCallback((p: { variantId: string; sourceStorageId: string; sourceLabel: string }) => {
     setError(null);
@@ -473,20 +695,6 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         },
       },
       {
-        field: "isBelowMinimum",
-        headerName: "Mínimo",
-        width: 100,
-        sortable: true,
-        renderCell: ({ value }) =>
-          value ? (
-            <Badge variant="warning" className="text-[10px]">
-              Bajo
-            </Badge>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          ),
-      },
-      {
         field: "actions",
         headerName: "",
         width: 56,
@@ -507,11 +715,14 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         row={row}
         storages={storages}
         branchId={branchId}
-        onAdjust={openAdjust}
+        busy={isSaving}
+        canTransfer={canTransferStock}
+        onRecount={openRecount}
+        onQuickDelta={submitQuickDelta}
         onTransfer={openTransfer}
       />
     ),
-    [storages, branchId, openAdjust, openTransfer],
+    [storages, branchId, isSaving, canTransferStock, openRecount, submitQuickDelta, openTransfer],
   );
 
   const submitAdjust = () => {
@@ -524,14 +735,21 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
       setError("Cantidad objetivo no válida.");
       return;
     }
+    const row = rows.find((r) => r.variantId === adjust.variantId);
+    const fromGrid = findStorageQuantity(rows, adjust.variantId, adjust.storageId);
+    const currentPhysical =
+      fromGrid !== undefined ? fromGrid : Math.max(0, Number(adjust.physicalCurrentQty) || 0);
+    const targetPhysical = roundCountQty(
+      adjust.countInSaleUnits ? countQtyToPhysical(target, row) : target,
+    );
     void (async () => {
       setIsSaving(true);
       try {
         const r = await adjustStockAction({
           variantId: adjust.variantId,
           storageId: adjust.storageId,
-          currentQuantity: adjust.currentQty,
-          targetQuantity: target,
+          currentQuantity: currentPhysical,
+          targetQuantity: targetPhysical,
           note: adjust.note.trim() || undefined,
         });
         if (r.success) {
@@ -588,6 +806,11 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
 
   return (
     <>
+      {error && !adjust?.open && !transfer?.open ? (
+        <Alert variant="error" className="mb-3" data-test-id="stock-grid-inline-error">
+          {error}
+        </Alert>
+      ) : null}
       <DataGrid
         title="Existencias (stock)"
         columns={columns}
@@ -621,7 +844,7 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
             setAdjust(null);
           }
         }}
-        title="Ajuste de inventario"
+        title="Reconteo"
         size="sm"
         scroll="body"
         data-test-id="stock-adjust-dialog"
@@ -647,11 +870,31 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
           <div className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">{adjust.title}</p>
             <p className="text-xs text-muted-foreground">
-              Cantidad actual: <span className="font-mono font-medium text-foreground">{formatQty(adjust.currentQty)}</span>
+              Stock físico actual:{" "}
+              <span className="font-mono font-medium text-foreground">
+                {formatQty(
+                  adjust.countInSaleUnits
+                    ? roundCountQty(
+                        physicalToCountQty(
+                          adjust.physicalCurrentQty,
+                          rows.find((r) => r.variantId === adjust.variantId),
+                        ),
+                      )
+                    : adjust.physicalCurrentQty,
+                )}
+                {adjust.countInSaleUnits && adjust.saleUnitSymbol
+                  ? adjust.saleUnitSymbol
+                  : adjust.stockUnitSymbol || ""}
+              </span>
             </p>
             <TextField
-              label="Cantidad objetivo"
+              label={
+                adjust.countInSaleUnits && adjust.saleUnitSymbol
+                  ? `Nuevo stock físico total (${adjust.saleUnitSymbol})`
+                  : `Nuevo stock físico total${adjust.stockUnitSymbol ? ` (${adjust.stockUnitSymbol})` : ""}`
+              }
               name="stock-adjust-target"
+              selectOnFocus
               value={adjust.targetQty}
               onChange={(e) => setAdjust({ ...adjust, targetQty: e.target.value })}
               data-test-id="stock-adjust-target"
@@ -709,6 +952,7 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
               step={0.001}
               value={transfer.quantity}
               onChange={(e) => setTransfer({ ...transfer, quantity: e.target.value })}
+              selectOnFocus
               data-test-id="stock-transfer-qty"
             />
             <Select

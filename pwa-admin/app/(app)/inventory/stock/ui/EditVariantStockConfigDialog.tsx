@@ -264,6 +264,7 @@ export function EditVariantStockConfigDialog({
                 name="stock-config-min"
                 type="number"
                 min={0}
+                selectOnFocus
                 value={minimumStock}
                 onChange={(e) => setMinimumStock(e.target.value)}
                 data-test-id="stock-config-min"
@@ -273,6 +274,7 @@ export function EditVariantStockConfigDialog({
                 name="stock-config-max"
                 type="number"
                 min={0}
+                selectOnFocus
                 value={maximumStock}
                 onChange={(e) => setMaximumStock(e.target.value)}
                 data-test-id="stock-config-max"
@@ -282,6 +284,7 @@ export function EditVariantStockConfigDialog({
                 name="stock-config-reorder"
                 type="number"
                 min={0}
+                selectOnFocus
                 value={reorderPoint}
                 onChange={(e) => setReorderPoint(e.target.value)}
                 data-test-id="stock-config-reorder"
@@ -313,6 +316,7 @@ export function EditVariantStockConfigDialog({
                         name={`st-min-${s.storageId}`}
                         type="number"
                         min={0}
+                        selectOnFocus
                         value={s.minimum}
                         onChange={(e) => {
                           const v = e.target.value;
@@ -326,6 +330,7 @@ export function EditVariantStockConfigDialog({
                         name={`st-max-${s.storageId}`}
                         type="number"
                         min={0}
+                        selectOnFocus
                         value={s.maximum}
                         onChange={(e) => {
                           const v = e.target.value;
@@ -339,6 +344,7 @@ export function EditVariantStockConfigDialog({
                         name={`st-reorder-${s.storageId}`}
                         type="number"
                         min={0}
+                        selectOnFocus
                         value={s.reorder}
                         onChange={(e) => {
                           const v = e.target.value;

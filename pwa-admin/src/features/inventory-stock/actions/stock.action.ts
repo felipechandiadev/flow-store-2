@@ -37,11 +37,13 @@ export async function adjustStockAction(input: {
   targetQuantity: number;
   note?: string;
 }): Promise<{ success: true } | { success: false; error: string }> {
+  const currentQuantity = Math.max(0, Number(input.currentQuantity) || 0);
+  const targetQuantity = Math.max(0, Number(input.targetQuantity) || 0);
   const r = await InventoryRequest.adjust({
     variantId: input.variantId.trim(),
     storageId: input.storageId.trim(),
-    currentQuantity: input.currentQuantity,
-    targetQuantity: input.targetQuantity,
+    currentQuantity,
+    targetQuantity,
     note: input.note?.trim() || undefined,
   });
   if (r.success) {

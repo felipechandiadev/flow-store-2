@@ -418,15 +418,22 @@ export class InventoryService {
     targetQuantity: number;
     note?: string;
   }) {
-    const { variantId, storageId, currentQuantity, targetQuantity, note } =
-      data;
+    const { variantId, storageId, targetQuantity, note } = data;
+    const targetQty = Math.max(0, Number(targetQuantity) || 0);
+
+    const stockLevel = await this.dataSource.getRepository(StockLevel).findOne({
+      where: { productVariantId: variantId, storageId },
+    });
+    const actualCurrent = Math.max(0, Number(stockLevel?.physicalStock ?? 0) || 0);
+
     // The listener already keeps stock levels up‑to‑date whenever a
     // transaction is created. In previous versions we were manually
     // writing the target quantity here, which caused the listener to apply
     // the adjustment a second time and leave the stock in an incorrect
     // state.  Instead we simply create the appropriate adjustment
     // transaction and let the listener perform the actual update.
-    const diff = targetQuantity - currentQuantity;
+    // Diff is always from DB physical stock (client currentQuantity is ignored).
+    const diff = targetQty - actualCurrent;
     const qtyAbs = Math.abs(diff);
     if (qtyAbs < 0.000001) {
       return {
@@ -500,11 +507,19 @@ export class InventoryService {
     txDto.paymentMethod = PaymentMethod.INTERNAL_CREDIT;
     txDto.amountPaid = qtyAbs;
     txDto.notes = note || undefined;
+    txDto.metadata = {
+      ...(txDto.metadata || {}),
+      inventoryAdjustMode: 'set_absolute',
+      targetPhysicalStock: targetQty,
+      previousPhysicalStock: actualCurrent,
+    };
+    const stockBaseUnitId =
+      (variant as any).stockBaseUnitId ?? variant.unitId;
     txDto.lines = [
       {
         productId: variant.productId || product?.id,
         productVariantId: variantId,
-        unitId: variant.unitId,
+        unitId: stockBaseUnitId,
         productName: product?.name || 'Producto',
         productSku: variant.sku,
         variantName: undefined,
@@ -524,7 +539,7 @@ export class InventoryService {
 
     return {
       success: true,
-      message: `Stock ajustado en ${diff}`,
+      message: `Stock físico establecido en ${targetQty} (antes ${actualCurrent})`,
       documentNumbers: [tx.documentNumber],
     };
   }

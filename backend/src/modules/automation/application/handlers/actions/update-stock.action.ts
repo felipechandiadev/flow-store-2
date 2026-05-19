@@ -62,6 +62,13 @@ export class UpdateStockActionHandler {
         return;
       }
 
+      const txMeta = (txFull && (txFull as any).metadata) || (tx as any).metadata || {};
+      const setAbsolutePhysical =
+        (txMeta.inventoryAdjustMode === 'set_absolute' ||
+          txMeta.inventoryAdjustMode === 'set') &&
+        txMeta.targetPhysicalStock != null &&
+        Number.isFinite(Number(txMeta.targetPhysicalStock));
+
       const variantIds = [
         ...new Set(
           (lines as any[])
@@ -134,8 +141,13 @@ export class UpdateStockActionHandler {
         let stockEntry = (await stockRepo.findOne({
           where: { productVariantId: variantId, storageId } as any,
         })) as StockLevel | null;
+        const targetPhysical = setAbsolutePhysical
+          ? Math.max(0, Number(txMeta.targetPhysicalStock) || 0)
+          : null;
+
         if (!stockEntry) {
-          const physical = moveQty;
+          const physical =
+            targetPhysical != null ? targetPhysical : Math.max(0, moveQty);
           stockEntry = stockRepo.create({
             companyId: companyIdForStock,
             productVariantId: variantId,
@@ -146,6 +158,15 @@ export class UpdateStockActionHandler {
             incomingStock: 0,
             lastTransactionId: tx.id,
           } as any) as unknown as StockLevel;
+        } else if (targetPhysical != null) {
+          stockEntry.physicalStock = Number(targetPhysical.toFixed(6));
+          stockEntry.availableStock = Number(
+            (
+              Number(stockEntry.physicalStock ?? 0) -
+              Number(stockEntry.committedStock ?? 0)
+            ).toFixed(6),
+          );
+          stockEntry.lastTransactionId = tx.id;
         } else {
           stockEntry.physicalStock = Number(
             (Number(stockEntry.physicalStock ?? 0) + moveQty).toFixed(6),

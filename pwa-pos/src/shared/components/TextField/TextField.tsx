@@ -3,6 +3,23 @@ import { Eye, EyeOff } from 'lucide-react';
 
 import "./textfield.css";
 
+function selectAllFieldContents(el: HTMLInputElement | HTMLTextAreaElement) {
+  try {
+    el.select();
+  } catch {
+    // ignore
+  }
+  const len = el.value.length;
+  if (len === 0 || typeof el.setSelectionRange !== "function") {
+    return;
+  }
+  try {
+    el.setSelectionRange(0, len);
+  } catch {
+    // ignore
+  }
+}
+
 interface TextFieldProps {
   label: string;
   required?: boolean;
@@ -48,6 +65,15 @@ interface TextFieldProps {
    * Si `label` está vacío, solo reduce la altura del control (útil en tablas con encabezado de columna).
    */
   density?: "default" | "compact";
+  /**
+   * Al recibir foco, selecciona todo el texto (útil en cantidades, códigos, búsquedas).
+   * Con ratón: primer clic selecciona; si ya tenía foco, permite colocar el cursor.
+   * No aplica en `variante="autocomplete"`, `readOnly` ni `disabled`.
+   */
+  selectOnFocus?: boolean;
+  onFocus?: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  onBlur?: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  onMouseDown?: (e: React.MouseEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   ["data-test-id"]?: string;
 }
 
@@ -82,13 +108,23 @@ export const TextField: React.FC<TextFieldProps> = ({
   alwaysShowLabel = false,
   density = "default",
   style,
-  ...props
+  selectOnFocus = false,
+  onFocus: onFocusProp,
+  onBlur: onBlurProp,
+  onMouseDown: onMouseDownProp,
+  inputMode,
+  min,
+  max,
+  step,
+  ["data-test-id"]: dataTestId,
+  ...restInputProps
 }) => {
   const isCompact = density === "compact";
   const stableFieldId = useId();
   const inputDomId = name?.trim() ? name : `fs-tf-${stableFieldId.replace(/:/g, "")}`;
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const startLeadingRef = useRef<HTMLSpanElement>(null);
   const endAdornmentRef = useRef<HTMLSpanElement>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -455,6 +491,51 @@ export const TextField: React.FC<TextFieldProps> = ({
   const showStaticLabel = isCompact && Boolean(label?.trim());
   const compactInputClass = isCompact ? "fs-text-field__input--compact" : "";
 
+  const selectOnFocusEnabled =
+    selectOnFocus && !isDisabled && variante !== "autocomplete";
+
+  const useTextInputForSelectOnFocusNumber =
+    selectOnFocusEnabled && type === "number";
+
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFocused(true);
+    if (selectOnFocusEnabled) {
+      const el = e.currentTarget;
+      requestAnimationFrame(() => {
+        if (document.activeElement === el) {
+          selectAllFieldContents(el);
+        }
+      });
+    }
+    onFocusProp?.(e);
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFocused(false);
+    onBlurProp?.(e);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    onMouseDownProp?.(e);
+    if (!selectOnFocusEnabled || e.defaultPrevented) {
+      return;
+    }
+    const el = e.currentTarget;
+    if (document.activeElement === el) {
+      return;
+    }
+    e.preventDefault();
+    el.focus({ preventScroll: true });
+  };
+
+  const focusField = () => {
+    if (isTextArea) {
+      textareaRef.current?.focus();
+    } else {
+      inputRef.current?.focus();
+    }
+  };
+
   return (
     <div
       className={`${variante === "autocomplete" ? "relative w-full" : "fs-text-field"} ${showStaticLabel ? "flex min-w-0 flex-col gap-1" : ""}`.trim()}
@@ -504,12 +585,14 @@ export const TextField: React.FC<TextFieldProps> = ({
       )}
       {isTextArea ? (
         <textarea
+          ref={textareaRef}
           id={inputDomId}
           name={name}
           value={value}
           rows={rows}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onMouseDown={handleMouseDown}
           onChange={handleChange}
           onKeyDown={onKeyDown}
           className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${compactInputClass} ${borderlessInputClass} block ${isCompact ? "min-w-0" : "min-w-[180px]"} pr-4 ${startPaddingClass} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
@@ -527,8 +610,8 @@ export const TextField: React.FC<TextFieldProps> = ({
             ...(hasStartLeading && inputPaddingStart ? { paddingLeft: inputPaddingStart } : {}),
             ...(style || {}),
           }}
-          data-test-id={props["data-test-id"]}
-          {...props}
+          data-test-id={dataTestId}
+          {...restInputProps}
         />
       ) : (
         <div className="relative">
@@ -538,12 +621,15 @@ export const TextField: React.FC<TextFieldProps> = ({
             type={
               type === "password" ? (showPassword ? "text" : "password") :
               type === "datePicker" ? "number" :
-              (type === "dni" || type === "currency" ? "text" : type)
+              type === "dni" || type === "currency" ? "text" :
+              useTextInputForSelectOnFocusNumber ? "text" :
+              type
             }
             name={name}
             value={displayValue}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            onMouseDown={handleMouseDown}
             onChange={type === "dni" ? handleDNIChange : type === "currency" ? handleCurrencyChange : handleChange}
             onKeyDown={onKeyDown}
             className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${compactInputClass} ${borderlessInputClass} block ${isCompact ? "min-w-0" : "min-w-[180px]"} ${startPaddingClass} ${hasEndAdornment ? " pr-3" : (hasEndSymbol || hasPasswordToggle) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
@@ -555,10 +641,24 @@ export const TextField: React.FC<TextFieldProps> = ({
             readOnly={readOnly}
             disabled={disabled}
             autoComplete={autoComplete || "off"}
-            min={type === "datePicker" ? "1800" : undefined}
-            max={type === "datePicker" ? new Date().getFullYear().toString() : undefined}
+            inputMode={useTextInputForSelectOnFocusNumber ? (inputMode ?? "numeric") : inputMode}
+            min={
+              type === "datePicker"
+                ? "1800"
+                : useTextInputForSelectOnFocusNumber
+                  ? undefined
+                  : min
+            }
+            max={
+              type === "datePicker"
+                ? new Date().getFullYear().toString()
+                : useTextInputForSelectOnFocusNumber
+                  ? undefined
+                  : max
+            }
+            step={useTextInputForSelectOnFocusNumber ? undefined : step}
             maxLength={type === "dni" ? 12 : type === "datePicker" ? 4 : undefined}
-            data-test-id={props["data-test-id"]}
+            data-test-id={dataTestId}
             style={{
               ...(hasStartLeading && inputPaddingStart ? { paddingLeft: inputPaddingStart } : {}),
               ...(hasEndAdornment && endAdornmentSlotPx > 0
@@ -566,7 +666,7 @@ export const TextField: React.FC<TextFieldProps> = ({
                 : {}),
               ...(style || {}),
             }}
-            {...(type === "dni" || type === "currency" || type === "datePicker" || type === "tel" ? {} : props)}
+            {...restInputProps}
           />
           {type === "password" && passwordVisibilityToggle && (
             <button
@@ -620,7 +720,7 @@ export const TextField: React.FC<TextFieldProps> = ({
             top: isTextArea ? '1.25rem' : '50%',
             transform: isTextArea ? 'none' : 'translateY(-50%)'
           }}
-          onClick={() => inputRef.current?.focus()}
+          onClick={focusField}
         >
           {type === "datePicker" ? `Ej: ${new Date().getFullYear()}` : (placeholder ?? label)}
           <span className="text-red-500 ml-1">*</span>
@@ -634,7 +734,8 @@ export const TextField: React.FC<TextFieldProps> = ({
       <label
         className={`absolute left-3 -top-1 pointer-events-none transition-all duration-300 ease-in-out px-1 font-medium text-xs text-foreground rounded-md bg-background` +
           (shrink ? " -translate-y-1 scale-90 opacity-100" : " opacity-0")}
-        onClick={() => inputRef.current?.focus()}
+        onClick={focusField}
+        htmlFor={inputDomId}
         data-test-id="text-field-label"
       >
         {label}

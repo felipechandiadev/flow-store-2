@@ -10,6 +10,7 @@ import { TransactionType } from '@modules/transactions/domain/transaction.entity
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
+import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 
 describe('InventoryService', () => {
   let service: InventoryService;
@@ -38,10 +39,16 @@ describe('InventoryService', () => {
             id: 'v1',
             productId: 'p1',
             unitId: 'u1',
+            stockBaseUnitId: 'u1',
             sku: 'SKU-1',
             product: { id: 'p1', name: 'Test Product' },
             unit: { id: 'u1', name: 'pcs' },
           }),
+        };
+      }
+      if (entity === StockLevel) {
+        return {
+          findOne: jest.fn().mockResolvedValue({ physicalStock: 100 }),
         };
       }
       return {};
@@ -90,9 +97,14 @@ describe('InventoryService', () => {
     expect(dto.paymentMethod).toBe('INTERNAL_CREDIT' as any);
     expect(dto.storageId).toBe('s1');
     expect(dto.subtotal).toBe(20);
+    expect(dto.metadata).toMatchObject({
+      inventoryAdjustMode: 'set_absolute',
+      targetPhysicalStock: 80,
+      previousPhysicalStock: 100,
+    });
     expect(result).toEqual({
       success: true,
-      message: 'Stock ajustado en -20',
+      message: 'Stock físico establecido en 80 (antes 100)',
       documentNumbers: ['DOC-1'],
     });
   });
