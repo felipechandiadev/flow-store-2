@@ -19,6 +19,7 @@ export class UpdateUnitUseCase {
       isBase: d.isBase,
       baseUnitId: d.isBase ? null : (d.baseUnitId ?? null),
       active: d.active,
+      isDefault: d.isDefault,
     });
   }
 }

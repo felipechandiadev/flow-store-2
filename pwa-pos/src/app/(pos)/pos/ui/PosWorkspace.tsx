@@ -4,12 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readPosContextClient, type PosContextV1 } from "@/features/session/lib/pos-context-storage";
 import { Button, IconButton } from "@/shared/admin-shared";
-import { ArrowUpFromLine, Package, RotateCcw } from "lucide-react";
+import { ArrowUpFromLine, RotateCcw } from "lucide-react";
 import PosProductSearchPanel, { POS_PRODUCT_SEARCH_PANEL_HEIGHT_VH } from "./PosProductSearchPanel";
 import PosCartLineCard from "./PosCartLineCard";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { LoadQuotationDialog } from "./LoadQuotationDialog";
-import { BackorderDepositDialog } from "./BackorderDepositDialog";
 import { LoadReturnSaleDialog } from "./LoadReturnSaleDialog";
 
 function formatMoney(n: number) {
@@ -25,7 +24,6 @@ export default function PosWorkspace() {
   const cart = usePosCart();
   const [loadQuotationOpen, setLoadQuotationOpen] = useState(false);
   const [loadReturnOpen, setLoadReturnOpen] = useState(false);
-  const [backorderDepositOpen, setBackorderDepositOpen] = useState(false);
   const isReturnMode = cart.isReturnMode;
 
   useEffect(() => {
@@ -70,12 +68,6 @@ export default function PosWorkspace() {
   );
   const saleTotal = Math.max(0, totals.gross - lineDiscountsTotal - (cart.orderDiscount ?? 0));
 
-  useEffect(() => {
-    if (isReturnMode || cart.lines.length > 0 || !cart.backorderDeposit) return;
-    const id = window.setTimeout(() => cart.clearBackorderDeposit(), 0);
-    return () => clearTimeout(id);
-  }, [isReturnMode, cart.lines.length, cart.backorderDeposit, cart.clearBackorderDeposit]);
-
   if (!ctx?.priceListId) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-sm text-zinc-500">
@@ -118,22 +110,6 @@ export default function PosWorkspace() {
             <Button
               variant="outlined"
               size="sm"
-              onClick={() => setBackorderDepositOpen(true)}
-              disabled={isReturnMode || cart.lines.length === 0 || saleTotal <= 0}
-              title={
-                cart.lines.length === 0
-                  ? "Agregue ítems al carrito"
-                  : "Definir abono de encargo"
-              }
-              data-test-id="pos-cart-backorder-btn"
-              className="shrink-0"
-            >
-              <Package size={14} className="shrink-0" aria-hidden />
-              <span>Encargo</span>
-            </Button>
-            <Button
-              variant="outlined"
-              size="sm"
               onClick={() => setLoadReturnOpen(true)}
               disabled={isReturnMode && cart.lines.length > 0}
               title={
@@ -147,19 +123,6 @@ export default function PosWorkspace() {
               <RotateCcw size={14} className="shrink-0" aria-hidden />
               <span>Devolución</span>
             </Button>
-            {cart.backorderDeposit ? (
-              <span
-                className="max-w-[min(100%,10rem)] truncate text-xs font-semibold tabular-nums text-primary"
-                title={`Abono ${cart.backorderDeposit.percent}% · ${formatMoney(cart.backorderDeposit.amount)}`}
-                data-test-id="pos-cart-backorder-deposit-summary"
-              >
-                {formatMoney(cart.backorderDeposit.amount)}
-                <span className="font-normal text-muted-foreground">
-                  {" "}
-                  ({cart.backorderDeposit.percent}%)
-                </span>
-              </span>
-            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <p className="text-xs text-zinc-500" data-test-id="pos-cart-items-count">
@@ -276,14 +239,6 @@ export default function PosWorkspace() {
       <LoadQuotationDialog
         open={loadQuotationOpen}
         onClose={() => setLoadQuotationOpen(false)}
-      />
-
-      <BackorderDepositDialog
-        open={backorderDepositOpen}
-        onClose={() => setBackorderDepositOpen(false)}
-        saleTotal={saleTotal}
-        initial={cart.backorderDeposit}
-        onConfirm={(config) => cart.setBackorderDeposit(config)}
       />
 
       <LoadReturnSaleDialog open={loadReturnOpen} onClose={() => setLoadReturnOpen(false)} />

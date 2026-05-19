@@ -213,23 +213,10 @@ fn notify_print_network_toggle(state: &Arc<AppState>, event: &'static str) {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ServiceSettingsPatch {
-    listen_host: Option<String>,
     listen_port: Option<u16>,
     wss_listen_port: Option<u16>,
     wss_enabled: Option<bool>,
-    allowed_origins_json: Option<String>,
-    /// `Some("")` clears token; `None` leaves unchanged.
-    shared_token: Option<String>,
     agent_display_name: Option<String>,
-}
-
-fn validate_origins_json(s: &str) -> Result<(), String> {
-    let v: serde_json::Value =
-        serde_json::from_str(s).map_err(|e| format!("allowedOriginsJson inválido: {e}"))?;
-    if !v.is_array() {
-        return Err("allowedOriginsJson debe ser un array JSON".into());
-    }
-    Ok(())
 }
 
 #[tauri::command]
@@ -245,16 +232,7 @@ fn get_dashboard(state: tauri::State<'_, Arc<AppState>>) -> Result<serde_json::V
         .map_err(|e| e.to_string())?
         .as_deref()
         != Some("false");
-    let token_raw = state
-        .db
-        .get_setting("shared_token")
-        .map_err(|e| e.to_string())?
-        .unwrap_or_default();
-    let agent_display_name = state
-        .db
-        .get_setting("agent_display_name")
-        .map_err(|e| e.to_string())?
-        .unwrap_or_default();
+    let agent_display_name = state.db.agent_display_name();
     let sessions = state.connected_sessions_json();
     Ok(json!({
         "printers": printers,
@@ -271,8 +249,6 @@ fn get_dashboard(state: tauri::State<'_, Arc<AppState>>) -> Result<serde_json::V
         "wssEnabled": wss_on,
         "wsListening": state.ws_listener_running(),
         "wssListening": state.wss_listener_running(),
-        "allowedOriginsJson": state.db.allowed_origins_json().map_err(|e| e.to_string())?,
-        "sharedToken": token_raw,
         "agentDisplayName": agent_display_name,
     }))
 }
@@ -306,16 +282,6 @@ fn set_service_settings(
     state: tauri::State<'_, Arc<AppState>>,
     patch: ServiceSettingsPatch,
 ) -> Result<(), String> {
-    if let Some(v) = patch.listen_host {
-        let h = v.trim();
-        if h.is_empty() {
-            return Err("listen_host no puede estar vacío".into());
-        }
-        state
-            .db
-            .set_setting("listen_host", h)
-            .map_err(|e| e.to_string())?;
-    }
     if let Some(v) = patch.listen_port {
         state
             .db
@@ -334,35 +300,15 @@ fn set_service_settings(
             .set_setting("wss_enabled", if v { "true" } else { "false" })
             .map_err(|e| e.to_string())?;
     }
-    if let Some(v) = patch.allowed_origins_json {
-        validate_origins_json(&v)?;
+    if let Some(v) = patch.agent_display_name {
+        let t = v.trim();
+        if t.is_empty() {
+            return Err("agent_display_name_required".into());
+        }
         state
             .db
-            .set_allowed_origins_json(&v)
+            .set_setting("agent_display_name", t)
             .map_err(|e| e.to_string())?;
-    }
-    if let Some(v) = patch.shared_token {
-        if v.trim().is_empty() {
-            state
-                .db
-                .delete_setting("shared_token")
-                .map_err(|e| e.to_string())?;
-        } else {
-            state
-                .db
-                .set_setting("shared_token", v.trim())
-                .map_err(|e| e.to_string())?;
-        }
-    }
-    if let Some(v) = patch.agent_display_name {
-        if v.trim().is_empty() {
-            state.db.delete_setting("agent_display_name").map_err(|e| e.to_string())?;
-        } else {
-            state
-                .db
-                .set_setting("agent_display_name", v.trim())
-                .map_err(|e| e.to_string())?;
-        }
     }
     notify_printer_health_and_config(&state);
     Ok(())
@@ -382,11 +328,7 @@ fn queue_test_print(
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty());
-    let agent_label = state
-        .db
-        .get_setting("agent_display_name")
-        .map_err(|e| e.to_string())?
-        .unwrap_or_default();
+    let agent_label = state.db.agent_display_name();
     let path = jobs::write_test_print_pdf(&state.temp_dir, purpose, &agent_label)
         .map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();

@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { handleUnauthorizedClient } from "@/lib/auth/handle-unauthorized";
 import { lookupVariantAction } from "../actions/variant.action";
 import type { ScanMode } from "../domain/scan-mode.entity";
 import type { VariantLookupItem } from "../types/variant.types";
@@ -35,6 +36,9 @@ export function useVariantLookup() {
       startTransition(async () => {
         const r = await lookupVariantAction({ code: trimmed, mode });
         if (!r.success) {
+          if (handleUnauthorizedClient(r)) {
+            return;
+          }
           setError(r.error);
           return;
         }

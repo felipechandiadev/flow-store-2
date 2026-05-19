@@ -15,6 +15,7 @@ export const CreateUnitFormSchema = z
       .optional()
       .transform((v) => (v === "" || v == null ? undefined : v)),
     allowDecimals: z.boolean(),
+    isDefault: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.isBase) {
@@ -52,8 +53,16 @@ export const UpdateUnitFormSchema = z
       .transform((v) => (v === "" || v == null ? undefined : v)),
     allowDecimals: z.boolean(),
     active: z.boolean(),
+    isDefault: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
+    if (data.isDefault && !data.active) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "La unidad predeterminada debe estar activa",
+        path: ["isDefault"],
+      });
+    }
     if (data.isBase) {
       if (data.conversionFactor !== 1) {
         ctx.addIssue({

@@ -12,10 +12,10 @@ export async function lookupVariantAction(input: {
   mode: ScanMode;
 }): Promise<
   | { success: true; items: VariantLookupItem[] }
-  | { success: false; error: string }
+  | { success: false; error: string; unauthorized?: boolean }
 > {
   const r = await lookupVariantUseCase(input);
-  if (!r.ok) return { success: false, error: r.error };
+  if (!r.ok) return { success: false, error: r.error, unauthorized: r.unauthorized };
   return { success: true, items: r.items };
 }
 
@@ -23,7 +23,7 @@ export async function getVariantDetailAction(
   variantId: string,
 ): Promise<
   | { success: true; variant: VariantDetail }
-  | { success: false; error: string }
+  | { success: false; error: string; unauthorized?: boolean }
 > {
   return VariantRequest.getById(variantId.trim());
 }
@@ -31,9 +31,9 @@ export async function getVariantDetailAction(
 export async function updateBarcodeAction(input: {
   variantId: string;
   barcode: string;
-}): Promise<{ success: true } | { success: false; error: string }> {
+}): Promise<{ success: true } | { success: false; error: string; unauthorized?: boolean }> {
   const r = await updateBarcodeUseCase(input);
-  if (!r.ok) return { success: false, error: r.error };
+  if (!r.ok) return { success: false, error: r.error, unauthorized: r.unauthorized };
   revalidateVariantPaths();
   return { success: true };
 }

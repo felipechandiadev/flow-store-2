@@ -5,7 +5,11 @@ import Body from './components/Body';
 import Footer from './components/Footer';
 import { ColHeader } from './components/ColHeader';
 import { calculateColumnStyles, DataGridStyles, useScreenSize } from './utils/columnStyles';
-import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import {
+  dataGridFillViewportFallbackHeight,
+  useDataGridFillViewportHeight,
+} from './utils/useDataGridFillViewportHeight';
+import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 export type DataGridColumnType =
@@ -54,6 +58,13 @@ export interface DataGridProps {
   search?: string;
   filters?: string;
   height?: number | string;
+  /**
+   * Ajusta la altura del grid para que el pie quede al borde inferior del viewport;
+   * el cuerpo (filas) hace scroll dentro del espacio restante. Ignora `height` si está activo.
+   */
+  fillViewport?: boolean;
+  /** Margen inferior en px al calcular `fillViewport` (p. ej. `pb-6` del `<main>`). Default 24. */
+  viewportBottomInset?: number;
   totalRows?: number;
   totalGeneral?: number;
   createForm?: React.ReactNode;
@@ -100,6 +111,8 @@ const DataGrid: React.FC<DataGridProps> = ({
   search,
   filters,
   height = '70vh',
+  fillViewport = false,
+  viewportBottomInset = 24,
   totalRows,
   totalGeneral,
   createForm,
@@ -135,8 +148,14 @@ const DataGrid: React.FC<DataGridProps> = ({
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(totalRows || (rows ? rows.length : 0));
   const [expandedRowIds, setExpandedRowIds] = useState<Set<string | number>>(new Set(defaultExpandedRowIds));
+  const containerRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const columnHeaderRowRef = useRef<HTMLDivElement>(null);
+  const fillViewportHeightPx = useDataGridFillViewportHeight(
+    fillViewport,
+    containerRef,
+    viewportBottomInset,
+  );
   /**
    * Distancia desde el borde superior del área con scroll hasta donde debe pegarse la fila expandida
    * (= debajo del header sticky). Se mide con rect para incluir bordes y evitar que la fila quede tapada.
@@ -224,14 +243,39 @@ const DataGrid: React.FC<DataGridProps> = ({
     }
   }, [searchParams, limit, router]);
 
-  const containerClasses = `${DataGridStyles.container} ${DataGridStyles.responsive.minWidth} ${DataGridStyles.responsive.mobileScroll} ${showBorder ? 'border border-border' : ''}`.trim();
+  const containerClasses = [
+    DataGridStyles.container,
+    DataGridStyles.responsive.minWidth,
+    DataGridStyles.responsive.mobileScroll,
+    fillViewport ? 'min-h-0 overflow-hidden' : '',
+    showBorder ? 'border border-border' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   const visibleColumns = columns.filter((c) => !c.hide);
   const computedStyles = calculateColumnStyles(columns, screenWidth);
 
+  const containerStyle = useMemo((): React.CSSProperties => {
+    if (fillViewport) {
+      if (fillViewportHeightPx != null) {
+        return { height: fillViewportHeightPx };
+      }
+      return { height: dataGridFillViewportFallbackHeight(viewportBottomInset) };
+    }
+    return {
+      height: typeof height === 'number' ? `${height}px` : height,
+    };
+  }, [fillViewport, fillViewportHeightPx, height, viewportBottomInset]);
+
   return (
-    <div className={containerClasses} style={{ height: typeof height === 'number' ? `${height}px` : height }} data-test-id={dataTestId || "data-grid-root"}>
-      {/* Header */}
-      <Header
+    <div
+      ref={containerRef}
+      className={containerClasses}
+      style={containerStyle}
+      data-test-id={dataTestId || "data-grid-root"}
+    >
+      <div className="shrink-0">
+        <Header
         title={title} 
         filterMode={filterMode} 
         onToggleFilterMode={toggleFilterMode}
@@ -248,7 +292,8 @@ const DataGrid: React.FC<DataGridProps> = ({
         showExportButton={showExportButton}
         showSearch={effectiveShowSearch}
         onSearchChange={onSearchChange}
-      />
+        />
+      </div>
       {/* Scrollable container for columns header and body */}
       <div ref={scrollAreaRef} className={`${DataGridStyles.scrollContainer} relative`}>
         {/* Column Headers Row */}
@@ -297,7 +342,11 @@ const DataGrid: React.FC<DataGridProps> = ({
           selectedRowId={selectedRowId}
         />
       </div>
-      {showFooter ? <Footer total={total} totalGeneral={totalGeneral} /> : null}
+      {showFooter ? (
+        <div className="shrink-0">
+          <Footer total={total} totalGeneral={totalGeneral} />
+        </div>
+      ) : null}
     </div>
   );
 };

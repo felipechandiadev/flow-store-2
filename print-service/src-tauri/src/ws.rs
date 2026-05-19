@@ -3,7 +3,6 @@
 use crate::events;
 use crate::jobs;
 use crate::protocol::{self, Envelope, OutResponse};
-use crate::security;
 use crate::state::{AppState, Session};
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
@@ -139,26 +138,7 @@ pub async fn handle_connection<S>(stream: S, state: Arc<AppState>) -> Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
-    let origins = state.db.allowed_origins_json().unwrap_or_else(|_| "[]".into());
-    let callback = move |req: &Request, resp: Response<()>| {
-        let origin = req
-            .headers()
-            .get("Origin")
-            .and_then(|v| v.to_str().ok());
-        if security::origin_allowed(&origins, origin) {
-            Ok(resp)
-        } else {
-            tracing::warn!(
-                client_origin = ?origin,
-                allowed_origins_json = %origins,
-                "websocket handshake rejected (403): add this page origin to allowed_origins_json in KaiPrinters"
-            );
-            Err(http::Response::builder()
-                .status(403)
-                .body(Some("Origin not allowed".to_string()))
-                .unwrap())
-        }
-    };
+    let callback = |_req: &Request, resp: Response<()>| Ok(resp);
     let mut ws = tokio_tungstenite::accept_hdr_async(stream, callback).await?;
     let conn_id = state.next_conn_id();
     let mut rx = state.broadcast.subscribe();
@@ -202,13 +182,6 @@ where
                             continue;
                         };
                         if action == "hello" {
-                            if let Some(tok) = state.db.shared_token() {
-                                let got = env.extra.get("token").and_then(|v| v.as_str()).unwrap_or("");
-                                if got != tok {
-                                    ws.send(json_line(&OutResponse::err(env.request_id.clone(), "invalid_token"))).await.ok();
-                                    continue;
-                                }
-                            }
                             let client_id = env.client_id.clone().unwrap_or_else(|| "unknown".into());
                             let required: Vec<String> = env
                                 .extra
@@ -240,6 +213,20 @@ where
                                         .map(String::from)
                                 })
                                 .unwrap_or_else(|| "—".to_string());
+                            let company_name = env
+                                .extra
+                                .get("companyName")
+                                .and_then(|v| v.as_str())
+                                .map(str::trim)
+                                .filter(|s| !s.is_empty())
+                                .map(String::from);
+                            let point_of_sale_name = env
+                                .extra
+                                .get("pointOfSaleName")
+                                .and_then(|v| v.as_str())
+                                .map(str::trim)
+                                .filter(|s| !s.is_empty())
+                                .map(String::from);
                             state.register(
                                 conn_id.clone(),
                                 Session {
@@ -247,6 +234,8 @@ where
                                     required_purposes: required.clone(),
                                     app_label,
                                     user_display_name,
+                                    company_name,
+                                    point_of_sale_name,
                                 },
                             );
                             hello_ok = true;
@@ -505,11 +494,7 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
         }
         "test_print" => {
             let purpose = env.extra.get("purpose").and_then(|v| v.as_str()).unwrap_or("documents");
-            let agent_label = state
-                .db
-                .get_setting("agent_display_name")
-                .unwrap_or(None)
-                .unwrap_or_default();
+            let agent_label = state.db.agent_display_name();
             let path = match jobs::write_test_print_pdf(&state.temp_dir, purpose, &agent_label) {
                 Ok(p) => p,
                 Err(e) => return OutResponse::err(rid, format!("{e:#}")),

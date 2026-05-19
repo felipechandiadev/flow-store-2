@@ -11,7 +11,7 @@ import Switch from "@/shared/components/Switch/Switch";
 import { createProductVariantAction } from "@/features/inventory-products/actions/product.action";
 import { listUnitsForPage } from "@/features/inventory-units/actions/unit.action";
 import type { UnitListItem } from "@/features/inventory-units/types/unit.types";
-import { dimensionLabel } from "@/features/inventory-units/types/unit.types";
+import { dimensionLabel, pickDefaultUnit } from "@/features/inventory-units/types/unit.types";
 import { listPriceListsForPage } from "@/features/sales-price-lists/actions/price-list.action";
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
 import { listTaxesForPage } from "@/features/accounting-taxes/actions/tax.action";
@@ -244,7 +244,7 @@ export function CreateProductVariantDialog({
         const defaultPriceListId =
           activePriceLists.find((p) => p.isDefault)?.id ?? activePriceLists[0]?.id ?? null;
         setPriceRows([createVariantPriceRow(defaultIva, defaultPriceListId)]);
-        const defaultUnit = list.find((u) => u.active) ?? null;
+        const defaultUnit = pickDefaultUnit(list);
         const du = defaultUnit?.id ?? null;
         setUnitId(du);
         setStockBaseUnitId(du);

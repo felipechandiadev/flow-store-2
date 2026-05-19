@@ -111,6 +111,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
     requiredPurposes: ["documents", "reports"],
     appLabel: "KaiStore Administración",
     userDisplayName: personName || undefined,
+    companyName: companyTradeName?.trim() ? companyTradeName.trim() : undefined,
     debug: printServiceDebug,
     enableInAppNotifications: true,
     briefWsErrorMessages: true,

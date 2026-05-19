@@ -669,12 +669,14 @@ export class CashSessionsService {
                 lastTransactionId: savedTransaction.id,
               } as any);
             } else {
-              // Decrease physical and available stock by qty (allow negative)
               stockEntry.physicalStock = Number(
                 (Number(stockEntry.physicalStock ?? 0) - qty).toFixed(6),
               );
               stockEntry.availableStock = Number(
-                (Number(stockEntry.availableStock ?? 0) - qty).toFixed(6),
+                (
+                  Number(stockEntry.physicalStock ?? 0) -
+                  Number(stockEntry.committedStock ?? 0)
+                ).toFixed(6),
               );
               stockEntry.lastTransactionId = savedTransaction.id;
             }

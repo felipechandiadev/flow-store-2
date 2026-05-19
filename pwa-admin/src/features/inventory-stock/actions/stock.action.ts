@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { updateProductVariantInventoryPartialAction } from "@/features/inventory-products/actions/product.action";
 import { InventoryRequest } from "../infrastructure/inventory.request";
 import type { ListStockForGridInput, ListStockForGridResult } from "../types/stock-grid.types";
 
@@ -67,4 +68,51 @@ export async function transferStockAction(input: {
     revalidateStockRoute();
   }
   return r;
+}
+
+export async function saveVariantStockConfigAction(input: {
+  variantId: string;
+  trackInventory: boolean;
+  allowNegativeStock: boolean;
+  minimumStock: number;
+  maximumStock: number;
+  reorderPoint: number;
+  storageThresholds: Array<{
+    storageId: string;
+    minimumStock: number | null;
+    maximumStock: number | null;
+    reorderPoint: number | null;
+  }>;
+}): Promise<{ success: true } | { success: false; error: string }> {
+  const variantId = input.variantId.trim();
+  if (!variantId) {
+    return { success: false, error: "Variante no válida" };
+  }
+
+  const inv = await updateProductVariantInventoryPartialAction(variantId, {
+    trackInventory: input.trackInventory,
+    allowNegativeStock: input.allowNegativeStock,
+    minimumStock: input.minimumStock,
+    maximumStock: input.maximumStock,
+    reorderPoint: input.reorderPoint,
+  });
+  if (!inv.success) {
+    return inv;
+  }
+
+  for (const st of input.storageThresholds) {
+    const r = await InventoryRequest.updateStockLevelThresholds({
+      productVariantId: variantId,
+      storageId: st.storageId.trim(),
+      minimumStock: st.minimumStock,
+      maximumStock: st.maximumStock,
+      reorderPoint: st.reorderPoint,
+    });
+    if (!r.success) {
+      return r;
+    }
+  }
+
+  revalidateStockRoute();
+  return { success: true };
 }

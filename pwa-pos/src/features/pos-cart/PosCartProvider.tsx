@@ -57,12 +57,17 @@ type PosCartContextValue = {
   setLoadedQuotation: React.Dispatch<
     React.SetStateAction<LoadedQuotationMeta | null>
   >;
-  /** Abono de encargo (backorder) definido antes del pago. */
+  /** Abono de encargo (backorder) definido en pantalla de cobro. */
   backorderDeposit: BackorderDepositConfig | null;
   setBackorderDeposit: React.Dispatch<
     React.SetStateAction<BackorderDepositConfig | null>
   >;
   clearBackorderDeposit: () => void;
+  /** Modalidad encargo (resumen y cobro por abono). */
+  encargoModeEnabled: boolean;
+  setEncargoModeEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  /** Desactiva modalidad encargo y limpia abono. */
+  disableEncargoMode: () => void;
   // ── Promociones ───────────────────────────────────────────────────
   /** Promociones efectivas cargadas desde el backend para este POS. */
   effectivePromotions: EffectivePromotion[];
@@ -122,6 +127,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     useState<LoadedQuotationMeta | null>(null);
   const [backorderDeposit, setBackorderDeposit] =
     useState<BackorderDepositConfig | null>(null);
+  const [encargoModeEnabled, setEncargoModeEnabled] = useState(false);
   const [cartMode, setCartMode] = useState<PosCartMode>("sale");
   const [loadedReturnSale, setLoadedReturnSale] =
     useState<LoadedReturnSaleMeta | null>(null);
@@ -145,6 +151,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       setPayments([]);
       setLoadedQuotation(null);
       setBackorderDeposit(null);
+      setEncargoModeEnabled(false);
       setCartMode("sale");
       setLoadedReturnSale(null);
       setReady(true);
@@ -155,6 +162,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       customer,
       quotation,
       backorderDeposit: loadedDeposit,
+      encargoModeEnabled: loadedEncargoMode,
       cartMode: loadedMode,
       loadedReturnSale: loadedReturn,
     } = readCartClient(s);
@@ -163,6 +171,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     setPayments([]);
     setLoadedQuotation(quotation);
     setBackorderDeposit(loadedDeposit);
+    setEncargoModeEnabled(loadedEncargoMode);
     setCartMode(loadedMode);
     setLoadedReturnSale(loadedReturn);
     setReady(true);
@@ -179,12 +188,14 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       backorderDeposit,
       cartMode,
       loadedReturnSale,
+      encargoModeEnabled,
     );
   }, [
     lines,
     saleCustomer,
     loadedQuotation,
     backorderDeposit,
+    encargoModeEnabled,
     cartMode,
     loadedReturnSale,
     ready,
@@ -204,6 +215,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
         setPayments([]);
         setLoadedQuotation(null);
         setBackorderDeposit(null);
+        setEncargoModeEnabled(false);
         setCartMode("sale");
         setLoadedReturnSale(null);
         return;
@@ -213,6 +225,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
         customer,
         quotation,
         backorderDeposit: nextDeposit,
+        encargoModeEnabled: nextEncargoMode,
         cartMode: nextMode,
         loadedReturnSale: nextReturn,
       } = readCartClient(s);
@@ -221,6 +234,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       setPayments([]);
       setLoadedQuotation(quotation);
       setBackorderDeposit(nextDeposit);
+      setEncargoModeEnabled(nextEncargoMode);
       setCartMode(nextMode);
       setLoadedReturnSale(nextReturn);
     };
@@ -285,6 +299,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       });
       setLoadedQuotation(null);
       setBackorderDeposit(null);
+      setEncargoModeEnabled(false);
       setPayments([]);
       setManualSelections([]);
       setLines(nextLines);
@@ -318,12 +333,18 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     setBackorderDeposit(null);
   }, []);
 
+  const disableEncargoMode = useCallback(() => {
+    setEncargoModeEnabled(false);
+    setBackorderDeposit(null);
+  }, []);
+
   const clear = useCallback(() => {
     setLines([]);
     setPayments([]);
     setSaleCustomer(null);
     setLoadedQuotation(null);
     setBackorderDeposit(null);
+    setEncargoModeEnabled(false);
     setCartMode("sale");
     setLoadedReturnSale(null);
     setManualSelections([]);
@@ -488,6 +509,9 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       backorderDeposit,
       setBackorderDeposit,
       clearBackorderDeposit,
+      encargoModeEnabled,
+      setEncargoModeEnabled,
+      disableEncargoMode,
       effectivePromotions,
       manualSelections,
       appliedPromotions,
@@ -517,6 +541,8 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       loadedQuotation,
       backorderDeposit,
       clearBackorderDeposit,
+      encargoModeEnabled,
+      disableEncargoMode,
       effectivePromotions,
       manualSelections,
       appliedPromotions,

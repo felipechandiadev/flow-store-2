@@ -56,6 +56,8 @@ export type HelloResponseData = {
       clientId?: string;
       appLabel?: string;
       userDisplayName?: string;
+      companyName?: string;
+      pointOfSaleName?: string;
       requiredPurposes?: string[];
     }>;
   };
@@ -83,13 +85,16 @@ export type PrintServiceWsCloseInfo = {
 export type PrintServiceConnectionOptions = {
   /** WebSocket URL e.g. ws://127.0.0.1:14567 */
   url: string;
-  token?: string;
   clientId?: string;
   requiredPurposes?: string[];
   /** Etiqueta de la app (p. ej. "Punto de venta", "Panel de administración"). */
   appLabel?: string;
   /** Nombre visible del usuario conectado. */
   userDisplayName?: string;
+  /** Empresa (fantasía o razón social) — visible en KaiPrinters. */
+  companyName?: string;
+  /** Punto de venta (solo POS) — visible en KaiPrinters. */
+  pointOfSaleName?: string;
   onHello?: (data: HelloResponseData) => void;
   onPrinterHealth?: (payload: PrinterHealthPayload) => void;
   onServiceStatus?: (payload: unknown) => void;
@@ -372,7 +377,6 @@ export class PrintServiceConnection {
       action: "hello",
       client_id: this.opts.clientId ?? "pwa",
     };
-    if (this.opts.token) body.token = this.opts.token;
     if (this.opts.requiredPurposes?.length) {
       body.requiredPurposes = this.opts.requiredPurposes;
     }
@@ -381,6 +385,12 @@ export class PrintServiceConnection {
     }
     if (this.opts.userDisplayName?.trim()) {
       body.userDisplayName = this.opts.userDisplayName.trim();
+    }
+    if (this.opts.companyName?.trim()) {
+      body.companyName = this.opts.companyName.trim();
+    }
+    if (this.opts.pointOfSaleName?.trim()) {
+      body.pointOfSaleName = this.opts.pointOfSaleName.trim();
     }
     this.sendRaw(body);
   }
@@ -502,8 +512,6 @@ const LS_HOST = "printServiceHost";
 const LS_PORT = "printServicePort";
 const LS_WSS_PORT = "printServiceWssPort";
 const LS_USE_TLS = "printServiceUseTls";
-const LS_TOKEN = "printServiceToken";
-
 /** Disparado en la misma pestaña tras `writePrintServiceConfigToStorage` (el evento `storage` solo cruza pestañas). */
 export const PRINT_SERVICE_CONFIG_CHANGED_EVENT = "flowstore:print-service-config-changed";
 
@@ -512,17 +520,15 @@ export function readPrintServiceConfigFromStorage(): {
   port: number;
   wssPort: number;
   useTls: boolean;
-  token: string;
 } {
   if (typeof window === "undefined") {
-    return { host: "127.0.0.1", port: 14567, wssPort: 14568, useTls: false, token: "" };
+    return { host: "127.0.0.1", port: 14567, wssPort: 14568, useTls: false };
   }
   const host = localStorage.getItem(LS_HOST) || "127.0.0.1";
   const port = Number(localStorage.getItem(LS_PORT) || "14567") || 14567;
   const wssPort = Number(localStorage.getItem(LS_WSS_PORT) || "14568") || 14568;
   const useTls = localStorage.getItem(LS_USE_TLS) === "1";
-  const token = (localStorage.getItem(LS_TOKEN) || "").trim();
-  return { host, port, wssPort, useTls, token };
+  return { host, port, wssPort, useTls };
 }
 
 export function writePrintServiceConfigToStorage(cfg: {
@@ -530,13 +536,11 @@ export function writePrintServiceConfigToStorage(cfg: {
   port: number;
   wssPort: number;
   useTls: boolean;
-  token: string;
 }): void {
   localStorage.setItem(LS_HOST, cfg.host);
   localStorage.setItem(LS_PORT, String(cfg.port));
   localStorage.setItem(LS_WSS_PORT, String(cfg.wssPort));
   localStorage.setItem(LS_USE_TLS, cfg.useTls ? "1" : "0");
-  localStorage.setItem(LS_TOKEN, cfg.token.trim());
   if (typeof globalThis.window !== "undefined") {
     globalThis.window.dispatchEvent(new CustomEvent(PRINT_SERVICE_CONFIG_CHANGED_EVENT));
   }
@@ -757,7 +761,6 @@ export function probePrintServiceReachable(options: {
   port?: number;
   wssPort?: number;
   useTls?: boolean;
-  token?: string;
   timeoutMs?: number;
 } = {}): Promise<PrintServiceProbeResult> {
   return new Promise((resolve) => {
@@ -783,9 +786,6 @@ export function probePrintServiceReachable(options: {
       url = buildWebSocketUrl(host, portNum, useTls);
     }
 
-    const fromLs = typeof window !== "undefined" ? readPrintServiceConfigFromStorage() : null;
-    const tokenRaw = (options.token ?? fromLs?.token ?? "").trim();
-
     const t0 = Date.now();
     let timer: ReturnType<typeof globalThis.setTimeout> | null = null;
     const clearTimer = () => {
@@ -797,7 +797,6 @@ export function probePrintServiceReachable(options: {
 
     const c = new PrintServiceConnection({
       url,
-      token: tokenRaw || undefined,
       clientId: "probe",
       onOpen: () => {
         clearTimer();

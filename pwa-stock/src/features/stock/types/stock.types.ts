@@ -2,9 +2,13 @@ export type StockStorageBreakdown = {
   storageId: string;
   storageName: string;
   branchName: string | null;
+  /** Stock físico en unidad base */
   quantity: number;
+  /** Stock reservado (committed) */
+  reservedStock: number;
+  /** Disponible = físico − reservado */
   availableStock: number;
-  committedStock: number;
+  committedStock?: number;
   stockLevelId?: string | null;
 };
 

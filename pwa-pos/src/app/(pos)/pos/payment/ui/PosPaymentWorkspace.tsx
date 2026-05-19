@@ -36,6 +36,8 @@ import { getCompanyDetailsAction } from "@/features/company/actions/company.acti
 import { getInternalCustomerCreditEnabledAction } from "@/features/company/actions/company-internal-customer-credit.action";
 import type { CompanyDetails } from "@/features/company/infrastructure/company.request";
 import { SaveAsQuotationDialog } from "@/app/(pos)/pos/ui/SaveAsQuotationDialog";
+import { BackorderDepositDialog } from "@/app/(pos)/pos/ui/BackorderDepositDialog";
+import { Package } from "lucide-react";
 import {
   PosSaleReceiptDialog,
   buildPosSaleReceiptSnapshot,
@@ -147,6 +149,10 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     orderDiscount,
     loadedQuotation,
     backorderDeposit,
+    setBackorderDeposit,
+    encargoModeEnabled,
+    setEncargoModeEnabled,
+    disableEncargoMode,
     isReturnMode,
     loadedReturnSale,
     exitReturnMode,
@@ -154,6 +160,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const saleTitleId = useId();
   const [addOpen, setAddOpen] = useState(false);
   const [saveQuotationOpen, setSaveQuotationOpen] = useState(false);
+  const [backorderDepositOpen, setBackorderDepositOpen] = useState(false);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
   const [internalCreditEnabled, setInternalCreditEnabled] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
@@ -465,11 +472,33 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   );
   const discounts = lineDiscountsTotal + (cart.orderDiscount ?? 0);
   const saleTotal = Math.max(0, totals.gross - discounts);
-  const isEncargoMode =
-    !isReturnMode && Boolean(backorderDeposit && backorderDeposit.amount >= 1);
-  const amountToPay = isEncargoMode
-    ? Math.round(backorderDeposit!.amount)
-    : saleTotal;
+  const isEncargoMode = !isReturnMode && encargoModeEnabled;
+  const amountToPay =
+    isEncargoMode && backorderDeposit && backorderDeposit.amount >= 1
+      ? Math.round(backorderDeposit.amount)
+      : saleTotal;
+
+  const openBackorderDepositDialog = useCallback(() => {
+    if (cart.lines.length === 0 || saleTotal <= 0) return;
+    setBackorderDepositOpen(true);
+  }, [cart.lines.length, saleTotal]);
+
+  const handleToggleEncargoMode = useCallback(() => {
+    if (encargoModeEnabled) {
+      disableEncargoMode();
+      return;
+    }
+    openBackorderDepositDialog();
+  }, [encargoModeEnabled, disableEncargoMode, openBackorderDepositDialog]);
+
+  const handleBackorderDepositConfirm = useCallback(
+    (config: { percent: number; amount: number }) => {
+      setBackorderDeposit(config);
+      setEncargoModeEnabled(true);
+      setBackorderDepositOpen(false);
+    },
+    [setBackorderDeposit, setEncargoModeEnabled],
+  );
 
   const flowTitle = isReturnMode
     ? "Devolución en curso"
@@ -1044,7 +1073,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       return "Selecciona un cliente para confirmar el encargo.";
     }
     if (isEncargoMode && !backorderDeposit) {
-      return "Define el abono de encargo en el carrito del POS.";
+      return "Define el abono de encargo con el botón Encargo.";
     }
     if (amountToPay <= 0) return "El total debe ser mayor que cero.";
     if (payments.length === 0) return "Agrega al menos un método de pago.";
@@ -1219,7 +1248,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     const confirmRes = isEncargoMode
       ? await (async () => {
           if (!backorderDeposit) {
-            return { success: false as const, message: "Define el abono de encargo en el carrito." };
+            return { success: false as const, message: "Define el abono de encargo." };
           }
           const backorderPayload = buildCreateBackorderClientPayload({
             pointOfSaleId,
@@ -1431,7 +1460,11 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       >
         {/* Columna 1 — Carrito */}
         <section
-          className="flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border border-border bg-background p-4 shadow-sm"
+          className={`flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border p-4 shadow-sm ${
+            isEncargoMode
+              ? "border-secondary/40 bg-secondary/10"
+              : "border-border bg-background"
+          }`}
           style={{ height: `${POS_PAYMENT_PANEL_HEIGHT_VH}vh` }}
           aria-label={summarySectionLabel}
           data-test-id="pos-payment-cart-summary"
@@ -1470,6 +1503,37 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                 >
                   <span>Cotización</span>
                 </Button>
+                <Button
+                  type="button"
+                  variant={encargoModeEnabled ? "outlinedSecondary" : "outlined"}
+                  size="sm"
+                  onClick={handleToggleEncargoMode}
+                  disabled={cart.lines.length === 0 || saleTotal <= 0}
+                  title={
+                    encargoModeEnabled
+                      ? "Desactivar encargo y volver a venta"
+                      : "Activar encargo y definir abono"
+                  }
+                  aria-pressed={encargoModeEnabled}
+                  data-test-id="pos-payment-encargo-btn"
+                  className="shrink-0"
+                >
+                  <Package size={14} className="shrink-0" aria-hidden />
+                  <span>Encargo</span>
+                </Button>
+                {backorderDeposit && encargoModeEnabled ? (
+                  <span
+                    className="max-w-[min(100%,10rem)] truncate text-xs font-semibold tabular-nums text-primary"
+                    title={`Abono ${backorderDeposit.percent}% · ${formatMoney(backorderDeposit.amount)}`}
+                    data-test-id="pos-payment-backorder-deposit-summary"
+                  >
+                    {formatMoney(backorderDeposit.amount)}
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      ({backorderDeposit.percent}%)
+                    </span>
+                  </span>
+                ) : null}
               </div>
             )}
           </div>
@@ -1906,6 +1970,14 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         open={saveQuotationOpen}
         onClose={() => setSaveQuotationOpen(false)}
         onSaved={() => router.push("/pos")}
+      />
+
+      <BackorderDepositDialog
+        open={backorderDepositOpen}
+        onClose={() => setBackorderDepositOpen(false)}
+        saleTotal={saleTotal}
+        initial={backorderDeposit}
+        onConfirm={handleBackorderDepositConfirm}
       />
 
       <PosCreateCustomerDialog

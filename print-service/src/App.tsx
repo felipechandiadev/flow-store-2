@@ -3,20 +3,33 @@ import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ChevronDown } from "lucide-react";
-import { SwitchField } from "./components/SwitchField";
 import IconButton from "./shared/components/IconButton/IconButton";
+import Switch from "./shared/components/Switch";
 import { Select } from "./shared/components/Select";
 import SharedTextField from "./shared/components/TextField/TextField";
 
 const APP_NAME = "KaiPrinters";
+const DEFAULT_AGENT_DISPLAY_NAME = APP_NAME;
 const APP_COPYRIGHT = "Felipe Chandía Castillo © 2026";
 
+function normalizeAgentDisplayName(raw: string | undefined): string {
+  const t = (raw ?? "").trim();
+  return t || DEFAULT_AGENT_DISPLAY_NAME;
+}
+
 const PURPOSES = [
-  { id: "documents", label: "Documentos" },
   { id: "tickets", label: "Tickets" },
   { id: "labels", label: "Etiquetas" },
   { id: "reports", label: "Informes" },
 ] as const;
+
+const DEFAULT_PURPOSE = PURPOSES[0].id;
+
+function normalizeMappingPurpose(purpose: string | undefined): string {
+  const p = (purpose?.trim() || DEFAULT_PURPOSE).toLowerCase();
+  if (p === "documents") return DEFAULT_PURPOSE;
+  return PURPOSES.some(({ id }) => id === p) ? p : DEFAULT_PURPOSE;
+}
 
 type PrinterRow = {
   name: string;
@@ -31,6 +44,8 @@ type ConnectedSession = {
   clientId?: string;
   appLabel?: string;
   userDisplayName?: string;
+  companyName?: string;
+  pointOfSaleName?: string;
   requiredPurposes?: string[];
 };
 
@@ -41,9 +56,6 @@ type MappingLineRow = {
   sortOrder: number;
   displayLabel?: string;
 };
-
-/** Una fila editable de Origin (valor exacto del header `Origin` del navegador). */
-type OriginLineRow = { id: string; origin: string };
 
 type JobRow = {
   id?: string;
@@ -58,14 +70,11 @@ type JobRow = {
 };
 
 type DashboardPayload = {
-  listenHost?: string;
   listenPort?: number;
   wssListenPort?: number;
   wssEnabled?: boolean;
   wsListening?: boolean;
   wssListening?: boolean;
-  allowedOriginsJson?: string;
-  sharedToken?: string;
   agentDisplayName?: string;
   printers?: PrinterRow[];
   mappings?: MappingRow[];
@@ -98,81 +107,64 @@ function newLineId() {
   return `l-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function parseAllowedOriginsState(raw: string | undefined): { allowAllOrigins: boolean; lines: OriginLineRow[] } {
-  if (!raw?.trim()) return { allowAllOrigins: false, lines: [] };
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return { allowAllOrigins: false, lines: [] };
-    const strings = parsed.filter((x): x is string => typeof x === "string");
-    const allowAllOrigins = strings.some((s) => s === "*");
-    const lines = strings
-      .filter((s) => s !== "*")
-      .map((origin) => ({ id: newLineId(), origin }));
-    return { allowAllOrigins, lines };
-  } catch {
-    return { allowAllOrigins: false, lines: [] };
-  }
-}
+function ConnectedSessionCard({ session }: { session: ConnectedSession }) {
+  const app = session.appLabel?.trim() || "App";
+  const person = session.userDisplayName?.trim() || "—";
+  const company = session.companyName?.trim();
+  const pos = session.pointOfSaleName?.trim();
 
-/** Serializa líneas → JSON array (`[]` si todas vacías); deduplica tras trim. */
-function serializeOriginLines(lines: OriginLineRow[]): string {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const row of lines) {
-    const t = row.origin.trim();
-    if (!t || t === "*" || seen.has(t)) continue;
-    seen.add(t);
-    out.push(t);
-  }
-  return JSON.stringify(out);
+  return (
+    <article
+      className="print-session-card min-w-0"
+      title={[app, person, company, pos].filter(Boolean).join(" · ")}
+    >
+      <p className="truncate text-sm font-semibold text-foreground">{escapeHtml(app)}</p>
+      <p className="mt-0.5 truncate text-xs text-foreground">{escapeHtml(person)}</p>
+      {company ? (
+        <p className="mt-1 truncate text-[0.6875rem] text-muted-foreground">{escapeHtml(company)}</p>
+      ) : null}
+      {pos ? (
+        <p className="mt-0.5 truncate text-[0.6875rem] text-muted-foreground">{escapeHtml(pos)}</p>
+      ) : null}
+    </article>
+  );
 }
 
 export default function App() {
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [localLines, setLocalLines] = useState<MappingLineRow[]>([]);
-  const [originLines, setOriginLines] = useState<OriginLineRow[]>([]);
-  const [allowAllOrigins, setAllowAllOrigins] = useState(false);
   const [settings, setSettings] = useState({
-    listenHost: "0.0.0.0",
     listenPort: "",
     wssListenPort: "",
     wssEnabled: false,
-    sharedToken: "",
-    agentDisplayName: "",
+    agentDisplayName: DEFAULT_AGENT_DISPLAY_NAME,
   });
 
   const [configEdit, setConfigEdit] = useState(false);
   const [settingsSaveBusy, setSettingsSaveBusy] = useState(false);
-  const [originsSaveBusy, setOriginsSaveBusy] = useState(false);
   const [networkBusy, setNetworkBusy] = useState(false);
   const [lineTestBusyId, setLineTestBusyId] = useState<string | null>(null);
 
   /** Solo mostramos acciones en la fila del summary cuando el `<details>` está expandido */
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
-  const [originsDetailsOpen, setOriginsDetailsOpen] = useState(false);
   const [printersDetailsOpen, setPrintersDetailsOpen] = useState(false);
 
   const applyDashboardFull = useCallback((d: DashboardPayload) => {
     setDashboard(d);
     const lines = (d.mappingLines ?? []).map((row) => ({
       id: String(row.id ?? newLineId()),
-      purpose: String(row.purpose ?? "documents"),
+      purpose: normalizeMappingPurpose(row.purpose),
       systemPrinterName: String(row.systemPrinterName ?? ""),
       sortOrder: typeof row.sortOrder === "number" ? row.sortOrder : 0,
       displayLabel: row.displayLabel ? String(row.displayLabel) : undefined,
     }));
     setLocalLines(lines);
-    const { allowAllOrigins: all, lines: originLinesFromDb } = parseAllowedOriginsState(d.allowedOriginsJson);
-    setAllowAllOrigins(all);
-    setOriginLines(originLinesFromDb);
     setSettings({
-      listenHost: d.listenHost?.trim() || "0.0.0.0",
       listenPort: d.listenPort != null ? String(d.listenPort) : "",
       wssListenPort: d.wssListenPort != null ? String(d.wssListenPort) : "",
       wssEnabled: !!d.wssEnabled,
-      sharedToken: d.sharedToken ?? "",
-      agentDisplayName: d.agentDisplayName ?? "",
+      agentDisplayName: normalizeAgentDisplayName(d.agentDisplayName),
     });
     setConfigEdit(false);
   }, []);
@@ -182,7 +174,7 @@ export default function App() {
       if (!prev) return d;
       return {
         ...prev,
-        serviceStatus: d.serviceStatus,
+        serviceStatus: d.serviceStatus ?? prev.serviceStatus,
         jobs: d.jobs,
         metrics: d.metrics,
         printerHealth: d.printerHealth,
@@ -271,35 +263,29 @@ export default function App() {
     } catch {}
   }
 
-  async function handleSaveSettings() {
+  async function handleSaveSettings(): Promise<boolean> {
+    const agentName = settings.agentDisplayName.trim();
+    if (!agentName) {
+      window.alert("El nombre del agente de impresión es obligatorio.");
+      return false;
+    }
     const patch = {
-      listenHost: settings.listenHost.trim() || undefined,
       listenPort: settings.listenPort ? Number(settings.listenPort) : undefined,
       wssListenPort: settings.wssListenPort ? Number(settings.wssListenPort) : undefined,
       wssEnabled: settings.wssEnabled,
-      sharedToken: settings.sharedToken,
-      agentDisplayName: settings.agentDisplayName.trim() || undefined,
+      agentDisplayName: agentName,
     };
     setSettingsSaveBusy(true);
     try {
       await invoke("set_service_settings", { patch });
+      setConfigEdit(false);
       await fetchDashboard("full");
-    } catch {}
-    finally {
-      setSettingsSaveBusy(false);
-    }
-  }
-
-  async function handleSaveOrigins() {
-    const json = allowAllOrigins ? JSON.stringify(["*"]) : serializeOriginLines(originLines);
-    setOriginsSaveBusy(true);
-    try {
-      await invoke("set_service_settings", { patch: { allowedOriginsJson: json } });
-      await fetchDashboard("full");
+      return true;
     } catch {
-      window.alert("No se pudieron guardar los orígenes.");
+      window.alert("No se pudo guardar la configuración.");
+      return false;
     } finally {
-      setOriginsSaveBusy(false);
+      setSettingsSaveBusy(false);
     }
   }
 
@@ -382,7 +368,7 @@ export default function App() {
       ...prev,
       {
         id: newLineId(),
-        purpose: "documents",
+        purpose: DEFAULT_PURPOSE,
         systemPrinterName: "",
         sortOrder: prev.length,
       },
@@ -393,46 +379,38 @@ export default function App() {
     setLocalLines((prev) => prev.filter((l) => l.id !== id));
   }
 
-  function addOriginLine() {
-    setOriginLines((prev) => [...prev, { id: newLineId(), origin: "" }]);
-  }
-
-  function removeOriginLine(id: string) {
-    setOriginLines((prev) => prev.filter((l) => l.id !== id));
-  }
-
   return (
-    <div className="relative mx-auto max-w-[400px] min-w-0 overflow-x-hidden pb-4">
-      <header
-        className="sticky top-0 z-50 -mx-[0.75rem] -mt-[0.625rem] mb-0 flex items-center gap-2 border-border border-b bg-background/95 px-[0.75rem] pt-[0.625rem] pb-3 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
-        aria-label="Estado del servicio de impresión"
-      >
-        <span className="min-w-0 flex-1 text-sm font-semibold tracking-tight">
-          Estado del servicio de impresión
-        </span>
-        <IconButton
-          type="button"
-          icon="Power"
-          variant="ghost"
-          size="sm"
-          disabled={networkBusy}
-          title={
-            serviceOperational
-              ? "Servicio activo (WS/WSS según configuración) — clic para apagar"
-              : "Servicio detenido — clic para iniciar"
-          }
-          ariaLabel={
-            serviceOperational ? "Apagar servicio de impresión (WS/WSS)" : "Encender servicio de impresión (WS/WSS)"
-          }
-          className={`shrink-0 ${
-            serviceOperational
-              ? "!text-success hover:!text-success hover:!bg-transparent"
-              : "!text-error hover:!text-error hover:!bg-transparent"
-          }`}
-          onClick={() => void togglePrintNetwork()}
-        />
+    <>
+      <header className="print-top-bar" aria-label="Estado del servicio de impresión">
+        <div className="mx-auto flex h-full max-w-[400px] min-w-0 items-center gap-2 px-3">
+          <span className="min-w-0 flex-1 text-sm font-semibold tracking-tight">
+            Estado del servicio de impresión
+          </span>
+          <IconButton
+            type="button"
+            icon="Power"
+            variant="ghost"
+            size="sm"
+            disabled={networkBusy}
+            title={
+              serviceOperational
+                ? "Servicio activo (WS/WSS según configuración) — clic para apagar"
+                : "Servicio detenido — clic para iniciar"
+            }
+            ariaLabel={
+              serviceOperational ? "Apagar servicio de impresión (WS/WSS)" : "Encender servicio de impresión (WS/WSS)"
+            }
+            className={`shrink-0 ${
+              serviceOperational
+                ? "!text-success hover:!text-success hover:!bg-transparent"
+                : "!text-error hover:!text-error hover:!bg-transparent"
+            }`}
+            onClick={() => void togglePrintNetwork()}
+          />
+        </div>
       </header>
 
+      <main className="print-app-main relative mx-auto max-w-[400px] min-w-0 overflow-x-hidden">
       <div className="min-w-0 divide-y divide-border [&>*]:min-w-0 [&>*]:max-w-full [&>*]:px-1">
         <details className="print-acc min-w-0 max-w-full overflow-hidden py-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 py-2 font-semibold [&::-webkit-details-marker]:hidden">
@@ -440,23 +418,13 @@ export default function App() {
           <span className="text-sm">Clientes conectados</span>
           <span className="ml-auto text-xs font-normal text-muted-foreground">{sessions.length}</span>
         </summary>
-        <ul className="max-h-40 space-y-1 overflow-y-auto py-2 text-xs">
-          {sessions.length === 0 ? (
-            <li className="text-muted-foreground">Nadie conectado (tras hello).</li>
-          ) : (
-            sessions.map((s) => (
-              <li
-                key={s.connectionId ?? s.clientId}
-                className="truncate"
-                title={`${s.appLabel ?? ""} — ${s.userDisplayName ?? ""}`}
-              >
-                <strong className="font-semibold">{escapeHtml(s.appLabel || "App")}</strong>
-                {" — "}
-                {escapeHtml(s.userDisplayName || "—")}
-              </li>
-            ))
-          )}
-        </ul>
+        {sessions.length > 0 ? (
+          <div className="max-h-48 space-y-2 overflow-y-auto py-2">
+            {sessions.map((s) => (
+              <ConnectedSessionCard key={s.connectionId ?? s.clientId} session={s} />
+            ))}
+          </div>
+        ) : null}
       </details>
 
       <details
@@ -485,30 +453,16 @@ export default function App() {
         </summary>
         <div className="space-y-3 py-2">
           <SharedTextField
-            label="Nombre del agente (visible en clientes)"
+            label="Nombre del agente de impresión"
             name="agent-display-name"
             type="text"
             density="compact"
+            required
             readOnly={!configEdit}
             disabled={!configEdit}
             value={settings.agentDisplayName}
             onChange={(e) => setSettings((s) => ({ ...s, agentDisplayName: e.target.value }))}
           />
-          <SharedTextField
-            label="Interfaz de red (host)"
-            name="in-listen-host"
-            type="text"
-            density="compact"
-            placeholder="0.0.0.0"
-            readOnly={!configEdit}
-            disabled={!configEdit}
-            value={settings.listenHost}
-            onChange={(e) => setSettings((s) => ({ ...s, listenHost: e.target.value }))}
-          />
-          <p className="text-xs text-muted-foreground">
-            Use <span className="font-mono">0.0.0.0</span> para que tablets u otros PCs en la LAN conecten al WebSocket.
-            Reinicie el servicio (botón energía) tras cambiar.
-          </p>
           <SharedTextField
             label="Puerto WS"
             name="in-ws-port"
@@ -533,118 +487,14 @@ export default function App() {
             value={settings.wssListenPort}
             onChange={(e) => setSettings((s) => ({ ...s, wssListenPort: e.target.value }))}
           />
-          <SwitchField
-            id="in-wss-enabled"
+          <Switch
             label="WSS habilitado"
+            labelPosition="right"
             disabled={!configEdit}
             checked={settings.wssEnabled}
-            onChange={(e) => setSettings((s) => ({ ...s, wssEnabled: e.target.checked }))}
+            onChange={(wssEnabled) => setSettings((s) => ({ ...s, wssEnabled }))}
+            data-test-id="config-wss-enabled"
           />
-          <SharedTextField
-            label="Token (hello)"
-            name="in-token"
-            type="text"
-            density="compact"
-            placeholder="vacío = sin token"
-            autoComplete="off"
-            readOnly={!configEdit}
-            disabled={!configEdit}
-            value={settings.sharedToken}
-            onChange={(e) => setSettings((s) => ({ ...s, sharedToken: e.target.value }))}
-          />
-        </div>
-      </details>
-
-      <details
-        className="print-acc min-w-0 max-w-full overflow-hidden py-3"
-        open={originsDetailsOpen}
-        onToggle={(e) => setOriginsDetailsOpen(e.currentTarget.open)}
-      >
-        <summary className="flex cursor-pointer list-none items-center gap-2 py-2 font-semibold [&::-webkit-details-marker]:hidden">
-          <ChevronDown className="print-acc-chevron h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden />
-          <span className="min-w-0 flex-1 truncate text-sm">Orígenes permitidos</span>
-          {originsDetailsOpen && !allowAllOrigins ? (
-            <IconButton
-              type="button"
-              icon="Plus"
-              variant="basicSecondary"
-              size="xs"
-              className="shrink-0"
-              ariaLabel="Agregar origen"
-              disabled={originsSaveBusy}
-              onClick={(e) => {
-                e.preventDefault();
-                addOriginLine();
-              }}
-            />
-          ) : null}
-          {originsDetailsOpen ? (
-            <IconButton
-              type="button"
-              icon="Save"
-              variant="basicSecondary"
-              size="xs"
-              className="shrink-0"
-              ariaLabel="Guardar orígenes"
-              disabled={originsSaveBusy}
-              onClick={(e) => {
-                e.preventDefault();
-                void handleSaveOrigins();
-              }}
-            />
-          ) : null}
-        </summary>
-        <div className="space-y-2 py-2">
-          <SwitchField
-            id="origins-allow-all"
-            label="Permitir todos los orígenes"
-            disabled={originsSaveBusy}
-            checked={allowAllOrigins}
-            onChange={(e) => setAllowAllOrigins(e.target.checked)}
-          />
-          {!allowAllOrigins ? (
-            <>
-              {originLines.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Sin líneas. Agregá un origen con +.</p>
-              ) : (
-                <div className="divide-y divide-border">
-                  {originLines.map((line) => (
-                    <div key={line.id} className="flex flex-col gap-3 py-3">
-                      <SharedTextField
-                        label="Origen"
-                        name={`origin-${line.id}`}
-                        type="text"
-                        density="compact"
-                        placeholder="p. ej. http://localhost:3021"
-                        autoComplete="off"
-                        value={line.origin}
-                        onChange={(e) =>
-                          setOriginLines((rows) =>
-                            rows.map((r) => (r.id === line.id ? { ...r, origin: e.target.value } : r)),
-                          )
-                        }
-                      />
-                      <div className="mt-2 flex shrink-0 justify-end gap-1">
-                        <IconButton
-                          type="button"
-                          icon="Trash2"
-                          variant="basicSecondary"
-                          size="xs"
-                          ariaLabel="Eliminar origen"
-                          disabled={originsSaveBusy}
-                          onClick={() => removeOriginLine(line.id)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="text-[0.65rem] leading-snug text-muted-foreground">
-                Debe coincidir con el valor exacto del header <code className="print-code text-[0.6rem]">Origin</code> del
-                navegador (protocolo, host y puerto).
-              </p>
-            </>
-          ) : null}
         </div>
       </details>
 
@@ -685,12 +535,12 @@ export default function App() {
             </>
           ) : null}
         </summary>
-        <div className="space-y-2 py-2">
+        <div className="space-y-3 py-2">
           {localLines.length > 0 ? (
             <div className="divide-y divide-border">
               {localLines.map((line) => {
               const purposeOpts = PURPOSES.map(({ id, label }) => ({ id, label }));
-              const printerOpts: { id: string; label: string }[] = [{ id: "", label: "Seleccionar" }];
+              const printerOpts: { id: string; label: string }[] = [];
               for (const p of printers) {
                 const def = p.default ? " ★" : "";
                 const off = p.online === false ? " [off]" : "";
@@ -702,19 +552,21 @@ export default function App() {
               return (
                 <div key={line.id} className="flex flex-col gap-3 py-3">
                   <Select
-                    placeholder="Propósito"
+                    label="Propósito"
+                    placeholder="Seleccionar"
                     density="compact"
                     value={line.purpose}
                     onChange={(id) =>
                       setLocalLines((rows) =>
-                        rows.map((r) => (r.id === line.id ? { ...r, purpose: String(id ?? "documents") } : r)),
+                        rows.map((r) => (r.id === line.id ? { ...r, purpose: String(id ?? DEFAULT_PURPOSE) } : r)),
                       )
                     }
                     options={purposeOpts}
                     name={`purpose-${line.id}`}
                   />
                   <Select
-                    placeholder="Impresora del sistema"
+                    label="Impresora del sistema"
+                    placeholder="Seleccionar"
                     density="compact"
                     value={line.systemPrinterName || null}
                     onChange={(pid) =>
@@ -726,11 +578,11 @@ export default function App() {
                     name={`printer-${line.id}`}
                   />
                   <SharedTextField
-                    label=""
+                    label="Alias"
                     name={`alias-${line.id}`}
                     type="text"
                     density="compact"
-                    placeholder="Alias"
+                    placeholder="Ej. Tickets caja 1"
                     required
                     value={line.displayLabel ?? ""}
                     onChange={(e) =>
@@ -861,6 +713,7 @@ export default function App() {
           <p>{APP_COPYRIGHT}</p>
         </footer>
       </div>
-    </div>
+      </main>
+    </>
   );
 }

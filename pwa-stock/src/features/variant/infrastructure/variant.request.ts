@@ -1,3 +1,4 @@
+import { apiFailure } from "@/lib/auth/api-response";
 import { apiUrl, authHeaders } from "@/lib/auth/auth-headers";
 import type { VariantDetail, VariantLookupItem } from "../types/variant.types";
 
@@ -31,7 +32,7 @@ export class VariantRequest {
     mode: "barcode" | "sku",
   ): Promise<
     | { success: true; items: VariantLookupItem[] }
-    | { success: false; error: string }
+    | { success: false; error: string; unauthorized?: boolean }
   > {
     const headers = await authHeaders();
     const q = new URLSearchParams({ value: code.trim(), by: mode });
@@ -43,11 +44,7 @@ export class VariantRequest {
       });
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       if (!res.ok) {
-        const msg =
-          typeof data.message === "string" && data.message.trim()
-            ? data.message.trim()
-            : res.statusText;
-        return { success: false, error: msg };
+        return apiFailure(res, data);
       }
       if (data.variantId) {
         const one = mapLookupItem(data);
@@ -72,7 +69,10 @@ export class VariantRequest {
 
   static async getById(
     variantId: string,
-  ): Promise<{ success: true; variant: VariantDetail } | { success: false; error: string }> {
+  ): Promise<
+    | { success: true; variant: VariantDetail }
+    | { success: false; error: string; unauthorized?: boolean }
+  > {
     const headers = await authHeaders();
     try {
       const res = await fetch(apiUrl(`product-variants/${variantId}`), {
@@ -82,11 +82,7 @@ export class VariantRequest {
       });
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       if (!res.ok) {
-        const msg =
-          typeof data.message === "string" && data.message.trim()
-            ? data.message.trim()
-            : res.statusText;
-        return { success: false, error: msg };
+        return apiFailure(res, data);
       }
       const product = data.product as Record<string, unknown> | undefined;
       return {
@@ -118,7 +114,7 @@ export class VariantRequest {
   static async updateBarcode(
     variantId: string,
     barcode: string,
-  ): Promise<{ success: true } | { success: false; error: string }> {
+  ): Promise<{ success: true } | { success: false; error: string; unauthorized?: boolean }> {
     const headers = await authHeaders();
     try {
       const res = await fetch(apiUrl(`product-variants/${variantId}`), {
@@ -129,11 +125,7 @@ export class VariantRequest {
       });
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       if (!res.ok) {
-        const msg =
-          typeof data.message === "string" && data.message.trim()
-            ? data.message.trim()
-            : res.statusText;
-        return { success: false, error: msg };
+        return apiFailure(res, data);
       }
       return { success: true };
     } catch (e) {

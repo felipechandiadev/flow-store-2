@@ -31,6 +31,7 @@ export function CreateUnitDialog({ open, onClose, onSuccess, allUnits }: CreateU
   const [isBase, setIsBase] = useState(false);
   const [baseUnitId, setBaseUnitId] = useState("");
   const [allowDecimals, setAllowDecimals] = useState(true);
+  const [isDefault, setIsDefault] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -55,6 +56,7 @@ export function CreateUnitDialog({ open, onClose, onSuccess, allUnits }: CreateU
     setIsBase(false);
     setBaseUnitId("");
     setAllowDecimals(true);
+    setIsDefault(false);
     setError(null);
   }, [open]);
 
@@ -73,6 +75,7 @@ export function CreateUnitDialog({ open, onClose, onSuccess, allUnits }: CreateU
     setIsBase(false);
     setBaseUnitId("");
     setAllowDecimals(true);
+    setIsDefault(false);
     setError(null);
     onClose();
   };
@@ -90,6 +93,7 @@ export function CreateUnitDialog({ open, onClose, onSuccess, allUnits }: CreateU
           isBase,
           baseUnitId: isBase ? undefined : baseUnitId === "" ? undefined : baseUnitId,
           allowDecimals,
+          isDefault,
         });
         if (r.success) {
           await onSuccess?.();
@@ -205,6 +209,15 @@ export function CreateUnitDialog({ open, onClose, onSuccess, allUnits }: CreateU
             label="Permite decimales"
             labelPosition="right"
             data-test-id="unit-create-decimals"
+          />
+        </div>
+        <div className="pt-1">
+          <Switch
+            checked={isDefault}
+            onChange={setIsDefault}
+            label="Unidad predeterminada"
+            labelPosition="right"
+            data-test-id="unit-create-is-default"
           />
         </div>
       </div>

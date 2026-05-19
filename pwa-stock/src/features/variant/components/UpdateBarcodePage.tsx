@@ -2,8 +2,9 @@
 
 import { useCallback, useState, useTransition } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Alert, Button, TextField } from "@/shared";
+import { Alert, Button, IconButton, TextField } from "@/shared";
 import BarcodeScanner from "./BarcodeScanner";
+import { handleUnauthorizedClient } from "@/lib/auth/handle-unauthorized";
 import { updateBarcodeAction } from "../actions/variant.action";
 import { variantDetailPath } from "../lib/variant-routes";
 
@@ -24,6 +25,9 @@ export default function UpdateBarcodePage() {
     startTransition(async () => {
       const r = await updateBarcodeAction({ variantId, barcode });
       if (!r.success) {
+        if (handleUnauthorizedClient(r)) {
+          return;
+        }
         setError(r.error);
         return;
       }
@@ -38,7 +42,18 @@ export default function UpdateBarcodePage() {
 
   return (
     <div className="flex flex-col gap-4 pb-8">
-      <h1 className="text-lg font-semibold">Actualizar código de barras</h1>
+      <div className="flex items-center gap-1">
+        <IconButton
+          icon="ArrowLeft"
+          variant="ghost"
+          size="md"
+          ariaLabel="Volver"
+          onClick={() => router.push(variantDetailPath(variantId))}
+          disabled={pending}
+          data-test-id="barcode-update-back"
+        />
+        <h1 className="text-lg font-semibold">Actualizar código de barras</h1>
+      </div>
       {error ? <Alert variant="error">{error}</Alert> : null}
       <BarcodeScanner
         onScan={(code) => {
@@ -55,14 +70,6 @@ export default function UpdateBarcodePage() {
       />
       <Button type="button" onClick={handleSave} loading={pending} disabled={pending}>
         Guardar Nuevo Código
-      </Button>
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => router.push(variantDetailPath(variantId))}
-        disabled={pending}
-      >
-        Volver
       </Button>
     </div>
   );

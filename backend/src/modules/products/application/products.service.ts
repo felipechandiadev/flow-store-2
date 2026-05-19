@@ -97,10 +97,10 @@ export class ProductsService {
       .createQueryBuilder('p')
       .where('p.deletedAt IS NULL');
 
-    if (searchDto.query) {
-      qb.andWhere('(p.name LIKE :q OR p.brand LIKE :q)', {
-        q: `%${searchDto.query}%`,
-      });
+    const term = searchDto.query?.trim() ?? '';
+    if (term.length > 0) {
+      const q = `%${term.toLowerCase()}%`;
+      qb.andWhere('(LOWER(p.name) LIKE :q OR LOWER(p.brand) LIKE :q)', { q });
     }
 
     const products = await qb.getMany();

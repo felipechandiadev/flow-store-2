@@ -171,7 +171,9 @@ export default function UsersDataGrid({ data, total, page, limit }: Props) {
 | `rows` | `any[]` | `[]` | Datos a mostrar |
 | `totalRows` | `number` | **requerido** | Total de registros (para paginación) |
 | `title` | `string` | - | Título del grid |
-| `height` | `number \| string` | `'70vh'` | Altura del componente |
+| `height` | `number \| string` | `'70vh'` | Altura del componente (ignorado si `fillViewport`) |
+| `fillViewport` | `boolean` | `false` | Pie al borde inferior del viewport; solo el body hace scroll |
+| `viewportBottomInset` | `number` | `24` | Margen inferior en px al calcular `fillViewport` |
 | `limit` | `number` | `25` | Filas por página por defecto |
 | `showBorder` | `boolean` | `false` | Mostrar borde alrededor |
 | `onAddClick` | `() => void` | - | Callback para botón "+" |

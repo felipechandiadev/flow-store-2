@@ -1,17 +1,9 @@
+import { apiFailure } from "@/lib/auth/api-response";
 import { apiUrl, authHeaders } from "@/lib/auth/auth-headers";
-
-async function parseError(res: Response): Promise<string> {
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  const m = data.message;
-  if (Array.isArray(m)) return m.map(String).join("; ");
-  if (typeof m === "string" && m.trim()) return m.trim();
-  if (typeof data.error === "string" && data.error.trim()) return data.error.trim();
-  return res.statusText;
-}
 
 export class ProductRequest {
   static async createProduct(name: string): Promise<
-    { success: true; id: string } | { success: false; error: string }
+    { success: true; id: string } | { success: false; error: string; unauthorized?: boolean }
   > {
     const headers = await authHeaders();
     try {
@@ -23,7 +15,7 @@ export class ProductRequest {
       });
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       if (!res.ok) {
-        return { success: false, error: await parseError(res) };
+        return apiFailure(res, data);
       }
       const id = data.id != null ? String(data.id) : "";
       if (!id) return { success: false, error: "Respuesta inválida del servidor" };
@@ -42,14 +34,15 @@ export class ProductRequest {
     barcode?: string | null;
     basePrice: number;
     unitId: string;
-    pmp: number;
+    /** Omitir para dejar PMP sin definir (0 en backend, sin historial). */
+    pmp?: number;
     priceListItems: Array<{
       priceListId: string;
       netPrice: number;
       grossPrice: number;
       taxIds?: string[];
     }>;
-  }): Promise<{ success: true; id: string } | { success: false; error: string }> {
+  }): Promise<{ success: true; id: string } | { success: false; error: string; unauthorized?: boolean }> {
     const headers = await authHeaders();
     const unitId = body.unitId;
     const payload: Record<string, unknown> = {
@@ -57,10 +50,10 @@ export class ProductRequest {
       sku: body.sku.trim(),
       basePrice: Math.round(body.basePrice),
       unitId,
+      saleUnitId: unitId,
       stockBaseUnitId: unitId,
       purchaseUnitId: unitId,
       isActive: true,
-      pmp: Math.max(0, Math.round(body.pmp)),
       trackInventory: true,
       priceListItems: body.priceListItems.map((item) => ({
         priceListId: item.priceListId,
@@ -69,6 +62,9 @@ export class ProductRequest {
         taxIds: item.taxIds?.length ? item.taxIds : undefined,
       })),
     };
+    if (body.pmp !== undefined && body.pmp !== null) {
+      payload.pmp = Math.max(0, Math.round(body.pmp));
+    }
     if (body.barcode?.trim()) {
       payload.barcode = body.barcode.trim();
     }
@@ -81,7 +77,7 @@ export class ProductRequest {
       });
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       if (!res.ok) {
-        return { success: false, error: await parseError(res) };
+        return apiFailure(res, data);
       }
       if (data.success === false) {
         const err =

@@ -4,7 +4,7 @@ import type { VariantLookupItem } from "../types/variant.types";
 
 export type LookupVariantResult =
   | { ok: true; items: VariantLookupItem[] }
-  | { ok: false; error: string };
+  | { ok: false; error: string; unauthorized?: boolean };
 
 export async function lookupVariantUseCase(input: {
   code: string;
@@ -17,7 +17,7 @@ export async function lookupVariantUseCase(input: {
   const { code, mode } = parsed.data;
   const res = await VariantRequest.lookupByCode(code, mode);
   if (!res.success) {
-    return { ok: false, error: res.error };
+    return { ok: false, error: res.error, unauthorized: res.unauthorized };
   }
   return { ok: true, items: res.items };
 }

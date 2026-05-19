@@ -1,3 +1,4 @@
+import { StockRequest } from "@/features/stock/infrastructure/stock.request";
 import { CatalogRequest } from "../infrastructure/catalog.request";
 import { ProductRequest } from "../infrastructure/product.request";
 import {
@@ -13,7 +14,7 @@ import {
 
 export type CreateQuickProductResult =
   | { ok: true; variantId: string; sku: string }
-  | { ok: false; error: string };
+  | { ok: false; error: string; unauthorized?: boolean };
 
 export async function createQuickProductUseCase(
   input: QuickCreateProductInput,
@@ -22,17 +23,17 @@ export async function createQuickProductUseCase(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-  const { productName, scannedCode, mode, sku: skuInput, basePrice, baseCost } = parsed.data;
+  const { productName, scannedCode, mode, sku: skuInput, basePrice } = parsed.data;
 
   const catalog = await CatalogRequest.resolveDefaults();
   if (!catalog.success) {
-    return { ok: false, error: catalog.error };
+    return { ok: false, error: catalog.error, unauthorized: catalog.unauthorized };
   }
-  const { unitId, priceListId, defaultIvaTaxIds, taxes } = catalog.defaults;
+  const { unitId, priceListId, defaultStorageId, defaultIvaTaxIds, taxes } = catalog.defaults;
 
   const productRes = await ProductRequest.createProduct(productName);
   if (!productRes.success) {
-    return { ok: false, error: productRes.error };
+    return { ok: false, error: productRes.error, unauthorized: productRes.unauthorized };
   }
 
   const sku =
@@ -49,7 +50,6 @@ export async function createQuickProductUseCase(
     barcode: mode === "barcode" ? scannedCode : null,
     basePrice: net,
     unitId,
-    pmp: roundMoneyInt(baseCost ?? 0),
     priceListItems: [
       {
         priceListId,
@@ -61,7 +61,12 @@ export async function createQuickProductUseCase(
   });
 
   if (!variantRes.success) {
-    return { ok: false, error: variantRes.error };
+    return { ok: false, error: variantRes.error, unauthorized: variantRes.unauthorized };
+  }
+
+  const stockRes = await StockRequest.ensureStockLevel(variantRes.id, defaultStorageId);
+  if (!stockRes.success) {
+    return { ok: false, error: stockRes.error, unauthorized: stockRes.unauthorized };
   }
 
   return { ok: true, variantId: variantRes.id, sku };

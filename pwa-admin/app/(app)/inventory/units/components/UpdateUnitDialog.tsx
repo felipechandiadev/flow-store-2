@@ -39,6 +39,7 @@ export function UpdateUnitDialog({
   const [baseUnitId, setBaseUnitId] = useState("");
   const [allowDecimals, setAllowDecimals] = useState(true);
   const [active, setActive] = useState(true);
+  const [isDefault, setIsDefault] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -66,8 +67,15 @@ export function UpdateUnitDialog({
     setBaseUnitId(unit.baseUnitId ?? "");
     setAllowDecimals(unit.allowDecimals);
     setActive(unit.active);
+    setIsDefault(unit.isDefault);
     setError(null);
   }, [open, unit]);
+
+  useEffect(() => {
+    if (!active && isDefault) {
+      setIsDefault(false);
+    }
+  }, [active, isDefault]);
 
   useEffect(() => {
     if (isBase) {
@@ -96,6 +104,7 @@ export function UpdateUnitDialog({
           baseUnitId: isBase ? undefined : baseUnitId === "" ? undefined : baseUnitId,
           allowDecimals,
           active,
+          isDefault,
         });
         if (r.success) {
           await onSuccess?.();
@@ -213,6 +222,16 @@ export function UpdateUnitDialog({
             label="Unidad activa"
             labelPosition="right"
             data-test-id="unit-update-active"
+          />
+        </div>
+        <div className="pt-1">
+          <Switch
+            checked={isDefault}
+            onChange={setIsDefault}
+            disabled={!active}
+            label="Unidad predeterminada"
+            labelPosition="right"
+            data-test-id="unit-update-is-default"
           />
         </div>
       </div>

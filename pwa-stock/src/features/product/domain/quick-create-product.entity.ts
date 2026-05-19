@@ -6,7 +6,6 @@ export const quickCreateProductInputSchema = z.object({
   mode: z.enum(["barcode", "sku"]),
   sku: z.string().trim().max(100).optional(),
   basePrice: z.coerce.number().min(0).optional(),
-  baseCost: z.coerce.number().min(0).optional(),
 });
 
 export type QuickCreateProductInput = z.infer<typeof quickCreateProductInputSchema>;

@@ -1,0 +1,126 @@
+"use client";
+
+import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
+import { Alert, Button, TextField } from "@/shared";
+import { handleUnauthorizedClient } from "@/lib/auth/handle-unauthorized";
+import { createQuickProductAction } from "@/features/product/actions/product.action";
+import { SCAN_PATH } from "@/features/variant/lib/variant-routes";
+import type { ScanMode } from "@/features/variant/domain/scan-mode.entity";
+
+export type CreateProductPageProps = {
+  scannedCode: string;
+  mode: ScanMode;
+};
+
+export default function CreateProductPage({ scannedCode, mode }: CreateProductPageProps) {
+  const [code, setCode] = useState(scannedCode);
+  const [productName, setProductName] = useState("");
+  const [sku, setSku] = useState(mode === "sku" ? scannedCode : "");
+  const [basePrice, setBasePrice] = useState("");
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  const codeLocked = scannedCode.trim().length > 0;
+  const codeLabel = mode === "sku" ? "SKU" : "Código de barras";
+
+  useEffect(() => {
+    setCode(scannedCode);
+    setProductName("");
+    setSku(mode === "sku" ? scannedCode : "");
+    setBasePrice("");
+    setError("");
+  }, [scannedCode, mode]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedCode = code.trim();
+    if (!trimmedCode) {
+      setError(`${codeLabel} es obligatorio`);
+      return;
+    }
+    setError("");
+    startTransition(async () => {
+      const r = await createQuickProductAction({
+        productName,
+        scannedCode: trimmedCode,
+        mode,
+        sku: sku.trim() || undefined,
+        basePrice: basePrice.trim() ? Number(basePrice.replace(/\D/g, "")) : 0,
+      });
+      if (!r.success) {
+        if (handleUnauthorizedClient(r)) {
+          return;
+        }
+        setError(r.error);
+      }
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4 pb-8" data-test-id="create-product-page">
+      <div>
+        <h1 className="text-lg font-semibold text-foreground">Crear producto</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {codeLocked ? (
+            <>
+              No existe una variante con el código <strong>{scannedCode}</strong>. Completa los datos
+              mínimos para registrar el producto y su stock en el almacén por defecto.
+            </>
+          ) : (
+            <>
+              Completa los datos mínimos para registrar un producto nuevo y su stock en el almacén por
+              defecto.
+            </>
+          )}
+        </p>
+      </div>
+      {error ? <Alert variant="error">{error}</Alert> : null}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4" id="create-product-form">
+        <TextField
+          label={codeLabel}
+          placeholder={codeLabel}
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          disabled={pending || codeLocked}
+          readOnly={codeLocked}
+          required
+        />
+        <TextField
+          label="Nombre del producto"
+          placeholder="Nombre del producto"
+          value={productName}
+          onChange={(e) => setProductName(e.target.value)}
+          disabled={pending}
+          required
+        />
+        <TextField
+          label="SKU"
+          placeholder="SKU"
+          value={sku}
+          onChange={(e) => setSku(e.target.value)}
+          disabled={pending || (codeLocked && mode === "sku")}
+        />
+        <TextField
+          label="Precio de venta"
+          type="currency"
+          placeholder="Precio de venta"
+          value={basePrice}
+          onChange={(e) => setBasePrice(e.target.value)}
+          disabled={pending}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+          <Link
+            href={SCAN_PATH}
+            className="inline-flex items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground no-underline hover:bg-muted/40"
+          >
+            Cancelar
+          </Link>
+          <Button type="submit" loading={pending} disabled={pending}>
+            Crear
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}

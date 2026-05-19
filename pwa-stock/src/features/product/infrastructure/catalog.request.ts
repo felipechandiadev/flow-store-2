@@ -1,16 +1,10 @@
+import { apiFailure } from "@/lib/auth/api-response";
 import { apiUrl, authHeaders } from "@/lib/auth/auth-headers";
 
-type UnitRow = { id: string; active: boolean };
+type UnitRow = { id: string; active: boolean; isDefault: boolean; symbol: string };
 type PriceListRow = { id: string; isActive: boolean; isDefault: boolean };
 type TaxRow = { id: string; taxType: string; rate: number; isDefault: boolean; isActive: boolean };
-
-async function parseError(res: Response): Promise<string> {
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  const m = data.message;
-  if (Array.isArray(m)) return m.map(String).join("; ");
-  if (typeof m === "string" && m.trim()) return m.trim();
-  return res.statusText;
-}
+type StorageRow = { id: string; isDefault: boolean; isActive: boolean };
 
 function parseUnits(json: unknown): UnitRow[] {
   if (!Array.isArray(json)) return [];
@@ -20,7 +14,12 @@ function parseUnits(json: unknown): UnitRow[] {
       const o = row as Record<string, unknown>;
       const id = o.id != null ? String(o.id) : "";
       if (!id) return null;
-      return { id, active: o.active !== false };
+      return {
+        id,
+        active: o.active !== false,
+        isDefault: o.isDefault === true,
+        symbol: o.symbol != null ? String(o.symbol).trim() : "",
+      };
     })
     .filter((x): x is UnitRow => x != null);
 }
@@ -72,17 +71,38 @@ function parseTaxes(json: unknown): TaxRow[] {
 export type CatalogDefaults = {
   unitId: string;
   priceListId: string;
+  defaultStorageId: string;
   defaultIvaTaxIds: string[];
   taxes: TaxRow[];
 };
 
+function parseStorages(json: unknown): StorageRow[] {
+  if (!json || typeof json !== "object") return [];
+  const storagesRaw = (json as Record<string, unknown>).storages;
+  if (!Array.isArray(storagesRaw)) return [];
+  return storagesRaw
+    .map((row) => {
+      if (!row || typeof row !== "object") return null;
+      const o = row as Record<string, unknown>;
+      const id = o.id != null ? String(o.id) : "";
+      if (!id) return null;
+      return {
+        id,
+        isDefault: o.isDefault === true,
+        isActive: o.isActive !== false,
+      };
+    })
+    .filter((x): x is StorageRow => x != null);
+}
+
 export class CatalogRequest {
   static async resolveDefaults(): Promise<
-    { success: true; defaults: CatalogDefaults } | { success: false; error: string }
+    | { success: true; defaults: CatalogDefaults }
+    | { success: false; error: string; unauthorized?: boolean }
   > {
     const headers = await authHeaders();
     try {
-      const [unitsRes, priceListsRes, taxesRes] = await Promise.all([
+      const [unitsRes, priceListsRes, taxesRes, filtersRes] = await Promise.all([
         fetch(apiUrl("units"), { method: "GET", headers, cache: "no-store" }),
         fetch(apiUrl("price-lists?includeInactive=true"), {
           method: "GET",
@@ -90,23 +110,40 @@ export class CatalogRequest {
           cache: "no-store",
         }),
         fetch(apiUrl("taxes"), { method: "GET", headers, cache: "no-store" }),
+        fetch(apiUrl("inventory/filters"), { method: "GET", headers, cache: "no-store" }),
       ]);
 
+      const unitsJson = (await unitsRes.json().catch(() => ({}))) as Record<string, unknown>;
       if (!unitsRes.ok) {
-        return { success: false, error: await parseError(unitsRes) };
+        return apiFailure(unitsRes, unitsJson);
       }
+      const priceListsJson = (await priceListsRes.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
       if (!priceListsRes.ok) {
-        return { success: false, error: await parseError(priceListsRes) };
+        return apiFailure(priceListsRes, priceListsJson);
       }
+      const taxesJson = (await taxesRes.json().catch(() => ({}))) as Record<string, unknown>;
       if (!taxesRes.ok) {
-        return { success: false, error: await parseError(taxesRes) };
+        return apiFailure(taxesRes, taxesJson);
+      }
+      const filtersJson = (await filtersRes.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!filtersRes.ok) {
+        return apiFailure(filtersRes, filtersJson);
       }
 
-      const units = parseUnits(await unitsRes.json());
-      const priceLists = parsePriceLists(await priceListsRes.json());
-      const taxes = parseTaxes(await taxesRes.json());
+      const units = parseUnits(unitsJson);
+      const priceLists = parsePriceLists(priceListsJson);
+      const taxes = parseTaxes(taxesJson);
+      const storages = parseStorages(filtersJson);
 
-      const unit = units.find((u) => u.active) ?? null;
+      const activeUnits = units.filter((u) => u.active);
+      const unit =
+        activeUnits.find((u) => u.isDefault) ??
+        activeUnits.find((u) => u.symbol?.toLowerCase() === "un") ??
+        activeUnits[0] ??
+        null;
       if (!unit) {
         return {
           success: false,
@@ -126,11 +163,22 @@ export class CatalogRequest {
       const taxIds =
         defaultIvaTaxIds.length > 0 ? defaultIvaTaxIds : iva[0]?.id ? [iva[0].id] : [];
 
+      const activeStorages = storages.filter((s) => s.isActive);
+      const defaultStorageId =
+        activeStorages.find((s) => s.isDefault)?.id ?? activeStorages[0]?.id ?? null;
+      if (!defaultStorageId) {
+        return {
+          success: false,
+          error: "No hay almacén activo. Configúralo en el admin.",
+        };
+      }
+
       return {
         success: true,
         defaults: {
           unitId: unit.id,
           priceListId,
+          defaultStorageId,
           defaultIvaTaxIds: taxIds,
           taxes,
         },

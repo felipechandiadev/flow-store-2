@@ -115,38 +115,6 @@ export class InventoryService {
     const variants = await variantQb.getMany();
     const variantIds = variants.map((v) => v.id);
 
-    // Active reservations (reserved qty) per variant, filtered by branch/storage if provided
-    const reservationLineQb = this.dataSource
-      .getRepository(TransactionLine)
-      .createQueryBuilder('tl')
-      .innerJoin('tl.transaction', 't')
-      .select('tl.productVariantId', 'variantId')
-      .addSelect('t.storageId', 'storageId')
-      .addSelect('SUM(tl.quantity)', 'reservedQty')
-      .where('t.transactionType = :type', { type: TransactionType.INVENTORY_RESERVATION })
-      .andWhere('t.status = :status', { status: 'COMPLETED' })
-      .andWhere('tl.productVariantId IS NOT NULL')
-      .groupBy('tl.productVariantId')
-      .addGroupBy('t.storageId');
-
-    if (params?.branchId) {
-      reservationLineQb.andWhere('t.branchId = :branchId', { branchId: params.branchId });
-    }
-    if (params?.storageId) {
-      reservationLineQb.andWhere('t.storageId = :storageId', { storageId: params.storageId });
-    }
-
-    const reservationRows: Array<{ variantId: string; storageId: string; reservedQty: string }> =
-      await reservationLineQb.getRawMany();
-    const reservedByVariantStorage = new Map<string, number>();
-    const reservedByVariant = new Map<string, number>();
-    for (const r of reservationRows) {
-      const key = `${r.variantId}::${r.storageId}`;
-      const qty = Number(r.reservedQty || 0);
-      reservedByVariantStorage.set(key, qty);
-      reservedByVariant.set(r.variantId, (reservedByVariant.get(r.variantId) ?? 0) + qty);
-    }
-
     const stockLevels: StockLevel[] = [];
     const CHUNK = 500;
     for (let i = 0; i < variantIds.length; i += CHUNK) {
@@ -258,6 +226,8 @@ export class InventoryService {
           branchName: placeholderStorage.branch?.name || null,
           quantity: 0,
           availableStock: 0,
+          reservedStock: 0,
+          availableAfterReservation: 0,
           committedStock: 0,
           minimumStockOverride: null,
           maximumStockOverride: null,
@@ -271,7 +241,8 @@ export class InventoryService {
       let anyBelowEffective = false;
       for (const sl of entries) {
         const qty = Number(sl.physicalStock || 0);
-        const reservedQty = reservedByVariantStorage.get(`${vid}::${sl.storageId}`) ?? 0;
+        const reservedQty = Number(sl.committedStock || 0);
+        const availableQty = qty - reservedQty;
         row.reservedStock += reservedQty;
         const effMin =
           sl.minimumStock != null
@@ -286,10 +257,10 @@ export class InventoryService {
           storageName: sl.storage?.name || '',
           branchName: sl.storage?.branch?.name || null,
           quantity: qty,
-          availableStock: Number(sl.availableStock || 0),
+          availableStock: availableQty,
           reservedStock: reservedQty,
-          availableAfterReservation: Math.max(0, Number(sl.availableStock || 0) - reservedQty),
-          committedStock: Number(sl.committedStock || 0),
+          availableAfterReservation: availableQty,
+          committedStock: reservedQty,
           minimumStockOverride: sl.minimumStock ?? null,
           maximumStockOverride: sl.maximumStock ?? null,
           reorderPointOverride: sl.reorderPoint ?? null,
@@ -304,7 +275,7 @@ export class InventoryService {
               : Number(variant.reorderPoint || 0),
         });
         row.totalStock += qty;
-        row.availableStock += Number(sl.availableStock || 0);
+        row.availableStock += availableQty;
         row.inventoryValueCost += qty * Number(variant.baseCost || 0);
         if (!row.primaryStorageName) {
           row.primaryStorageName = sl.storage?.name || '';
@@ -312,7 +283,7 @@ export class InventoryService {
         }
       }
 
-      row.availableAfterReservation = Math.max(0, Number(row.availableStock || 0) - Number(row.reservedStock || 0));
+      row.availableAfterReservation = Number(row.availableStock || 0);
       row.isBelowMinimum =
         anyBelowEffective ||
         Number(row.totalStock) < Number(variant.minimumStock || 0);

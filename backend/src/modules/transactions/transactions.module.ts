@@ -60,6 +60,7 @@ import { InventoryEventHandler } from './application/events/inventory-event.hand
 // Event Store
 import { EventStoreModule } from './infrastructure/event-store/event-store.module';
 import { ProductVariantsModule } from '@modules/product-variants/product-variants.module';
+import { StockLevelsModule } from '@modules/stock-levels/stock-levels.module';
 
 @Module({
   imports: [
@@ -85,6 +86,7 @@ import { ProductVariantsModule } from '@modules/product-variants/product-variant
     EventStoreModule,
     CacheModule,
     ProductVariantsModule,
+    StockLevelsModule,
   ],
   controllers: [
     TransactionsController,

@@ -20,6 +20,8 @@ pub struct Session {
     pub required_purposes: Vec<String>,
     pub app_label: String,
     pub user_display_name: String,
+    pub company_name: Option<String>,
+    pub point_of_sale_name: Option<String>,
 }
 
 pub struct AppState {
@@ -86,6 +88,8 @@ impl AppState {
                     "clientId": s.client_id,
                     "appLabel": s.app_label,
                     "userDisplayName": s.user_display_name,
+                    "companyName": s.company_name,
+                    "pointOfSaleName": s.point_of_sale_name,
                     "requiredPurposes": s.required_purposes,
                 })
             })

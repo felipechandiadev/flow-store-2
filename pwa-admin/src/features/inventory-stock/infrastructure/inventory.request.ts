@@ -58,14 +58,43 @@ function normalizeStorageBreakdown(raw: unknown): StockGridRow["storageBreakdown
         branchName:
           o.branchName != null && String(o.branchName).trim() ? String(o.branchName).trim() : null,
         quantity: typeof o.quantity === "number" && Number.isFinite(o.quantity) ? o.quantity : Number(o.quantity) || 0,
-        availableStock:
-          typeof o.availableStock === "number" && Number.isFinite(o.availableStock)
-            ? o.availableStock
-            : Number(o.availableStock) || 0,
+        reservedStock: (() => {
+          if (typeof o.reservedStock === "number" && Number.isFinite(o.reservedStock)) {
+            return o.reservedStock;
+          }
+          if (typeof o.committedStock === "number" && Number.isFinite(o.committedStock)) {
+            return o.committedStock;
+          }
+          return Number(o.reservedStock ?? o.committedStock) || 0;
+        })(),
+        availableStock: (() => {
+          const physical =
+            typeof o.quantity === "number" && Number.isFinite(o.quantity)
+              ? o.quantity
+              : Number(o.quantity) || 0;
+          const reserved =
+            typeof o.reservedStock === "number" && Number.isFinite(o.reservedStock)
+              ? o.reservedStock
+              : typeof o.committedStock === "number" && Number.isFinite(o.committedStock)
+                ? o.committedStock
+                : Number(o.reservedStock ?? o.committedStock) || 0;
+          if (typeof o.availableStock === "number" && Number.isFinite(o.availableStock)) {
+            return o.availableStock;
+          }
+          if (
+            typeof o.availableAfterReservation === "number" &&
+            Number.isFinite(o.availableAfterReservation)
+          ) {
+            return o.availableAfterReservation;
+          }
+          return physical - reserved;
+        })(),
         committedStock:
           typeof o.committedStock === "number" && Number.isFinite(o.committedStock)
             ? o.committedStock
-            : Number(o.committedStock) || 0,
+            : typeof o.reservedStock === "number" && Number.isFinite(o.reservedStock)
+              ? o.reservedStock
+              : Number(o.committedStock ?? o.reservedStock) || 0,
         stockLevelId:
           o.stockLevelId === undefined
             ? undefined
@@ -292,6 +321,36 @@ export class InventoryRequest {
       return { success: true, message: typeof data.message === "string" ? data.message : undefined };
     } catch (e) {
       const err = e instanceof Error ? e.message : "Error al transferir stock";
+      return { success: false, error: err };
+    }
+  }
+
+  static async updateStockLevelThresholds(body: {
+    productVariantId: string;
+    storageId: string;
+    minimumStock?: number | null;
+    maximumStock?: number | null;
+    reorderPoint?: number | null;
+  }): Promise<{ success: true } | { success: false; error: string }> {
+    const headers = await authHeaders();
+    try {
+      const res = await fetch(apiUrl("inventory/stock-levels/thresholds"), {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(body),
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        const msg =
+          typeof data.message === "string" && data.message.trim()
+            ? data.message.trim()
+            : res.statusText;
+        return { success: false, error: msg };
+      }
+      return { success: true };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al guardar umbrales";
       return { success: false, error: err };
     }
   }

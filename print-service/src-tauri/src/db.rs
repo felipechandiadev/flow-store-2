@@ -127,6 +127,14 @@ CREATE INDEX IF NOT EXISTS idx_mapping_lines_purpose_sort ON printer_mapping_lin
 }
 
 /// Alias (`display_label`) no repetible entre líneas (trim, no vacío). Índice parcial si la BD ya está limpia.
+/// Limpia ajustes obsoletos (token, orígenes, host custom) — v1 local usa defaults fijos.
+fn migrate_v3(conn: &Connection) -> Result<()> {
+    for key in ["shared_token", "allowed_origins_json", "listen_host"] {
+        let _ = conn.execute("DELETE FROM settings WHERE key = ?1", params![key]);
+    }
+    Ok(())
+}
+
 fn migrate_v2(conn: &Connection) -> Result<()> {
     let sql = r#"
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mapping_lines_display_label_unique
@@ -168,6 +176,7 @@ impl Db {
         conn.execute_batch(SCHEMA).context("schema")?;
         migrate_v1(&conn).context("migrate_v1")?;
         migrate_v2(&conn).context("migrate_v2")?;
+        migrate_v3(&conn).context("migrate_v3")?;
         Ok(Self {
             inner: Arc::new(Mutex::new(conn)),
         })
@@ -207,6 +216,19 @@ impl Db {
     /// `0.0.0.0` = aceptar conexiones WS desde otros equipos en la LAN (tablets, POS remoto).
     pub fn default_listen_host() -> &'static str {
         "0.0.0.0"
+    }
+
+    pub fn default_agent_display_name() -> &'static str {
+        "KaiPrinters"
+    }
+
+    pub fn agent_display_name(&self) -> String {
+        self.get_setting("agent_display_name")
+            .ok()
+            .flatten()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| Self::default_agent_display_name().to_string())
     }
 
     pub fn listen_host(&self) -> String {

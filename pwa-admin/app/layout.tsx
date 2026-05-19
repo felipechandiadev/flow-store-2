@@ -17,13 +17,18 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const APP_TITLE = "KaiStore | Administración";
+
 export const metadata: Metadata = {
-  applicationName: "KaiStore Administración",
-  title: "KaiStore Administración",
+  applicationName: APP_TITLE,
+  title: {
+    default: APP_TITLE,
+    template: APP_TITLE,
+  },
   description: "Panel de administración KaiStore",
   appleWebApp: {
     capable: true,
-    title: "KaiStore Administración",
+    title: APP_TITLE,
     statusBarStyle: "default",
   },
   icons: {
@@ -60,7 +65,7 @@ export default function RootLayout({
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="KaiStore Administración" />
+        <meta name="apple-mobile-web-app-title" content={APP_TITLE} />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} min-h-full flex flex-col`}>
         <AuthProvider>

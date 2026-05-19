@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Scale } from "lucide-react";
-import { Alert, Button, Dialog, IconButton, Select, TextField } from "@/shared";
+import { Card } from "@/shared/components/Cards";
+import { Alert, Button, Dialog, Select, TextField } from "@/shared";
 import type { Option as SelectOption } from "@/shared/Select/Select";
 import type { StockStorageBreakdown, StorageOption } from "../types/stock.types";
+import { handleUnauthorizedClient } from "@/lib/auth/handle-unauthorized";
 import { adjustStockAction, transferStockAction } from "../actions/stock.action";
 
 type StorageStockCardProps = {
@@ -46,6 +47,9 @@ export default function StorageStockCard({
     });
     setBusy(false);
     if (!r.success) {
+      if (handleUnauthorizedClient(r)) {
+        return false;
+      }
       setError(r.error);
       return false;
     }
@@ -88,6 +92,9 @@ export default function StorageStockCard({
     });
     setBusy(false);
     if (!r.success) {
+      if (handleUnauthorizedClient(r)) {
+        return;
+      }
       setError(r.error);
       return;
     }
@@ -95,64 +102,76 @@ export default function StorageStockCard({
     onUpdated();
   };
 
-  return (
-    <article
-      className="rounded-lg border border-border p-4"
-      data-test-id={`storage-card-${storage.storageId}`}
-    >
-      <div className="mb-3">
-        <h3 className="font-semibold">{storage.storageName}</h3>
-        {storage.branchName ? (
-          <p className="text-xs text-muted-foreground">{storage.branchName}</p>
-        ) : null}
-        <p className="mt-2 text-2xl font-bold tabular-nums">{storage.quantity}</p>
-        <p className="text-xs text-muted-foreground">
-          Disponible: {storage.availableStock}
-        </p>
-      </div>
+  const openRecount = () => {
+    setTargetQty(String(storage.quantity));
+    setError("");
+    setAdjustOpen(true);
+  };
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => {
-            setTargetQty(String(storage.quantity));
-            setError("");
-            setAdjustOpen(true);
-          }}
-        >
-          <Scale size={16} className="mr-1 inline" />
-          Reconteo
-        </Button>
-        <IconButton
-          variant="basicSecondary"
-          size="sm"
-          ariaLabel="Disminuir stock"
-          icon="Minus"
-          onClick={() => void handleQuickDelta(-1)}
-          disabled={busy || storage.quantity <= 0}
-        />
-        <IconButton
-          variant="basicSecondary"
-          size="sm"
-          ariaLabel="Aumentar stock"
-          icon="Plus"
-          onClick={() => void handleQuickDelta(1)}
-          disabled={busy}
-        />
-        <IconButton
-          variant="basicSecondary"
-          size="sm"
-          ariaLabel="Transferir"
-          icon="ArrowLeftRight"
-          onClick={() => {
-            setError("");
-            setTransferOpen(true);
-          }}
-          disabled={busy || storageOptions.length === 0}
-        />
-      </div>
+  return (
+    <>
+      <Card
+        data-test-id={`storage-card-${storage.storageId}`}
+        title={storage.storageName}
+        subtitle={storage.branchName ?? undefined}
+        content={
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+            <dt className="text-muted-foreground">Físico</dt>
+            <dd className="text-right font-mono font-semibold tabular-nums text-foreground">
+              {storage.quantity}
+            </dd>
+            <dt className="text-muted-foreground">Reservado</dt>
+            <dd className="text-right font-mono tabular-nums text-foreground">
+              {storage.reservedStock}
+            </dd>
+            <dt className="text-muted-foreground">Disponible</dt>
+            <dd
+              className={`text-right font-mono font-semibold tabular-nums ${
+                storage.availableStock < 0 ? "text-destructive" : "text-foreground"
+              }`}
+            >
+              {storage.availableStock}
+            </dd>
+          </dl>
+        }
+        actions={[
+          {
+            id: "recount",
+            icon: "RefreshCcw",
+            ariaLabel: "Reconteo",
+            onClick: openRecount,
+            disabled: busy,
+            "data-test-id": `storage-recount-${storage.storageId}`,
+          },
+          {
+            id: "decrease",
+            icon: "Minus",
+            ariaLabel: "Disminuir stock",
+            onClick: () => void handleQuickDelta(-1),
+            disabled: busy || storage.quantity <= 0,
+            "data-test-id": `storage-decrease-${storage.storageId}`,
+          },
+          {
+            id: "increase",
+            icon: "Plus",
+            ariaLabel: "Aumentar stock",
+            onClick: () => void handleQuickDelta(1),
+            disabled: busy,
+            "data-test-id": `storage-increase-${storage.storageId}`,
+          },
+          {
+            id: "transfer",
+            icon: "ArrowLeftRight",
+            ariaLabel: "Transferir stock",
+            onClick: () => {
+              setError("");
+              setTransferOpen(true);
+            },
+            disabled: busy || storageOptions.length === 0,
+            "data-test-id": `storage-transfer-${storage.storageId}`,
+          },
+        ]}
+      />
 
       <Dialog
         open={adjustOpen}
@@ -212,7 +231,6 @@ export default function StorageStockCard({
           />
         </div>
       </Dialog>
-    </article>
+    </>
   );
 }
-

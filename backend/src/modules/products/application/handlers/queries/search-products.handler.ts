@@ -69,10 +69,13 @@ export class SearchProductsQueryHandler implements IQueryHandler<
       .leftJoinAndSelect('p.catalogBrand', 'catalogBrand')
       .where('p.deletedAt IS NULL');
 
-    if (query.query) {
-      qb.andWhere('(p.name LIKE :q OR p.brand LIKE :q OR catalogBrand.name LIKE :q)', {
-        q: `%${query.query}%`,
-      });
+    const term = query.query?.trim() ?? '';
+    if (term.length > 0) {
+      const q = `%${term.toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(p.name) LIKE :q OR LOWER(p.brand) LIKE :q OR LOWER(catalogBrand.name) LIKE :q)',
+        { q },
+      );
     }
 
     const products = await qb.getMany();

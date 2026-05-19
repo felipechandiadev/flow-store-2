@@ -304,7 +304,7 @@ export function PrintServiceTopBarDropdown({
                   <span className="break-all font-mono text-foreground">{typeof window !== "undefined" ? window.location.origin : "…"}</span>.
                 </li>
                 <li>
-                  Host, puertos y token:{" "}
+                  Host y puertos:{" "}
                   <a className="text-primary underline" href={settingsHref} onClick={() => setOpen(false)}>
                     configuración de impresión local
                   </a>{" "}

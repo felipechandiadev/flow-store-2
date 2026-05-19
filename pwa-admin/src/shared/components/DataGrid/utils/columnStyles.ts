@@ -138,8 +138,8 @@ export const DataGridStyles = {
   // Contenedor principal
   container: 'rounded-md bg-background flex flex-col',
 
-  // Contenedor scrollable
-  scrollContainer: 'flex-1 overflow-auto',
+  // Contenedor scrollable (min-h-0 permite que flex-1 encoja y haga scroll el body)
+  scrollContainer: 'min-h-0 flex-1 overflow-auto',
 
   // Headers de columna: un solo border-b en la fila (headerRow) evita doble trazo
   // cuando columnas sticky se superponen al hacer scroll horizontal.

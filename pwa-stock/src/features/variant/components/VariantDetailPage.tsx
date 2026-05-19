@@ -1,19 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Barcode } from "lucide-react";
 import Link from "next/link";
-import { Alert, Button, DotProgress } from "@/shared";
+import { Alert, DotProgress } from "@/shared";
 import StorageStockCard from "@/features/stock/components/StorageStockCard";
+import { handleUnauthorizedClient } from "@/lib/auth/handle-unauthorized";
 import { getVariantDetailAction } from "../actions/variant.action";
 import { getVariantStockAction, listStoragesAction } from "@/features/stock/actions/stock.action";
 import type { VariantDetail } from "../types/variant.types";
 import type { StorageOption, VariantStockRow } from "@/features/stock/types/stock.types";
-import { SCAN_PATH, variantBarcodePath } from "../lib/variant-routes";
+import { variantBarcodePath } from "../lib/variant-routes";
 
 export default function VariantDetailPage() {
-  const router = useRouter();
   const params = useParams();
   const variantId = typeof params.variantId === "string" ? params.variantId.trim() : "";
 
@@ -25,23 +25,33 @@ export default function VariantDetailPage() {
 
   const loadDetail = useCallback(async (id: string, sku?: string) => {
     setError("");
-    const [detailRes, stockRes, storagesRes] = await Promise.all([
-      getVariantDetailAction(id),
-      getVariantStockAction(id, sku),
-      listStoragesAction(),
-    ]);
+    const detailRes = await getVariantDetailAction(id);
     if (!detailRes.success) {
+      if (handleUnauthorizedClient(detailRes)) {
+        return;
+      }
       setError(detailRes.error);
       setVariant(null);
       setStock(null);
       return;
     }
     setVariant(detailRes.variant);
+
+    const resolvedSku = sku?.trim() || detailRes.variant.sku;
+    const [stockRes, storagesRes] = await Promise.all([
+      getVariantStockAction(id, resolvedSku),
+      listStoragesAction(),
+    ]);
+    if (!stockRes.success && handleUnauthorizedClient(stockRes)) {
+      return;
+    }
     if (stockRes.success) {
       setStock(stockRes.row);
     } else {
-      setStock(null);
-      setError(stockRes.error);
+      setStock({ variantId: id, productName: "", sku: resolvedSku, stockUnitSymbol: "", storageBreakdown: [] });
+    }
+    if (!storagesRes.success && handleUnauthorizedClient(storagesRes)) {
+      return;
     }
     if (storagesRes.success) {
       setStorages(storagesRes.storages);
@@ -76,12 +86,13 @@ export default function VariantDetailPage() {
       {error ? <Alert variant="error">{error}</Alert> : null}
 
       <section className="flex flex-col gap-4">
-        <div className="rounded-lg border border-border p-4">
+        <div className="rounded-lg p-4">
           <div className="mb-3 flex items-start justify-between gap-2">
-            <div>
-              <p className="text-xs text-muted-foreground">SKU</p>
-              <p className="font-semibold">{variant.sku}</p>
-              <p className="mt-1 text-sm">{variant.productName}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-muted-foreground">SKU: {variant.sku || "—"}</p>
+              <p className="mt-1 text-lg font-semibold leading-snug text-foreground">
+                {variant.productName}
+              </p>
               {variant.barcode ? (
                 <p className="mt-1 text-xs text-muted-foreground">Código: {variant.barcode}</p>
               ) : null}
@@ -103,15 +114,6 @@ export default function VariantDetailPage() {
               <Barcode size={20} />
             </Link>
           </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => router.push(SCAN_PATH)}
-            data-test-id="variant-scan-another"
-          >
-            Escanear otro
-          </Button>
         </div>
 
         {stock?.storageBreakdown.length ? (

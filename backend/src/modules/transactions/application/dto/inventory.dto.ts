@@ -182,6 +182,14 @@ export class CreateInventoryReservationDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Related transaction ID (e.g. BACKORDER)',
+    example: 'uuid-backorder-123',
+  })
+  @IsOptional()
+  @IsUUID()
+  relatedTransactionId?: string;
 }
 
 export class CreateInventoryReservationLineDto {
@@ -237,6 +245,14 @@ export class CreateInventoryReservationsDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Related transaction ID (e.g. BACKORDER)',
+    example: 'uuid-backorder-123',
+  })
+  @IsOptional()
+  @IsUUID()
+  relatedTransactionId?: string;
 }
 
 export class CreateInventoryBlockDto {

@@ -97,6 +97,8 @@ import { RemovePaymentOutTransactionTypes1756030000000 } from '../migrations/175
 import { PersonDocumentTypeDni1756040000000 } from '../migrations/1756040000000-PersonDocumentTypeDni';
 import { BackorderTransactionType1756050000000 } from '../migrations/1756050000000-BackorderTransactionType';
 import { AddCustomerCreditNoteAndOrderAdvancePaymentMethods1756060000000 } from '../migrations/1756060000000-AddCustomerCreditNoteAndOrderAdvancePaymentMethods';
+import { SyncCommittedStockFromReservations1756070000000 } from '../migrations/1756070000000-SyncCommittedStockFromReservations';
+import { UnitIsDefault1756080000000 } from '../migrations/1756080000000-UnitIsDefault';
 
 /**
  * DataSource usado por `typeorm` CLI (`migration:run`, `schema:log`, …).
@@ -202,6 +204,8 @@ export const AppDataSource = new DataSource({
     PersonDocumentTypeDni1756040000000,
     BackorderTransactionType1756050000000,
     AddCustomerCreditNoteAndOrderAdvancePaymentMethods1756060000000,
+    SyncCommittedStockFromReservations1756070000000,
+    UnitIsDefault1756080000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',

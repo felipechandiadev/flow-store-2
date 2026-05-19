@@ -68,6 +68,7 @@ function normalizeUnit(row: unknown): UnitListItem | null {
         ? o.activeDerivedCount
         : Number(o.activeDerivedCount) || 0,
     active: o.active !== false,
+    isDefault: o.isDefault === true,
   };
 }
 
@@ -143,6 +144,7 @@ export class UnitRequest {
     allowDecimals: boolean;
     isBase: boolean;
     baseUnitId?: string | null;
+    isDefault?: boolean;
   }): Promise<{ success: true; unit: UnitListItem } | { success: false; error: string }> {
     const headers = await authHeaders();
     const payload: Record<string, unknown> = {
@@ -153,6 +155,9 @@ export class UnitRequest {
       allowDecimals: body.allowDecimals,
       isBase: body.isBase,
     };
+    if (body.isDefault === true) {
+      payload.isDefault = true;
+    }
     if (!body.isBase && body.baseUnitId) {
       payload.baseUnitId = body.baseUnitId;
     }
@@ -189,6 +194,7 @@ export class UnitRequest {
       isBase: boolean;
       baseUnitId?: string | null;
       active: boolean;
+      isDefault?: boolean;
     },
   ): Promise<{ success: true; unit: UnitListItem } | { success: false; error: string }> {
     const headers = await authHeaders();
@@ -201,6 +207,9 @@ export class UnitRequest {
       isBase: body.isBase,
       active: body.active,
     };
+    if (body.isDefault !== undefined) {
+      payload.isDefault = body.isDefault;
+    }
     if (!body.isBase && body.baseUnitId) {
       payload.baseUnitId = body.baseUnitId;
     } else if (body.isBase) {
@@ -230,7 +239,7 @@ export class UnitRequest {
 
   static async updatePartial(
     id: string,
-    body: { active?: boolean },
+    body: { active?: boolean; isDefault?: boolean },
   ): Promise<{ success: true; unit: UnitListItem } | { success: false; error: string }> {
     const headers = await authHeaders();
     try {

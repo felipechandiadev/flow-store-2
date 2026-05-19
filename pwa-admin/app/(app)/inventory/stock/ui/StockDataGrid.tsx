@@ -12,8 +12,10 @@ import { TextField } from "@/shared/components/TextField/TextField";
 import { Select, type Option } from "@/shared/components/Select";
 import type { StockGridRow, StockStorageBreakdownRow } from "@/features/inventory-stock/types/stock-grid.types";
 import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
+import IconButton from "@/shared/components/IconButton/IconButton";
 import { adjustStockAction, transferStockAction } from "@/features/inventory-stock/actions/stock.action";
 import { useStockRealtime } from "@/features/inventory-stock/realtime/stock-realtime-context";
+import { EditVariantStockConfigDialog } from "./EditVariantStockConfigDialog";
 
 type StockDataGridProps = {
   rows: StockGridRow[];
@@ -98,6 +100,7 @@ function mergeStoragesWithBreakdown(
       storageName: s.name,
       branchName: s.branch?.name ?? null,
       quantity: 0,
+      reservedStock: 0,
       availableStock: 0,
       committedStock: 0,
     };
@@ -199,21 +202,19 @@ function StockStorageCard({
         >
           {formatStockSlashPair(b.quantity, row)}
         </dd>
+        <dt className="text-muted-foreground">Reservado</dt>
+        <dd className="text-right font-mono tabular-nums text-foreground">
+          {formatStockSlashPair(b.reservedStock, row)}
+        </dd>
         <dt className="text-muted-foreground">Disponible</dt>
         <dd
-          className="text-right font-mono tabular-nums text-foreground"
+          className={`text-right font-mono tabular-nums ${
+            b.availableStock < 0 ? "text-destructive" : "text-foreground"
+          }`}
           title={row.unitOfMeasure ? `Stock base: ${row.unitOfMeasure}` : undefined}
         >
           {formatStockSlashPair(b.availableStock, row)}
         </dd>
-        {b.committedStock > 0 ? (
-          <>
-            <dt className="text-muted-foreground">Comprometido</dt>
-            <dd className="text-right font-mono tabular-nums text-foreground">
-              {formatStockSlashPair(b.committedStock, row)}
-            </dd>
-          </>
-        ) : null}
       </dl>
       <div className="mt-1 flex flex-wrap gap-1 border-t border-border pt-2">
         <Button
@@ -306,6 +307,7 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
 
   const [adjust, setAdjust] = useState<AdjustState | null>(null);
   const [transfer, setTransfer] = useState<TransferState | null>(null);
+  const [configRow, setConfigRow] = useState<StockGridRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** No usar `startTransition` para el action + refresh: retrasa el RSC y la grilla puede quedar con datos viejos. */
   const [isSaving, setIsSaving] = useState(false);
@@ -350,7 +352,27 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
   }, [storages, transfer]);
 
   const columns: DataGridColumn[] = useMemo(
-    () => [
+    () => {
+      function StockRowActionsCell({ row: gridRow }: { row: Record<string, unknown> }) {
+        const r = gridRow as StockGridRow;
+        return (
+          <div
+            className="flex items-center justify-center"
+            data-test-id={`stock-row-actions-${r.variantId}`}
+          >
+            <IconButton
+              icon="Pencil"
+              variant="basicSecondary"
+              size="sm"
+              ariaLabel="Editar configuración de stock"
+              onClick={() => setConfigRow(r)}
+              data-test-id={`stock-row-config-${r.variantId}`}
+            />
+          </div>
+        );
+      }
+
+      return [
       {
         field: "productName",
         headerName: "Producto",
@@ -464,7 +486,18 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
             <span className="text-muted-foreground">—</span>
           ),
       },
-    ],
+      {
+        field: "actions",
+        headerName: "",
+        width: 56,
+        minWidth: 56,
+        align: "center",
+        sortable: false,
+        filterable: false,
+        actionComponent: StockRowActionsCell,
+      },
+    ];
+    },
     [],
   );
 
@@ -561,12 +594,23 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         rows={rows}
         totalRows={total}
         totalGeneral={total}
-        height="80vh"
+        fillViewport
         showExportButton={false}
         expandable
         expandableRowContent={(row) => expandableRowContent(row as StockGridRow)}
         headerActions={<StockStorageFilter storages={storages} />}
+        pinActionsColumn
+        actionsColumnField="actions"
         data-test-id="stock-data-grid"
+      />
+
+      <EditVariantStockConfigDialog
+        open={configRow != null}
+        row={configRow}
+        storages={storages}
+        branchId={branchId}
+        onClose={() => setConfigRow(null)}
+        onSaved={() => router.refresh()}
       />
 
       <Dialog

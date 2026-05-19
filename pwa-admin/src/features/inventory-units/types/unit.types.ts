@@ -14,7 +14,19 @@ export type UnitListItem = {
   baseUnitSymbol: string | null;
   activeDerivedCount: number;
   active: boolean;
+  isDefault: boolean;
 };
+
+/** Unidad activa predeterminada para catálogo / variantes (venta, compra y stock). */
+export function pickDefaultUnit(units: UnitListItem[]): UnitListItem | null {
+  const active = units.filter((u) => u.active);
+  return (
+    active.find((u) => u.isDefault) ??
+    active.find((u) => u.symbol.toLowerCase() === "un") ??
+    active[0] ??
+    null
+  );
+}
 
 export type ListUnitsResult =
   | { success: true; units: UnitListItem[] }

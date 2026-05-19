@@ -41,6 +41,7 @@ import { PromotionRedemption } from '@modules/promotions/domain/promotion-redemp
 import { Storage } from '@modules/storages/domain/storage.entity';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { CustomerPaymentSourcesService } from '@modules/customers/application/customer-payment-sources.service';
+import { StockCommitmentService } from '@modules/stock-levels/application/stock-commitment.service';
 
 type PosCommercialRegisterConfig = {
   transactionType:
@@ -100,6 +101,7 @@ export class SalesFromSessionService {
     private readonly promotionsService: PromotionsService,
     private readonly variantQuantityConversion: VariantQuantityConversionService,
     private readonly customerPaymentSourcesService: CustomerPaymentSourcesService,
+    private readonly stockCommitment: StockCommitmentService,
   ) {}
 
   /**
@@ -1130,6 +1132,18 @@ export class SalesFromSessionService {
         );
       }
 
+      if (isBackorder) {
+        await this.createBackorderStockReservation(manager, {
+          companyId: pointOfSale.companyId!,
+          branchId: pointOfSale.branchId!,
+          storageId: effectiveStorageId,
+          customerId: customerIdTrimmed,
+          userId: user.id,
+          backorderTransaction: finalTransaction,
+          lines: transactionLines,
+        });
+      }
+
       // Persistir redenciones inmutables vinculadas a la transacción
       // recién creada. El snapshot inmutable de cada promoción sobrevive
       // a ediciones futuras de la regla.
@@ -1237,5 +1251,88 @@ export class SalesFromSessionService {
     const timestamp = Date.now();
     const random = Math.floor(Math.random() * 10000);
     return `TEMP-${timestamp}-${random}`;
+  }
+
+  private async createBackorderStockReservation(
+    manager: import('typeorm').EntityManager,
+    params: {
+      companyId: string;
+      branchId: string;
+      storageId: string | undefined;
+      customerId: string;
+      userId: string;
+      backorderTransaction: Transaction;
+      lines: Partial<TransactionLine>[];
+    },
+  ): Promise<void> {
+    const { storageId, customerId, lines } = params;
+    if (!storageId?.trim()) {
+      throw new BadRequestException(
+        'No hay almacén para reservar stock del encargo. Configure un almacén predeterminado en la sucursal o envíe storageId.',
+      );
+    }
+    if (!customerId?.trim()) {
+      throw new BadRequestException(
+        'El encargo requiere cliente para reservar inventario',
+      );
+    }
+
+    const inventariable = lines.filter((l) => l.productVariantId);
+    if (inventariable.length === 0) {
+      throw new BadRequestException(
+        'El encargo no tiene líneas con variante para reservar stock',
+      );
+    }
+
+    const documentNumber = `IR-${Date.now()}`;
+    const reservationTx = await manager.getRepository(Transaction).save(
+      manager.getRepository(Transaction).create({
+        companyId: params.companyId,
+        documentNumber,
+        transactionType: TransactionType.INVENTORY_RESERVATION,
+        status: TransactionStatus.COMPLETED,
+        branchId: params.branchId,
+        storageId,
+        customerId,
+        userId: params.userId,
+        total: 0,
+        relatedTransactionId: params.backorderTransaction.id,
+        externalReference: params.backorderTransaction.documentNumber ?? null,
+        notes: `Reserva por encargo ${params.backorderTransaction.documentNumber ?? ''}`,
+      }),
+    );
+
+    for (let i = 0; i < inventariable.length; i++) {
+      const tl = inventariable[i];
+      const qty =
+        Number(tl.quantityInBase) > 0
+          ? Number(tl.quantityInBase)
+          : Number(tl.quantity) || 0;
+      if (qty <= 0) continue;
+
+      await manager.getRepository(TransactionLine).save(
+        manager.getRepository(TransactionLine).create({
+          transactionId: reservationTx.id,
+          productId: tl.productId,
+          productVariantId: tl.productVariantId,
+          productName: tl.productName,
+          variantName: tl.variantName,
+          quantity: qty,
+          unitPrice: 0,
+          subtotal: 0,
+          total: 0,
+          lineNumber: i + 1,
+          notes: `Encargo ${params.backorderTransaction.documentNumber ?? ''}`,
+        }),
+      );
+
+      await this.stockCommitment.reserve(manager, {
+        companyId: params.companyId,
+        variantId: tl.productVariantId as string,
+        storageId,
+        qty,
+        lastTransactionId: reservationTx.id,
+      });
+    }
   }
 }

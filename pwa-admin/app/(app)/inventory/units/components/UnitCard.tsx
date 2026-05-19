@@ -46,9 +46,16 @@ export function UnitCard({
 
   const headerEnd = (
     <span data-test-id="unit-card-active-label" className="shrink-0">
-      <Badge variant={unit.active ? "success" : "secondary-outlined"}>
-        {unit.active ? "Activa" : "Inactiva"}
-      </Badge>
+      <span className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+        {unit.isDefault ? (
+          <Badge variant="primary-outlined" data-test-id="unit-card-default-badge">
+            Predeterminada
+          </Badge>
+        ) : null}
+        <Badge variant={unit.active ? "success" : "secondary-outlined"}>
+          {unit.active ? "Activa" : "Inactiva"}
+        </Badge>
+      </span>
     </span>
   );
 

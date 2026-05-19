@@ -13,7 +13,10 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  --app-topbar-height: 3.75rem;
+  /** Altura del header fijo (debe coincidir con `StockPageShell` header). */
+  --app-topbar-height: 3.5rem;
+  /** Separación bajo la top bar ≈ `gap-3` entre campos de formulario. */
+  --app-main-gap-top: 0.75rem;
 
   --color-primary: #002b59;
   --color-background: #ffffff;

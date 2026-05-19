@@ -70,6 +70,9 @@ export class Unit {
   @Column({ type: 'boolean', default: true })
   active!: boolean;
 
+  @Column({ name: 'is_default', type: 'boolean', default: false })
+  isDefault!: boolean;
+
   @CreateDateColumn()
   createdAt!: Date;
 

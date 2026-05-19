@@ -59,6 +59,8 @@ export default function PosTopBar({
     requiredPurposes: ["tickets", "documents"],
     appLabel: "KaiStore POS",
     userDisplayName: effectivePerson || undefined,
+    companyName: effectiveCompany || undefined,
+    pointOfSaleName: effectivePosName || undefined,
     debug: printServiceDebug,
     enableInAppNotifications: true,
     briefWsErrorMessages: true,

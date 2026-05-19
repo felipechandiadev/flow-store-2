@@ -26,6 +26,10 @@ export type UsePrintServiceConnectionOptions = {
   appLabel?: string;
   /** Nombre visible en el `hello` para la lista de sesiones del agente. */
   userDisplayName?: string;
+  /** Empresa — visible en KaiPrinters (sesiones conectadas). */
+  companyName?: string;
+  /** Punto de venta (POS) — visible en KaiPrinters. */
+  pointOfSaleName?: string;
   /**
    * Si es false, no se apilan entradas en `notifications` (conexión, salud del agente, trabajos, etc.).
    * El estado sigue en `visual`, `connected`, `lastError`. Pensado para el POS minimalista.
@@ -152,8 +156,17 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
     const purposes = (opts.requiredPurposes ?? []).join("\u0001");
     const app = (opts.appLabel ?? "").trim();
     const who = (opts.userDisplayName ?? "").trim();
-    return `${cid}\u0002${purposes}\u0002${app}\u0002${who}`;
-  }, [opts.clientId, (opts.requiredPurposes ?? []).join("\u0001"), opts.appLabel, opts.userDisplayName]);
+    const company = (opts.companyName ?? "").trim();
+    const pos = (opts.pointOfSaleName ?? "").trim();
+    return `${cid}\u0002${purposes}\u0002${app}\u0002${who}\u0002${company}\u0002${pos}`;
+  }, [
+    opts.clientId,
+    (opts.requiredPurposes ?? []).join("\u0001"),
+    opts.appLabel,
+    opts.userDisplayName,
+    opts.companyName,
+    opts.pointOfSaleName,
+  ]);
 
   const visual: PrintAgentVisualStatus = healthToVisual(connected, health, socketConnecting);
 
@@ -204,8 +217,7 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
         e.key === "printServiceHost" ||
         e.key === "printServicePort" ||
         e.key === "printServiceWssPort" ||
-        e.key === "printServiceUseTls" ||
-        e.key === "printServiceToken"
+        e.key === "printServiceUseTls"
       ) {
         if (debugRef.current) {
           printServiceDebugLog("storage_print_config_changed", { key: e.key, newValue: e.newValue ?? null });
@@ -238,7 +250,6 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
     const tlsBecause = pageHttps ? "https_page" : fromLs.useTls ? "local_storage_printServiceUseTls" : "plain_ws";
     const url = buildWebSocketUrl(host, port, useTls);
     setAttemptedWsUrl(url);
-    const token = fromLs.token || undefined;
 
     if (opts.debug) {
       printServiceDebugLog("connect_start", {
@@ -250,7 +261,6 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
         port,
         clientId: opts.clientId ?? "pwa",
         requiredPurposes: opts.requiredPurposes ?? [],
-        hasToken: Boolean(token && String(token).trim()),
         pwaOrigin: typeof window !== "undefined" ? window.location.origin : "",
         ...(pageHttps || !fromLs.useTls
           ? {}
@@ -269,11 +279,12 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
 
     const c = new PrintServiceConnection({
       url,
-      token,
       clientId: opts.clientId,
       requiredPurposes: opts.requiredPurposes,
       appLabel: opts.appLabel,
       userDisplayName: opts.userDisplayName,
+      companyName: opts.companyName,
+      pointOfSaleName: opts.pointOfSaleName,
       onOpen: () => {
         if (opts.debug) {
           printServiceDebugLog("ws_open", { url });
@@ -364,10 +375,7 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
           printServiceDebugLog("ws_or_protocol_error", { url, message: m });
         }
         setSocketConnecting(false);
-        const human =
-          m === "invalid_token"
-            ? "Token rechazado por el agente: dejá el campo token vacío en la POS (si el agente no usa token) o copiá el token exacto desde KaiPrinters."
-            : m;
+        const human = m;
         const now = Date.now();
         const prev = lastWsErrorRef.current;
         if (prev.msg === human && now - prev.at < 800) return;
@@ -457,6 +465,8 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
     opts.briefWsErrorMessages,
     opts.appLabel,
     opts.userDisplayName,
+    opts.companyName,
+    opts.pointOfSaleName,
     pushNotification,
   ]);
 

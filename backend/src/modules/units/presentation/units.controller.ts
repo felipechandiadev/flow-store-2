@@ -39,6 +39,7 @@ export class UnitsController {
       allowDecimals?: boolean;
       isBase?: boolean;
       baseUnitId?: string | null;
+      isDefault?: boolean;
     },
   ) {
     return this.unitsService.createUnit(data);
@@ -57,6 +58,7 @@ export class UnitsController {
       active: boolean;
       isBase: boolean;
       baseUnitId: string | null;
+      isDefault: boolean;
     }>,
   ) {
     return this.unitsService.updateUnit(id, data);

@@ -135,13 +135,14 @@ export class UpdateStockActionHandler {
           where: { productVariantId: variantId, storageId } as any,
         })) as StockLevel | null;
         if (!stockEntry) {
+          const physical = moveQty;
           stockEntry = stockRepo.create({
             companyId: companyIdForStock,
             productVariantId: variantId,
             storageId,
-            physicalStock: moveQty,
+            physicalStock: physical,
             committedStock: 0,
-            availableStock: moveQty,
+            availableStock: physical,
             incomingStock: 0,
             lastTransactionId: tx.id,
           } as any) as unknown as StockLevel;
@@ -150,7 +151,10 @@ export class UpdateStockActionHandler {
             (Number(stockEntry.physicalStock ?? 0) + moveQty).toFixed(6),
           );
           stockEntry.availableStock = Number(
-            (Number(stockEntry.availableStock ?? 0) + moveQty).toFixed(6),
+            (
+              Number(stockEntry.physicalStock ?? 0) -
+              Number(stockEntry.committedStock ?? 0)
+            ).toFixed(6),
           );
           stockEntry.lastTransactionId = tx.id;
         }

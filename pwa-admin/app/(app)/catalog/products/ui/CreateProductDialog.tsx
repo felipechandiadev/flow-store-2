@@ -12,6 +12,7 @@ import { createProductAction, createProductVariantAction } from "@/features/inve
 import { listCategoriesForPage } from "@/features/inventory-categories/actions/category.action";
 import { listBrandsForPage } from "@/features/catalog-brands/actions/brand.action";
 import { listUnitsForPage } from "@/features/inventory-units/actions/unit.action";
+import { pickDefaultUnit } from "@/features/inventory-units/types/unit.types";
 import { listPriceListsForPage } from "@/features/sales-price-lists/actions/price-list.action";
 import { listTaxesForPage } from "@/features/accounting-taxes/actions/tax.action";
 import type { TaxListItem } from "@/features/accounting-taxes/types/tax.types";
@@ -116,7 +117,7 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
           listPriceListsForPage(),
           listTaxesForPage(),
         ]);
-        const defaultUnit = units.find((u) => u.active) ?? null;
+        const defaultUnit = pickDefaultUnit(units);
         if (!defaultUnit) {
           setVariantPrepError(
             "No hay unidad de medida activa. Cree una en Inventario → Unidades antes de crear productos.",

@@ -34,7 +34,6 @@ export async function withPrintAgentConnection<T>(
 
   const conn = new PrintServiceConnection({
     url: buildAgentWebSocketUrl(),
-    token: cfg.token || undefined,
     clientId: "pwa-pos-print",
     appLabel: "KaiStore POS",
     requiredPurposes: [purpose],

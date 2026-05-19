@@ -54,7 +54,6 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
   const [port, setPort] = useState("14567");
   const [wssPort, setWssPort] = useState("14568");
   const [useTls, setUseTls] = useState(false);
-  const [token, setToken] = useState("");
   const [ticketsAlias, setTicketsAlias] = useState("");
   const [documentsAlias, setDocumentsAlias] = useState("");
   const [ticketAliases, setTicketAliases] = useState<string[]>([]);
@@ -70,7 +69,6 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
     setPort(String(c.port));
     setWssPort(String(c.wssPort));
     setUseTls(c.useTls);
-    setToken(c.token);
     const a = readPosPurposePrinterAliasesFromStorage();
     setTicketsAlias(a.ticketsAlias);
     setDocumentsAlias(a.documentsAlias);
@@ -87,12 +85,11 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
   const connOpts = useMemo(
     () => ({
       url,
-      token: token || undefined,
       clientId: "pwa-pos-print-prefs",
       appLabel: "KaiStore POS",
       userDisplayName: "Impresión",
     }),
-    [token, url],
+    [url],
   );
 
   const refreshAliasesFromAgent = useCallback(async () => {
@@ -129,14 +126,13 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
       port: Number(port) || 14567,
       wssPort: Number(wssPort) || 14568,
       useTls,
-      token,
     });
     writePosPurposePrinterAliasesToStorage({
       ticketsAlias,
       documentsAlias,
     });
     writePosDocumentPrintModesToStorage(docPrintModes);
-  }, [host, port, wssPort, useTls, token, ticketsAlias, documentsAlias, docPrintModes]);
+  }, [host, port, wssPort, useTls, ticketsAlias, documentsAlias, docPrintModes]);
 
   const setDocMode = useCallback((kind: PosDocumentPrintKind, mode: PosDocumentPrintMode) => {
     setDocPrintModes((prev) => ({ ...prev, [kind]: mode }));
@@ -195,17 +191,6 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
                 label="Usar WSS (HTTPS / certificado local)"
                 labelPosition="right"
                 data-test-id="pos-print-prefs-use-tls"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <TextField
-                label="Token (opcional)"
-                name="print-token"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                autoComplete="off"
-                alwaysShowLabel
-                data-test-id="pos-print-prefs-token"
               />
             </div>
           </div>

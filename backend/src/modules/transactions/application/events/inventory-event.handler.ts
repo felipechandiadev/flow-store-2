@@ -51,13 +51,9 @@ export class InventoryEventHandler
   }
 
   private async handleInventoryReservationCreated(
-    event: InventoryReservationCreatedEvent,
+    _event: InventoryReservationCreatedEvent,
   ): Promise<void> {
-    // Reserve inventory for the customer
-    // This would typically decrease available stock and create a reservation record
-    console.log(
-      `Inventory reservation created: ${event.transactionId} - Product: ${event.productId}, Quantity: ${event.quantity}, Customer: ${event.customerId}`,
-    );
+    // Stock commitment is applied in CreateInventoryReservation(s)UseCase.
   }
 
   private async handleInventoryBlockCreated(

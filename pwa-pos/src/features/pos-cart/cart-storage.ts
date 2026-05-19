@@ -34,6 +34,8 @@ type StoredCart = {
   customer?: PosSaleCustomer | null;
   quotation?: LoadedQuotationMeta | null;
   backorderDeposit?: BackorderDepositConfig | null;
+  /** Modalidad encargo activa en pantalla de cobro. */
+  encargoModeEnabled?: boolean;
   cartMode?: PosCartMode;
   loadedReturnSale?: LoadedReturnSaleMeta | null;
 };
@@ -101,6 +103,7 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
   customer: PosSaleCustomer | null;
   quotation: LoadedQuotationMeta | null;
   backorderDeposit: BackorderDepositConfig | null;
+  encargoModeEnabled: boolean;
   cartMode: PosCartMode;
   loadedReturnSale: LoadedReturnSaleMeta | null;
 } {
@@ -109,6 +112,7 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
     customer: null,
     quotation: null,
     backorderDeposit: null,
+    encargoModeEnabled: false,
     cartMode: "sale" as PosCartMode,
     loadedReturnSale: null,
   };
@@ -170,6 +174,10 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
         : null;
 
     const backorderDeposit = parseBackorderDeposit(parsed.backorderDeposit);
+    const encargoModeEnabled =
+      parsed.v === CART_STORAGE_VERSION && typeof parsed.encargoModeEnabled === "boolean"
+        ? parsed.encargoModeEnabled
+        : Boolean(backorderDeposit);
     const cartMode =
       parsed.v === CART_STORAGE_VERSION ? parseCartMode(parsed.cartMode) : "sale";
     const loadedReturnSale =
@@ -177,7 +185,15 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
         ? parseLoadedReturnSale(parsed.loadedReturnSale)
         : null;
 
-    return { lines, customer, quotation, backorderDeposit, cartMode, loadedReturnSale };
+    return {
+      lines,
+      customer,
+      quotation,
+      backorderDeposit,
+      encargoModeEnabled,
+      cartMode,
+      loadedReturnSale,
+    };
   } catch {
     return empty;
   }
@@ -191,6 +207,7 @@ export function writeCartClient(
   backorderDeposit: BackorderDepositConfig | null = null,
   cartMode: PosCartMode = "sale",
   loadedReturnSale: LoadedReturnSaleMeta | null = null,
+  encargoModeEnabled = false,
 ): void {
   if (typeof window === "undefined") return;
   try {
@@ -206,6 +223,7 @@ export function writeCartClient(
       customer: customer ?? null,
       quotation: quotation ?? null,
       backorderDeposit: backorderDeposit ?? null,
+      encargoModeEnabled: cartMode === "return" ? false : encargoModeEnabled,
       cartMode,
       loadedReturnSale: cartMode === "return" ? loadedReturnSale : null,
     };

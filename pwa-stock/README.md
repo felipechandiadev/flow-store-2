@@ -19,10 +19,11 @@ Backend NestJS en **3020** (`BACKEND_API_URL`).
 
 | Ruta | Uso |
 |------|-----|
-| `/scan` | Escáner + modo código/SKU; enlace al motor de búsqueda |
-| `/search` | Búsqueda manual, picker y creación rápida de producto |
+| `/scan` | Escáner + modo código/SKU; enlace al buscador |
+| `/search` | Buscador SSR de variantes; cards paginadas; URL `?q=&page=&limit=`; `limit` persistido en `localStorage` |
 | `/variant/[variantId]` | Ficha de variante y stock por almacén |
 | `/variant/[variantId]/barcode` | Actualizar código de barras |
+| `/product/create?code=&mode=` | Alta rápida tras escaneo sin coincidencia (sin PMP; stock en almacén por defecto) |
 
 Rutas legacy (`/variant`, `/variant?variantId=`, `/variant/barcode?variantId=`) redirigen a las rutas anteriores.
 
@@ -48,6 +49,8 @@ Rutas legacy (`/variant`, `/variant?variantId=`, `/variant/barcode?variantId=`) 
 | Ajuste | POST | `/api/inventory/adjust` |
 | Transferencia | POST | `/api/inventory/transfer` |
 | Almacenes | GET | `/api/inventory/filters` |
+| Inicializar stock (nivel 0) | PATCH | `/api/inventory/stock-levels/thresholds` |
+| Crear producto / variante | POST | `/api/products`, `/api/product-variants` |
 
 ## Arquitectura
 

@@ -1,13 +1,17 @@
 import { Suspense } from "react";
-import SearchPage from "@/features/variant/components/SearchPage";
+import SearchPageContent from "@/features/variant/components/SearchPageContent";
 import PageLoading from "@/shared/components/PageLoading";
 
 export const dynamic = "force-dynamic";
 
-export default function SearchRoutePage() {
+type SearchRoutePageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default function SearchRoutePage({ searchParams }: SearchRoutePageProps) {
   return (
     <Suspense fallback={<PageLoading />}>
-      <SearchPage />
+      <SearchPageContent searchParams={searchParams} />
     </Suspense>
   );
 }

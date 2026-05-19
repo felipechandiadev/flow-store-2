@@ -18,6 +18,7 @@ export class CreateUnitUseCase {
       allowDecimals: d.allowDecimals,
       isBase: d.isBase,
       baseUnitId: d.isBase ? null : (d.baseUnitId ?? null),
+      isDefault: d.isDefault === true,
     });
   }
 }

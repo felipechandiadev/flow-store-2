@@ -15,6 +15,7 @@ export type StockStorageBreakdownRow = {
   storageName: string;
   branchName: string | null;
   quantity: number;
+  reservedStock: number;
   availableStock: number;
   committedStock: number;
   stockLevelId?: string | null;

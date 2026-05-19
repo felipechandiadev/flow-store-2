@@ -61,7 +61,6 @@ export function buildSeedCompanyBankAccounts(
       accountNumber: '19994412711',
       accountHolderName,
       isPrimary: true,
-      notes: null,
     },
   ];
 }

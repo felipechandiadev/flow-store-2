@@ -11,7 +11,7 @@ type Props = {
 };
 
 /**
- * Formulario mínimo de conexión al agente (host, puertos, token).
+ * Formulario mínimo de conexión al agente (host, puertos).
  * Las PWAs (admin, POS) deben usar sus propios formularios con el design system;
  * el mapeo failover y las pruebas de impresión se configuran en el agente Tauri.
  */
@@ -21,7 +21,6 @@ export function LocalPrintingSettingsForm({ className = "" }: Props) {
   const [port, setPort] = useState("14567");
   const [wssPort, setWssPort] = useState("14568");
   const [useTls, setUseTls] = useState(false);
-  const [token, setToken] = useState("");
 
   useEffect(() => {
     const c = readPrintServiceConfigFromStorage();
@@ -29,7 +28,6 @@ export function LocalPrintingSettingsForm({ className = "" }: Props) {
     setPort(String(c.port));
     setWssPort(String(c.wssPort));
     setUseTls(c.useTls);
-    setToken(c.token);
   }, []);
 
   const saveLocal = useCallback(() => {
@@ -38,9 +36,8 @@ export function LocalPrintingSettingsForm({ className = "" }: Props) {
       port: Number(port) || 14567,
       wssPort: Number(wssPort) || 14568,
       useTls,
-      token,
     });
-  }, [host, port, token, useTls, wssPort]);
+  }, [host, port, useTls, wssPort]);
 
   return (
     <>
@@ -80,15 +77,6 @@ export function LocalPrintingSettingsForm({ className = "" }: Props) {
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={useTls} onChange={(e) => setUseTls(e.target.checked)} />
             Usar WSS (HTTPS / certificado local)
-          </label>
-          <label className="block text-sm sm:col-span-2">
-            <span className="text-muted-foreground">Token (opcional, debe coincidir con el agente)</span>
-            <input
-              className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              autoComplete="off"
-            />
           </label>
         </div>
       </form>

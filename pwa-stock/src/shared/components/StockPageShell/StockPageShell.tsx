@@ -1,7 +1,17 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { IconButton } from "@/shared";
+import {
+  createProductPagePath,
+  isCreateProductPath,
+} from "@/features/product/lib/product-routes";
+import {
+  isVariantDetailPath,
+  SCAN_PATH,
+  SEARCH_PATH,
+} from "@/features/variant/lib/variant-routes";
 import SideBar from "@/shared/components/SideBar/SideBar";
 import { stockMenuItems } from "@/navigation/stockMenu";
 
@@ -22,6 +32,87 @@ function StockBrandBlock() {
   );
 }
 
+const stockNavIconProps = {
+  variant: "basicSecondary" as const,
+  size: "md" as const,
+  strokeWidth: 2.5,
+};
+
+function StockScanNavButton({ onClick }: { onClick: () => void }) {
+  return (
+    <IconButton
+      icon="Scan"
+      {...stockNavIconProps}
+      onClick={onClick}
+      ariaLabel="Escáner"
+      data-test-id="variant-search-go-scan"
+    />
+  );
+}
+
+function StockSearchNavButton({ onClick }: { onClick: () => void }) {
+  return (
+    <IconButton
+      icon="Search"
+      {...stockNavIconProps}
+      onClick={onClick}
+      ariaLabel="Buscador"
+      data-test-id="variant-search-engine"
+    />
+  );
+}
+
+function StockCreateProductNavButton({ onClick }: { onClick: () => void }) {
+  return (
+    <IconButton
+      icon="Plus"
+      {...stockNavIconProps}
+      onClick={onClick}
+      ariaLabel="Crear producto"
+      data-test-id="stock-create-product-nav"
+    />
+  );
+}
+
+function StockScanSearchNavButton() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  if (isCreateProductPath(pathname)) {
+    return null;
+  }
+
+  if (pathname === SCAN_PATH) {
+    return (
+      <>
+        <StockSearchNavButton onClick={() => router.push(SEARCH_PATH)} />
+        <StockCreateProductNavButton onClick={() => router.push(createProductPagePath())} />
+      </>
+    );
+  }
+
+  if (pathname === SEARCH_PATH) {
+    return (
+      <>
+        <StockScanNavButton onClick={() => router.push(SCAN_PATH)} />
+        <StockCreateProductNavButton onClick={() => router.push(createProductPagePath())} />
+      </>
+    );
+  }
+
+  if (isVariantDetailPath(pathname)) {
+    return (
+      <>
+        <StockScanNavButton onClick={() => router.push(SCAN_PATH)} />
+        <StockSearchNavButton onClick={() => router.push(SEARCH_PATH)} />
+        <StockCreateProductNavButton onClick={() => router.push(createProductPagePath())} />
+      </>
+    );
+  }
+
+  return null;
+}
+
 type StockPageShellProps = {
   children: ReactNode;
 };
@@ -36,23 +127,26 @@ export default function StockPageShell({ children }: StockPageShellProps) {
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <header
-        className="fixed top-0 z-30 w-full border-b"
+        className="fixed top-0 z-30 flex h-[var(--app-topbar-height)] w-full border-b"
         style={{
           backgroundColor: "var(--color-background)",
           borderColor: "var(--color-border)",
         }}
         data-test-id="stock-app-header"
       >
-        <div className="mx-auto flex w-full max-w-md items-center justify-between gap-3 px-4 py-2">
-          <IconButton
-            icon="Menu"
-            variant="basicSecondary"
-            size="md"
-            strokeWidth={2.5}
-            onClick={openSidebar}
-            ariaLabel="Abrir menú"
-            data-test-id="stock-menu-button"
-          />
+        <div className="mx-auto flex h-full w-full max-w-md items-center justify-between gap-3 px-4">
+          <div className="flex shrink-0 items-center gap-1">
+            <IconButton
+              icon="Menu"
+              variant="basicSecondary"
+              size="md"
+              strokeWidth={2.5}
+              onClick={openSidebar}
+              ariaLabel="Abrir menú"
+              data-test-id="stock-menu-button"
+            />
+            <StockScanSearchNavButton />
+          </div>
           <StockBrandBlock />
         </div>
       </header>
@@ -81,7 +175,7 @@ export default function StockPageShell({ children }: StockPageShellProps) {
 
       <main
         className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 pb-6"
-        style={{ paddingTop: "calc(var(--app-topbar-height) + 1rem)" }}
+        style={{ paddingTop: "calc(var(--app-topbar-height) + var(--app-main-gap-top))" }}
       >
         {children}
       </main>

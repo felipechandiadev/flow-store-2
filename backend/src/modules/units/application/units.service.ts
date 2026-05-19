@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Not, Repository } from 'typeorm';
+import { EntityManager, IsNull, Not, Repository } from 'typeorm';
 import { Unit } from '../domain/unit.entity';
 import { UnitDimension } from '../domain/unit-dimension.enum';
 import { TenantContext } from '@common/tenant';
@@ -23,6 +23,7 @@ export type UnitListRow = {
   baseUnitSymbol: string | null;
   activeDerivedCount: number;
   active: boolean;
+  isDefault: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -79,6 +80,7 @@ export class UnitsService {
         ? activeDerivedCountByBaseId.get(unit.id) ?? 0
         : 0,
       active: unit.active,
+      isDefault: unit.isDefault === true,
       createdAt: unit.createdAt,
       updatedAt: unit.updatedAt,
     };
@@ -92,6 +94,94 @@ export class UnitsService {
       }
     }
     return m;
+  }
+
+  private async clearCompanyDefaults(
+    companyId: string,
+    em: EntityManager,
+    exceptId?: string,
+  ): Promise<void> {
+    const qb = em
+      .createQueryBuilder()
+      .update(Unit)
+      .set({ isDefault: false })
+      .where('company_id = :companyId', { companyId })
+      .andWhere('deleted_at IS NULL');
+    if (exceptId) {
+      qb.andWhere('id != :exceptId', { exceptId });
+    }
+    await qb.execute();
+  }
+
+  private async pickNextDefaultUnit(
+    companyId: string,
+    em: EntityManager,
+    excludeId?: string,
+  ): Promise<Unit | null> {
+    const units = await em.find(Unit, {
+      where: { deletedAt: IsNull(), companyId, active: true },
+      order: { symbol: 'ASC' },
+    });
+    const candidates = units.filter((u) => u.id !== excludeId);
+    if (candidates.length === 0) {
+      return null;
+    }
+    const un = candidates.find((u) => u.symbol.toLowerCase() === 'un');
+    if (un) {
+      return un;
+    }
+    const countBase = candidates.find(
+      (u) => u.isBase && u.dimension === UnitDimension.COUNT,
+    );
+    if (countBase) {
+      return countBase;
+    }
+    return candidates[0];
+  }
+
+  private async ensureCompanyDefault(
+    companyId: string,
+    em: EntityManager,
+    excludeId?: string,
+  ): Promise<void> {
+    const current = await em.findOne(Unit, {
+      where: {
+        companyId,
+        isDefault: true,
+        active: true,
+        deletedAt: IsNull(),
+      },
+    });
+    if (current && current.id !== excludeId) {
+      return;
+    }
+    const next = await this.pickNextDefaultUnit(companyId, em, excludeId);
+    if (!next) {
+      return;
+    }
+    await this.clearCompanyDefaults(companyId, em);
+    next.isDefault = true;
+    await em.save(next);
+  }
+
+  private async assignAsDefault(
+    companyId: string,
+    unitId: string,
+    em: EntityManager,
+  ): Promise<void> {
+    await this.clearCompanyDefaults(companyId, em, unitId);
+    await em.update(Unit, { id: unitId, companyId }, { isDefault: true });
+  }
+
+  private assertDefaultMustBeActive(
+    wantDefault: boolean,
+    willBeActive: boolean,
+  ): void {
+    if (wantDefault && !willBeActive) {
+      throw new BadRequestException(
+        'La unidad predeterminada debe estar activa',
+      );
+    }
   }
 
   async getAllUnits(status?: string): Promise<UnitListRow[]> {
@@ -156,6 +246,7 @@ export class UnitsService {
     allowDecimals?: boolean;
     isBase?: boolean;
     baseUnitId?: string | null;
+    isDefault?: boolean;
   }): Promise<UnitListRow> {
     const name = data.name?.trim();
     const symbol = data.symbol?.trim();
@@ -176,8 +267,22 @@ export class UnitsService {
 
     const isBase = data.isBase === true;
     const allowDecimals = data.allowDecimals !== false;
+    const wantDefault = data.isDefault === true;
 
     const companyId = this.requireCompanyId();
+    this.assertDefaultMustBeActive(wantDefault, true);
+
+    const hasDefault = await this.unitRepository.exists({
+      where: {
+        companyId,
+        isDefault: true,
+        active: true,
+        deletedAt: IsNull(),
+      },
+    });
+    const shouldBeDefault = wantDefault || !hasDefault;
+
+    let unit: Unit;
 
     if (isBase) {
       if (factor !== 1) {
@@ -206,7 +311,7 @@ export class UnitsService {
         );
       }
 
-      const unit = this.unitRepository.create({
+      unit = this.unitRepository.create({
         name,
         symbol,
         dimension,
@@ -215,57 +320,62 @@ export class UnitsService {
         isBase: true,
         baseUnitId: null,
         active: true,
+        isDefault: false,
         companyId,
       });
-      const saved = await this.unitRepository.save(unit);
-      const row = await this.getUnitById(saved.id);
-      if (!row) {
-        throw new BadRequestException('No se pudo cargar la unidad creada');
+    } else {
+      const baseUnitId = data.baseUnitId ?? null;
+      if (!baseUnitId) {
+        throw new BadRequestException(
+          'Las unidades derivadas requieren una unidad base',
+        );
       }
-      return row;
+
+      const base = await this.unitRepository.findOne({
+        where: { id: baseUnitId, deletedAt: IsNull(), companyId },
+      });
+      if (!base) {
+        throw new BadRequestException('Unidad base no encontrada');
+      }
+      if (!base.isBase) {
+        throw new BadRequestException(
+          'La unidad seleccionada no es una unidad base',
+        );
+      }
+      if (base.dimension !== dimension) {
+        throw new BadRequestException(
+          'La unidad base debe pertenecer a la misma dimensión',
+        );
+      }
+      if (!base.active) {
+        throw new BadRequestException(
+          'No se puede crear una derivada apuntando a una base inactiva',
+        );
+      }
+
+      unit = this.unitRepository.create({
+        name,
+        symbol,
+        dimension,
+        conversionFactor: factor,
+        allowDecimals,
+        isBase: false,
+        baseUnitId,
+        active: true,
+        isDefault: false,
+        companyId,
+      });
     }
 
-    const baseUnitId = data.baseUnitId ?? null;
-    if (!baseUnitId) {
-      throw new BadRequestException(
-        'Las unidades derivadas requieren una unidad base',
-      );
-    }
-
-    const base = await this.unitRepository.findOne({
-      where: { id: baseUnitId, deletedAt: IsNull(), companyId },
+    const saved = await this.unitRepository.manager.transaction(async (em) => {
+      const persisted = await em.save(unit);
+      if (shouldBeDefault) {
+        await this.assignAsDefault(companyId, persisted.id, em);
+        persisted.isDefault = true;
+      }
+      return persisted;
     });
-    if (!base) {
-      throw new BadRequestException('Unidad base no encontrada');
-    }
-    if (!base.isBase) {
-      throw new BadRequestException(
-        'La unidad seleccionada no es una unidad base',
-      );
-    }
-    if (base.dimension !== dimension) {
-      throw new BadRequestException(
-        'La unidad base debe pertenecer a la misma dimensión',
-      );
-    }
-    if (!base.active) {
-      throw new BadRequestException(
-        'No se puede crear una derivada apuntando a una base inactiva',
-      );
-    }
 
-    const unit = this.unitRepository.create({
-      name,
-      symbol,
-      dimension,
-      conversionFactor: factor,
-      allowDecimals,
-      isBase: false,
-      baseUnitId,
-      active: true,
-      companyId,
-    });
-    const saved = await this.unitRepository.save(unit);
     const row = await this.getUnitById(saved.id);
     if (!row) {
       throw new BadRequestException('No se pudo cargar la unidad creada');
@@ -284,6 +394,7 @@ export class UnitsService {
       active: boolean;
       isBase: boolean;
       baseUnitId: string | null;
+      isDefault: boolean;
     }>,
   ): Promise<UnitListRow> {
     const companyId = this.requireCompanyId();
@@ -294,6 +405,8 @@ export class UnitsService {
     if (!unit) {
       throw new NotFoundException(`Unidad ${id} no encontrada`);
     }
+
+    const wasDefault = unit.isDefault === true;
 
     const all = await this.unitRepository.find({
       where: { deletedAt: IsNull(), companyId },
@@ -414,8 +527,9 @@ export class UnitsService {
       }
     }
 
+    let nextActive = unit.active;
     if (data.active !== undefined) {
-      const nextActive = data.active;
+      nextActive = data.active;
       if (!nextActive && unit.isBase && activeDerived > 0) {
         throw new BadRequestException(
           'Desactiva o reasigna las derivadas activas antes de desactivar la base',
@@ -456,7 +570,30 @@ export class UnitsService {
     unit.baseUnitId = nextBaseId;
     unit.conversionFactor = nextFactor;
 
-    await this.unitRepository.save(unit);
+    const wantDefault = data.isDefault;
+    if (wantDefault === true) {
+      this.assertDefaultMustBeActive(true, nextActive);
+    }
+    if (wantDefault === false && wasDefault) {
+      unit.isDefault = false;
+    }
+    if (!nextActive && (wasDefault || unit.isDefault)) {
+      unit.isDefault = false;
+    }
+
+    await this.unitRepository.manager.transaction(async (em) => {
+      await em.save(unit);
+
+      if (wantDefault === true) {
+        await this.assignAsDefault(companyId, id, em);
+        unit.isDefault = true;
+      } else if (!nextActive && wasDefault) {
+        await this.ensureCompanyDefault(companyId, em, id);
+      } else if (wantDefault === false && wasDefault) {
+        await this.ensureCompanyDefault(companyId, em);
+      }
+    });
+
     const row = await this.getUnitById(id);
     if (!row) {
       throw new NotFoundException(`Unidad ${id} no encontrada`);
@@ -487,7 +624,16 @@ export class UnitsService {
         );
       }
     }
-    await this.unitRepository.softDelete(id);
+
+    const wasDefault = unit.isDefault === true;
+
+    await this.unitRepository.manager.transaction(async (em) => {
+      await em.softDelete(Unit, id);
+      if (wasDefault) {
+        await this.ensureCompanyDefault(companyId, em, id);
+      }
+    });
+
     return { success: true };
   }
 }

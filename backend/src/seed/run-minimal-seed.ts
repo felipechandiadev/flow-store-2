@@ -84,8 +84,9 @@ const SEED_STORAGE_DEPOSITO_CODE = 'SEED-DEP-PRINCIPAL';
 
 const SEED_UNIT_BASE_NAME = 'Unidad';
 const SEED_UNIT_BASE_SYMBOL = 'un';
-const SEED_UNIT_DERIVED_NAME = 'Docena';
-const SEED_UNIT_DERIVED_SYMBOL = 'doc';
+
+/** Unidades que el seed ya no crea; se eliminan (soft) si existen de corridas anteriores. */
+const SEED_REMOVED_UNIT_SYMBOLS = ['doc', 'gr', 'kg'] as const;
 
 /** Categorías de producto (catálogo sala de venta / vidrios). */
 const SEED_PRODUCT_CATEGORIES = [
@@ -94,6 +95,7 @@ const SEED_PRODUCT_CATEGORIES = [
   'Lunetas',
   'Vidrios Puerta',
   'Aletas',
+  'Ampolletas',
 ] as const;
 
 const LEGACY_SEED_CATEGORY_NAMES = ['CAT 01', 'CAT 02'] as const;
@@ -1735,8 +1737,18 @@ async function bootstrap() {
       );
     }
 
-    // Units (ejemplos): UNIDAD (base) y DOCENA (derivada)
-    // Se alinean con la data existente en BD: dimension=count, allowDecimals=false.
+    // Units: UNIDAD (predeterminada) + volumen (ml, L). Sin docena / gramo / kilogramo en seed.
+    const setCompanyDefaultUnit = async (defaultUnitId: string): Promise<void> => {
+      await unitRepo.update(
+        { companyId: company.id, deletedAt: null as never },
+        { isDefault: false },
+      );
+      await unitRepo.update(
+        { id: defaultUnitId, companyId: company.id },
+        { isDefault: true },
+      );
+    };
+
     let baseUnit = await unitRepo.findOne({
       where: { symbol: SEED_UNIT_BASE_SYMBOL, companyId: company.id, deletedAt: null as never },
     });
@@ -1750,8 +1762,10 @@ async function bootstrap() {
         isBase: true,
         baseUnitId: null,
         active: true,
+        isDefault: true,
       });
       await unitRepo.save(baseUnit);
+      await setCompanyDefaultUnit(baseUnit.id);
       console.log(`✅ Unidad ejemplo creada: ${baseUnit.symbol} (${baseUnit.name}) id=${baseUnit.id}`);
     } else {
       baseUnit.name = SEED_UNIT_BASE_NAME;
@@ -1761,44 +1775,30 @@ async function bootstrap() {
       baseUnit.isBase = true;
       baseUnit.baseUnitId = null;
       baseUnit.active = true;
+      baseUnit.isDefault = true;
       await unitRepo.save(baseUnit);
+      await setCompanyDefaultUnit(baseUnit.id);
       console.log(`✅ Unidad ejemplo ${baseUnit.symbol} ya existía: id=${baseUnit.id} (sincronizada con seed)`);
     }
 
-    let dozen = await unitRepo.findOne({
-      where: { symbol: SEED_UNIT_DERIVED_SYMBOL, companyId: company.id },
-      withDeleted: true,
-    });
-    if (!dozen) {
-      dozen = unitRepo.create({
-        name: SEED_UNIT_DERIVED_NAME,
-        symbol: SEED_UNIT_DERIVED_SYMBOL,
-        dimension: UnitDimension.COUNT,
-        conversionFactor: 12,
-        allowDecimals: false,
-        isBase: false,
-        baseUnitId: baseUnit.id,
-        active: false,
+    for (const sym of SEED_REMOVED_UNIT_SYMBOLS) {
+      const legacy = await unitRepo.findOne({
+        where: { symbol: sym, companyId: company.id },
+        withDeleted: true,
       });
-      await unitRepo.save(dozen);
-      console.log(`✅ Unidad ejemplo creada: ${dozen.symbol} (${dozen.name}) id=${dozen.id} base=${baseUnit.symbol}`);
-    } else {
-      if (dozen.deletedAt) {
-        dozen = await unitRepo.recover(dozen);
+      if (legacy && !legacy.deletedAt) {
+        if (legacy.isDefault) {
+          legacy.isDefault = false;
+          await unitRepo.save(legacy);
+        }
+        await unitRepo.softRemove(legacy);
+        console.log(`🗑️  Unidad seed eliminada: «${sym}»`);
       }
-      dozen.name = SEED_UNIT_DERIVED_NAME;
-      dozen.dimension = UnitDimension.COUNT;
-      dozen.conversionFactor = 12;
-      dozen.allowDecimals = false;
-      dozen.isBase = false;
-      dozen.baseUnitId = baseUnit.id;
-      dozen.active = false;
-      await unitRepo.save(dozen);
-      console.log(`✅ Unidad ejemplo ${dozen.symbol} ya existía: id=${dozen.id} (sincronizada con seed)`);
     }
+    await setCompanyDefaultUnit(baseUnit.id);
 
     /** Símbolos de unidad seed (empresa actual) para variantes y product.baseUnitId */
-    type SeedUnitKey = 'UN' | 'G' | 'KG' | 'ML' | 'L' | 'DOC';
+    type SeedUnitKey = 'UN' | 'ML' | 'L';
 
     const upsertSeedUnit = async (args: {
       symbol: string;
@@ -1814,6 +1814,8 @@ async function bootstrap() {
         where: { symbol: args.symbol, companyId: company.id },
         withDeleted: true,
       });
+      const isDefaultUnit =
+        args.symbol.toLowerCase() === SEED_UNIT_BASE_SYMBOL.toLowerCase();
       if (!u) {
         u = unitRepo.create({
           symbol: args.symbol,
@@ -1824,8 +1826,12 @@ async function bootstrap() {
           baseUnitId: args.baseUnitId,
           allowDecimals: args.allowDecimals,
           active: args.active ?? true,
+          isDefault: isDefaultUnit,
         });
         await unitRepo.save(u);
+        if (isDefaultUnit) {
+          await setCompanyDefaultUnit(u.id);
+        }
         console.log(`✅ Unidad seed creada: ${args.symbol} (${args.name}) id=${u.id}`);
       } else {
         if (u.deletedAt) {
@@ -1838,30 +1844,16 @@ async function bootstrap() {
         u.baseUnitId = args.baseUnitId;
         u.allowDecimals = args.allowDecimals;
         u.active = args.active ?? true;
+        u.isDefault = isDefaultUnit;
         await unitRepo.save(u);
+        if (isDefaultUnit) {
+          await setCompanyDefaultUnit(u.id);
+        }
         console.log(`✅ Unidad seed ${args.symbol} ya existía: id=${u.id} (sincronizada)`);
       }
       return u;
     };
 
-    const unitGram = await upsertSeedUnit({
-      symbol: 'gr',
-      name: 'Gramo',
-      dimension: UnitDimension.MASS,
-      isBase: true,
-      conversionFactor: 1,
-      baseUnitId: null,
-      allowDecimals: true,
-    });
-    const unitKg = await upsertSeedUnit({
-      symbol: 'kg',
-      name: 'Kilogramo',
-      dimension: UnitDimension.MASS,
-      isBase: false,
-      conversionFactor: 1000,
-      baseUnitId: unitGram.id,
-      allowDecimals: true,
-    });
     const unitMl = await upsertSeedUnit({
       symbol: 'ml',
       name: 'Mililitro',
@@ -1883,9 +1875,6 @@ async function bootstrap() {
 
     const seedUnitId: Record<SeedUnitKey, string> = {
       UN: baseUnit.id,
-      DOC: dozen.id,
-      G: unitGram.id,
-      KG: unitKg.id,
       ML: unitMl.id,
       L: unitLiter.id,
     };
@@ -2082,7 +2071,7 @@ async function bootstrap() {
           'Físico con tres presentaciones (250 g, 500 g, 1 kg); inventario rastreado.',
         productType: ProductType.PHYSICAL,
         categoryId: catAccesorios.id,
-        productBaseUnit: 'G',
+        productBaseUnit: 'UN',
         variants: [
           {
             sku: 'SEED-DEMO-CAFE-250',
@@ -2093,7 +2082,7 @@ async function bootstrap() {
             trackInventory: true,
             retailNet: 2790,
             wholesaleNet: 2350,
-            uom: { stock: 'G', sale: 'G', purchase: 'KG' },
+            uom: { stock: 'UN', sale: 'UN', purchase: 'UN' },
             shipping: {
               netWeightKg: 0.25,
               grossWeightKg: 0.31,
@@ -2112,7 +2101,7 @@ async function bootstrap() {
             trackInventory: true,
             retailNet: 4990,
             wholesaleNet: 4200,
-            uom: { stock: 'G', sale: 'G', purchase: 'KG' },
+            uom: { stock: 'UN', sale: 'UN', purchase: 'UN' },
             shipping: {
               netWeightKg: 0.5,
               grossWeightKg: 0.58,
@@ -2131,7 +2120,7 @@ async function bootstrap() {
             trackInventory: true,
             retailNet: 8990,
             wholesaleNet: 7600,
-            uom: { stock: 'G', sale: 'KG', purchase: 'KG' },
+            uom: { stock: 'UN', sale: 'UN', purchase: 'UN' },
             shipping: {
               netWeightKg: 1,
               grossWeightKg: 1.12,
@@ -2216,7 +2205,7 @@ async function bootstrap() {
           'Materia prima / insumo físico (25 kg y 5 kg) para recepciones y líneas de receta (BOM) hacia servicios o producción.',
         productType: ProductType.PHYSICAL,
         categoryId: catAccesorios.id,
-        productBaseUnit: 'KG',
+        productBaseUnit: 'UN',
         variants: [
           {
             sku: 'SEED-DEMO-MP-HAR25',
@@ -2227,7 +2216,7 @@ async function bootstrap() {
             trackInventory: true,
             retailNet: 18990,
             wholesaleNet: 16500,
-            uom: { stock: 'G', sale: 'KG', purchase: 'KG' },
+            uom: { stock: 'UN', sale: 'UN', purchase: 'UN' },
             shipping: {
               netWeightKg: 25,
               grossWeightKg: 25.5,
@@ -2246,7 +2235,7 @@ async function bootstrap() {
             trackInventory: true,
             retailNet: 45990,
             wholesaleNet: 39900,
-            uom: { stock: 'G', sale: 'KG', purchase: 'KG' },
+            uom: { stock: 'UN', sale: 'UN', purchase: 'UN' },
             shipping: {
               netWeightKg: 5,
               grossWeightKg: 5.15,
