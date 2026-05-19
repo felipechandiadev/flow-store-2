@@ -156,7 +156,7 @@ export default function BarcodeScanner({ onScan, paused = false }: BarcodeScanne
   const hintText = !mounted
     ? "Toca para activar la cámara."
     : !isCameraSecureContext()
-      ? "Safari bloquea la cámara en URLs por IP. Usa localhost:3023 en el simulador o HTTPS en el iPhone."
+      ? "Safari bloquea la cámara en URLs por IP. Usa localhost:3033 en el simulador o HTTPS en el iPhone."
       : prefersCameraUserGesture()
         ? "En iPhone/Safari debes tocar el botón para que el navegador pida permiso de cámara."
         : null;

@@ -25,7 +25,7 @@ flow-store-2/
    ```bash
    cd backend
    npm install
-   npm run start:dev  # Puerto 3020
+   npm run start:dev  # Puerto 3030
    ```
 
 2. **Frontend** (en otro terminal):
@@ -35,7 +35,7 @@ flow-store-2/
    cd web-admin
    npm install next-pwa @tanstack/react-query next-auth zod zustand
    # Configurar .env.local según WEBADMIN_FRONTEND_GUIDE.md
-   npm run dev  # Puerto 3021
+   npm run dev  # Puerto 3031
    ```
 
 ## 📖 Instrucciones para Agentes de Copilot

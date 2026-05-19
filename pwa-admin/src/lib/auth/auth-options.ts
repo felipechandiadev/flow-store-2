@@ -13,7 +13,7 @@ function resolveBackendApiBase(): string {
   return base.replace(/\/$/, '');
 }
 
-/** En dev cada app usa su propio origen (p. ej. :3021 vs :3022): las cookies ya no se mezclan. Nombres explícitos por si más adelante comparten host detrás de un proxy. */
+/** En dev cada app usa su propio origen (p. ej. :3031 vs :3032): las cookies ya no se mezclan. Nombres explícitos por si más adelante comparten host detrás de un proxy. */
 const isProd = process.env.NODE_ENV === 'production';
 
 export const authOptions: NextAuthOptions = {

@@ -61,7 +61,7 @@ describe("Agente KaiPrinters local (opcional)", () => {
   it.skipIf(process.env.LIVE_PRINT_AGENT !== "1")(
     "ws://127.0.0.1:14567 con Origin (como el navegador del POS)",
     async () => {
-      const origin = process.env.LIVE_PRINT_ORIGIN ?? "http://localhost:3022";
+      const origin = process.env.LIVE_PRINT_ORIGIN ?? "http://localhost:3032";
       await new Promise<void>((resolve, reject) => {
         const ws = new WebSocket("ws://127.0.0.1:14567", { origin });
         const t = setTimeout(() => {
