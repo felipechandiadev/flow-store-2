@@ -247,7 +247,7 @@ const DataGrid: React.FC<DataGridProps> = ({
     DataGridStyles.container,
     DataGridStyles.responsive.minWidth,
     DataGridStyles.responsive.mobileScroll,
-    fillViewport ? 'min-h-0 overflow-hidden' : '',
+    fillViewport ? 'min-h-0' : '',
     showBorder ? 'border border-border' : '',
   ]
     .filter(Boolean)

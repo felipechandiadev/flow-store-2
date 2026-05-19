@@ -155,8 +155,8 @@ const Header: React.FC<HeaderProps> = ({
             />
           </div>
           {/* Search field */}
-          {showSearch && (
-            <div className="flex items-center gap-2">
+          {showSearch ? (
+            <div className="flex items-start gap-2 overflow-visible pt-1">
               <TextField
                 label="Buscar"
                 name="datagrid-search"
@@ -168,7 +168,7 @@ const Header: React.FC<HeaderProps> = ({
                 data-test-id="data-grid-search-input"
               />
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 

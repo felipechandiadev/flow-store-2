@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Barcode } from "lucide-react";
+import { Barcode, Check, X } from "lucide-react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import IconButton from "@/shared/components/IconButton/IconButton";
@@ -50,21 +50,6 @@ function productTypePresentation(pt: string | null | undefined): { label: string
   return { label: "Físico", variant: "primary" };
 }
 
-function variantTitle(v: ProductVariantGridRow): string {
-  const dn = v.displayName?.trim();
-  if (dn) {
-    return dn;
-  }
-  const av = v.attributeValues;
-  if (av && Object.keys(av).length > 0) {
-    const parts = Object.values(av).filter(Boolean);
-    if (parts.length > 0) {
-      return parts.join(", ");
-    }
-  }
-  return v.sku;
-}
-
 function formatVariantAttributeEntries(v: ProductVariantGridRow): Array<{ key: string; value: string }> {
   const raw = v.attributeValues;
   if (!raw || typeof raw !== "object") {
@@ -73,6 +58,55 @@ function formatVariantAttributeEntries(v: ProductVariantGridRow): Array<{ key: s
   return Object.entries(raw)
     .map(([key, val]) => ({ key, value: val != null ? String(val).trim() : "" }))
     .filter((x) => x.value.length > 0);
+}
+
+function formatCatalogMoney(amount: number, currency = "CLP"): string {
+  try {
+    return new Intl.NumberFormat("es-CL", {
+      style: "currency",
+      currency: currency || "CLP",
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return String(Math.round(amount));
+  }
+}
+
+function VariantExpandVerticalDivider() {
+  return (
+    <div
+      role="presentation"
+      className="hidden w-px shrink-0 self-stretch bg-border sm:block sm:min-h-8"
+      aria-hidden
+    />
+  );
+}
+
+function VariantFlagBadge({
+  label,
+  enabled,
+  enabledLabel = "Sí",
+  disabledLabel = "No",
+}: {
+  label: string;
+  enabled: boolean;
+  enabledLabel?: string;
+  disabledLabel?: string;
+}) {
+  return (
+    <Badge
+      variant={enabled ? "success-outlined" : "secondary-outlined"}
+      className="inline-flex max-w-full shrink-0 items-center gap-0.5 text-[10px] font-normal"
+      title={`${label}: ${enabled ? enabledLabel : disabledLabel}`}
+    >
+      <span className="text-muted-foreground">{label}</span>
+      {enabled ? (
+        <Check className="h-3 w-3 shrink-0 text-emerald-600" aria-hidden />
+      ) : (
+        <X className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+      )}
+    </Badge>
+  );
 }
 
 function ProductVariantExpandCard({
@@ -84,13 +118,14 @@ function ProductVariantExpandCard({
   onOpenVariant: (variantId: string) => void;
   onDelete?: () => void;
 }) {
-  const title = variantTitle(v);
   const attributeEntries = formatVariantAttributeEntries(v);
   const barcode = v.barcode?.trim() ?? "";
+  const trackInventory = v.trackInventory === true;
+  const priceItems = (v.priceListItems ?? []).filter((p) => p.priceListName.trim().length > 0);
 
   return (
     <div
-      className="flex min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md border border-border bg-muted/15 px-2 py-1.5 transition-colors hover:bg-muted/30"
+      className="flex min-w-0 cursor-pointer items-start justify-between gap-2 rounded-md border border-border bg-muted/15 px-2 py-1.5 transition-colors hover:bg-muted/30 sm:items-center"
       data-test-id={`products-expand-variant-row-${v.id}`}
       role="button"
       tabIndex={0}
@@ -104,37 +139,89 @@ function ProductVariantExpandCard({
         }
       }}
     >
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
-          <span aria-hidden className="inline-block h-1.25 w-1.25 shrink-0 rounded-full bg-secondary align-middle" />
-          <span className="shrink-0 font-mono font-medium text-foreground" title={v.sku}>
-            {v.sku}
+      <div
+        className="grid min-w-0 flex-1 grid-cols-1 gap-y-2 sm:grid-cols-[minmax(0,auto)_minmax(0,auto)] sm:items-center sm:gap-x-2 sm:gap-y-1.5"
+        data-test-id={`products-expand-variant-meta-${v.id}`}
+      >
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <div
+          className="flex shrink-0 flex-col gap-0 leading-tight"
+          data-test-id={`products-expand-variant-ids-${v.id}`}
+        >
+          <span className="whitespace-nowrap text-[10px] text-muted-foreground" title={`SKU: ${v.sku}`}>
+            SKU: <span className="font-mono font-medium text-foreground">{v.sku}</span>
           </span>
-          {barcode ? (
-            <span className="min-w-0 truncate font-mono text-muted-foreground" title={barcode}>
-              {barcode}
-            </span>
-          ) : null}
-          {v.isActive === false ? (
-            <Badge variant="secondary-outlined" className="shrink-0 text-[10px]">
-              Inactiva
-            </Badge>
-          ) : null}
+          <span
+            className="whitespace-nowrap text-[10px] text-muted-foreground"
+            title={barcode ? `Código de barras: ${barcode}` : "Sin código de barras"}
+          >
+            Código de barras:{" "}
+            <span className="font-mono font-medium text-foreground">{barcode || "—"}</span>
+          </span>
         </div>
-        {title !== v.sku ? (
-          <p className="truncate text-[11px] text-muted-foreground" title={title}>
-            {title}
-          </p>
-        ) : null}
+
         {attributeEntries.length > 0 ? (
-          <div className="flex min-w-0 flex-wrap gap-1" data-test-id={`products-expand-variant-attrs-${v.id}`}>
-            {attributeEntries.map(({ key, value }) => (
-              <Badge key={key} variant="secondary-outlined" className="max-w-full truncate text-[10px] font-normal">
-                {value}
-              </Badge>
-            ))}
-          </div>
+          <>
+            <VariantExpandVerticalDivider />
+            <div
+              className="flex min-w-0 flex-wrap items-center gap-1"
+              data-test-id={`products-expand-variant-attrs-${v.id}`}
+            >
+              {attributeEntries.map(({ key, value }) => (
+                <Badge
+                  key={key}
+                  variant="primary-outlined"
+                  className="max-w-[12rem] shrink-0 truncate text-[10px] font-medium"
+                  title={value}
+                  data-test-id={`products-expand-variant-attr-${v.id}-${key}`}
+                >
+                  {value}
+                </Badge>
+              ))}
+            </div>
+          </>
         ) : null}
+        </div>
+
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:justify-end sm:border-l sm:border-border sm:pl-2">
+          <div className="flex flex-wrap items-center gap-1">
+            <VariantFlagBadge label="Inventario" enabled={trackInventory} />
+            <VariantFlagBadge
+              label="Stock −"
+              enabled={v.allowNegativeStock === true}
+              enabledLabel="Permitido"
+              disabledLabel="No permitido"
+            />
+          </div>
+          {(priceItems.length > 0 || v.isActive === false) && (
+            <>
+              <VariantExpandVerticalDivider />
+              <div className="flex min-w-0 flex-wrap items-center gap-1">
+                {priceItems.map((p) => {
+                  const listName = p.priceListName.trim();
+                  const gross = formatCatalogMoney(p.grossPrice, p.currency);
+                  const net = formatCatalogMoney(p.netPrice, p.currency);
+                  return (
+                    <Badge
+                      key={p.priceListId}
+                      variant="secondary-outlined"
+                      className="max-w-[14rem] shrink-0 truncate text-[10px] font-normal tabular-nums"
+                      title={`Precio de venta «${listName}» — Neto ${net} · Bruto ${gross} (c/ imp.)`}
+                    >
+                      <span className="text-muted-foreground">Venta «{listName}»</span>{" "}
+                      <span className="font-medium text-foreground">{gross}</span>
+                    </Badge>
+                  );
+                })}
+                {v.isActive === false ? (
+                  <Badge variant="warning-outlined" className="shrink-0 text-[10px] font-normal">
+                    Inactiva
+                  </Badge>
+                ) : null}
+              </div>
+            </>
+          )}
+        </div>
       </div>
       {onDelete ? (
         <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -388,7 +475,7 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
         rows={rows}
         totalRows={total}
         totalGeneral={total}
-        height="85vh"
+        fillViewport
         showExportButton={false}
         pinActionsColumn
         actionsColumnField="actions"

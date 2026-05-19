@@ -214,7 +214,7 @@ export class CreateTransferCommandHandler implements ICommandHandler<CreateTrans
     txOut.targetStorageId = targetStorageId;
     txOut.subtotal = quantity;
     txOut.total = quantity;
-    txOut.paymentMethod = undefined as any;
+    txOut.paymentMethod = PaymentMethod.INTERNAL_CREDIT;
     txOut.amountPaid = quantity;
     txOut.notes = note || undefined;
 
@@ -229,7 +229,7 @@ export class CreateTransferCommandHandler implements ICommandHandler<CreateTrans
     txIn.targetStorageId = sourceStorageId;
     txIn.subtotal = quantity;
     txIn.total = quantity;
-    txIn.paymentMethod = undefined as any;
+    txIn.paymentMethod = PaymentMethod.INTERNAL_CREDIT;
     txIn.amountPaid = quantity;
     txIn.notes = note || undefined;
 

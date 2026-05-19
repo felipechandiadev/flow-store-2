@@ -732,8 +732,9 @@ export const TextField: React.FC<TextFieldProps> = ({
       )}
       {!isCompact ? (
       <label
-        className={`absolute left-3 -top-1 pointer-events-none transition-all duration-300 ease-in-out px-1 font-medium text-xs text-foreground rounded-md bg-background` +
+        className={`absolute z-20 -top-1 pointer-events-none transition-all duration-300 ease-in-out px-1 font-medium text-xs text-foreground rounded-md bg-background` +
           (shrink ? " -translate-y-1 scale-90 opacity-100" : " opacity-0")}
+        style={{ left: floatingStartLeft }}
         onClick={focusField}
         htmlFor={inputDomId}
         data-test-id="text-field-label"

@@ -688,15 +688,16 @@ export const TextField: React.FC<TextFieldProps> = ({
       {showFloatingLabel ? (
         <label
           className={
-            `pointer-events-none absolute z-10 rounded-md bg-background font-medium text-foreground transition-all duration-300 ease-in-out ` +
+            `pointer-events-none absolute z-20 rounded-md bg-background font-medium text-foreground transition-all duration-300 ease-in-out ` +
             (isCompact
-              ? `left-2.5 px-0.5 text-[10px] leading-tight ` +
+              ? `px-0.5 text-[10px] leading-tight ` +
                 (shrink
                   ? "top-[2px] -translate-y-1/2 scale-[0.92] opacity-100"
                   : "top-2.5 opacity-0")
-              : `left-3 -top-1 px-1 text-xs ` +
-                (shrink ? "-translate-y-1 scale-90 opacity-100" : "opacity-0"))
+              : `px-1 text-xs ` +
+                (shrink ? "-top-1 -translate-y-1 scale-90 opacity-100" : "opacity-0"))
           }
+          style={{ left: floatingStartLeft }}
           onClick={focusField}
           htmlFor={inputDomId}
           data-test-id="text-field-label"

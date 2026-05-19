@@ -596,34 +596,80 @@ export class InventoryService {
       );
     }
 
-    const txOut = new CreateTransactionDto();
-    txOut.transactionType = TransactionType.TRANSFER_OUT;
-    txOut.branchId = branchId || '';
-    // choose a default user (first active) for inventory operations
+    const variant = await this.dataSource.getRepository(ProductVariant).findOne({
+      where: { id: variantId },
+      relations: ['product', 'unit'],
+    });
+    if (!variant) {
+      throw new NotFoundException(`Variante ${variantId} no encontrada`);
+    }
+    const product: any = variant.product;
+    const stockBaseUnitId =
+      (variant as any).stockBaseUnitId ?? variant.unitId;
+    const qty = Math.max(0, Number(quantity) || 0);
+    if (qty < 0.000001) {
+      throw new BadRequestException('La cantidad a transferir debe ser mayor que cero.');
+    }
+
     const fallbackUser = await this.userRepository.findOne({
       where: { deletedAt: null as any },
     });
-    txOut.userId = fallbackUser?.id || '';
+    const userId = fallbackUser?.id;
+    if (!userId) {
+      throw new BadRequestException(
+        'No hay usuario activo para registrar la transferencia. Cree o active al menos un usuario en el sistema.',
+      );
+    }
+
+    const transferLine = {
+      productId: variant.productId || product?.id,
+      productVariantId: variantId,
+      unitId: stockBaseUnitId,
+      productName: product?.name || 'Producto',
+      productSku: variant.sku,
+      variantName: undefined,
+      quantity: qty,
+      unitPrice: 0,
+      unitCost: 0,
+      discountPercentage: 0,
+      discountAmount: 0,
+      taxRate: 0,
+      taxAmount: 0,
+      subtotal: qty,
+      total: qty,
+      notes: note,
+    } as any;
+
+    const txOut = new CreateTransactionDto();
+    txOut.transactionType = TransactionType.TRANSFER_OUT;
+    txOut.branchId = branchId || '';
+    txOut.userId = userId;
     txOut.storageId = sourceStorageId;
     txOut.targetStorageId = targetStorageId;
-    txOut.subtotal = quantity;
-    txOut.total = quantity;
-    txOut.paymentMethod = undefined as any;
-    txOut.amountPaid = quantity;
+    txOut.subtotal = qty;
+    txOut.taxAmount = 0;
+    txOut.discountAmount = 0;
+    txOut.total = qty;
+    txOut.paymentMethod = PaymentMethod.INTERNAL_CREDIT;
+    txOut.amountPaid = qty;
     txOut.notes = note || undefined;
+    txOut.lines = [{ ...transferLine }];
     const out = await this.transactionsService.createTransaction(txOut);
 
     const txIn = new CreateTransactionDto();
     txIn.transactionType = TransactionType.TRANSFER_IN;
     txIn.branchId = branchId || '';
-    txIn.userId = txOut.userId; // same user
+    txIn.userId = userId;
     txIn.storageId = targetStorageId;
     txIn.targetStorageId = sourceStorageId;
-    txIn.subtotal = quantity;
-    txIn.total = quantity;
-    txIn.paymentMethod = undefined as any;
-    txIn.amountPaid = quantity;
+    txIn.subtotal = qty;
+    txIn.taxAmount = 0;
+    txIn.discountAmount = 0;
+    txIn.total = qty;
+    txIn.paymentMethod = PaymentMethod.INTERNAL_CREDIT;
+    txIn.amountPaid = qty;
     txIn.notes = note || undefined;
+    txIn.lines = [{ ...transferLine }];
     const inn = await this.transactionsService.createTransaction(txIn);
 
     return {
