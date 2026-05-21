@@ -85,8 +85,18 @@ function normalizeReceptionDetail(raw: unknown): ReceptionDetailForReturn {
       typeof o.storageName === "string" && o.storageName.trim()
         ? o.storageName.trim()
         : null,
+    folio:
+      typeof o.folio === "string" && o.folio.trim()
+        ? o.folio.trim()
+        : typeof o.documentNumber === "string" && o.documentNumber.trim()
+          ? o.documentNumber.trim()
+          : null,
     reference:
       typeof o.reference === "string" && o.reference.trim() ? o.reference.trim() : null,
+    supplierDocumentRef:
+      typeof o.supplierDocumentRef === "string" && o.supplierDocumentRef.trim()
+        ? o.supplierDocumentRef.trim()
+        : null,
     dteNumber:
       typeof o.dteNumber === "string" && o.dteNumber.trim() ? o.dteNumber.trim() : null,
     dteType: typeof o.dteType === "string" && o.dteType.trim() ? o.dteType.trim() : null,
@@ -100,11 +110,21 @@ function normalizeReceptionDetail(raw: unknown): ReceptionDetailForReturn {
 }
 
 export class ReceptionRequest {
-  static async listForGrid(opts: { limit?: number; offset?: number } = {}): Promise<ReceptionListForGridResult> {
+  static async listForGrid(
+    opts: { limit?: number; offset?: number; search?: string } = {},
+  ): Promise<ReceptionListForGridResult> {
     const limit = Math.min(200, Math.max(1, Math.round(opts.limit ?? 25)));
     const offset = Math.max(0, Math.round(opts.offset ?? 0));
+    const search = opts.search?.trim();
+    const qs = new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
+    });
+    if (search) {
+      qs.set("search", search);
+    }
     const headers = await authHeaders();
-    const res = await fetch(apiUrl(`receptions?limit=${limit}&offset=${offset}`), {
+    const res = await fetch(apiUrl(`receptions?${qs.toString()}`), {
       method: "GET",
       headers,
       cache: "no-store",
@@ -129,10 +149,25 @@ export class ReceptionRequest {
       limit?: number;
       offset?: number;
     };
-    const rows = (json.rows ?? []).map((r) => ({
-      ...r,
-      id: String(r?.id ?? ""),
-    })) as ReceptionGridRow[];
+    const rows = (json.rows ?? []).map((r) => {
+      const raw = r as ReceptionGridRow & {
+        transaction?: { documentNumber?: string | null };
+      };
+      const folio =
+        (typeof raw.folio === "string" && raw.folio.trim()) ||
+        (typeof raw.documentNumber === "string" &&
+          /^(CMP|COMPRA)-/i.test(raw.documentNumber.trim()) &&
+          raw.documentNumber.trim()) ||
+        (typeof raw.transaction?.documentNumber === "string" &&
+          raw.transaction.documentNumber.trim()) ||
+        null;
+      return {
+        ...raw,
+        id: String(raw?.id ?? ""),
+        folio,
+        documentNumber: folio ?? raw.documentNumber ?? null,
+      };
+    }) as ReceptionGridRow[];
     return {
       rows: rows.filter((r) => r.id),
       total: typeof json.count === "number" ? json.count : rows.length,
@@ -152,6 +187,7 @@ export class ReceptionRequest {
         userId,
         storageId: body.storageId?.trim() || undefined,
         supplierId: body.supplierId?.trim() || undefined,
+        purchaseOrderId: body.purchaseOrderId?.trim() || undefined,
         reference: body.reference?.trim() || undefined,
         documentType: body.documentType,
         notes:
@@ -160,15 +196,20 @@ export class ReceptionRequest {
             : undefined,
         supplierDocumentPayment: body.supplierDocumentPayment ?? undefined,
         supplierFiscalAmounts: body.supplierFiscalAmounts ?? undefined,
-        lines: body.lines.map((l) => ({
-          productId: l.productId,
-          productVariantId: l.productVariantId,
-          productName: l.productName,
-          sku: l.sku,
-          quantity: l.quantity,
-          receivedQuantity: l.receivedQuantity ?? l.quantity,
-          unitPrice: l.unitPrice,
-        })),
+        lines: body.lines.map((l) => {
+          const unit = Number(l.unitCost ?? l.unitPrice ?? 0) || 0;
+          const qty = Number(l.quantity) || 0;
+          return {
+            productId: l.productId,
+            productVariantId: l.productVariantId,
+            productName: l.productName,
+            sku: l.sku,
+            quantity: qty,
+            receivedQuantity: l.receivedQuantity ?? qty,
+            unitPrice: unit,
+            unitCost: unit,
+          };
+        }),
       }),
       cache: "no-store",
     });
@@ -222,6 +263,43 @@ export class ReceptionRequest {
     const params = new URLSearchParams({ supplierId: sid, documentRef: ref });
     const headers = await authHeaders();
     const res = await fetch(apiUrl(`receptions/resolve?${params.toString()}`), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      const msg =
+        typeof data.message === "string"
+          ? data.message
+          : Array.isArray(data.message)
+            ? data.message.map(String).join("; ")
+            : `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    const json = await res.json();
+    return normalizeReceptionDetail(json);
+  }
+
+  static async resolveForPurchaseReturn(input: {
+    source: "reception" | "invoice" | "receipt";
+    folio: string;
+    supplierId?: string | null;
+  }): Promise<ReceptionDetailForReturn> {
+    const folio = input.folio.trim();
+    if (!folio) {
+      throw new Error("Ingrese el folio interno del documento.");
+    }
+    const params = new URLSearchParams({
+      source: input.source,
+      folio,
+    });
+    const sid = input.supplierId?.trim();
+    if (sid) {
+      params.set("supplierId", sid);
+    }
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl(`receptions/resolve-for-return?${params.toString()}`), {
       method: "GET",
       headers,
       cache: "no-store",

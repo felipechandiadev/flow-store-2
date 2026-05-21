@@ -2,7 +2,11 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 import { SearchTransactionsQuery } from '@modules/transactions/application/queries/search-transactions.query';
 import { FindTransactionQuery } from '@modules/transactions/application/queries/find-transaction.query';
-import { TransactionType, PaymentStatus } from '@modules/transactions/domain/transaction.entity';
+import {
+  TransactionType,
+  PaymentStatus,
+  PaymentMethod,
+} from '@modules/transactions/domain/transaction.entity';
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
 
@@ -58,8 +62,18 @@ export class PurchaseReturnsController {
     dto.taxAmount = Number(body.taxAmount ?? 0) || 0;
     dto.discountAmount = Number(body.discountAmount ?? 0) || 0;
     dto.total = Number(body.total ?? 0) || 0;
-    dto.paymentMethod = body.paymentMethod;
-    dto.paymentStatus = body.paymentStatus as PaymentStatus | undefined;
+    const rawPm = body.paymentMethod;
+    dto.paymentMethod =
+      typeof rawPm === 'string' &&
+      (Object.values(PaymentMethod) as string[]).includes(rawPm)
+        ? (rawPm as PaymentMethod)
+        : PaymentMethod.CASH;
+    const rawPs = body.paymentStatus;
+    dto.paymentStatus =
+      typeof rawPs === 'string' &&
+      (Object.values(PaymentStatus) as string[]).includes(rawPs)
+        ? (rawPs as PaymentStatus)
+        : PaymentStatus.PENDING;
     dto.amountPaid = Number(body.amountPaid ?? 0) || 0;
     dto.changeAmount = body.changeAmount ?? undefined;
     dto.notes = body.notes ?? undefined;

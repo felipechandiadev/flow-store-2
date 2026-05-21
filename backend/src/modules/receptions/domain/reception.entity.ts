@@ -14,6 +14,7 @@ import { Storage } from '@modules/storages/domain/storage.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
 import { Supplier } from '@modules/suppliers/domain/supplier.entity';
 import { User } from '@modules/users/domain/user.entity';
+import { Transaction } from '@modules/transactions/domain/transaction.entity';
 
 /**
  * Reception - Recepción de mercancía
@@ -121,6 +122,10 @@ export class Reception {
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'userId' })
   user?: User;
+
+  @ManyToOne(() => Transaction, { nullable: true })
+  @JoinColumn({ name: 'transactionId' })
+  transaction?: Transaction;
 
   @OneToMany('ReceptionLine', 'reception')
   lines?: any[];

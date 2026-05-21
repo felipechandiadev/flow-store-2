@@ -113,6 +113,48 @@ export class PosPaymentMethodsRequest {
     }
   }
 
+  static async getEffective(
+    posId: string,
+  ): Promise<
+    | { success: true; paymentMethods: EffectivePaymentMethod[] }
+    | { success: false; error: string }
+  > {
+    try {
+      const res = await fetch(
+        apiUrl(
+          `points-of-sale/${encodeURIComponent(posId)}/payment-methods/effective`,
+        ),
+        {
+          method: "GET",
+          headers: await authHeaders(),
+          cache: "no-store",
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        paymentMethods?: EffectivePaymentMethod[];
+        message?: string;
+      };
+      if (!res.ok) {
+        return { success: false, error: data?.message || res.statusText };
+      }
+      return {
+        success: true,
+        paymentMethods: Array.isArray(data?.paymentMethods)
+          ? (data.paymentMethods as EffectivePaymentMethod[])
+          : [],
+      };
+    } catch (e) {
+      return {
+        success: false,
+        error:
+          e instanceof Error
+            ? e.message
+            : "Error al cargar medios de pago efectivos del POS",
+      };
+    }
+  }
+
   static async getEffectiveForMe(
     pointOfSaleId: string,
   ): Promise<

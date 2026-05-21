@@ -58,6 +58,9 @@ export interface DataGridColumn {
   actionComponent?: React.ComponentType<{ row: any; column: DataGridColumn }>;
 }
 
+/** Variante del botón de alta en el header del DataGrid. */
+export type DataGridAddButtonVariant = 'icon' | 'pillOutlined';
+
 export interface DataGridProps {
   columns: DataGridColumn[];
   title?: string;
@@ -83,6 +86,10 @@ export interface DataGridProps {
   createFormTitle?: string;
   onAddClick?: () => void; // Callback para el botón + (abre diálogo externo)
   addDisabled?: boolean; // Deshabilita el botón + sin ocultarlo
+  /** `icon` (default): IconButton +. `pillOutlined`: ButtonPill outlined con icono + y texto (p. ej. "Recepción"). */
+  addButtonVariant?: DataGridAddButtonVariant;
+  /** Texto del pill outlined (el icono + va aparte, sin prefijo en el texto). */
+  addButtonLabel?: string;
   ["data-test-id"]?: string;
   excelUrl?: string; // Absolute URL for Excel export endpoint
   excelFields?: string;
@@ -131,6 +138,8 @@ const DataGrid: React.FC<DataGridProps> = ({
   createFormTitle,
   onAddClick,
   addDisabled,
+  addButtonVariant = 'icon',
+  addButtonLabel,
   ["data-test-id"]: dataTestId,
   excelUrl,
   excelFields,
@@ -296,6 +305,8 @@ const DataGrid: React.FC<DataGridProps> = ({
         createFormTitle={createFormTitle}
         onAddClick={onAddClick}
         addDisabled={addDisabled}
+        addButtonVariant={addButtonVariant}
+        addButtonLabel={addButtonLabel}
         screenWidth={screenWidth}
         onExportExcel={onExportExcel}
         headerActions={headerActions}

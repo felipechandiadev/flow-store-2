@@ -11,6 +11,7 @@ import { Company } from '@modules/companies/domain/company.entity';
 import { User } from '@modules/users/domain/user.entity';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 import { ProductVariantsModule } from '@modules/product-variants/product-variants.module';
+import { Transaction } from '@modules/transactions/domain/transaction.entity';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { ProductVariantsModule } from '@modules/product-variants/product-variant
       Branch,
       Company,
       User,
+      Transaction,
     ]),
     TransactionsModule,
     ProductVariantsModule,

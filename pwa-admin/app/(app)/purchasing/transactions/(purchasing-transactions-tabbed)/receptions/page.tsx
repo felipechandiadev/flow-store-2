@@ -20,8 +20,13 @@ export default async function ReceptionListPage({
   const sp = await searchParams;
   const page = Math.max(1, parseInt(parseSp(sp, "page") || "1", 10) || 1);
   const limit = Math.min(200, Math.max(1, parseInt(parseSp(sp, "limit") || "25", 10) || 25));
+  const search = parseSp(sp, "search");
 
-  const result = await listReceptionsForGridAction({ page, limit });
+  const result = await listReceptionsForGridAction({
+    page,
+    limit,
+    search: search || undefined,
+  });
 
   return (
     <div className="min-h-0 p-0" data-test-id="receptions-list-page-root">

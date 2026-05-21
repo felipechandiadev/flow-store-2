@@ -57,6 +57,8 @@ const DATAGRID_PROPS: PropRow[] = [
   { prop: 'createForm', type: 'ReactNode', default: 'undefined', desc: "Contenido o formulario de creación inyectable desde el encabezado (flujo de alta)." },
   { prop: 'createFormTitle', type: 'string (opcional)', default: 'undefined', desc: "Título asociado al flujo de creación (diálogo sección, según `Header`)." },
   { prop: 'onAddClick', type: '() => void (opcional)', default: 'undefined', desc: "Al pulsar el botón de agregar (+) en el header (abre diálogo o navegación externa)." },
+  { prop: 'addButtonVariant', type: "'icon' | 'pillOutlined'", default: "'icon'", desc: "Estilo del botón de alta: IconButton + o pill outlined con texto." },
+  { prop: 'addButtonLabel', type: 'string (opcional)', default: 'undefined', desc: "Con pillOutlined: texto del botón (ej. 'Recepción'; icono + aparte)." },
   { prop: 'addDisabled', type: 'boolean (opcional)', default: 'false', desc: "Deshabilita el + sin ocultarlo." },
   { prop: 'data-test-id', type: 'string (opcional)', default: '"data-grid-root"', desc: "Atributo en el nodo raíz del grid para e2e." },
   { prop: 'excelUrl', type: 'string (opcional)', default: 'undefined', desc: "URL absoluta o ruta de exportación Excel, si el header la usa." },

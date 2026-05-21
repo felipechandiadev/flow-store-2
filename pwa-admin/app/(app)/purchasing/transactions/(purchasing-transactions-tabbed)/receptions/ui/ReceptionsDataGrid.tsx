@@ -13,22 +13,22 @@ type ReceptionsDataGridProps = {
   total: number;
 };
 
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
+function formatMoney(amount: number): string {
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(amount) ? amount : 0);
 }
 
-function formatDateTimeSlash(value: string | null | undefined): string {
-  if (!value?.trim()) {
-    return "—";
-  }
-  const dt = new Date(value.trim());
-  if (Number.isNaN(dt.getTime())) {
-    return "—";
-  }
-  return `${pad2(dt.getDate())}/${pad2(dt.getMonth() + 1)}/${dt.getFullYear()} ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`;
-}
+const DTE_TYPE_LABEL: Record<string, string> = {
+  invoice: "Factura",
+  receipt: "Boleta",
+  guide: "Guía",
+  other: "Otro",
+};
 
-const TYPE_LABEL: Record<string, string> = {
+const ORIGIN_LABEL: Record<string, string> = {
   direct: "Directa",
   "from-purchase-order": "Desde OC",
 };
@@ -63,58 +63,122 @@ export default function ReceptionsDataGrid({ rows, total }: ReceptionsDataGridPr
       }
 
       return [
-      {
-        field: "documentNumber",
-        headerName: "Documento / ref.",
-        sortable: false,
-        minWidth: 160,
-        flex: 0.9,
-        valueGetter: ({ row }) => String((row as ReceptionGridRow).documentNumber || "—"),
-      },
-      {
-        field: "createdAt",
-        headerName: "Registro",
-        sortable: false,
-        width: 160,
-        valueGetter: ({ row }) => formatDateTimeSlash((row as ReceptionGridRow).createdAt),
-      },
-      {
-        field: "supplierName",
-        headerName: "Proveedor",
-        sortable: false,
-        minWidth: 200,
-        flex: 1.1,
-        valueGetter: ({ row }) => String((row as ReceptionGridRow).supplierName || "—"),
-      },
-      {
-        field: "storageName",
-        headerName: "Almacén",
-        sortable: false,
-        minWidth: 140,
-        flex: 0.8,
-        valueGetter: ({ row }) => String((row as ReceptionGridRow).storageName || "—"),
-      },
-      {
-        field: "type",
-        headerName: "Origen",
-        sortable: false,
-        width: 130,
-        valueGetter: ({ row }) => {
-          const k = String((row as ReceptionGridRow).type || "");
-          return TYPE_LABEL[k] ?? (k || "—");
+        {
+          field: "folio",
+          headerName: "Folio recepción",
+          sortable: false,
+          minWidth: 130,
+          flex: 0.7,
+          cellOverflow: "truncate",
+          valueGetter: ({ row }) => {
+            const r = row as ReceptionGridRow;
+            const folio = (r.folio ?? r.documentNumber ?? "").trim();
+            return folio || "—";
+          },
         },
-      },
-      {
-        field: "actions",
-        headerName: "",
-        width: 72,
-        minWidth: 72,
-        align: "center",
-        sortable: false,
-        filterable: false,
-        actionComponent: ReceptionActionsCell,
-      },
-    ];
+        {
+          field: "dteType",
+          headerName: "Tipo DTE",
+          sortable: false,
+          width: 100,
+          valueGetter: ({ row }) => {
+            const k = String((row as ReceptionGridRow).dteType || "").toLowerCase();
+            return k ? (DTE_TYPE_LABEL[k] ?? k) : "—";
+          },
+        },
+        {
+          field: "reference",
+          headerName: "Referencia",
+          sortable: false,
+          minWidth: 120,
+          flex: 0.65,
+          valueGetter: ({ row }) => {
+            const r = row as ReceptionGridRow;
+            const ref =
+              r.reference?.trim() ||
+              r.supplierDocumentRef?.trim() ||
+              "";
+            return ref || "—";
+          },
+        },
+        {
+          field: "supplierName",
+          headerName: "Proveedor",
+          sortable: false,
+          minWidth: 160,
+          flex: 1,
+          valueGetter: ({ row }) => String((row as ReceptionGridRow).supplierName || "—"),
+        },
+        {
+          field: "supplierDni",
+          headerName: "RUT",
+          sortable: false,
+          width: 120,
+          valueGetter: ({ row }) => String((row as ReceptionGridRow).supplierDni || "—"),
+        },
+        {
+          field: "storageName",
+          headerName: "Almacén",
+          sortable: false,
+          minWidth: 88,
+          flex: 0.5,
+          valueGetter: ({ row }) => String((row as ReceptionGridRow).storageName || "—"),
+        },
+        {
+          field: "type",
+          headerName: "Origen",
+          sortable: false,
+          minWidth: 75,
+          width: 75,
+          flex: 0.42,
+          cellOverflow: "truncate",
+          valueGetter: ({ row }) => {
+            const r = row as ReceptionGridRow;
+            const k = String(r.type || "").toLowerCase();
+            if (k === "from-purchase-order") {
+              const poFolio = (r.purchaseOrderNumber ?? "").trim();
+              return poFolio || ORIGIN_LABEL[k] || k;
+            }
+            return k ? (ORIGIN_LABEL[k] ?? k) : "—";
+          },
+        },
+        {
+          field: "subtotal",
+          headerName: "Neto",
+          sortable: false,
+          width: 110,
+          align: "right",
+          valueGetter: ({ row }) =>
+            formatMoney(Number((row as ReceptionGridRow).subtotal ?? 0)),
+        },
+        {
+          field: "taxAmount",
+          headerName: "Impuestos",
+          sortable: false,
+          width: 110,
+          align: "right",
+          valueGetter: ({ row }) =>
+            formatMoney(Number((row as ReceptionGridRow).taxAmount ?? 0)),
+        },
+        {
+          field: "total",
+          headerName: "Total",
+          sortable: false,
+          width: 110,
+          align: "right",
+          valueGetter: ({ row }) => formatMoney(Number((row as ReceptionGridRow).total ?? 0)),
+        },
+        {
+          field: "actions",
+          headerName: "",
+          width: 72,
+          minWidth: 72,
+          align: "center",
+          sortable: false,
+          filterable: false,
+          actionComponent: ReceptionActionsCell,
+        },
+      ];
     },
     [openDetail],
   );
@@ -122,7 +186,7 @@ export default function ReceptionsDataGrid({ rows, total }: ReceptionsDataGridPr
   return (
     <>
       <DataGrid
-        title="Recepciones"
+        title=""
         columns={columns}
         rows={rows}
         totalRows={total}
@@ -131,9 +195,10 @@ export default function ReceptionsDataGrid({ rows, total }: ReceptionsDataGridPr
         showExportButton={false}
         showSortButton={false}
         showFilterButton={false}
-        showSearch={false}
         pinActionsColumn
         onAddClick={() => router.push("/purchasing/transactions/receptions/new")}
+        addButtonVariant="pillOutlined"
+        addButtonLabel="Recepción"
         data-test-id="receptions-data-grid"
       />
       <ReceptionDetailDialog

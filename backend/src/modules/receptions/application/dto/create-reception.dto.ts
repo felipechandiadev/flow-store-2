@@ -100,6 +100,10 @@ export class CreateReceptionDto {
 
   @IsOptional()
   @IsUUID()
+  purchaseOrderId?: string;
+
+  @IsOptional()
+  @IsUUID()
   userId?: string;
 
   @IsOptional()

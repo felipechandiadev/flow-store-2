@@ -18,10 +18,16 @@ export class ReceptionsController {
   async findAll(
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('search') search?: string,
   ) {
     const l = limit ? parseInt(limit, 10) : 25;
     const o = offset ? parseInt(offset, 10) : 0;
-    return this.receptionsService.search({ limit: l, offset: o });
+    const term = typeof search === 'string' ? search.trim() : '';
+    return this.receptionsService.search({
+      limit: l,
+      offset: o,
+      search: term || undefined,
+    });
   }
 
   @Get('resolve')
@@ -35,6 +41,34 @@ export class ReceptionsController {
       throw new BadRequestException('supplierId and documentRef are required');
     }
     return this.receptionsService.getBySupplierDocumentRef(sid, ref);
+  }
+
+  /** Devolución de compra: localizar recepción por folio interno (recepción, factura o boleta). */
+  @Get('resolve-for-return')
+  async resolveForPurchaseReturn(
+    @Query('source') source?: string,
+    @Query('folio') folio?: string,
+    @Query('supplierId') supplierId?: string,
+  ) {
+    const src = String(source ?? '').trim().toLowerCase();
+    if (src !== 'reception' && src !== 'invoice' && src !== 'receipt') {
+      throw new BadRequestException(
+        'source must be reception, invoice or receipt',
+      );
+    }
+    const f = String(folio ?? '').trim();
+    if (!f) {
+      throw new BadRequestException('folio is required');
+    }
+    const sid =
+      typeof supplierId === 'string' && supplierId.trim()
+        ? supplierId.trim()
+        : undefined;
+    return this.receptionsService.resolveForPurchaseReturn({
+      source: src as 'reception' | 'invoice' | 'receipt',
+      folio: f,
+      supplierId: sid,
+    });
   }
 
   @Get(':id')

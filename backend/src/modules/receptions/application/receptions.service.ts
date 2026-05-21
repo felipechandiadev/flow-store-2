@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, Not } from 'typeorm';
+import { Repository, IsNull, Not, In, Brackets } from 'typeorm';
 import { Reception } from '../domain/reception.entity';
 import { ReceptionLine } from '../domain/reception-line.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
@@ -14,11 +14,13 @@ import { Company } from '@modules/companies/domain/company.entity';
 import { User } from '@modules/users/domain/user.entity';
 import { ProductVariantsService } from '@modules/product-variants/application/product-variants.service';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
+import { DocumentNumberService } from '@modules/transactions/application/document-number.service';
 import {
   CreateTransactionDto,
   CreateTransactionLineDto,
 } from '@modules/transactions/application/dto/create-transaction.dto';
 import {
+  Transaction,
   TransactionStatus,
   TransactionType,
   PaymentMethod,
@@ -42,9 +44,88 @@ export class ReceptionsService {
     private readonly companyRepo: Repository<Company>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepo: Repository<Transaction>,
     private readonly transactionsService: TransactionsService,
+    private readonly documentNumberService: DocumentNumberService,
     private readonly variantsService: ProductVariantsService,
   ) {}
+
+  private async resolveBranchIdForReception(reception: {
+    branchId?: string | null;
+    storageId?: string | null;
+  }): Promise<string | null> {
+    let branchId = reception.branchId ?? null;
+    if (!branchId && reception.storageId) {
+      const storage = await this.storageRepo.findOne({
+        where: { id: reception.storageId },
+      });
+      if (storage?.branchId) {
+        branchId = storage.branchId;
+      }
+    }
+    if (branchId) {
+      return branchId;
+    }
+    try {
+      const branchWithCompany = await this.branchRepo.findOne({
+        where: { companyId: Not(IsNull()) },
+      });
+      if (branchWithCompany?.id) {
+        return branchWithCompany.id;
+      }
+      const anyBranch = await this.branchRepo.findOne({ where: {} });
+      if (anyBranch?.id) {
+        if (!anyBranch.companyId) {
+          const lastCompany = await this.companyRepo.findOne({
+            order: { createdAt: 'DESC' } as any,
+          });
+          if (lastCompany?.id) {
+            await this.branchRepo.update(anyBranch.id, {
+              companyId: lastCompany.id,
+            } as any);
+          }
+        }
+        return anyBranch.id;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }
+
+  /**
+   * Folio interno de recepción (CMP-YY-#####). Se asigna al guardar aunque falle el PURCHASE de stock.
+   */
+  private async ensureReceptionStockFolio(
+    reception: Reception & { id: string },
+  ): Promise<string | null> {
+    const existing = this.resolveReceptionFolio(reception, null);
+    if (existing) {
+      return existing;
+    }
+    const branchId = await this.resolveBranchIdForReception(reception);
+    if (!branchId) {
+      this.logger.warn(
+        `No se pudo determinar sucursal para folio de recepción ${reception.id}`,
+      );
+      return null;
+    }
+    try {
+      const folio = await this.documentNumberService.allocateNext(
+        branchId,
+        TransactionType.PURCHASE,
+      );
+      await this.receptionRepo.update({ id: reception.id }, { documentNumber: folio });
+      reception.documentNumber = folio;
+      return folio;
+    } catch (err) {
+      this.logger.error(
+        `No se pudo asignar folio a recepción ${reception.id}: ${(err as Error).message}`,
+      );
+      return null;
+    }
+  }
 
   private async enrichReceptionLines(reception: any) {
     if (!reception || !Array.isArray(reception.lines)) return;
@@ -94,6 +175,16 @@ export class ReceptionsService {
     return name || null;
   }
 
+  /** DNI / RUN / RUT del proveedor (`person.documentNumber`). */
+  private getSupplierDni(reception: any): string | null {
+    const person = reception?.supplier?.person;
+    const doc =
+      typeof person?.documentNumber === 'string'
+        ? person.documentNumber.trim()
+        : '';
+    return doc || null;
+  }
+
   private async buildLineSnapshot(line: any) {
     const variantId =
       line?.productVariantId ||
@@ -131,45 +222,365 @@ export class ReceptionsService {
     };
   }
 
-  private mapReceptionListItem(reception: any) {
-    const documentNumber =
+  private extractPurchaseOrderIdFromMetadata(
+    metadata: unknown,
+  ): string | null {
+    if (!metadata || typeof metadata !== 'object') {
+      return null;
+    }
+    const links = (metadata as { links?: unknown }).links;
+    if (!links || typeof links !== 'object') {
+      return null;
+    }
+    const id = (links as { purchaseOrderId?: unknown }).purchaseOrderId;
+    return typeof id === 'string' && id.trim() ? id.trim() : null;
+  }
+
+  /** Folio de OC (`documentNumber`) por transacción de ingreso (PURCHASE) vinculada a la recepción. */
+  private async loadPurchaseOrderFoliosByStockTransactionIds(
+    stockTransactionIds: string[],
+  ): Promise<Map<string, string>> {
+    const ids = [
+      ...new Set(
+        stockTransactionIds.filter((id) => typeof id === 'string' && id.trim()),
+      ),
+    ];
+    const result = new Map<string, string>();
+    if (ids.length === 0) {
+      return result;
+    }
+
+    const stockTxs = await this.transactionRepo.find({
+      where: { id: In(ids) },
+      select: ['id', 'metadata'],
+    });
+    const poIds = new Set<string>();
+    const stockToPo = new Map<string, string>();
+    for (const tx of stockTxs) {
+      const poId = this.extractPurchaseOrderIdFromMetadata(tx.metadata);
+      if (poId) {
+        poIds.add(poId);
+        stockToPo.set(tx.id, poId);
+      }
+    }
+    if (poIds.size === 0) {
+      return result;
+    }
+
+    const poTxs = await this.transactionRepo.find({
+      where: { id: In([...poIds]) },
+      select: ['id', 'documentNumber'],
+    });
+    const folioByPoId = new Map<string, string>();
+    for (const po of poTxs) {
+      const folio =
+        typeof po.documentNumber === 'string' ? po.documentNumber.trim() : '';
+      if (folio) {
+        folioByPoId.set(po.id, folio);
+      }
+    }
+    for (const [stockId, poId] of stockToPo) {
+      const folio = folioByPoId.get(poId);
+      if (folio) {
+        result.set(stockId, folio);
+      }
+    }
+    return result;
+  }
+
+  private async loadStockFoliosByTransactionIds(
+    transactionIds: string[],
+  ): Promise<Map<string, string>> {
+    const ids = [
+      ...new Set(
+        transactionIds.filter((id) => typeof id === 'string' && id.trim()),
+      ),
+    ];
+    const map = new Map<string, string>();
+    if (ids.length === 0) {
+      return map;
+    }
+    const txs = await this.transactionRepo.find({
+      where: { id: In(ids) },
+      select: ['id', 'documentNumber'],
+    });
+    for (const tx of txs) {
+      const folio =
+        typeof tx.documentNumber === 'string' ? tx.documentNumber.trim() : '';
+      if (folio) {
+        map.set(tx.id, folio);
+      }
+    }
+    return map;
+  }
+
+  private resolveReceptionFolio(
+    reception: any,
+    stockFolio?: string | null,
+  ): string | null {
+    const fromTx =
+      (typeof stockFolio === 'string' && stockFolio.trim()) ||
+      (typeof reception?.transaction?.documentNumber === 'string' &&
+        reception.transaction.documentNumber.trim()) ||
+      null;
+    if (fromTx) {
+      return fromTx;
+    }
+    const stored =
+      typeof reception?.documentNumber === 'string'
+        ? reception.documentNumber.trim()
+        : '';
+    const dte =
+      typeof reception?.dteNumber === 'string' ? reception.dteNumber.trim() : '';
+    const ref =
+      typeof reception?.reference === 'string' ? reception.reference.trim() : '';
+    if (stored && stored !== dte && stored !== ref) {
+      return stored;
+    }
+    if (stored && /^(CMP|COMPRA)-/i.test(stored)) {
+      return stored;
+    }
+    return null;
+  }
+
+  /** Persiste folio CMP en recepciones antiguas que solo tenían referencia DTE en documentNumber. */
+  private queuePersistReceptionFolio(
+    receptionId: string,
+    folio: string,
+    reception: { documentNumber?: string | null; dteNumber?: string | null },
+  ): void {
+    const stored =
+      typeof reception.documentNumber === 'string'
+        ? reception.documentNumber.trim()
+        : '';
+    const dte =
+      typeof reception.dteNumber === 'string' ? reception.dteNumber.trim() : '';
+    if (stored === folio) {
+      return;
+    }
+    if (stored && stored !== dte && /^(CMP|COMPRA)-/i.test(stored)) {
+      return;
+    }
+    void this.receptionRepo
+      .update({ id: receptionId }, { documentNumber: folio })
+      .catch((err) => {
+        this.logger.warn(
+          `No se pudo persistir folio en recepción ${receptionId}: ${(err as Error).message}`,
+        );
+      });
+  }
+
+  private extractReceptionIdFromTransactionMetadata(
+    metadata: unknown,
+  ): string | null {
+    if (!metadata || typeof metadata !== 'object') {
+      return null;
+    }
+    const links = (metadata as { links?: unknown }).links;
+    if (!links || typeof links !== 'object') {
+      return null;
+    }
+    const id = (links as { receptionId?: unknown }).receptionId;
+    return typeof id === 'string' && id.trim() ? id.trim() : null;
+  }
+
+  /** Persiste neto / IVA / total del DTE en la entidad recepción (factura o boleta). */
+  private applySupplierFiscalTotalsToReception(
+    reception: { subtotal?: number; taxAmount?: number; total?: number },
+    data: any,
+    docTypeNorm: string | null | undefined,
+  ): void {
+    const norm = docTypeNorm?.toString().trim().toLowerCase();
+    if (norm !== 'invoice' && norm !== 'receipt') {
+      return;
+    }
+    const fa = data?.supplierFiscalAmounts;
+    if (!fa || typeof fa !== 'object') {
+      return;
+    }
+    const subtotalNeto = this.roundClp((fa as { subtotalNeto?: unknown }).subtotalNeto);
+    const taxAmount = this.roundClp((fa as { taxAmount?: unknown }).taxAmount);
+    const totalDoc = this.roundClp((fa as { total?: unknown }).total);
+    if (subtotalNeto <= 0 || totalDoc <= 0) {
+      return;
+    }
+    reception.subtotal = subtotalNeto;
+    reception.taxAmount = taxAmount;
+    reception.total = totalDoc;
+  }
+
+  private resolveReceptionFiscalTotals(
+    reception: any,
+    fiscalTotals?: { subtotal: number; taxAmount: number; total: number } | null,
+  ): { subtotal: number; taxAmount: number; total: number } {
+    const dteType =
+      typeof reception?.dteType === 'string'
+        ? reception.dteType.trim().toLowerCase()
+        : '';
+    const storedSubtotal = Number(reception?.subtotal) || 0;
+    const storedTax = Number(reception?.taxAmount) || 0;
+    const storedTotal = Number(reception?.total) || 0;
+
+    if (
+      fiscalTotals &&
+      (dteType === 'invoice' || dteType === 'receipt') &&
+      (storedTax <= 0 || storedTotal <= storedSubtotal)
+    ) {
+      return {
+        subtotal: fiscalTotals.subtotal,
+        taxAmount: fiscalTotals.taxAmount,
+        total: fiscalTotals.total,
+      };
+    }
+    return {
+      subtotal: storedSubtotal,
+      taxAmount: storedTax,
+      total: storedTotal,
+    };
+  }
+
+  /** Totales del documento fiscal proveedor vinculado por `metadata.links.receptionId`. */
+  private async loadFiscalTotalsByReceptionIds(
+    receptionIds: string[],
+  ): Promise<
+    Map<string, { subtotal: number; taxAmount: number; total: number }>
+  > {
+    const ids = [
+      ...new Set(
+        receptionIds.filter((id) => typeof id === 'string' && id.trim()),
+      ),
+    ];
+    const result = new Map<
+      string,
+      { subtotal: number; taxAmount: number; total: number }
+    >();
+    if (ids.length === 0) {
+      return result;
+    }
+
+    const txs = await this.transactionRepo
+      .createQueryBuilder('tx')
+      .select([
+        'tx.subtotal',
+        'tx.taxAmount',
+        'tx.total',
+        'tx.metadata',
+        'tx.createdAt',
+      ])
+      .where('tx.transactionType IN (:...types)', {
+        types: [
+          TransactionType.SUPPLIER_INVOICE,
+          TransactionType.SUPPLIER_RECEIPT,
+        ],
+      })
+      .andWhere(`(tx.metadata::jsonb #>> '{links,receptionId}') IN (:...ids)`, {
+        ids,
+      })
+      .orderBy('tx.createdAt', 'DESC')
+      .getMany();
+
+    for (const tx of txs) {
+      const receptionId = this.extractReceptionIdFromTransactionMetadata(
+        tx.metadata,
+      );
+      if (!receptionId || result.has(receptionId)) {
+        continue;
+      }
+      result.set(receptionId, {
+        subtotal: Number(tx.subtotal) || 0,
+        taxAmount: Number(tx.taxAmount) || 0,
+        total: Number(tx.total) || 0,
+      });
+    }
+    return result;
+  }
+
+  private mapReceptionListItem(
+    reception: any,
+    stockFolio?: string | null,
+    purchaseOrderFolio?: string | null,
+    fiscalTotals?: { subtotal: number; taxAmount: number; total: number } | null,
+  ) {
+    const folio = this.resolveReceptionFolio(reception, stockFolio);
+    const reference =
+      (typeof reception?.reference === 'string' && reception.reference.trim()) ||
+      (typeof reception?.dteNumber === 'string' && reception.dteNumber.trim()) ||
+      null;
+    const dteType =
+      typeof reception?.dteType === 'string' && reception.dteType.trim()
+        ? reception.dteType.trim().toLowerCase()
+        : null;
+    const supplierDocumentRef =
       reception?.dteNumber ||
-      reception?.documentNumber ||
       reception?.reference ||
-      (typeof reception?.id === 'string' ? reception.id : null);
+      null;
+    const amounts = this.resolveReceptionFiscalTotals(reception, fiscalTotals);
 
     return {
       ...reception,
       transactionType: TransactionType.ADJUSTMENT_IN,
       status: TransactionStatus.RECEIVED,
       supplierName: this.getSupplierDisplayName(reception),
+      supplierDni: this.getSupplierDni(reception),
       storageName: this.getStorageDisplayName(reception),
-      documentNumber,
+      folio,
+      documentNumber: folio,
+      dteType,
+      reference,
+      supplierDocumentRef,
+      subtotal: amounts.subtotal,
+      taxAmount: amounts.taxAmount,
+      total: amounts.total,
       purchaseOrderNumber:
         reception?.type === 'from-purchase-order'
-          ? reception?.documentNumber || reception?.reference || null
+          ? (typeof purchaseOrderFolio === 'string' && purchaseOrderFolio.trim()) ||
+            null
           : null,
     };
   }
 
   async search(
-    opts: { limit?: number; offset?: number } = { limit: 25, offset: 0 },
+    opts: { limit?: number; offset?: number; search?: string } = {
+      limit: 25,
+      offset: 0,
+    },
   ) {
     const { limit = 25, offset = 0 } = opts;
+    const term = typeof opts.search === 'string' ? opts.search.trim() : '';
+    const like = term ? `%${term}%` : null;
 
-    const [rows, count] = await this.receptionRepo.findAndCount({
-      relations: [
-        'lines',
-        'storage',
-        'branch',
-        'supplier',
-        'supplier.person',
-        'user',
-      ],
-      order: { createdAt: 'DESC' },
-      take: limit,
-      skip: offset,
-    });
+    const qb = this.receptionRepo
+      .createQueryBuilder('r')
+      .leftJoinAndSelect('r.lines', 'lines')
+      .leftJoinAndSelect('r.storage', 'storage')
+      .leftJoinAndSelect('r.branch', 'branch')
+      .leftJoinAndSelect('r.supplier', 'supplier')
+      .leftJoinAndSelect('supplier.person', 'supplierPerson')
+      .leftJoinAndSelect('r.user', 'user')
+      .leftJoinAndSelect('r.transaction', 'transaction');
+
+    if (like) {
+      qb.andWhere(
+        new Brackets((sub) => {
+          sub
+            .where('r.documentNumber ILIKE :like', { like })
+            .orWhere('r.reference ILIKE :like', { like })
+            .orWhere('r.dteNumber ILIKE :like', { like })
+            .orWhere('r.notes ILIKE :like', { like })
+            .orWhere('transaction.documentNumber ILIKE :like', { like })
+            .orWhere('storage.name ILIKE :like', { like })
+            .orWhere('supplier.alias ILIKE :like', { like })
+            .orWhere('supplierPerson.businessName ILIKE :like', { like })
+            .orWhere('supplierPerson.firstName ILIKE :like', { like })
+            .orWhere('supplierPerson.lastName ILIKE :like', { like })
+            .orWhere('supplierPerson.documentNumber ILIKE :like', { like });
+        }),
+      );
+    }
+
+    qb.orderBy('r.createdAt', 'DESC').take(limit).skip(offset);
+
+    const [rows, count] = await qb.getManyAndCount();
 
     // Enrich returned rows with SKU/product names
     for (const r of rows) {
@@ -178,8 +589,45 @@ export class ReceptionsService {
       await this.enrichReceptionLines(r);
     }
 
+    for (const r of rows) {
+      if (!this.resolveReceptionFolio(r, null)) {
+        await this.ensureReceptionStockFolio(r);
+      }
+    }
+
+    const stockTxIds = rows
+      .map((r) => r.transactionId)
+      .filter((id): id is string => !!id);
+    const folioByTxId = await this.loadStockFoliosByTransactionIds(stockTxIds);
+    const poFolioByStockTxId =
+      await this.loadPurchaseOrderFoliosByStockTransactionIds(stockTxIds);
+    const fiscalTotalsByReceptionId = await this.loadFiscalTotalsByReceptionIds(
+      rows.map((r) => String(r.id)),
+    );
+
+    const mappedRows = rows.map((row) => {
+      const stockFolio =
+        (row.transactionId && folioByTxId.get(row.transactionId)) ||
+        row.transaction?.documentNumber ||
+        null;
+      const purchaseOrderFolio =
+        (row.transactionId && poFolioByStockTxId.get(row.transactionId)) ||
+        null;
+      const fiscalTotals = fiscalTotalsByReceptionId.get(String(row.id)) ?? null;
+      const mapped = this.mapReceptionListItem(
+        row,
+        stockFolio,
+        purchaseOrderFolio,
+        fiscalTotals,
+      );
+      if (mapped.folio && row.id) {
+        this.queuePersistReceptionFolio(String(row.id), mapped.folio, row);
+      }
+      return mapped;
+    });
+
     return {
-      rows: rows.map((row) => this.mapReceptionListItem(row)),
+      rows: mappedRows,
       count,
       limit,
       offset,
@@ -196,18 +644,117 @@ export class ReceptionsService {
         'supplier',
         'supplier.person',
         'user',
+        'transaction',
       ],
     });
 
     if (!found) throw new NotFoundException('Reception not found');
     await this.enrichReceptionLines(found);
-    return this.mapReceptionListItem(found);
+    const stockFolio =
+      (found.transactionId &&
+        (await this.loadStockFoliosByTransactionIds([found.transactionId])).get(
+          found.transactionId,
+        )) ||
+      found.transaction?.documentNumber ||
+      null;
+    const purchaseOrderFolio =
+      (found.transactionId &&
+        (
+          await this.loadPurchaseOrderFoliosByStockTransactionIds([
+            found.transactionId,
+          ])
+        ).get(found.transactionId)) ||
+      null;
+    const fiscalTotals =
+      (await this.loadFiscalTotalsByReceptionIds([String(found.id)])).get(
+        String(found.id),
+      ) ?? null;
+    const mapped = this.mapReceptionListItem(
+      found,
+      stockFolio,
+      purchaseOrderFolio,
+      fiscalTotals,
+    );
+    if (mapped.folio) {
+      this.queuePersistReceptionFolio(String(found.id), mapped.folio, found);
+    }
+    return mapped;
   }
 
   /**
    * Última recepción del proveedor cuya referencia, número de documento o DTE coincide con `documentRef`.
    * Usado en devoluciones para localizar la recepción asociada a una factura sin usar líneas del DTE.
    */
+  /**
+   * Devolución de compra: folio interno de recepción (CMP-…) o de documento fiscal (factura/boleta).
+   * Factura y boleta resuelven la recepción vía `metadata.links.receptionId` del DTE proveedor.
+   */
+  async resolveForPurchaseReturn(opts: {
+    source: 'reception' | 'invoice' | 'receipt';
+    folio: string;
+    supplierId?: string | null;
+  }) {
+    const folio = String(opts.folio ?? '').trim();
+    const supplierId =
+      typeof opts.supplierId === 'string' && opts.supplierId.trim()
+        ? opts.supplierId.trim()
+        : null;
+
+    if (!folio) {
+      throw new BadRequestException('folio is required');
+    }
+
+    if (opts.source === 'reception') {
+      const qb = this.receptionRepo
+        .createQueryBuilder('r')
+        .leftJoin('r.transaction', 'tx')
+        .where('(r.documentNumber = :folio OR tx.documentNumber = :folio)', {
+          folio,
+        });
+      if (supplierId) {
+        qb.andWhere('r.supplierId = :sid', { sid: supplierId });
+      }
+      const found = await qb.orderBy('r.createdAt', 'DESC').getOne();
+      if (!found?.id) {
+        throw new NotFoundException(
+          'No se encontró recepción con ese folio interno.',
+        );
+      }
+      return this.getById(String(found.id));
+    }
+
+    const fiscalType =
+      opts.source === 'invoice'
+        ? TransactionType.SUPPLIER_INVOICE
+        : TransactionType.SUPPLIER_RECEIPT;
+
+    const fiscalQb = this.transactionRepo
+      .createQueryBuilder('tx')
+      .where('tx.transactionType = :fiscalType', { fiscalType })
+      .andWhere('tx.documentNumber = :folio', { folio });
+    if (supplierId) {
+      fiscalQb.andWhere('tx.supplierId = :sid', { sid: supplierId });
+    }
+    const fiscalTx = await fiscalQb.orderBy('tx.createdAt', 'DESC').getOne();
+    if (!fiscalTx?.id) {
+      throw new NotFoundException(
+        opts.source === 'invoice'
+          ? 'No se encontró factura de proveedor con ese folio.'
+          : 'No se encontró boleta de proveedor con ese folio.',
+      );
+    }
+
+    const receptionId = this.extractReceptionIdFromTransactionMetadata(
+      fiscalTx.metadata,
+    );
+    if (!receptionId) {
+      throw new NotFoundException(
+        'El documento fiscal no tiene recepción de compra asociada.',
+      );
+    }
+    return this.getById(receptionId);
+  }
+
   async getBySupplierDocumentRef(supplierId: string, documentRef: string) {
     const sid = String(supplierId ?? '').trim();
     const ref = String(documentRef ?? '').trim();
@@ -236,73 +783,14 @@ export class ReceptionsService {
     return this.getById(String(found.id));
   }
 
-  private async maybeCreateStockInTransaction(reception: any) {
+  private async maybeCreateStockInTransaction(
+    reception: any,
+    opts?: { purchaseOrderId?: string | null },
+  ) {
     try {
-      // Attempt to resolve branchId from storage if not provided
-      let branchId = reception.branchId;
-      if (!branchId && reception.storageId) {
-        const storage = await this.storageRepo.findOne({
-          where: { id: reception.storageId },
-        });
-        if (storage && storage.branchId) branchId = storage.branchId;
-      }
+      await this.ensureReceptionStockFolio(reception);
 
-      if (!branchId) {
-        // Try to fallback to any available branch (best-effort)
-        try {
-          // Prefer a branch that has a companyId set (required by TransactionsService)
-          const branchWithCompany = await this.branchRepo.findOne({
-            where: { companyId: Not(IsNull()) },
-          });
-          if (branchWithCompany && branchWithCompany.id) {
-            branchId = branchWithCompany.id;
-            this.logger.log(
-              `Falling back to branch ${branchId} (with company) for reception transaction`,
-            );
-          } else {
-            // Last resort: any branch
-            const anyBranch = await this.branchRepo.findOne({ where: {} });
-            if (anyBranch && anyBranch.id) {
-              // If this branch has no companyId, try to set it from the last company in DB
-              if (!anyBranch.companyId) {
-                try {
-                  const lastCompany = await this.companyRepo.findOne({
-                    order: { createdAt: 'DESC' } as any,
-                  });
-                  if (lastCompany && lastCompany.id) {
-                    await this.branchRepo.update(anyBranch.id, {
-                      companyId: lastCompany.id,
-                    } as any);
-                    this.logger.log(
-                      `Assigned company ${lastCompany.id} to branch ${anyBranch.id} to allow transaction creation`,
-                    );
-                    branchId = anyBranch.id;
-                  } else {
-                    branchId = anyBranch.id;
-                    this.logger.log(
-                      `Falling back to branch ${branchId} for reception transaction (no company found)`,
-                    );
-                  }
-                } catch (err) {
-                  // ignore update errors but still fallback
-                  branchId = anyBranch.id;
-                  this.logger.warn(
-                    `Could not assign company to branch ${anyBranch.id}: ${(err as Error).message}`,
-                  );
-                }
-              } else {
-                branchId = anyBranch.id;
-                this.logger.log(
-                  `Falling back to branch ${branchId} for reception transaction`,
-                );
-              }
-            }
-          }
-        } catch (err) {
-          // ignore
-        }
-      }
-
+      const branchId = await this.resolveBranchIdForReception(reception);
       if (!branchId) {
         this.logger.warn(
           'Could not determine branchId for reception, skipping transaction creation',
@@ -314,6 +802,13 @@ export class ReceptionsService {
       const dto = new CreateTransactionDto();
       dto.transactionType = TransactionType.PURCHASE;
       dto.branchId = branchId;
+      const presetFolio =
+        typeof reception.documentNumber === 'string'
+          ? reception.documentNumber.trim()
+          : '';
+      if (presetFolio && /^(CMP|COMPRA)-/i.test(presetFolio)) {
+        dto.documentNumber = presetFolio;
+      }
       let resolvedUserId = reception.userId;
       if (!resolvedUserId) {
         const fallbackUser = await this.userRepo.findOne({ where: {} });
@@ -333,8 +828,17 @@ export class ReceptionsService {
       }
 
       dto.userId = resolvedUserId;
-      // ADJUSTMENT_IN is an inventory movement; keep supplier linkage in metadata for traceability
-      dto.supplierId = undefined as any;
+      const receptionSupplierId =
+        typeof reception.supplierId === 'string' && reception.supplierId.trim()
+          ? reception.supplierId.trim()
+          : null;
+      if (!receptionSupplierId) {
+        this.logger.warn(
+          `Reception ${reception.id} sin supplierId; no se puede crear PURCHASE de stock`,
+        );
+        return { error: 'La recepción no tiene proveedor asociado.' } as any;
+      }
+      dto.supplierId = receptionSupplierId;
       dto.storageId = reception.storageId || null;
       dto.subtotal = 0;
       dto.taxAmount = 0;
@@ -362,8 +866,9 @@ export class ReceptionsService {
         reference: dteNum,
         document_type: dteTypeNorm || null,
         links: {
-          // Reception currently doesn't store PO id as FK; keep link placeholders in metadata.
-          purchaseOrderId: null,
+          purchaseOrderId:
+            (typeof opts?.purchaseOrderId === 'string' && opts.purchaseOrderId.trim()) ||
+            null,
         },
       } as any;
 
@@ -383,6 +888,9 @@ export class ReceptionsService {
       if (Array.isArray(reception.lines)) {
         for (const l of reception.lines) {
           const qty = Number(l.receivedQuantity ?? l.quantity ?? 0) || 0;
+          if (qty <= 0) {
+            continue;
+          }
           const unitPrice = Number(l.unitPrice ?? l.price ?? 0) || 0;
           const lineSubtotal = qty * unitPrice;
           const tline: CreateTransactionLineDto = {
@@ -429,6 +937,13 @@ export class ReceptionsService {
       // Persist link back to reception object (in-memory) for UI and diagnostics
       try {
         reception.transactionId = created.id;
+        const txFolio =
+          typeof created.documentNumber === 'string'
+            ? created.documentNumber.trim()
+            : '';
+        if (txFolio) {
+          reception.documentNumber = txFolio;
+        }
         reception.transaction = {
           id: created.id,
           documentNumber: created.documentNumber,
@@ -527,6 +1042,13 @@ export class ReceptionsService {
     const tx = await this.maybeCreateStockInTransaction(receptionWithLines!);
     if (tx && tx.id) {
       receptionWithLines!.transactionId = tx.id;
+      const txFolio =
+        typeof (tx as any).documentNumber === 'string'
+          ? String((tx as any).documentNumber).trim()
+          : '';
+      if (txFolio) {
+        receptionWithLines!.documentNumber = txFolio;
+      }
       await this.receptionRepo.save(receptionWithLines!);
     }
 
@@ -539,6 +1061,11 @@ export class ReceptionsService {
   }
 
   async createDirect(data: any) {
+    const purchaseOrderId =
+      typeof data.purchaseOrderId === 'string' && data.purchaseOrderId.trim()
+        ? data.purchaseOrderId.trim()
+        : null;
+
     // Create reception entity
     const refFromPayload =
       (typeof data.reference === 'string' && data.reference.trim()) ||
@@ -548,7 +1075,7 @@ export class ReceptionsService {
       (data.documentType ?? data.dteType)?.toString().trim().toLowerCase() || null;
 
     const reception = this.receptionRepo.create({
-      type: 'direct',
+      type: purchaseOrderId ? 'from-purchase-order' : 'direct',
       storageId: data.storageId,
       branchId: data.branchId,
       supplierId: data.supplierId,
@@ -566,7 +1093,7 @@ export class ReceptionsService {
       lineCount: 0,
     });
 
-    // Compute totals
+    // Compute totals (líneas); factura/boleta usa montos fiscales del DTE
     if (Array.isArray(data.lines)) {
       reception.lineCount = data.lines.length;
       reception.subtotal = data.lines.reduce((s: number, l: any) => {
@@ -576,6 +1103,7 @@ export class ReceptionsService {
       }, 0);
       reception.total = Number(reception.subtotal || 0);
     }
+    this.applySupplierFiscalTotalsToReception(reception, data, docTypeNorm);
 
     // Save reception
     const savedReception = await this.receptionRepo.save(reception);
@@ -616,10 +1144,19 @@ export class ReceptionsService {
     });
 
     // Create PURCHASE transaction
-    const tx = await this.maybeCreateStockInTransaction(receptionWithLines!);
+    const tx = await this.maybeCreateStockInTransaction(receptionWithLines!, {
+      purchaseOrderId,
+    });
     const stockTxId = tx && (tx as any).id ? String((tx as any).id) : null;
     if (stockTxId) {
       receptionWithLines!.transactionId = stockTxId as any;
+      const txFolio =
+        typeof (tx as any).documentNumber === 'string'
+          ? String((tx as any).documentNumber).trim()
+          : '';
+      if (txFolio) {
+        receptionWithLines!.documentNumber = txFolio;
+      }
       await this.receptionRepo.save(receptionWithLines!);
     }
 
@@ -632,6 +1169,14 @@ export class ReceptionsService {
           docTypeNorm: String(docTypeNorm),
           stockInTransactionId: stockTxId,
         });
+        if (!supplierDocumentError) {
+          this.applySupplierFiscalTotalsToReception(
+            receptionWithLines!,
+            data,
+            docTypeNorm,
+          );
+          await this.receptionRepo.save(receptionWithLines!);
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         this.logger.error(`Supplier fiscal from reception failed: ${msg}`);
@@ -639,11 +1184,20 @@ export class ReceptionsService {
       }
     }
 
+    const lineCount = receptionWithLines?.lines?.length ?? 0;
+    let transactionError: string | null =
+      tx && (tx as any).error ? String((tx as any).error) : null;
+    if (!stockTxId && lineCount > 0) {
+      transactionError =
+        transactionError ||
+        'No se creó la transacción de ingreso de stock; el inventario y el PMP no se actualizaron.';
+    }
+
     return {
       success: true,
       reception: receptionWithLines,
       transaction: stockTxId ? { id: stockTxId } : null,
-      transactionError: tx && (tx as any).error ? String((tx as any).error) : null,
+      transactionError,
       supplierDocumentError,
     };
   }
@@ -729,6 +1283,13 @@ export class ReceptionsService {
     const tx = await this.maybeCreateStockInTransaction(receptionWithLines!);
     if (tx && tx.id) {
       receptionWithLines!.transactionId = tx.id;
+      const txFolio =
+        typeof (tx as any).documentNumber === 'string'
+          ? String((tx as any).documentNumber).trim()
+          : '';
+      if (txFolio) {
+        receptionWithLines!.documentNumber = txFolio;
+      }
       await this.receptionRepo.save(receptionWithLines!);
     }
 

@@ -3,10 +3,34 @@
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
+import { ReceptionRequest } from "@/features/receptions/infrastructure/reception.request";
 import { PurchaseReturnRequest } from "../infrastructure/purchase-return.request";
 import type { CreatePurchaseReturnInput, CreatePurchaseReturnResult } from "../types/purchase-return.types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Folio interno de recepción (CMP-…) por id, para el listado de devoluciones. */
+export async function loadReceptionFoliosByIdsAction(
+  receptionIds: string[],
+): Promise<Record<string, string>> {
+  const ids = [...new Set(receptionIds.filter((id) => UUID_RE.test(id.trim())).map((id) => id.trim()))];
+  if (ids.length === 0) {
+    return {};
+  }
+  const entries = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const rec = await ReceptionRequest.getById(id);
+        const folio =
+          (rec.folio ?? rec.documentNumber ?? "").trim() || id.slice(0, 8);
+        return [id, folio] as const;
+      } catch {
+        return [id, "—"] as const;
+      }
+    }),
+  );
+  return Object.fromEntries(entries);
+}
 
 export async function listPurchaseReturnsForPage(
   opts: { page?: number; limit?: number; supplierId?: string; search?: string } = {},

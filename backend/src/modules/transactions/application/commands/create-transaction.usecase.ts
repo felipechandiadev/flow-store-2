@@ -106,12 +106,16 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
     // para que los suscriptores (p. ej. actualización de stock) vean las líneas en BD.
     const savedTx = await this.dataSource.transaction(async (manager) => {
       try {
-        // Paso 2: Folio correlativo (SIGLA-YY-00001)
-        const documentNumber = await this.documentNumberService.allocateNext(
-          dto.branchId,
-          dto.transactionType,
-          manager,
-        );
+        // Paso 2: Folio correlativo (SIGLA-YY-00001) o reutilizar el preasignado en el DTO
+        const presetDoc =
+          typeof dto.documentNumber === 'string' ? dto.documentNumber.trim() : '';
+        const documentNumber = presetDoc
+          ? presetDoc
+          : await this.documentNumberService.allocateNext(
+              dto.branchId,
+              dto.transactionType,
+              manager,
+            );
 
         // Paso 3-4: Crear y guardar Transaction en BD
         const initialStatus =

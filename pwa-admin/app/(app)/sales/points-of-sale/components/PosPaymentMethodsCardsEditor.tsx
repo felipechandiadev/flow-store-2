@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { GripVertical } from "lucide-react";
 import Switch from "@/shared/components/Switch/Switch";
 import Select from "@/shared/components/Select/Select";
@@ -11,6 +19,10 @@ import {
   POS_VALID_METHOD_IDS,
 } from "@/features/companies/types/company-payment-methods.types";
 import type { PosPaymentMethodConfig } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
+
+export type PosPaymentMethodsCardsEditorHandle = {
+  getPayload: () => PosPaymentMethodConfig[];
+};
 
 type Props = {
   /** Catálogo de empresa (sin filtrar). */
@@ -51,7 +63,7 @@ function buildPayloadFromState(
         cmp != null && companyPaymentMethodAlwaysRequiresReference(cmp.method);
       return {
         companyPaymentMethodId: r.companyPaymentMethodId,
-        isEnabled: r.isEnabled !== false,
+        isEnabled: r.isEnabled === true,
         preloadOnPaymentScreen: r.preloadOnPaymentScreen === true,
         preloadOrder: r.preloadOrder ?? 0,
         isDefaultForChange: r.isDefaultForChange === true,
@@ -94,14 +106,20 @@ function computeGlobalOrder(
   return next;
 }
 
-export function PosPaymentMethodsCardsEditor({
-  catalog,
-  value,
-  onChange,
-  bankAccountOptions = [],
-  disabled = false,
-  "data-test-id": dataTestId,
-}: Props) {
+export const PosPaymentMethodsCardsEditor = forwardRef<
+  PosPaymentMethodsCardsEditorHandle,
+  Props
+>(function PosPaymentMethodsCardsEditor(
+  {
+    catalog,
+    value,
+    onChange,
+    bankAccountOptions = [],
+    disabled = false,
+    "data-test-id": dataTestId,
+  },
+  ref,
+) {
   const usableCatalog = useMemo(() => {
     return (catalog ?? [])
       .filter((c) => c.isActive && (POS_VALID_METHOD_IDS as string[]).includes(c.method))
@@ -111,7 +129,23 @@ export function PosPaymentMethodsCardsEditor({
 
   const [order, setOrder] = useState<string[]>([]);
   const [byId, setById] = useState<Record<string, PosPaymentMethodConfig>>({});
-  const dirtyRef = useRef(false);
+  const orderRef = useRef(order);
+  const byIdRef = useRef(byId);
+  orderRef.current = order;
+  byIdRef.current = byId;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  /** Evita notificar al padre mientras el editor se hidrata desde `value`. */
+  const skipParentSyncRef = useRef(true);
+  const hydratedKeyRef = useRef<string | null>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getPayload: () => buildPayloadFromState(order, byId, usableCatalog),
+    }),
+    [order, byId, usableCatalog],
+  );
 
   const usableKey = useMemo(() => usableCatalog.map((c) => c.id).join("|"), [usableCatalog]);
   const valueKey = useMemo(() => {
@@ -133,7 +167,25 @@ export function PosPaymentMethodsCardsEditor({
     return rows.join("|");
   }, [value]);
 
+  const scheduleNotifyParent = useCallback(() => {
+    queueMicrotask(() => {
+      if (skipParentSyncRef.current) {
+        return;
+      }
+      onChangeRef.current(
+        buildPayloadFromState(orderRef.current, byIdRef.current, usableCatalog),
+      );
+    });
+  }, [usableCatalog]);
+
   useEffect(() => {
+    const hydrationKey = `${usableKey}|${valueKey}`;
+    if (hydratedKeyRef.current === hydrationKey) {
+      return;
+    }
+    hydratedKeyRef.current = hydrationKey;
+
+    skipParentSyncRef.current = true;
     const nextById = buildInitialById(usableCatalog, value ?? []);
     const initialOrder = usableCatalog
       .slice()
@@ -147,27 +199,17 @@ export function PosPaymentMethodsCardsEditor({
       })
       .map((c) => c.id);
 
-    dirtyRef.current = false; // reset sync loop on prop refresh
-    setOrder(initialOrder);
     const orderedById = computeGlobalOrder(initialOrder, nextById);
+    setOrder(initialOrder);
     setById(orderedById);
 
-    const valueIds = new Set((value ?? []).map((v) => v.companyPaymentMethodId));
-    const catalogMissingInValue = usableCatalog.some((c) => !valueIds.has(c.id));
-    if (catalogMissingInValue) {
-      onChange(buildPayloadFromState(initialOrder, orderedById, usableCatalog));
-    }
-  }, [usableCatalog, usableKey, valueKey, onChange, value]);
-
-  useEffect(() => {
-    if (!dirtyRef.current) return;
-    dirtyRef.current = false;
-    onChange(buildPayloadFromState(order, byId, usableCatalog));
-  }, [order, byId, onChange, usableCatalog]);
+    queueMicrotask(() => {
+      skipParentSyncRef.current = false;
+    });
+  }, [usableKey, valueKey, value, usableCatalog]);
 
   const patchRow = useCallback(
     (id: string, patch: Partial<PosPaymentMethodConfig>) => {
-      dirtyRef.current = true;
       setById((prev) => {
         const isDisabling = patch.isEnabled === false;
         const nextRow: PosPaymentMethodConfig = {
@@ -175,11 +217,11 @@ export function PosPaymentMethodsCardsEditor({
           ...patch,
           ...(isDisabling ? { isDefaultForChange: false } : null),
         } as PosPaymentMethodConfig;
-        const next = { ...prev, [id]: nextRow };
-        return computeGlobalOrder(order, next);
+        return computeGlobalOrder(orderRef.current, { ...prev, [id]: nextRow });
       });
+      scheduleNotifyParent();
     },
-    [order],
+    [scheduleNotifyParent],
   );
 
   const setUniqueDefault = useCallback(
@@ -188,17 +230,17 @@ export function PosPaymentMethodsCardsEditor({
       if (!cmp || cmp.method !== "CASH") {
         return;
       }
-      dirtyRef.current = true;
       setById((prev) => {
         const next: Record<string, PosPaymentMethodConfig> = { ...prev };
         for (const k of Object.keys(next)) {
           next[k] = { ...next[k], isDefaultForChange: false };
         }
         next[id] = { ...next[id], isDefaultForChange: isDefault };
-        return next;
+        return computeGlobalOrder(orderRef.current, next);
       });
+      scheduleNotifyParent();
     },
-    [usableCatalog],
+    [usableCatalog, scheduleNotifyParent],
   );
 
   const dragIdRef = useRef<string | null>(null);
@@ -211,18 +253,16 @@ export function PosPaymentMethodsCardsEditor({
     const activeId = dragIdRef.current;
     dragIdRef.current = null;
     if (!activeId || activeId === overId) return;
-    dirtyRef.current = true;
-    setOrder((prev) => {
-      const from = prev.indexOf(activeId);
-      const to = prev.indexOf(overId);
-      if (from < 0 || to < 0) return prev;
-      const next = prev.slice();
-      next.splice(from, 1);
-      next.splice(to, 0, activeId);
-      setById((current) => {
-        return computeGlobalOrder(next, current);
-      });
-      return next;
+    setOrder((prevOrder) => {
+      const from = prevOrder.indexOf(activeId);
+      const to = prevOrder.indexOf(overId);
+      if (from < 0 || to < 0) return prevOrder;
+      const nextOrder = prevOrder.slice();
+      nextOrder.splice(from, 1);
+      nextOrder.splice(to, 0, activeId);
+      setById((current) => computeGlobalOrder(nextOrder, current));
+      scheduleNotifyParent();
+      return nextOrder;
     });
   };
 
@@ -273,7 +313,7 @@ export function PosPaymentMethodsCardsEditor({
 
             <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
               <Switch
-                checked={r?.isEnabled !== false}
+                checked={r?.isEnabled === true}
                 onChange={(v) => patchRow(c.id, { isEnabled: v })}
                 label="Habilitado"
                 labelPosition="right"
@@ -337,5 +377,5 @@ export function PosPaymentMethodsCardsEditor({
       })}
     </div>
   );
-}
+});
 

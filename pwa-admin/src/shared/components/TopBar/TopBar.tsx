@@ -122,6 +122,15 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
         <div data-test-id="top-bar-root">
       <header className={`fixed top-0 z-50 w-full flex items-center justify-between px-10 py-2 pb-3 bg-background border-b border-border ${className}`}>
           <div className="flex items-center gap-3">
+            <IconButton
+              icon="Menu"
+              variant="basicSecondary"
+              size="md"
+              strokeWidth={2.5}
+              onClick={open}
+              ariaLabel="Abrir menú"
+              data-test-id="top-bar-menu-button"
+            />
             {logoSrc ? (
               <div
                 className="relative h-10 w-10 shrink-0"
@@ -276,16 +285,6 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
                 {/* <UserProfileDropdown /> */}
               </>
             )}
-
-            <IconButton
-              icon="Menu"
-              variant="basicSecondary"
-              size="md"
-              strokeWidth={2.5}
-              onClick={open}
-              ariaLabel="Abrir menú"
-              data-test-id="top-bar-menu-button"
-            />
           </div>
         </header>
         {showSidebar && (

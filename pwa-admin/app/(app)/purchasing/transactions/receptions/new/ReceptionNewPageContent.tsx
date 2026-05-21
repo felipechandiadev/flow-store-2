@@ -2,6 +2,8 @@ import { unstable_noStore as noStore } from "next/cache";
 import { PurchasingVariantSearchRequest } from "@/features/purchasing-document/infrastructure/purchasing-variant-search.request";
 import { getPurchaseDocSearchFromUrl } from "@/features/purchasing-document/lib/parse-purchase-doc-search-url";
 import { createDirectReceptionAction } from "@/features/receptions/actions/reception.action";
+import { getPurchasingTransactionDetailAction } from "@/features/purchasing-document/actions/purchasing-detail.action";
+import { searchPurchaseOrdersForReceptionAction } from "@/features/purchasing-document/actions/purchase-order-list.action";
 import { PurchaseDocumentBuilder } from "@/shared/components/PurchaseDocumentBuilder";
 
 export default async function ReceptionNewPageContent({
@@ -24,6 +26,8 @@ export default async function ReceptionNewPageContent({
         searchPage={page}
         backToListHref="/purchasing/transactions/receptions"
         onSaveReception={createDirectReceptionAction}
+        fetchPurchaseOrderDetail={getPurchasingTransactionDetailAction}
+        searchPurchaseOrders={searchPurchaseOrdersForReceptionAction}
       />
     </div>
   );

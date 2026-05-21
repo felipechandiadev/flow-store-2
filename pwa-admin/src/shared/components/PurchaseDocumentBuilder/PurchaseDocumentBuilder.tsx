@@ -29,6 +29,10 @@ import type {
   CreatePurchaseReturnInput,
   CreatePurchaseReturnResult,
 } from "@/features/purchasing-purchase-returns/types/purchase-return.types";
+import type {
+  PurchasingTransactionDetail,
+  PurchasingTransactionDetailResult,
+} from "@/features/purchasing-document/types/purchasing-detail.types";
 import {
   formatReceptionPaymentSummary,
   type ReceptionSupplierDocumentPaymentPayload,
@@ -98,6 +102,18 @@ export type PurchaseDocumentBuilderProps = {
     supplierId: string,
     documentRef: string,
   ) => Promise<ReceptionFetchResult>;
+  /** Devolución: folio interno de recepción, factura o boleta → líneas de la recepción asociada. */
+  resolveReceptionForReturn?: (
+    source: "reception" | "invoice" | "receipt",
+    folio: string,
+    supplierId?: string | null,
+  ) => Promise<ReceptionFetchResult>;
+  /** Modo recepción: detalle de transacción `PURCHASE_ORDER` para cargar líneas. */
+  fetchPurchaseOrderDetail?: (transactionId: string) => Promise<PurchasingTransactionDetailResult>;
+  /** Modo recepción: búsqueda de OC por folio o texto. */
+  searchPurchaseOrders?: (
+    query: string,
+  ) => Promise<{ rows: Array<{ id: string; documentNumber: string }> }>;
 };
 
 function supplierLabel(s: SupplierGridRow): string {
@@ -117,8 +133,48 @@ function supplierLabel(s: SupplierGridRow): string {
   return joined || s.id;
 }
 
-function mapReceptionLinesToDocumentLines(recLines: ReceptionDetailForReturn["lines"]): PurchaseDocumentLine[] {
+function purchaseOrderFolioLabel(detail: PurchasingTransactionDetail): string {
+  const num = detail.documentNumber?.trim();
+  if (num && num !== "—") {
+    return num;
+  }
+  const folio = detail.documentFolio?.trim();
+  return folio || detail.id;
+}
+
+function mapPurchaseOrderLinesToDocumentLines(
+  poLines: PurchasingTransactionDetail["lines"],
+): PurchaseDocumentLine[] {
+  const rows = poLines.filter((l) => (Number(l.quantity) || 0) > 0);
+  return rows.map((l) => {
+    const qty = Math.max(0.01, Number(l.quantity) || 0);
+    const sku = (l.productSku?.trim() || "—") as string;
+    const nameParts = [String(l.productName || "").trim(), (l.variantName ?? "").trim()].filter(Boolean);
+    const productName = nameParts.join(" · ") || "Ítem";
+    const pid = (l.productId ?? "").trim();
+    const vid = (l.productVariantId ?? "").trim();
+    const taxIds = l.taxId?.trim() ? [l.taxId.trim()] : [];
+    return {
+      key: `po-line-${l.id}`,
+      productId: pid,
+      variantId: vid,
+      productName,
+      sku,
+      barcode: null,
+      attributeValues: {},
+      quantity: qty,
+      unitPrice: Math.max(0, Math.round(Number(l.unitPrice) || 0)),
+      taxIds,
+    };
+  });
+}
+
+function mapReceptionLinesToDocumentLines(
+  recLines: ReceptionDetailForReturn["lines"],
+  defaultTaxIds: string[] = [],
+): PurchaseDocumentLine[] {
   const rows = recLines.filter((l) => (Number(l.receivedQuantity ?? l.quantity) || 0) > 0);
+  const taxIds = defaultTaxIds.filter(Boolean);
   return rows.map((l) => {
     const cap = Number(l.receivedQuantity ?? l.quantity) || 0;
     const sku = (l.sku?.trim() || "—") as string;
@@ -137,10 +193,89 @@ function mapReceptionLinesToDocumentLines(recLines: ReceptionDetailForReturn["li
       attributeValues: {},
       quantity: initialQty,
       unitPrice: Math.max(0, Math.round(Number(l.unitPrice) || 0)),
-      taxIds: [],
+      taxIds: [...taxIds],
       maxReturnQuantity: cap > 0 ? cap : null,
     };
   });
+}
+
+/** Impuestos de línea según recepción/DTE (neto + IVA del documento fiscal). */
+function inferTaxIdsFromReceptionTotals(
+  subtotal: number,
+  taxAmount: number,
+  activeTaxes: TaxListItem[],
+): string[] {
+  if (!activeTaxes.length) {
+    return [];
+  }
+  const net = Math.round(Number(subtotal) || 0);
+  const tax = Math.round(Number(taxAmount) || 0);
+  if (net > 0 && tax > 0) {
+    const impliedRate = Math.round((tax / net) * 100);
+    const exact = activeTaxes.find((t) => Math.round(Number(t.rate) || 0) === impliedRate);
+    if (exact) {
+      return [exact.id];
+    }
+    const close = activeTaxes.find(
+      (t) => Math.abs((Number(t.rate) || 0) - impliedRate) <= 1,
+    );
+    if (close) {
+      return [close.id];
+    }
+  }
+  return [];
+}
+
+function computeLineFiscalAmounts(
+  quantity: number,
+  unitPrice: number,
+  taxIds: string[],
+  taxById: Map<string, TaxListItem>,
+): {
+  subtotal: number;
+  taxAmount: number;
+  taxRate: number;
+  total: number;
+  taxId: string | null;
+} {
+  const subtotal = Math.round(quantity * unitPrice);
+  let rateSumPct = 0;
+  let taxId: string | null = null;
+  for (const tid of taxIds) {
+    const t = taxById.get(tid);
+    if (t) {
+      rateSumPct += Number(t.rate) || 0;
+      if (!taxId) {
+        taxId = tid;
+      }
+    }
+  }
+  const taxAmount = Math.round((subtotal * rateSumPct) / 100);
+  return {
+    subtotal,
+    taxAmount,
+    taxRate: rateSumPct,
+    total: subtotal + taxAmount,
+    taxId,
+  };
+}
+
+/** Recepción / compra: línea lista para valorizar inventario y PMP. */
+function receptionLineReadyForInventory(line: PurchaseDocumentLine): boolean {
+  const cost = Number(line.unitPrice) || 0;
+  return (
+    cost > 0 &&
+    line.quantity > 0 &&
+    Boolean(line.variantId?.trim()) &&
+    Boolean(line.productId?.trim())
+  );
+}
+
+function initialUnitCostFromVariant(item: PurchasingVariantSearchItem): number {
+  if (item.pmp != null && Number.isFinite(Number(item.pmp)) && Number(item.pmp) > 0) {
+    return Math.round(Number(item.pmp));
+  }
+  return 0;
 }
 
 function todayIsoDate(): string {
@@ -200,6 +335,9 @@ export function PurchaseDocumentBuilder({
   onSavePurchaseReturn,
   fetchReceptionDetail,
   resolveReceptionBySupplierDocument,
+  resolveReceptionForReturn,
+  fetchPurchaseOrderDetail,
+  searchPurchaseOrders,
 }: PurchaseDocumentBuilderProps) {
   const router = useRouter();
   const reference = usePurchaseDocumentReferenceData();
@@ -252,15 +390,16 @@ export function PurchaseDocumentBuilder({
     [],
   );
 
-  const loadLinesModeOptions: Option[] = useMemo(
+  const loadReturnSourceOptions: Option[] = useMemo(
     () => [
-      { id: "id", label: "ID recepción" },
-      { id: "invoice", label: "Factura / referencia" },
+      { id: "reception", label: "Recepción" },
+      { id: "invoice", label: "Factura" },
+      { id: "receipt", label: "Boleta" },
     ],
     [],
   );
 
-  const showLineTaxes = mode !== "purchase_return";
+  const showLineTaxes = true;
   const [lines, setLines] = useState<PurchaseDocumentLine[]>([]);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [storageId, setStorageId] = useState<string | null>(null);
@@ -276,11 +415,28 @@ export function PurchaseDocumentBuilder({
   const [externalReference, setExternalReference] = useState("");
   const [sourceReceptionId, setSourceReceptionId] = useState<string | null>(null);
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
-  const [loadMode, setLoadMode] = useState<"id" | "invoice">("id");
-  const [loadReceptionIdInput, setLoadReceptionIdInput] = useState("");
-  const [loadInvoiceRefInput, setLoadInvoiceRefInput] = useState("");
+  const [loadReturnSource, setLoadReturnSource] = useState<"reception" | "invoice" | "receipt">(
+    "reception",
+  );
+  const [loadReturnFolioInput, setLoadReturnFolioInput] = useState("");
   const [loadBusy, setLoadBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [linkedPurchaseOrderId, setLinkedPurchaseOrderId] = useState<string | null>(null);
+  const [linkedPurchaseOrderFolio, setLinkedPurchaseOrderFolio] = useState<string | null>(null);
+  const [loadPoDialogOpen, setLoadPoDialogOpen] = useState(false);
+  const [loadPoMode, setLoadPoMode] = useState<"id" | "folio">("folio");
+  const [loadPoIdInput, setLoadPoIdInput] = useState("");
+  const [loadPoFolioInput, setLoadPoFolioInput] = useState("");
+  const [loadPoBusy, setLoadPoBusy] = useState(false);
+  const [loadPoError, setLoadPoError] = useState<string | null>(null);
+
+  const loadPoModeOptions: Option[] = useMemo(
+    () => [
+      { id: "folio", label: "Folio OC" },
+      { id: "id", label: "ID transacción" },
+    ],
+    [],
+  );
 
   // Impresión automática de órdenes de compra (A4 por defecto).
   const { contentRef: poPrintRef, handlePrint: printPurchaseOrder } = usePrint(
@@ -390,7 +546,7 @@ export function PurchaseDocumentBuilder({
           l.variantId === item.id ? { ...l, quantity: Math.max(1, l.quantity + 1) } : l,
         );
       }
-      const price = Math.max(0, Math.round(item.pmp || 0));
+      const price = initialUnitCostFromVariant(item);
       const row: PurchaseDocumentLine = {
         key: `${item.id}-${Date.now()}`,
         productId: item.productId,
@@ -457,27 +613,26 @@ export function PurchaseDocumentBuilder({
     );
   }, []);
 
+  const taxById = useMemo(() => new Map(activeTaxes.map((t) => [t.id, t])), [activeTaxes]);
+
   const summary = useMemo(() => {
-    const taxById = new Map(activeTaxes.map((t) => [t.id, t]));
     let subtotalNeto = 0;
     let impuestosTotal = 0;
 
     for (const line of lines) {
-      const lineNet = line.quantity * line.unitPrice;
-      subtotalNeto += lineNet;
-      let rateSumPct = 0;
-      for (const tid of line.taxIds) {
-        const t = taxById.get(tid);
-        if (t) {
-          rateSumPct += Number(t.rate) || 0;
-        }
-      }
-      impuestosTotal += Math.round((lineNet * rateSumPct) / 100);
+      const fiscal = computeLineFiscalAmounts(
+        line.quantity,
+        line.unitPrice,
+        line.taxIds,
+        taxById,
+      );
+      subtotalNeto += fiscal.subtotal;
+      impuestosTotal += fiscal.taxAmount;
     }
 
     const total = subtotalNeto + impuestosTotal;
     return { subtotalNeto, impuestosTotal, total };
-  }, [lines, activeTaxes]);
+  }, [lines, taxById]);
 
   const appliedTaxNames = useMemo(() => {
     const taxById = new Map(activeTaxes.map((t) => [t.id, t]));
@@ -562,11 +717,13 @@ export function PurchaseDocumentBuilder({
 
   const canSaveReceptionBase =
     mode === "reception" && Boolean(onSaveReception) && Boolean(branchId?.trim());
+  const receptionLinesReadyForInventory =
+    lines.length > 0 && lines.every(receptionLineReadyForInventory);
   const canConfirmReception =
     canSaveReceptionBase &&
     Boolean(supplierId?.trim()) &&
     Boolean(storageId?.trim()) &&
-    lines.length > 0 &&
+    receptionLinesReadyForInventory &&
     (docKind === "invoice" || docKind === "receipt" || docKind === "guide" || docKind === "other");
 
   const submitPurchaseOrder = useCallback(
@@ -707,6 +864,12 @@ export function PurchaseDocumentBuilder({
       setSaveError("Agregue al menos una línea de producto.");
       return;
     }
+    if (!receptionLinesReadyForInventory) {
+      setSaveError(
+        "Cada línea debe tener variante, cantidad y costo unitario de compra mayor a cero (actualiza el PMP).",
+      );
+      return;
+    }
     if (docKind !== "invoice" && docKind !== "receipt" && docKind !== "guide" && docKind !== "other") {
       setSaveError("Seleccione tipo de documento.");
       return;
@@ -716,6 +879,7 @@ export function PurchaseDocumentBuilder({
       branchId: branchId.trim(),
       storageId: storageId.trim(),
       supplierId: supplierId.trim(),
+      purchaseOrderId: linkedPurchaseOrderId?.trim() || null,
       reference: docReference.trim() || null,
       documentType: docKind as ReceptionDteType,
       notes: documentNotes.trim() || null,
@@ -790,10 +954,17 @@ export function PurchaseDocumentBuilder({
     summary.total,
     supplierFiscalTaxInfo.taxId,
     supplierFiscalTaxInfo.taxRatePct,
+    linkedPurchaseOrderId,
+    receptionLinesReadyForInventory,
   ]);
 
   const applyLoadedReception = useCallback((r: ReceptionDetailForReturn) => {
-    const mapped = mapReceptionLinesToDocumentLines(r.lines);
+    const defaultTaxIds = inferTaxIdsFromReceptionTotals(
+      r.subtotal ?? 0,
+      r.taxAmount ?? 0,
+      activeTaxes,
+    );
+    const mapped = mapReceptionLinesToDocumentLines(r.lines, defaultTaxIds);
     if (mapped.length === 0) {
       setLoadError("La recepción no tiene líneas con cantidad mayor a cero.");
       return;
@@ -812,62 +983,149 @@ export function PurchaseDocumentBuilder({
     }
     setLoadDialogOpen(false);
     setLoadError(null);
+  }, [activeTaxes]);
+
+  const applyLoadedPurchaseOrder = useCallback((detail: PurchasingTransactionDetail) => {
+    if (detail.transactionType !== "PURCHASE_ORDER") {
+      setLoadPoError("El documento no es una orden de compra.");
+      return;
+    }
+    const mapped = mapPurchaseOrderLinesToDocumentLines(detail.lines);
+    if (mapped.length === 0) {
+      setLoadPoError("La orden de compra no tiene líneas con cantidad mayor a cero.");
+      return;
+    }
+    setLines(mapped);
+    if (detail.supplierId?.trim()) {
+      setSupplierId(detail.supplierId.trim());
+    }
+    if (detail.storageId?.trim()) {
+      setStorageId(detail.storageId.trim());
+    }
+    setLinkedPurchaseOrderId(detail.id);
+    setLinkedPurchaseOrderFolio(purchaseOrderFolioLabel(detail));
+    const d = detail.createdAt?.trim();
+    if (d && d.length >= 10) {
+      setDocDate(d.slice(0, 10));
+    }
+    if (detail.notes?.trim()) {
+      setDocumentNotes(detail.notes.trim());
+    }
+    setLoadPoDialogOpen(false);
+    setLoadPoError(null);
   }, []);
+
+  const confirmLoadPurchaseOrder = useCallback(async () => {
+    setLoadPoError(null);
+    setLoadPoBusy(true);
+    try {
+      if (loadPoMode === "id") {
+        const id = loadPoIdInput.trim();
+        if (!id) {
+          setLoadPoError("Ingrese el ID de la orden de compra.");
+          return;
+        }
+        if (!UUID_RE.test(id)) {
+          setLoadPoError("El ID debe ser un UUID válido.");
+          return;
+        }
+        if (!fetchPurchaseOrderDetail) {
+          setLoadPoError("La carga por ID no está configurada.");
+          return;
+        }
+        const res = await fetchPurchaseOrderDetail(id);
+        if (!res.success) {
+          setLoadPoError(res.error);
+          return;
+        }
+        applyLoadedPurchaseOrder(res.data);
+      } else {
+        const folio = loadPoFolioInput.trim();
+        if (!folio) {
+          setLoadPoError("Ingrese el folio de la orden de compra.");
+          return;
+        }
+        if (!searchPurchaseOrders) {
+          setLoadPoError("La búsqueda por folio no está configurada.");
+          return;
+        }
+        const listed = await searchPurchaseOrders(folio);
+        const folioLower = folio.toLowerCase();
+        const match =
+          listed.rows.find((r) => r.documentNumber.trim().toLowerCase() === folioLower) ??
+          listed.rows[0];
+        if (!match?.id) {
+          setLoadPoError("No se encontró una orden de compra con ese folio.");
+          return;
+        }
+        if (!fetchPurchaseOrderDetail) {
+          setLoadPoError("No se pudo cargar el detalle de la orden.");
+          return;
+        }
+        const res = await fetchPurchaseOrderDetail(match.id);
+        if (!res.success) {
+          setLoadPoError(res.error);
+          return;
+        }
+        applyLoadedPurchaseOrder(res.data);
+      }
+    } finally {
+      setLoadPoBusy(false);
+    }
+  }, [
+    loadPoMode,
+    loadPoIdInput,
+    loadPoFolioInput,
+    fetchPurchaseOrderDetail,
+    searchPurchaseOrders,
+    applyLoadedPurchaseOrder,
+  ]);
 
   const confirmLoadReception = useCallback(async () => {
     setLoadError(null);
     setLoadBusy(true);
     try {
-      if (loadMode === "id") {
-        const id = loadReceptionIdInput.trim();
-        if (!id) {
-          setLoadError("Ingrese el ID de la recepción.");
-          return;
-        }
-        if (!fetchReceptionDetail) {
-          setLoadError("La carga por ID no está configurada.");
-          return;
-        }
-        const res = await fetchReceptionDetail(id);
-        if (!res.success) {
-          setLoadError(res.error);
-          return;
-        }
-        applyLoadedReception(res.reception);
-      } else {
-        const ref = loadInvoiceRefInput.trim();
-        if (!ref) {
-          setLoadError("Ingrese número o referencia de factura.");
-          return;
-        }
-        const sid = supplierId?.trim();
-        if (!sid) {
-          setLoadError("Seleccione primero el proveedor para buscar por factura.");
-          return;
-        }
-        if (!resolveReceptionBySupplierDocument) {
-          setLoadError("La búsqueda por factura no está configurada.");
-          return;
-        }
-        const res = await resolveReceptionBySupplierDocument(sid, ref);
-        if (!res.success) {
-          setLoadError(res.error);
-          return;
-        }
-        applyLoadedReception(res.reception);
+      const folio = loadReturnFolioInput.trim();
+      if (!folio) {
+        setLoadError("Ingrese el folio interno del documento.");
+        return;
       }
+      if (!resolveReceptionForReturn) {
+        setLoadError("La carga de devolución no está configurada.");
+        return;
+      }
+      const res = await resolveReceptionForReturn(
+        loadReturnSource,
+        folio,
+        supplierId?.trim() || null,
+      );
+      if (!res.success) {
+        setLoadError(res.error);
+        return;
+      }
+      applyLoadedReception(res.reception);
     } finally {
       setLoadBusy(false);
     }
   }, [
-    loadMode,
-    loadReceptionIdInput,
-    loadInvoiceRefInput,
+    loadReturnSource,
+    loadReturnFolioInput,
     supplierId,
-    fetchReceptionDetail,
-    resolveReceptionBySupplierDocument,
+    resolveReceptionForReturn,
     applyLoadedReception,
   ]);
+
+  const loadReturnFolioLabel =
+    loadReturnSource === "reception"
+      ? "Folio recepción"
+      : loadReturnSource === "invoice"
+        ? "Folio factura"
+        : "Folio boleta";
+
+  const loadReturnFolioPlaceholder =
+    loadReturnSource === "reception"
+      ? "Ej. CMP-26-00001"
+      : "Ej. folio interno del documento fiscal";
 
   const submitPurchaseReturn = useCallback(async () => {
     setSaveError(null);
@@ -896,23 +1154,19 @@ export function PurchaseDocumentBuilder({
     }
 
     const dtoLines = lines.map((l) => {
-      const qty = l.quantity;
-      const unit = l.unitPrice;
-      const subtotal = qty * unit;
-      const taxAmount = 0;
-      const taxRate = 0;
-      const total = subtotal + taxAmount;
+      const fiscal = computeLineFiscalAmounts(l.quantity, l.unitPrice, l.taxIds, taxById);
       return {
-        quantity: qty,
-        unitPrice: unit,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
         productName: l.productName,
         productId: l.productId.trim() && UUID_RE.test(l.productId) ? l.productId : undefined,
         productVariantId: l.variantId.trim() && UUID_RE.test(l.variantId) ? l.variantId : undefined,
         sku: l.sku && l.sku !== "—" ? l.sku : undefined,
-        subtotal,
-        total,
-        taxAmount,
-        taxRate,
+        subtotal: fiscal.subtotal,
+        total: fiscal.total,
+        taxAmount: fiscal.taxAmount,
+        taxRate: fiscal.taxRate,
+        taxId: fiscal.taxId ?? undefined,
       };
     });
 
@@ -969,12 +1223,15 @@ export function PurchaseDocumentBuilder({
     summary.total,
     sourceReceptionId,
     router,
+    taxById,
   ]);
 
+  const purchaseDocViewportHeight =
+    "h-[calc(100dvh-var(--app-topbar-height,3.75rem)-2.5rem)] max-h-[calc(100dvh-var(--app-topbar-height,3.75rem)-2.5rem)]";
   const rootLayoutClassName =
     mode === "purchase_return"
-      ? "flex min-h-0 min-w-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch"
-      : "flex h-[calc(100dvh-5.25rem)] max-h-[calc(100dvh-5.25rem)] min-h-0 min-w-0 flex-col gap-4 lg:flex-row lg:items-stretch";
+      ? "flex h-full min-h-0 min-w-0 w-full flex-1 flex-col"
+      : `flex min-h-0 min-w-0 ${purchaseDocViewportHeight} flex-col gap-4 lg:flex-row lg:items-stretch`;
 
   return (
     <div className={rootLayoutClassName} data-test-id="purchase-document-builder">
@@ -997,10 +1254,17 @@ export function PurchaseDocumentBuilder({
       ) : null}
 
       <section
-        className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-xl border border-border bg-background p-3 lg:h-full lg:min-h-0"
+        className={
+          mode === "purchase_return"
+            ? "flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden rounded-xl border border-border bg-background p-3"
+            : "flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-xl border border-border bg-background p-3 lg:h-full lg:min-h-0"
+        }
         data-test-id="purchase-document-detail-panel"
       >
-        <div className="flex w-full min-w-0 flex-col gap-3" data-test-id="purchase-doc-header-fields">
+        <div
+          className={`flex w-full min-w-0 flex-col gap-3 ${mode === "purchase_return" ? "shrink-0" : ""}`}
+          data-test-id="purchase-doc-header-fields"
+        >
           {referenceError ? (
             <p className="rounded-md border border-error/40 bg-error/10 px-3 py-2 text-sm text-error" role="alert">
               {referenceError}
@@ -1020,6 +1284,14 @@ export function PurchaseDocumentBuilder({
                   data-test-id="purchase-doc-payment-summary"
                 >
                   {receptionPaymentSummaryText}
+                </p>
+              ) : null}
+              {mode === "reception" && linkedPurchaseOrderFolio ? (
+                <p
+                  className="mt-1 max-w-full text-xs leading-snug text-muted-foreground"
+                  data-test-id="purchase-doc-po-summary"
+                >
+                  OC: {linkedPurchaseOrderFolio}
                 </p>
               ) : null}
             </div>
@@ -1125,12 +1397,25 @@ export function PurchaseDocumentBuilder({
             data-test-id="purchase-doc-lines-table"
           >
             <colgroup>
-              <col className="min-w-0" />
-              <col className="w-36" />
-              <col className="w-52" />
-              {showLineTaxes ? <col className="min-w-[7.5rem] w-[8.25rem]" /> : null}
-              <col className="w-36" />
-              <col className="w-12" />
+              {mode === "purchase_return" ? (
+                <>
+                  <col className="w-[26%] min-w-0" />
+                  <col className="min-w-[5.75rem] w-24" />
+                  <col className="w-36" />
+                  <col className="min-w-[7rem] w-[7.5rem]" />
+                  <col className="w-28" />
+                  <col className="w-12" />
+                </>
+              ) : (
+                <>
+                  <col className="min-w-0" />
+                  <col className="w-36" />
+                  <col className="w-52" />
+                  {showLineTaxes ? <col className="min-w-[7.5rem] w-[8.25rem]" /> : null}
+                  <col className="w-36" />
+                  <col className="w-12" />
+                </>
+              )}
             </colgroup>
             <thead>
               <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1327,19 +1612,34 @@ export function PurchaseDocumentBuilder({
                       data-test-id="purchase-doc-back-to-list"
                     />
                   ) : null}
-                  {mode === "purchase_return" && (fetchReceptionDetail || resolveReceptionBySupplierDocument) ? (
+                  {mode === "purchase_return" && resolveReceptionForReturn ? (
                     <IconButton
                       icon="Upload"
                       variant="basicSecondary"
                       size="md"
-                      title="Cargar líneas desde recepción o factura"
-                      ariaLabel="Cargar líneas desde recepción o factura"
+                      title="Cargar devolución"
+                      ariaLabel="Cargar devolución"
                       disabled={isSaving || referenceLoading}
                       onClick={() => {
                         setLoadError(null);
                         setLoadDialogOpen(true);
                       }}
                       data-test-id="purchase-doc-load-lines"
+                    />
+                  ) : null}
+                  {mode === "reception" && (fetchPurchaseOrderDetail || searchPurchaseOrders) ? (
+                    <IconButton
+                      icon="Upload"
+                      variant="basicSecondary"
+                      size="md"
+                      title="Asociar orden de compra"
+                      ariaLabel="Asociar orden de compra"
+                      disabled={isSaving || referenceLoading}
+                      onClick={() => {
+                        setLoadPoError(null);
+                        setLoadPoDialogOpen(true);
+                      }}
+                      data-test-id="purchase-doc-load-purchase-order"
                     />
                   ) : null}
                   {mode !== "purchase_return" ? (
@@ -1418,7 +1718,7 @@ export function PurchaseDocumentBuilder({
                           : undefined
                         : mode === "reception"
                           ? !canConfirmReception
-                            ? "Recepción: sucursal, proveedor, almacén, tipo de documento y al menos una línea."
+                            ? "Recepción: sucursal, proveedor, almacén, tipo de documento, líneas con costo unitario > 0 y variante."
                             : undefined
                           : !canConfirmPurchaseReturn
                             ? "Devolución: sucursal, proveedor, almacén y líneas cargadas desde una recepción."
@@ -1522,59 +1822,46 @@ export function PurchaseDocumentBuilder({
             setLoadDialogOpen(false);
           }
         }}
-        title="Cargar líneas desde recepción"
+        title="Cargar devolución"
         size="md"
         scroll="paper"
         hideActions
-        showCloseButton
+        showCloseButton={false}
         data-test-id="purchase-doc-load-dialog"
       >
         <div className="flex flex-col gap-3 px-1 py-1">
           <Select
-            label="Origen"
-            name="purchase-doc-load-mode"
-            options={loadLinesModeOptions}
-            value={loadMode}
-            onChange={(id) => setLoadMode(id === "invoice" ? "invoice" : "id")}
+            label="Documento"
+            name="purchase-doc-load-return-source"
+            options={loadReturnSourceOptions}
+            value={loadReturnSource}
+            onChange={(id) => {
+              if (id === "invoice" || id === "receipt" || id === "reception") {
+                setLoadReturnSource(id);
+              }
+            }}
             alwaysShowLabel
             density="compact"
             className="w-full min-w-0"
-            data-test-id="purchase-doc-load-mode"
+            data-test-id="purchase-doc-load-return-source"
           />
-          {loadMode === "id" ? (
-            <TextField
-              label="ID recepción"
-              name="purchase-doc-load-reception-id"
-              value={loadReceptionIdInput}
-              onChange={(e) => setLoadReceptionIdInput(e.target.value)}
-              placeholder="UUID de la recepción"
-              alwaysShowLabel
-              density="compact"
-              disabled={loadBusy}
-              className="w-full min-w-0"
-              data-test-id="purchase-doc-load-reception-id"
-            />
-          ) : (
-            <>
-              <p className="text-xs leading-snug text-muted-foreground">
-                Se localiza la recepción más reciente del proveedor seleccionado cuyo DTE, número de documento o
-                referencia coincide con el valor ingresado. Las líneas cargadas son siempre las de esa recepción (no
-                las de la factura).
-              </p>
-              <TextField
-                label="Número o referencia de factura"
-                name="purchase-doc-load-invoice-ref"
-                value={loadInvoiceRefInput}
-                onChange={(e) => setLoadInvoiceRefInput(e.target.value)}
-                placeholder="Ej. folio DTE o referencia guardada en la recepción"
-                alwaysShowLabel
-                density="compact"
-                disabled={loadBusy}
-                className="w-full min-w-0"
-                data-test-id="purchase-doc-load-invoice-ref"
-              />
-            </>
-          )}
+          <p className="text-xs leading-snug text-muted-foreground">
+            {loadReturnSource === "reception"
+              ? "Ingrese el folio interno de la recepción de compra (CMP-…). Se cargan las líneas de esa recepción."
+              : "Ingrese el folio interno del documento fiscal. El sistema localiza la recepción asociada y carga sus productos."}
+          </p>
+          <TextField
+            label={loadReturnFolioLabel}
+            name="purchase-doc-load-return-folio"
+            value={loadReturnFolioInput}
+            onChange={(e) => setLoadReturnFolioInput(e.target.value)}
+            placeholder={loadReturnFolioPlaceholder}
+            alwaysShowLabel
+            density="compact"
+            disabled={loadBusy}
+            className="w-full min-w-0"
+            data-test-id="purchase-doc-load-return-folio"
+          />
           {loadError ? (
             <p className="text-sm text-error" role="alert">
               {loadError}
@@ -1598,6 +1885,95 @@ export function PurchaseDocumentBuilder({
               loading={loadBusy}
               onClick={() => void confirmLoadReception()}
               data-test-id="purchase-doc-load-confirm"
+            >
+              Cargar devolución
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={loadPoDialogOpen}
+        onClose={() => {
+          if (!loadPoBusy) {
+            setLoadPoDialogOpen(false);
+          }
+        }}
+        title="Asociar orden de compra"
+        size="md"
+        scroll="paper"
+        hideActions
+        showCloseButton
+        data-test-id="purchase-doc-load-po-dialog"
+      >
+        <div className="flex flex-col gap-3 px-1 py-1">
+          <Select
+            label="Buscar por"
+            name="purchase-doc-load-po-mode"
+            options={loadPoModeOptions}
+            value={loadPoMode}
+            onChange={(id) => setLoadPoMode(id === "id" ? "id" : "folio")}
+            alwaysShowLabel
+            density="compact"
+            className="w-full min-w-0"
+            data-test-id="purchase-doc-load-po-mode"
+          />
+          {loadPoMode === "id" ? (
+            <TextField
+              label="ID orden de compra"
+              name="purchase-doc-load-po-id"
+              value={loadPoIdInput}
+              onChange={(e) => setLoadPoIdInput(e.target.value)}
+              placeholder="UUID de la transacción PURCHASE_ORDER"
+              alwaysShowLabel
+              density="compact"
+              disabled={loadPoBusy}
+              className="w-full min-w-0"
+              data-test-id="purchase-doc-load-po-id"
+            />
+          ) : (
+            <>
+              <p className="text-xs leading-snug text-muted-foreground">
+                Se busca la orden de compra cuyo folio interno coincide con el valor ingresado y se cargan sus
+                líneas, proveedor y almacén si están definidos.
+              </p>
+              <TextField
+                label="Folio orden de compra"
+                name="purchase-doc-load-po-folio"
+                value={loadPoFolioInput}
+                onChange={(e) => setLoadPoFolioInput(e.target.value)}
+                placeholder="Ej. OC-000123"
+                alwaysShowLabel
+                density="compact"
+                disabled={loadPoBusy}
+                className="w-full min-w-0"
+                data-test-id="purchase-doc-load-po-folio"
+              />
+            </>
+          )}
+          {loadPoError ? (
+            <p className="text-sm text-error" role="alert">
+              {loadPoError}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+            <Button
+              variant="outlinedSecondary"
+              size="md"
+              type="button"
+              disabled={loadPoBusy}
+              onClick={() => setLoadPoDialogOpen(false)}
+              data-test-id="purchase-doc-load-po-cancel"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="outlined"
+              size="md"
+              type="button"
+              loading={loadPoBusy}
+              onClick={() => void confirmLoadPurchaseOrder()}
+              data-test-id="purchase-doc-load-po-confirm"
             >
               Cargar
             </Button>

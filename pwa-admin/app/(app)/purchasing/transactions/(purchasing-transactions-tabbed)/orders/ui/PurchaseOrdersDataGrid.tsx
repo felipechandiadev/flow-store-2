@@ -140,7 +140,7 @@ export default function PurchaseOrdersDataGrid({ rows, total }: PurchaseOrdersDa
 
   return (
     <DataGrid
-      title="Órdenes de compra"
+      title=""
       columns={columns}
       rows={rows}
       totalRows={total}
@@ -150,6 +150,8 @@ export default function PurchaseOrdersDataGrid({ rows, total }: PurchaseOrdersDa
       showSortButton={false}
       showFilterButton={false}
       onAddClick={() => router.push("/purchasing/transactions/orders/new")}
+      addButtonVariant="pillOutlined"
+      addButtonLabel="Orden de compra"
       data-test-id="purchase-orders-data-grid"
     />
   );

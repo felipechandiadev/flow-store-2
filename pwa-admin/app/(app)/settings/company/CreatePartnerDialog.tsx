@@ -8,16 +8,11 @@ import { TextField } from "@/shared/components/TextField/TextField";
 import Select from "@/shared/components/Select/Select";
 import type { Option } from "@/shared/components/Select";
 import { createShareholderAction } from "@/features/settings-shareholders/actions/shareholder.action";
+import { PARTNER_TYPE_OPTIONS } from "@/features/settings-shareholders/lib/partner-type-labels";
 
 const DOC_OPTIONS: Option[] = [
   { id: "RUN", label: "RUN" },
   { id: "RUT", label: "RUT" },
-];
-
-const PARTNER_TYPE_OPTIONS: Option[] = [
-  { id: "FOUNDING_PARTNER", label: "Socio fundador" },
-  { id: "INVESTING_PARTNER", label: "Socio inversionista" },
-  { id: "OTHER", label: "Otro" },
 ];
 
 type CreatePartnerDialogProps = {

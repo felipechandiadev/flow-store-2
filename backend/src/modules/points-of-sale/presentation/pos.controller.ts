@@ -106,6 +106,15 @@ export class PosController {
     return { success: true, paymentMethods };
   }
 
+  /** Medios habilitados (merge empresa + POS) para listados admin. */
+  @Get(':id/payment-methods/effective')
+  @AdminOnly()
+  async getEffectivePaymentMethods(@Param('id') id: string) {
+    const paymentMethods =
+      await this.posService.getEffectivePaymentMethods(id);
+    return { success: true, paymentMethods };
+  }
+
   /**
    * Reemplaza la configuración local de medios de pago de un POS.
    * Body: `{ paymentMethods: PosPaymentMethodConfig[] }` o el array directo.

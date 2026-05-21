@@ -1,7 +1,9 @@
 'use client'
 import React, { useState, useCallback } from 'react';
-import { Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import IconButton from '@/shared/components/IconButton';
+import { ButtonPill } from '@/shared/components/Button';
+import type { DataGridAddButtonVariant } from '../DataGrid';
 import Toolbar from './Toolbar';
 import TextField from '@/shared/components/TextField';
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -20,6 +22,8 @@ interface HeaderProps {
   createFormTitle?: string;
   onAddClick?: () => void; // Callback para el botón + (abre diálogo externo)
   addDisabled?: boolean; // Deshabilita el botón + sin ocultarlo
+  addButtonVariant?: DataGridAddButtonVariant;
+  addButtonLabel?: string;
   screenWidth?: number;
   onExportExcel?: () => Promise<void>;
   headerActions?: React.ReactNode; // Slot para componentes adicionales (ej: filtros externos)
@@ -39,6 +43,8 @@ const Header: React.FC<HeaderProps> = ({
   createFormTitle,
   onAddClick,
   addDisabled = false,
+  addButtonVariant = 'icon',
+  addButtonLabel,
   screenWidth = 1024,
   onExportExcel,
   headerActions,
@@ -114,15 +120,41 @@ const Header: React.FC<HeaderProps> = ({
       <div className="flex w-full items-center gap-2 py-0">
         {/* Add button - usa onAddClick si está definido, sino abre el modal interno */}
         {(createForm || onAddClick) && (
-          <div className="flex items-center shrink-0">
-            <IconButton
-              icon="Plus"
-              variant="basicSecondary"
-              size="md"
-              onClick={onAddClick || (() => setIsCreateModalOpen(true))}
-              disabled={addDisabled}
-              data-test-id="add-button"
-            />
+          <div
+            className={
+              addButtonVariant === 'pillOutlined'
+                ? 'flex min-w-0 shrink-0 items-center overflow-visible'
+                : 'flex shrink-0 items-center'
+            }
+          >
+            {addButtonVariant === 'pillOutlined' ? (
+              <ButtonPill
+                type="button"
+                variant="outlined"
+                disabled={addDisabled}
+                onClick={onAddClick || (() => setIsCreateModalOpen(true))}
+                className="!inline-flex !w-auto !max-w-none items-center gap-1.5 whitespace-nowrap"
+                data-test-id="add-button-pill"
+                aria-label={
+                  addButtonLabel?.trim()
+                    ? `Agregar ${addButtonLabel.trim()}`
+                    : 'Agregar'
+                }
+              >
+                <Plus className="h-4 w-4 shrink-0 text-secondary" aria-hidden />
+                <span>{addButtonLabel?.trim() ? addButtonLabel.trim() : 'Agregar'}</span>
+              </ButtonPill>
+            ) : (
+              <IconButton
+                icon="Plus"
+                variant="basicSecondary"
+                size="md"
+                onClick={onAddClick || (() => setIsCreateModalOpen(true))}
+                disabled={addDisabled}
+                data-test-id="add-button"
+                aria-label="Agregar"
+              />
+            )}
           </div>
         )}
         {title?.trim() ? (

@@ -1,6 +1,10 @@
 import { Suspense } from "react";
-import { listPurchaseReturnsForPage } from "@/features/purchasing-purchase-returns/actions/purchase-return.action";
+import {
+  listPurchaseReturnsForPage,
+  loadReceptionFoliosByIdsAction,
+} from "@/features/purchasing-purchase-returns/actions/purchase-return.action";
 import type { PurchaseReturnListItem } from "@/features/purchasing-purchase-returns/types/purchase-return.types";
+import { extractReceptionIdFromPurchaseReturn } from "@/features/purchasing-purchase-returns/types/purchase-return.types";
 import PurchaseReturnsDataGrid, {
   type PurchaseReturnGridRow,
 } from "./ui/PurchaseReturnsDataGrid";
@@ -15,7 +19,10 @@ function parseSp(sp: Record<string, string | string[] | undefined>, key: string)
   return typeof v === "string" ? v : "";
 }
 
-function toGridRows(data: PurchaseReturnListItem[]): PurchaseReturnGridRow[] {
+async function toGridRows(
+  data: PurchaseReturnListItem[],
+  receptionFolios: Record<string, string>,
+): Promise<PurchaseReturnGridRow[]> {
   return data.map((x) => {
     const person = x.supplier?.person;
     const supplierName =
@@ -23,7 +30,12 @@ function toGridRows(data: PurchaseReturnListItem[]): PurchaseReturnGridRow[] {
       [person?.firstName, person?.lastName].filter(Boolean).join(" ") ||
       x.supplier?.id ||
       "—";
-    return { ...x, supplierName };
+    const receptionId = extractReceptionIdFromPurchaseReturn(x);
+    const receptionFolio =
+      receptionId && receptionFolios[receptionId]
+        ? receptionFolios[receptionId]
+        : null;
+    return { ...x, supplierName, receptionFolio };
   });
 }
 
@@ -43,7 +55,11 @@ export default async function PurchaseReturnsListPage({
     search: search || undefined,
   });
 
-  const rows = toGridRows(res.data);
+  const receptionIds = res.data
+    .map((x) => extractReceptionIdFromPurchaseReturn(x))
+    .filter((id): id is string => Boolean(id));
+  const receptionFolios = await loadReceptionFoliosByIdsAction(receptionIds);
+  const rows = await toGridRows(res.data, receptionFolios);
 
   return (
     <div className="min-h-0 p-0" data-test-id="purchase-returns-list-page-root">

@@ -113,3 +113,20 @@ export async function listPurchaseOrdersForGrid(input: {
 
   return { rows, total: r.total };
 }
+
+/** Búsqueda ligera de OC para asociar en recepción (builder cliente). */
+export async function searchPurchaseOrdersForReceptionAction(
+  query: string,
+): Promise<{ rows: Array<{ id: string; documentNumber: string }> }> {
+  const q = query.trim();
+  if (!q) {
+    return { rows: [] };
+  }
+  const result = await listPurchaseOrdersForGrid({ page: 1, limit: 20, search: q });
+  return {
+    rows: result.rows.map((r) => ({
+      id: r.id,
+      documentNumber: r.documentNumber,
+    })),
+  };
+}

@@ -12,6 +12,24 @@ import {
 
 const VALID_METHODS = new Set<string>(Object.values(PaymentMethod));
 
+/**
+ * IDs fijos para el catálogo por defecto (empresa sin `settings.paymentMethods`).
+ * Evita UUID aleatorios en cada GET, que rompen la config POS ya guardada.
+ */
+const DEFAULT_COMPANY_PAYMENT_METHOD_IDS: Partial<
+  Record<PaymentMethod, string>
+> = {
+  [PaymentMethod.CASH]: 'e7b3c1a0-0001-4000-8000-000000000001',
+  [PaymentMethod.CREDIT_CARD]: 'e7b3c1a0-0001-4000-8000-000000000002',
+  [PaymentMethod.DEBIT_CARD]: 'e7b3c1a0-0001-4000-8000-000000000003',
+  [PaymentMethod.TRANSFER]: 'e7b3c1a0-0001-4000-8000-000000000004',
+  [PaymentMethod.CHECK]: 'e7b3c1a0-0001-4000-8000-000000000005',
+};
+
+export function defaultCompanyPaymentMethodId(method: PaymentMethod): string {
+  return DEFAULT_COMPANY_PAYMENT_METHOD_IDS[method] ?? randomUUID();
+}
+
 function trimOrNull(v: unknown): string | null {
   if (typeof v !== 'string') return null;
   const t = v.trim();
@@ -46,7 +64,10 @@ export function sanitizeCompanyPaymentMethod(
     );
   }
 
-  const id = typeof r.id === 'string' && isUUID(r.id) ? r.id : randomUUID();
+  const id =
+    typeof r.id === 'string' && isUUID(r.id)
+      ? r.id
+      : defaultCompanyPaymentMethodId(method);
 
   const displayOrder =
     Number.isFinite(Number(r.displayOrder)) ? Math.trunc(Number(r.displayOrder)) : index;
@@ -139,7 +160,7 @@ export function sanitizePosPaymentMethod(
 
   return {
     companyPaymentMethodId: cmpId,
-    isEnabled: r.isEnabled !== false,
+    isEnabled: r.isEnabled === true,
     preloadOnPaymentScreen: r.preloadOnPaymentScreen === true,
     preloadOrder,
     // Solo efectivo permite "default para vuelto".
@@ -284,7 +305,7 @@ export function buildDefaultCompanyCatalog(): CompanyPaymentMethodConfig[] {
     PaymentMethod.CHECK,
   ];
   return baseMethods.map((m, i) => ({
-    id: randomUUID(),
+    id: defaultCompanyPaymentMethodId(m),
     method: m,
     alias: null,
     displayOrder: i,

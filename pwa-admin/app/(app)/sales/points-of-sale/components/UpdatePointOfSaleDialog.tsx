@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Dialog from "@/shared/components/Dialog/Dialog";
 import Alert from "@/shared/components/Alert/Alert";
 import { Button } from "@/shared/components/Button";
@@ -20,7 +20,10 @@ import {
   type PosPaymentMethodConfig,
 } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
 import { getCompanyDetailsAction } from "@/features/settings-company/actions/company.action";
-import { PosPaymentMethodsCardsEditor } from "./PosPaymentMethodsCardsEditor";
+import {
+  PosPaymentMethodsCardsEditor,
+  type PosPaymentMethodsCardsEditorHandle,
+} from "./PosPaymentMethodsCardsEditor";
 
 export type UpdatePointOfSaleDialogProps = {
   open: boolean;
@@ -59,6 +62,8 @@ export function UpdatePointOfSaleDialog({
   const [bankAccountOptions, setBankAccountOptions] = useState<Array<{ id: string; label: string }>>(
     [],
   );
+  const paymentEditorRef = useRef<PosPaymentMethodsCardsEditorHandle>(null);
+  const resolvedCompanyId = (companyId ?? "").trim();
 
   const branchOptions = useMemo(
     () => branches.map((b) => ({ id: b.id, label: b.name })),
@@ -116,11 +121,11 @@ export function UpdatePointOfSaleDialog({
 
     setPaymentCatalog([]);
     setPosPaymentDraft([]);
-    if (companyId) {
+    if (resolvedCompanyId) {
       setLoadingPayments(true);
       void (async () => {
         const [catalogRes, posRes, details] = await Promise.all([
-          getCompanyPaymentMethodsAction(companyId),
+          getCompanyPaymentMethodsAction(resolvedCompanyId),
           getPosPaymentMethodsAction(point.id),
           getCompanyDetailsAction(),
         ]);
@@ -132,6 +137,10 @@ export function UpdatePointOfSaleDialog({
                 catalogRes.paymentMethods,
                 posRes.paymentMethods,
               ),
+            );
+          } else {
+            setPosPaymentDraft(
+              syncPosPaymentDraftWithCatalog(catalogRes.paymentMethods, []),
             );
           }
         } else if (posRes.success) {
@@ -156,7 +165,7 @@ export function UpdatePointOfSaleDialog({
         setLoadingPayments(false);
       })();
     }
-  }, [open, point, branches, companyId, storages]);
+  }, [open, point, branches, resolvedCompanyId, storages]);
 
   useEffect(() => {
     if (!open) {
@@ -229,8 +238,10 @@ export function UpdatePointOfSaleDialog({
           return;
         }
 
-        if (paymentCatalog.length > 0) {
-          const pr = await replacePosPaymentMethodsAction(point.id, posPaymentDraft);
+        if (resolvedCompanyId) {
+          const paymentPayload =
+            paymentEditorRef.current?.getPayload() ?? posPaymentDraft;
+          const pr = await replacePosPaymentMethodsAction(point.id, paymentPayload);
           if (!pr.success) {
             setError(pr.error || "No se pudieron guardar los medios de pago del POS.");
             return;
@@ -403,11 +414,13 @@ export function UpdatePointOfSaleDialog({
             <p className="text-sm text-muted-foreground">Cargando medios de pago…</p>
           ) : (
             <PosPaymentMethodsCardsEditor
+              key={open ? `pos-pm-editor-${point.id}` : "pos-pm-editor-closed"}
+              ref={paymentEditorRef}
               catalog={paymentCatalog}
               value={posPaymentDraft}
               onChange={setPosPaymentDraft}
               bankAccountOptions={bankAccountOptions}
-              disabled={isPending || !companyId}
+              disabled={isPending || !resolvedCompanyId}
               data-test-id="pos-update-payment-methods"
             />
           )}

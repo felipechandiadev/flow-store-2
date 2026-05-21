@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CreditCard, Cpu, Package, Tags } from "lucide-react";
-import { CashRegisterIcon } from "./CashRegisterIcon";
+import { Building2, CreditCard, Cpu, Package, Store, Tags } from "lucide-react";
 import { Card } from "@/shared/components/Cards";
 import { DeleteDialog } from "@/shared/components/Dialog/DeleteDialog";
 import Badge from "@/shared/components/Badge/Badge";
@@ -12,9 +11,9 @@ import type { BranchListItem } from "@/features/settings-branches/types/branch.t
 import type { PriceListListItem } from "@/features/sales-price-lists/types/price-list.types";
 import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
 import { deletePointOfSaleAction } from "@/features/sales-points-of-sale/actions/point-of-sale.action";
-import { getEffectivePaymentMethodsForPosAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
+import { getPosPaymentMethodsForCardAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
 import { UpdatePointOfSaleDialog } from "./UpdatePointOfSaleDialog";
-import type { EffectivePaymentMethod } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
+import type { PosPaymentMethodDisplayBadge } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
 
 type PointOfSaleCardProps = {
   point: PointOfSaleListItem;
@@ -49,21 +48,17 @@ export function PointOfSaleCard({
 
   const [pmLoading, setPmLoading] = useState(false);
   const [pmError, setPmError] = useState<string | null>(null);
-  const [paymentMethods, setPaymentMethods] = useState<EffectivePaymentMethod[]>(
-    [],
-  );
+  const [paymentBadges, setPaymentBadges] = useState<PosPaymentMethodDisplayBadge[]>([]);
 
   const reloadPaymentMethods = useCallback(async () => {
     setPmLoading(true);
     setPmError(null);
     try {
-      const res = await getEffectivePaymentMethodsForPosAction(point.id);
+      const res = await getPosPaymentMethodsForCardAction(point.id);
       if (res.success) {
-        setPaymentMethods(
-          Array.isArray(res.paymentMethods) ? res.paymentMethods : [],
-        );
+        setPaymentBadges(res.badges);
       } else {
-        setPaymentMethods([]);
+        setPaymentBadges([]);
         setPmError(res.error || "No se pudieron cargar los medios de pago");
       }
     } finally {
@@ -74,13 +69,6 @@ export function PointOfSaleCard({
   useEffect(() => {
     void reloadPaymentMethods();
   }, [point.id, point.updatedAt, reloadPaymentMethods]);
-
-  const enabledPaymentMethods = useMemo(() => {
-    // El endpoint "effective" YA viene filtrado a habilitados del POS,
-    // y ordenado (preloadOrder, luego displayOrder). Respetamos ese orden.
-    // Solo hacemos un guard mínimo por si llega data inesperada.
-    return paymentMethods.filter((m) => m != null && (m as any).method);
-  }, [paymentMethods]);
 
   const headerEnd = (
     <span data-test-id="pos-card-active-label" className="shrink-0">
@@ -104,7 +92,7 @@ export function PointOfSaleCard({
         aria-hidden
       />
       <div className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-2xl border-2 border-secondary bg-white/90 shadow-md backdrop-blur-sm">
-        <CashRegisterIcon className="h-9 w-9 shrink-0 text-primary" />
+        <Store className="h-9 w-9 shrink-0 text-primary" strokeWidth={1.75} aria-hidden />
       </div>
     </div>
   );
@@ -182,7 +170,7 @@ export function PointOfSaleCard({
           >
             {pmError}
           </p>
-        ) : enabledPaymentMethods.length === 0 ? (
+        ) : paymentBadges.length === 0 ? (
           <p
             className="text-sm text-muted-foreground"
             data-test-id="pos-card-payment-methods-empty"
@@ -194,14 +182,10 @@ export function PointOfSaleCard({
             className="flex flex-wrap gap-1.5"
             data-test-id="pos-card-payment-methods-badges"
           >
-            {enabledPaymentMethods.slice(0, 6).map((m) => (
+            {paymentBadges.slice(0, 6).map((m) => (
               <span
                 key={m.companyPaymentMethodId}
-                title={
-                  m.bankAccountKey
-                    ? `${m.label} · ${m.bankAccountKey}`
-                    : m.label
-                }
+                title={m.label}
                 className="inline-block max-w-full"
               >
                 <Badge variant="info-outlined" className="max-w-full truncate">
@@ -209,9 +193,9 @@ export function PointOfSaleCard({
                 </Badge>
               </span>
             ))}
-            {enabledPaymentMethods.length > 6 ? (
+            {paymentBadges.length > 6 ? (
               <Badge variant="secondary-outlined">
-                +{enabledPaymentMethods.length - 6}
+                +{paymentBadges.length - 6}
               </Badge>
             ) : null}
           </div>

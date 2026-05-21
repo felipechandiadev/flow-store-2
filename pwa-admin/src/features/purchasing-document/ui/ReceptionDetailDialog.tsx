@@ -103,11 +103,19 @@ export default function ReceptionDetailDialog({ receptionId, open, onClose }: Pr
         <div className="space-y-4">
           <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-muted-foreground">Documento / ref.</dt>
+              <dt className="text-muted-foreground">Folio recepción</dt>
               <dd className="font-medium text-foreground">
-                {detail.documentNumber || detail.reference || "—"}
+                {detail.folio || detail.documentNumber || "—"}
               </dd>
             </div>
+            {(detail.supplierDocumentRef || detail.reference || detail.dteNumber) ? (
+              <div>
+                <dt className="text-muted-foreground">Doc. proveedor</dt>
+                <dd className="text-foreground">
+                  {detail.supplierDocumentRef || detail.reference || detail.dteNumber}
+                </dd>
+              </div>
+            ) : null}
             <div>
               <dt className="text-muted-foreground">Registro</dt>
               <dd className="text-foreground">{formatDateTime(detail.createdAt)}</dd>

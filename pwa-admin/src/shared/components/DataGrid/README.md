@@ -177,6 +177,8 @@ export default function UsersDataGrid({ data, total, page, limit }: Props) {
 | `limit` | `number` | `25` | Filas por página por defecto |
 | `showBorder` | `boolean` | `false` | Mostrar borde alrededor |
 | `onAddClick` | `() => void` | - | Callback para botón "+" |
+| `addButtonVariant` | `'icon' \| 'pillOutlined'` | `'icon'` | Estilo del botón de alta |
+| `addButtonLabel` | `string` | - | Con `pillOutlined`: texto del botón (ej. `Recepción`; el + es solo icono) |
 | `createForm` | `ReactNode` | - | Formulario de creación (modal interno) |
 | `createFormTitle` | `string` | - | Título del modal de creación |
 | `onExportExcel` | `() => Promise<void>` | - | Callback para exportar a Excel |

@@ -28,6 +28,8 @@ export type CreateDirectReceptionInput = {
   branchId: string;
   storageId?: string | null;
   supplierId?: string | null;
+  /** Transacción `PURCHASE_ORDER` asociada a esta recepción. */
+  purchaseOrderId?: string | null;
   /** Referencia o folio del documento del proveedor (factura, guía, etc.). */
   reference?: string | null;
   documentType: ReceptionDteType;
@@ -45,6 +47,8 @@ export type CreateReceptionResult =
       receptionId?: string;
       internalDocumentNumber?: string | null;
       supplierDocumentError?: string | null;
+      /** Error al crear la transacción PURCHASE (stock / PMP no se actualizaron). */
+      transactionError?: string | null;
     }
   | { success: false; error: string };
 
@@ -53,10 +57,23 @@ export type ReceptionGridRow = {
   id: string;
   createdAt?: string;
   supplierName?: string | null;
+  /** DNI / documento de identidad del proveedor (`person.documentNumber`). */
+  supplierDni?: string | null;
   storageName?: string | null;
+  /** Folio interno de la recepción (transacción PURCHASE, p. ej. CMP-26-00001). */
+  folio?: string | null;
   documentNumber?: string | null;
+  dteType?: string | null;
+  reference?: string | null;
+  /** Referencia del documento del proveedor (DTE / factura). */
+  supplierDocumentRef?: string | null;
+  subtotal?: number;
+  taxAmount?: number;
+  total?: number;
   /** Origen: directa, desde OC, etc. */
   type?: string;
+  /** Folio de la orden de compra cuando `type === "from-purchase-order"`. */
+  purchaseOrderNumber?: string | null;
 };
 
 export type ReceptionListForGridResult = {
@@ -84,7 +101,9 @@ export type ReceptionDetailForReturn = {
   supplierId?: string | null;
   storageId?: string | null;
   createdAt?: string;
+  folio?: string | null;
   documentNumber?: string | null;
+  supplierDocumentRef?: string | null;
   supplierName?: string | null;
   storageName?: string | null;
   reference?: string | null;

@@ -1,16 +1,33 @@
+export type PurchaseReturnMetadataLinks = {
+  receptionId?: string | null;
+  purchaseOrderId?: string | null;
+  supplierInvoiceId?: string | null;
+};
+
 /** Listado desde `GET /api/purchase-returns` (misma forma que transacciones). */
 export type PurchaseReturnListItem = {
   id: string;
   createdAt: string;
   documentNumber?: string | null;
   status?: string;
+  subtotal?: number | string | null;
+  taxAmount?: number | string | null;
   total?: number | string | null;
   supplier?: {
     id: string;
     person?: { businessName?: string; firstName?: string; lastName?: string };
   };
   externalReference?: string | null;
+  notes?: string | null;
+  metadata?: { links?: PurchaseReturnMetadataLinks } | null;
 };
+
+export function extractReceptionIdFromPurchaseReturn(
+  item: Pick<PurchaseReturnListItem, "metadata">,
+): string | null {
+  const id = item.metadata?.links?.receptionId;
+  return typeof id === "string" && id.trim() ? id.trim() : null;
+}
 
 export type PurchaseReturnListResult = {
   data: PurchaseReturnListItem[];
@@ -46,6 +63,7 @@ export type CreatePurchaseReturnInput = {
     total?: number;
     taxAmount?: number;
     taxRate?: number;
+    taxId?: string;
   }>;
   metadata?: { links?: Record<string, string | null> };
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Dialog from "@/shared/components/Dialog/Dialog";
 import Alert from "@/shared/components/Alert/Alert";
 import { Button } from "@/shared/components/Button";
@@ -14,9 +14,15 @@ import { createPointOfSaleAction } from "@/features/sales-points-of-sale/actions
 import { getCompanyPaymentMethodsAction } from "@/features/companies/actions/companies-payment-methods.action";
 import { replacePosPaymentMethodsAction } from "@/features/sales-points-of-sale/actions/pos-payment-methods.action";
 import type { CompanyPaymentMethodConfig } from "@/features/companies/types/company-payment-methods.types";
-import type { PosPaymentMethodConfig } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
+import {
+  syncPosPaymentDraftWithCatalog,
+  type PosPaymentMethodConfig,
+} from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
 import { getCompanyDetailsAction } from "@/features/settings-company/actions/company.action";
-import { PosPaymentMethodsCardsEditor } from "./PosPaymentMethodsCardsEditor";
+import {
+  PosPaymentMethodsCardsEditor,
+  type PosPaymentMethodsCardsEditorHandle,
+} from "./PosPaymentMethodsCardsEditor";
 
 export type CreatePointOfSaleDialogProps = {
   open: boolean;
@@ -57,6 +63,8 @@ export function CreatePointOfSaleDialog({
   const [bankAccountOptions, setBankAccountOptions] = useState<Array<{ id: string; label: string }>>(
     [],
   );
+  const paymentEditorRef = useRef<PosPaymentMethodsCardsEditorHandle>(null);
+  const resolvedCompanyId = (companyId ?? "").trim();
 
   const branchOptions = useMemo(
     () => branches.map((b) => ({ id: b.id, label: b.name })),
@@ -95,14 +103,17 @@ export function CreatePointOfSaleDialog({
     setPaymentCatalog([]);
     setPosPaymentDraft([]);
     setBankAccountOptions([]);
-    if (companyId) {
+    if (resolvedCompanyId) {
       setLoadingPayments(true);
       void (async () => {
         const [res, details] = await Promise.all([
-          getCompanyPaymentMethodsAction(companyId),
+          getCompanyPaymentMethodsAction(resolvedCompanyId),
           getCompanyDetailsAction(),
         ]);
-        if (res.success) setPaymentCatalog(res.paymentMethods);
+        if (res.success) {
+          setPaymentCatalog(res.paymentMethods);
+          setPosPaymentDraft(syncPosPaymentDraftWithCatalog(res.paymentMethods, []));
+        }
         if (details?.bankAccounts?.length) {
           setBankAccountOptions(
             details.bankAccounts
@@ -120,7 +131,7 @@ export function CreatePointOfSaleDialog({
         setLoadingPayments(false);
       })();
     }
-  }, [open, branches, companyId]);
+  }, [open, branches, resolvedCompanyId]);
 
   /** Sin opción "automática": al cambiar asignación, fija la preferente en una lista concreta (la primera de la selección). */
   useEffect(() => {
@@ -197,10 +208,11 @@ export function CreatePointOfSaleDialog({
           return;
         }
 
-        // Persist payment methods config after creating the POS (optional).
-        if (posPaymentDraft.length > 0) {
+        if (resolvedCompanyId) {
           const posId = r.pointOfSale.id;
-          const pr = await replacePosPaymentMethodsAction(posId, posPaymentDraft);
+          const paymentPayload =
+            paymentEditorRef.current?.getPayload() ?? posPaymentDraft;
+          const pr = await replacePosPaymentMethodsAction(posId, paymentPayload);
           if (!pr.success) {
             setError(pr.error || "El POS fue creado, pero no se pudieron guardar los medios de pago.");
             return;
@@ -379,6 +391,8 @@ export function CreatePointOfSaleDialog({
             <p className="text-sm text-muted-foreground">Cargando medios de pago…</p>
           ) : (
             <PosPaymentMethodsCardsEditor
+              key={open ? "pos-pm-editor-create" : "pos-pm-editor-create-closed"}
+              ref={paymentEditorRef}
               catalog={paymentCatalog}
               value={posPaymentDraft}
               onChange={setPosPaymentDraft}

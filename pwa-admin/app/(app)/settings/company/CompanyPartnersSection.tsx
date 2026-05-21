@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import type { ShareholderRow } from "@/features/settings-shareholders/types/shareholder.types";
 import { deleteShareholderAction } from "@/features/settings-shareholders/actions/shareholder.action";
+import { partnerTypeLabel } from "@/features/settings-shareholders/lib/partner-type-labels";
 import { CreatePartnerDialog } from "./CreatePartnerDialog";
 
 function partnerLabel(row: ShareholderRow): string {
@@ -75,7 +76,7 @@ export function CompanyPartnersSection({ companyId, shareholders }: Props) {
                   </div>
                   <div className="flex justify-between gap-2">
                     <dt>Tipo</dt>
-                    <dd>{row.partnerType ?? "—"}</dd>
+                    <dd>{partnerTypeLabel(row.partnerType)}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
                     <dt>Ingreso</dt>

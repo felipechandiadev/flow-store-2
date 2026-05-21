@@ -139,6 +139,7 @@ import { StockLevelsModule } from '@modules/stock-levels/stock-levels.module';
     TransactionsService,
     TransactionsServiceAdapter,
     SupplierFiscalDocumentPaymentAggregateService,
+    DocumentNumberService,
   ],
 })
 export class TransactionsModule {}

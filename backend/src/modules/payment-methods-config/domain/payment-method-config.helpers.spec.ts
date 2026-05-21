@@ -1,5 +1,7 @@
 import { PaymentMethod } from '@modules/transactions/domain/transaction.entity';
 import {
+  buildDefaultCompanyCatalog,
+  defaultCompanyPaymentMethodId,
   mergeCompanyAndPos,
   sanitizeCompanyPaymentMethod,
   syncPosPaymentMethodsWithCatalog,
@@ -8,6 +10,15 @@ import {
 import type { PosPaymentMethodConfig } from './payment-method-config.types';
 
 describe('payment-method-config.helpers', () => {
+  it('buildDefaultCompanyCatalog uses stable ids per method', () => {
+    const a = buildDefaultCompanyCatalog();
+    const b = buildDefaultCompanyCatalog();
+    expect(a.map((x) => x.id)).toEqual(b.map((x) => x.id));
+    expect(a.find((x) => x.method === PaymentMethod.CASH)?.id).toBe(
+      defaultCompanyPaymentMethodId(PaymentMethod.CASH),
+    );
+  });
+
   it('forces requireReference for CUSTOMER_CREDIT_NOTE and ORDER_ADVANCE', () => {
     const list = validateCompanyPaymentMethods([
       {

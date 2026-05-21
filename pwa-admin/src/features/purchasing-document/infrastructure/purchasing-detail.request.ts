@@ -74,8 +74,17 @@ function normalizeLine(raw: unknown): PurchasingTransactionDetailLine | null {
   const unitPrice = num(o.unitPrice);
   const subtotal = num(o.subtotal) || qty * unitPrice;
   const total = num(o.total) || subtotal + num(o.taxAmount);
+  const productId =
+    o.productId != null && String(o.productId).trim() ? String(o.productId).trim() : null;
+  const productVariantId =
+    o.productVariantId != null && String(o.productVariantId).trim()
+      ? String(o.productVariantId).trim()
+      : null;
+  const taxId = o.taxId != null && String(o.taxId).trim() ? String(o.taxId).trim() : null;
   return {
     id,
+    productId,
+    productVariantId,
     productName,
     productSku:
       typeof o.productSku === "string" && o.productSku.trim()
@@ -89,6 +98,7 @@ function normalizeLine(raw: unknown): PurchasingTransactionDetailLine | null {
     unitPrice,
     subtotal,
     total,
+    taxId,
   };
 }
 
@@ -108,6 +118,10 @@ function normalizeDetail(raw: unknown): PurchasingTransactionDetail | null {
 
   const supplier = o.supplier as Record<string, unknown> | undefined;
   const supplierPerson = supplier?.person as Record<string, unknown> | undefined;
+  const supplierId =
+    supplier?.id != null && String(supplier.id).trim() ? String(supplier.id).trim() : null;
+  const storageId =
+    o.storageId != null && String(o.storageId).trim() ? String(o.storageId).trim() : null;
   const meta =
     o.metadata && typeof o.metadata === "object"
       ? (o.metadata as Record<string, unknown>)
@@ -141,6 +155,8 @@ function normalizeDetail(raw: unknown): PurchasingTransactionDetail | null {
         ? o.externalReference.trim()
         : null,
     notes: typeof o.notes === "string" && o.notes.trim() ? o.notes.trim() : null,
+    supplierId,
+    storageId,
     supplierLabel: personName(supplierPerson),
     metadata: meta,
     receptionId: extractReceptionId(meta),
