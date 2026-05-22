@@ -3,6 +3,7 @@
 //! La crate `barcoders` exige prefijo de juego de caracteres (A/B/C). Usamos B (Ɓ) para
 //! folios alfanuméricos con guiones, p. ej. `VTA-26-00015`.
 
+use crate::escpos_raster::set_raster_pixel;
 use anyhow::{Context, Result};
 use barcoders::sym::code128::Code128;
 use printpdf::{Color, Line, Mm, Point, Rgb};
@@ -164,15 +165,6 @@ pub fn code128_raster_bitmap(folio: &str) -> Result<(Vec<u8>, u16, u16)> {
     }
 
     Ok((bitmap, width_bytes as u16, height))
-}
-
-fn set_raster_pixel(bitmap: &mut [u8], width_bytes: usize, x: usize, y: usize) {
-    let idx = y * width_bytes + x / 8;
-    if idx >= bitmap.len() {
-        return;
-    }
-    let bit = 7 - (x % 8);
-    bitmap[idx] |= 1 << bit;
 }
 
 /// Codifica payload ASCII (folio interno) a módulos 0/1.

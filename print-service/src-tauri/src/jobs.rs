@@ -190,3 +190,18 @@ pub fn write_pos_sale_ticket_escpos_from_value(
 ) -> Result<PathBuf> {
     crate::pos_sale_ticket_escpos::write_pos_sale_ticket_escpos_from_value(dir, value)
 }
+
+/// Genera ticket de cotización POS (PDF o ESC/POS según resolución en `ws`).
+pub fn write_pos_quotation_ticket_pdf_from_value(
+    dir: &PathBuf,
+    value: &serde_json::Value,
+) -> Result<PathBuf> {
+    crate::pos_quotation_ticket::write_pos_quotation_ticket_pdf_from_value(dir, value)
+}
+
+pub fn write_pos_quotation_ticket_escpos_from_value(
+    dir: &PathBuf,
+    value: &serde_json::Value,
+) -> Result<PathBuf> {
+    crate::pos_quotation_ticket::write_pos_quotation_ticket_escpos_from_value(dir, value)
+}

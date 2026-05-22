@@ -24,7 +24,42 @@ function isUnknownPrinterLabelError(e: unknown): boolean {
   return String(e).includes("unknown_printer_display_label");
 }
 
-export function posSaleReceiptToTicketPayload(data: PosSaleReceiptData): PosSaleTicketPayload {
+function resolveReceiptLogoUrl(logoUrl: string | null | undefined, origin: string): string {
+  const appDefault = `${origin}/logo.png`;
+  const raw = logoUrl?.trim();
+  if (!raw) return appDefault;
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  if (raw.startsWith("/")) return `${origin}${raw}`;
+  return raw;
+}
+
+/** Descarga el logo del comprobante y lo codifica para el PDF vectorial del agente. */
+export async function fetchReceiptLogoBase64(
+  logoUrl: string | null | undefined,
+  origin: string,
+): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  const url = resolveReceiptLogoUrl(logoUrl, origin);
+  try {
+    const res = await fetch(url, { cache: "force-cache" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const buf = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 1) {
+      binary += String.fromCharCode(bytes[i]!);
+    }
+    return btoa(binary);
+  } catch {
+    return null;
+  }
+}
+
+export function posSaleReceiptToTicketPayload(
+  data: PosSaleReceiptData,
+  options?: { logoBase64?: string | null },
+): PosSaleTicketPayload {
   const displayName = data.company.nombreFantasia?.trim() || data.company.razonSocial.trim();
   return {
     version: POS_SALE_TICKET_PAYLOAD_VERSION,
@@ -37,6 +72,7 @@ export function posSaleReceiptToTicketPayload(data: PosSaleReceiptData): PosSale
       nombreFantasia: data.company.nombreFantasia?.trim() || null,
       rut: data.company.rut?.trim() || null,
       businessActivity: data.company.businessActivity?.trim() || null,
+      logoBase64: options?.logoBase64 ?? null,
     },
     customer: data.customer
       ? {
@@ -143,7 +179,11 @@ export async function printPosSaleTicketAgentOrBrowser(
     return "browser";
   }
 
-  const ticket = posSaleReceiptToTicketPayload(data);
+  const logoBase64 = await fetchReceiptLogoBase64(
+    data.company.logoUrl,
+    window.location.origin,
+  );
+  const ticketVector = posSaleReceiptToTicketPayload(data, { logoBase64 });
   let result: "agent-vector" | "agent-raster" | "browser" = "browser";
 
   await withPrintAgentConnection("tickets", async (conn, hello: HelloResponseData | null) => {
@@ -151,14 +191,14 @@ export async function printPosSaleTicketAgentOrBrowser(
 
     if (vectorOk) {
       try {
-        await enqueueSaleTicketOnAgent(conn, ticket, meta, false);
+        await enqueueSaleTicketOnAgent(conn, ticketVector, meta, false);
         logPath("agent-vector", "pos-sale-ticket");
         result = "agent-vector";
         return;
       } catch (e) {
         if (isUnknownPrinterLabelError(e)) {
           try {
-            await enqueueSaleTicketOnAgent(conn, ticket, meta, true);
+            await enqueueSaleTicketOnAgent(conn, ticketVector, meta, true);
             logPath("agent-vector", "pos-sale-ticket (sin alias, mapeo propósito)");
             result = "agent-vector";
             return;

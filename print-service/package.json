@@ -12,7 +12,7 @@
     "tauri:dev": "node ./node_modules/@tauri-apps/cli/tauri.js dev",
     "tauri:build": "node ./node_modules/@tauri-apps/cli/tauri.js build",
     "tauri:build:windows": "node ./node_modules/@tauri-apps/cli/tauri.js build --target x86_64-pc-windows-msvc",
-    "tauri:build:windows:cross": "node ./node_modules/@tauri-apps/cli/tauri.js build --runner cargo-xwin --target x86_64-pc-windows-msvc --no-bundle",
+    "tauri:build:windows:cross": "CARGO_TARGET_DIR=src-tauri/target node ./node_modules/@tauri-apps/cli/tauri.js build --runner cargo-xwin --target x86_64-pc-windows-msvc --no-bundle",
     "package:windows-release": "node scripts/package-windows-release.mjs"
   },
   "dependencies": {

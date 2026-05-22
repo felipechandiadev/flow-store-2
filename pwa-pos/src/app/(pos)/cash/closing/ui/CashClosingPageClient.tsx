@@ -1,16 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
-import {
-  Alert,
-  Button,
-  DotProgress,
-  IconButton,
-  Select,
-  TextField,
-} from "@/shared/admin-shared";
+import { useSession } from "next-auth/react";
+import { Alert, Button, DotProgress, IconButton, Select, TextField } from "@/shared/admin-shared";
 import type { Option } from "@/shared/components/Select/Select";
 import { readPosContextClient, patchPosContextClient } from "@/features/session/lib/pos-context-storage";
 import { listOpenCashSessionsAction } from "@/features/session/actions/cash-session.action";
@@ -26,6 +19,7 @@ import {
   grandCloseCounted,
 } from "@/features/session/lib/close-counted-buckets";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
+import { saveCashClosingResultSnapshot } from "@/features/cash-closing/lib/cash-closing-result-storage";
 
 /** Si el POS no devuelve catálogo, permitimos arqueo con los medios estándar. */
 function fallbackCloseMethods(): EffectivePaymentMethod[] {
@@ -67,28 +61,16 @@ function parseAmountCLPInput(raw: string): number {
 
 type CloseOk = Extract<Awaited<ReturnType<typeof closeCashSessionAction>>, { success: true }>;
 
-function formatClosingHeaderDate(iso: string | null | undefined): string {
-  const d = iso ? new Date(iso) : new Date();
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" });
-}
-
 type CashClosingPageHeaderProps = {
   title: string;
-  dateLabel: string;
-  description: string;
   onBack: () => void;
 };
 
-function CashClosingPageHeader({ title, dateLabel, description, onBack }: CashClosingPageHeaderProps) {
+function CashClosingPageHeader({ title, onBack }: CashClosingPageHeaderProps) {
   return (
     <div className="flex items-start gap-4">
       <div className="min-w-0 flex-1">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
-          <p className="mt-1 text-xs text-muted-foreground">{dateLabel}</p>
-          <p className="mt-2 text-xs text-muted-foreground sm:text-sm">{description}</p>
-        </div>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
       </div>
       <div className="shrink-0">
         <IconButton
@@ -109,7 +91,6 @@ export default function CashClosingPageClient() {
   const router = useRouter();
   const { data: authSession, status: authStatus } = useSession();
   const cart = usePosCart();
-  const signOutStartedRef = useRef(false);
 
   const [cashSessionId, setCashSessionId] = useState<string | null>(null);
   const [sessionOpenedAt, setSessionOpenedAt] = useState<string | null>(null);
@@ -123,29 +104,15 @@ export default function CashClosingPageClient() {
 
   const [hubs, setHubs] = useState<CashHubDepositCandidate[]>([]);
   const [loadingHubs, setLoadingHubs] = useState(false);
+  const [hubsError, setHubsError] = useState<string | null>(null);
   const [hubId, setHubId] = useState<string | null>(null);
 
   const [amountsByMethodId, setAmountsByMethodId] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
 
   const [formError, setFormError] = useState<string | null>(null);
-  const [step, setStep] = useState<"blind" | "result">("blind");
-  const [closeResult, setCloseResult] = useState<CloseOk | null>(null);
-  const [signingOut, setSigningOut] = useState(false);
 
   const [isPending, startTransition] = useTransition();
-
-  const finishUserSession = useCallback(() => {
-    if (signOutStartedRef.current) return;
-    signOutStartedRef.current = true;
-    setSigningOut(true);
-    void signOut({ callbackUrl: "/" });
-  }, []);
-
-  useEffect(() => {
-    if (step !== "result" || !closeResult) return;
-    finishUserSession();
-  }, [step, closeResult, finishUserSession]);
 
   useEffect(() => {
     const ctx = readPosContextClient();
@@ -206,15 +173,20 @@ export default function CashClosingPageClient() {
 
   const loadHubs = useCallback(async (sessionId: string) => {
     setLoadingHubs(true);
+    setHubsError(null);
     const res = await listCashHubsForDepositAction(sessionId);
     setLoadingHubs(false);
     if (!res.success) {
       setHubs([]);
+      setHubId(null);
+      setHubsError(res.message);
       return;
     }
     setHubs(res.hubs);
     if (res.hubs.length === 1) {
       setHubId(res.hubs[0].id);
+    } else {
+      setHubId((prev) => (prev && res.hubs.some((h) => h.id === prev) ? prev : null));
     }
   }, []);
 
@@ -241,11 +213,6 @@ export default function CashClosingPageClient() {
     };
   }, [cashSessionId]);
 
-  const headerDateLabel = useMemo(
-    () => formatClosingHeaderDate(sessionOpenedAt),
-    [sessionOpenedAt],
-  );
-
   const goBackToPos = useCallback(() => {
     router.push("/pos");
   }, [router]);
@@ -271,14 +238,24 @@ export default function CashClosingPageClient() {
   const countedGrand = useMemo(() => grandCloseCounted(countedPayload), [countedPayload]);
 
   const userId = authSession?.user?.id?.trim() ?? "";
+  const operatorName =
+    authSession?.user?.name?.trim() ||
+    authSession?.user?.email?.trim() ||
+    "";
+
+  const posCtx = useMemo(() => readPosContextClient(), []);
+
+  const hubSelected = Boolean(hubId?.trim());
+  const hubReady = !loadingHubs && hubs.length > 0 && hubSelected;
 
   const canSubmitBlind = Boolean(
     cashSessionId &&
       userId &&
       authStatus === "authenticated" &&
       !isPending &&
-      step === "blind" &&
-      inputMethods.length > 0,
+      !loadingHubs &&
+      inputMethods.length > 0 &&
+      hubReady,
   );
 
   const onSubmitBlind = () => {
@@ -297,13 +274,29 @@ export default function CashClosingPageClient() {
       );
       return;
     }
+    if (loadingHubs) {
+      setFormError("Espera a que carguen los centros de efectivo.");
+      return;
+    }
+    if (hubs.length === 0) {
+      setFormError(
+        hubsError ??
+          "No hay centros de efectivo habilitados para este POS. Configúralos en administración antes de cerrar la caja.",
+      );
+      return;
+    }
+    const selectedHubId = hubId?.trim() ?? "";
+    if (!selectedHubId) {
+      setFormError("Selecciona el centro de efectivo donde se depositará el efectivo contado.");
+      return;
+    }
 
     startTransition(async () => {
       const res = await closeCashSessionAction({
         cashSessionId,
         userId,
         notes: notes.trim() || undefined,
-        cashHubId: hubId?.trim() || undefined,
+        cashHubId: selectedHubId,
         counted: countedPayload,
       });
       if (!res.success) {
@@ -312,8 +305,19 @@ export default function CashClosingPageClient() {
       }
       patchPosContextClient({ cashSessionId: null });
       cart.clear();
-      setCloseResult(res);
-      setStep("result");
+
+      saveCashClosingResultSnapshot({
+        closeResult: res,
+        sessionOpenedAt,
+        notes: notes.trim(),
+        countedGrand,
+        pointOfSaleName: posCtx?.pointOfSaleName ?? null,
+        branchName: posCtx?.branchName ?? null,
+        operatorName: operatorName || null,
+        closedAt: new Date().toISOString(),
+      });
+
+      router.replace("/cash/closing/result");
     });
   };
 
@@ -326,96 +330,9 @@ export default function CashClosingPageClient() {
     );
   }
 
-  if (step === "result" && closeResult) {
-    const blind = Boolean(closeResult.usedBlindCount);
-    const diff = typeof closeResult.difference === "number" ? closeResult.difference : null;
-    const counted = closeResult.counted as Record<string, number> | undefined;
-
-    return (
-      <div className="mx-auto max-w-3xl space-y-6 px-6 py-6">
-        <CashClosingPageHeader
-          title="Cierre de caja"
-          dateLabel={headerDateLabel}
-          description={
-            blind
-              ? "Resultado del arqueo: comparación entre efectivo contado y el saldo teórico de la sesión."
-              : "La sesión de caja se cerró correctamente."
-          }
-          onBack={goBackToPos}
-        />
-
-        <Alert variant="success" className="text-sm">
-          {closeResult.message ?? "Sesión de caja cerrada correctamente."}
-        </Alert>
-
-        <Alert variant="info" className="text-sm">
-          {signingOut
-            ? "Cerrando sesión de usuario… Serás redirigido al inicio de sesión."
-            : "La sesión de usuario se cerrará automáticamente."}
-        </Alert>
-
-        {blind && counted ? (
-          <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-foreground">Cuadre (cierre ciego)</h2>
-            <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-xs text-muted-foreground">Total declarado (todos los medios)</dt>
-                <dd className="tabular-nums text-base font-semibold">
-                  {currencyFmt.format(Math.round(Number(closeResult.countedGrand ?? countedGrand)))}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Efectivo teórico en sesión</dt>
-                <dd className="tabular-nums text-base font-semibold">
-                  {currencyFmt.format(Math.round(Number(closeResult.systemCashExpected ?? 0)))}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Efectivo contado</dt>
-                <dd className="tabular-nums text-base font-semibold">
-                  {currencyFmt.format(Math.round(Number(counted.cash ?? 0)))}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Diferencia (total declarado − efectivo teórico)</dt>
-                <dd
-                  className={`tabular-nums text-base font-semibold ${
-                    diff != null && Math.abs(diff) > 0.01 ? "text-amber-700 dark:text-amber-400" : "text-foreground"
-                  }`}
-                >
-                  {diff != null ? currencyFmt.format(Math.round(diff)) : "—"}
-                </dd>
-              </div>
-            </dl>
-            {typeof closeResult.salesTotal === "number" ? (
-              <p className="mt-3 text-xs text-muted-foreground">
-                Total de ventas de referencia en sesión:{" "}
-                <span className="font-mono tabular-nums text-foreground">
-                  {currencyFmt.format(Math.round(closeResult.salesTotal))}
-                </span>
-                .
-              </p>
-            ) : null}
-          </section>
-        ) : null}
-
-        <div className="flex justify-end pt-1">
-          <Button type="button" variant="primary" onClick={finishUserSession} disabled={signingOut}>
-            {signingOut ? "Cerrando sesión…" : "Cerrar sesión de usuario"}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-6 py-6">
-      <CashClosingPageHeader
-        title="Cierre de caja (arqueo ciego)"
-        dateLabel={headerDateLabel}
-        description="Declara los montos físicos por cada medio de pago habilitado en este POS. No se muestran totales del sistema hasta después del cierre. La suma de todos los medios debe coincidir con lo que entregas en caja; el sistema contrasta sobre todo el efectivo contado vs. el efectivo teórico de la sesión."
-        onBack={goBackToPos}
-      />
+      <CashClosingPageHeader title="Cierre de caja (arqueo ciego)" onBack={goBackToPos} />
 
       {loadError ? (
         <Alert variant="warning" className="text-sm">
@@ -437,10 +354,6 @@ export default function CashClosingPageClient() {
 
       <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-foreground">Conteo por medio</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Completa cada campo con el monto contado (pesos chilenos, sin decimales). Tarjetas, transferencias y cheques
-          van en su casilla aunque no haya efectivo físico de ese tipo.
-        </p>
 
         {!effectiveLoaded ? (
           <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground" role="status">
@@ -487,9 +400,9 @@ export default function CashClosingPageClient() {
       </section>
 
       <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-foreground">Centro de efectivo (opcional)</h2>
+        <h2 className="text-sm font-semibold text-foreground">Centro de efectivo</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          El efectivo contado puede trasladarse al centro de efectivo por defecto del POS o al que elijas aquí.
+          El efectivo contado se traslada al centro que elijas al cerrar la caja.
         </p>
         <div className="mt-4">
           {loadingHubs ? (
@@ -497,13 +410,17 @@ export default function CashClosingPageClient() {
               <DotProgress /> Cargando centros…
             </div>
           ) : hubs.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No hay centros disponibles; se usará el default del POS.</p>
+            <Alert variant="warning" className="text-xs">
+              {hubsError ??
+                "No hay centros de efectivo habilitados para este POS. Configúralos en administración antes de cerrar la caja."}
+            </Alert>
           ) : (
             <Select
               label="Centro de efectivo"
               placeholder="Selecciona…"
               options={hubOptions}
               value={hubId}
+              required
               onChange={(id) => setHubId(id != null ? String(id) : null)}
             />
           )}

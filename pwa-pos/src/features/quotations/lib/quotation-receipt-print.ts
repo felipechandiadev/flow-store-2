@@ -1,6 +1,6 @@
 import type { CompanyDetails } from "@/features/company/infrastructure/company.request";
 import type { QuotationDetail } from "@/features/quotations/types/quotation.types";
-import { printPosHtmlViaAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-agent-print";
+import { printPosQuotationReceiptAgentOrBrowserFireAndForget } from "@/features/quotations/lib/quotation-ticket-agent";
 import { thermalReceiptTicketCss } from "@/features/pos-print/lib/thermal-receipt-ticket-styles";
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
 
@@ -58,12 +58,14 @@ export function buildQuotationReceiptHtml(
 
   const lineRows = (q.lines ?? [])
     .map((l) => {
+      const qty = Number(l.quantity) || 0;
+      const unitWithTax = qty > 0 ? (Number(l.total) || 0) / qty : Number(l.unitPrice) || 0;
       const nameBits = [l.productName, l.variantName?.trim() || ""].filter(Boolean);
       const name = nameBits.join(" · ");
       const sku = l.productSku?.trim() ? `<div class="muted">${escapeHtml(l.productSku.trim())}</div>` : "";
       return `<tr>
         <td class="name">${escapeHtml(name)}${sku}
-          <div class="muted">${l.quantity} × ${formatMoney(l.unitPrice)}</div>
+          <div class="muted">${l.quantity} × ${formatMoney(unitWithTax)}</div>
         </td>
         <td class="tright qty">${formatMoney(l.total)}</td>
       </tr>`;
@@ -74,7 +76,7 @@ export function buildQuotationReceiptHtml(
     q.customerName?.trim() || q.customerDocument?.trim()
       ? `<div class="sep"></div>
          <div class="section-title">Cliente</div>
-         ${q.customerName?.trim() ? `<div class="row"><span>Nombre</span><span class="tright" style="max-width:48mm;text-align:right;">${escapeHtml(q.customerName.trim())}</span></div>` : ""}
+         ${q.customerName?.trim() ? `<div class="row customer-name"><span>Nombre</span><span class="customer-name-value">${escapeHtml(q.customerName.trim())}</span></div>` : ""}
          ${q.customerDocument?.trim() ? `<div class="row"><span>Documento</span><span>${escapeHtml(q.customerDocument.trim())}</span></div>` : ""}`
       : "";
 
@@ -125,14 +127,5 @@ export function buildQuotationReceiptHtml(
 }
 
 export function printPosQuotationReceipt(input: QuotationReceiptPrintInput): void {
-  if (typeof window === "undefined") return;
-  const origin = window.location.origin;
-  const html = buildQuotationReceiptHtml(input, origin);
-  const folio = input.quotation.documentNumber?.trim() || "cotizacion";
-  printPosHtmlViaAgentOrBrowserFireAndForget(html, "tickets", {
-    filename: `${folio}.pdf`,
-    iframeTitle: "Impresión cotización",
-    documentType: "QUOTATION",
-    internalFolio: folio,
-  });
+  printPosQuotationReceiptAgentOrBrowserFireAndForget(input);
 }

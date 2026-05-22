@@ -1,6 +1,6 @@
 /**
  * Ticket de venta POS → agente KaiPrinters (`type: "pos-sale-ticket"`).
- * Sin logo; el PDF se genera en el agente (vector, sin html2canvas).
+ * PDF vectorial en el agente; layout alineado al HTML del POS (`buildPosSaleReceiptHtml`).
  */
 
 export const POS_SALE_TICKET_PAYLOAD_VERSION = 1;
@@ -12,6 +12,8 @@ export type PosSaleTicketCompany = {
   nombreFantasia: string | null;
   rut: string | null;
   businessActivity: string | null;
+  /** PNG/JPEG en base64 (sin prefijo data:); opcional, mismo logo que el ticket HTML. */
+  logoBase64?: string | null;
 };
 
 export type PosSaleTicketCustomer = {

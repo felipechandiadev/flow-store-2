@@ -21,7 +21,9 @@ export function isPosLinkedPaymentIn(tx: Transaction): boolean {
 }
 
 /**
- * Efectivo esperado en cajón = apertura + entradas − salidas (incluye vuelto en SALE).
+ * Efectivo esperado en cajón = apertura (campo sesión) + entradas − salidas.
+ * `CASH_SESSION_OPENING` no se suma en el loop: la apertura ya está en `openingAmount`
+ * y la misma operación crea esa transacción solo para el listado de movimientos.
  */
 export function computeCashSessionExpectedAmount(
   openingAmount: number,
@@ -38,6 +40,7 @@ export function computeCashSessionExpectedAmount(
     const total = Number(tx.total) || 0;
     switch (tx.transactionType) {
       case TransactionType.CASH_SESSION_OPENING:
+        break;
       case TransactionType.CASH_SESSION_DEPOSIT:
         cashIn += total;
         break;

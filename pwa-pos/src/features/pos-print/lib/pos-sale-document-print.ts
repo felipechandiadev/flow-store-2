@@ -1,5 +1,9 @@
 import type { PosSaleReceiptData } from "@/app/(pos)/pos/payment/ui/PosSaleReceiptDialog";
-import { printPosHtmlViaAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-agent-print";
+import {
+  printPosHtmlViaAgentOrBrowser,
+  printPosHtmlViaAgentOrBrowserFireAndForget,
+} from "@/features/pos-print/lib/pos-agent-print";
+import { formatReceiptLineDisplayName } from "@/features/pos-print/lib/format-receipt-line-name";
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
 
 function escapeHtml(s: string) {
@@ -85,7 +89,7 @@ export function buildPosSaleDocumentHtml(data: PosSaleReceiptData): string {
 
   const lineRows = data.lines
     .map((l, idx) => {
-      const name = [l.productName, ...l.attributes].filter(Boolean).join(" · ");
+      const name = formatReceiptLineDisplayName(l.productName, l.attributes);
       const qty = Number(l.quantity) || 0;
       const price = Number(l.unitPriceWithTax) || 0;
       const lineTotal = Math.round(l.lineGross);
@@ -236,14 +240,29 @@ export function buildPosSaleDocumentHtml(data: PosSaleReceiptData): string {
 </body></html>`;
 }
 
-export function printPosSaleDocument(data: PosSaleReceiptData): void {
-  const html = buildPosSaleDocumentHtml(data);
+function posSaleDocumentPrintMeta(data: PosSaleReceiptData) {
   const label = data.documentKind === "backorder" ? "Impresión encargo documento" : "Impresión venta documento";
   const folio = data.folio.trim() || "documento";
-  printPosHtmlViaAgentOrBrowserFireAndForget(html, "documents", {
-    filename: `${folio}.pdf`,
-    iframeTitle: label,
-    documentType: data.documentKind === "backorder" ? "BACKORDER" : "SALE",
-    internalFolio: folio,
-  });
+  return {
+    html: buildPosSaleDocumentHtml(data),
+    label,
+    meta: {
+      filename: `${folio}.pdf`,
+      iframeTitle: label,
+      documentType: (data.documentKind === "backorder" ? "BACKORDER" : "SALE") as "BACKORDER" | "SALE",
+      internalFolio: folio,
+    },
+  };
+}
+
+export function printPosSaleDocument(data: PosSaleReceiptData): void {
+  const { html, meta } = posSaleDocumentPrintMeta(data);
+  printPosHtmlViaAgentOrBrowserFireAndForget(html, "documents", meta);
+}
+
+export async function printPosSaleDocumentAgentOrBrowser(
+  data: PosSaleReceiptData,
+): Promise<"agent" | "browser"> {
+  const { html, meta } = posSaleDocumentPrintMeta(data);
+  return printPosHtmlViaAgentOrBrowser(html, "documents", meta);
 }

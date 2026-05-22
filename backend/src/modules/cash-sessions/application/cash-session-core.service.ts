@@ -655,8 +655,8 @@ export class CashSessionCoreService {
       }
     }
 
-    const diffTotal = useCounted
-      ? Number((countedGrand - systemCashExpected).toFixed(2))
+    const diffCash = useCounted
+      ? Number((countedActual.cash - systemCashExpected).toFixed(2))
       : 0;
 
     const closingDetails: CashSessionClosingDetails | null = useCounted
@@ -675,8 +675,8 @@ export class CashSessionCoreService {
             other: 0,
           },
           difference: {
-            cash: Number((countedActual.cash - systemCashExpected).toFixed(2)),
-            total: diffTotal,
+            cash: diffCash,
+            total: diffCash,
           },
         }
       : null;
@@ -687,7 +687,7 @@ export class CashSessionCoreService {
     session.closedById = closedBy.id;
     session.expectedAmount = useCounted ? systemCashExpected : salesTotal;
     session.closingAmount = closingTxTotal;
-    session.difference = useCounted ? diffTotal : 0;
+    session.difference = useCounted ? diffCash : 0;
     if (options?.notes?.trim()) {
       session.notes = options.notes.trim();
     }
@@ -706,7 +706,7 @@ export class CashSessionCoreService {
       usedBlindCount: useCounted,
       countedGrand: useCounted ? countedGrand : undefined,
       counted: useCounted ? countedActual : undefined,
-      difference: useCounted ? diffTotal : undefined,
+      difference: useCounted ? diffCash : undefined,
     };
   }
 

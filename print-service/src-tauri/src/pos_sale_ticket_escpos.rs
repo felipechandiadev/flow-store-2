@@ -1,6 +1,7 @@
 //! Ticket de venta POS en ESC/POS (bytes RAW). Mismo JSON que `pos_sale_ticket_pdf`.
 //! Código de barras: raster CODE128 (mismo módulos que PDF), luego comandos nativos de respaldo.
 
+use crate::escpos_raster::{append_gs_v0, logo_base64_to_raster};
 use crate::pos_sale_ticket_pdf::{parse_pos_sale_ticket_from_value, PosSaleTicket};
 use crate::ticket_barcode::{
     code128_escpos_data, code128_escpos_data_charset_a, code128_raster_bitmap,
@@ -11,7 +12,10 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 /// Font A en bobina 80 mm (48 columnas estándar).
-const WIDTH: usize = 48;
+pub(crate) const WIDTH: usize = 48;
+/// Font B (más pequeña) en la misma bobina (~64 columnas).
+pub(crate) const WIDTH_FONT_B: usize = 64;
+const LINE_SPACING_PRODUCT_NAME: u8 = 18;
 /// Columna derecha reservada a montos en CLP (`$12.345.678`).
 const MONEY_COL: usize = 15;
 const NAME_COL: usize = WIDTH - MONEY_COL;
@@ -20,46 +24,50 @@ const LINE_SPACING_DENSE: u8 = 20;
 const BARCODE_HEIGHT_DOTS: u8 = 80;
 const BARCODE_MODULE_WIDTH: u8 = 2;
 
-fn escpos_init() -> Vec<u8> {
+pub(crate) fn escpos_init() -> Vec<u8> {
     vec![0x1B, b'@']
 }
 
 /// PC850 (Latin-1): `$` = 0x24, no aparece ¥ como en code pages asiáticas por defecto.
-fn escpos_select_pc850(buf: &mut Vec<u8>) {
+pub(crate) fn escpos_select_pc850(buf: &mut Vec<u8>) {
     buf.extend_from_slice(&[0x1B, 0x52, 0x00]); // ESC R 0 — USA
     buf.extend_from_slice(&[0x1B, 0x74, 0x02]); // ESC t 2 — PC850
 }
 
-fn escpos_font_a(buf: &mut Vec<u8>) {
+pub(crate) fn escpos_font_a(buf: &mut Vec<u8>) {
     buf.extend_from_slice(&[0x1B, 0x4D, 0x00]);
 }
 
-fn escpos_line_spacing(buf: &mut Vec<u8>, dots: u8) {
+pub(crate) fn escpos_font_b(buf: &mut Vec<u8>) {
+    buf.extend_from_slice(&[0x1B, 0x4D, 0x01]);
+}
+
+pub(crate) fn escpos_line_spacing(buf: &mut Vec<u8>, dots: u8) {
     buf.extend_from_slice(&[0x1B, 0x33, dots]);
 }
 
-fn escpos_char_size_normal(buf: &mut Vec<u8>) {
+pub(crate) fn escpos_char_size_normal(buf: &mut Vec<u8>) {
     buf.extend_from_slice(&[0x1D, 0x21, 0x00]);
 }
 
 /// Altura doble (solo nombre fantasía / encabezado).
-fn escpos_double_height_on(buf: &mut Vec<u8>) {
+pub(crate) fn escpos_double_height_on(buf: &mut Vec<u8>) {
     buf.extend_from_slice(&[0x1D, 0x21, 0x10]);
 }
 
-fn escpos_double_height_off(buf: &mut Vec<u8>) {
+pub(crate) fn escpos_double_height_off(buf: &mut Vec<u8>) {
     buf.extend_from_slice(&[0x1D, 0x21, 0x00]);
 }
 
-fn escpos_align(buf: &mut Vec<u8>, n: u8) {
+pub(crate) fn escpos_align(buf: &mut Vec<u8>, n: u8) {
     buf.extend_from_slice(&[0x1B, 0x61, n]);
 }
 
-fn escpos_bold(buf: &mut Vec<u8>, on: bool) {
+pub(crate) fn escpos_bold(buf: &mut Vec<u8>, on: bool) {
     buf.extend_from_slice(&[0x1B, 0x45, if on { 1 } else { 0 }]);
 }
 
-fn escpos_apply_ticket_typography(buf: &mut Vec<u8>) {
+pub(crate) fn escpos_apply_ticket_typography(buf: &mut Vec<u8>) {
     escpos_apply_ticket_typography_with_spacing(buf, LINE_SPACING_HEADER);
 }
 
@@ -70,8 +78,13 @@ fn escpos_apply_ticket_typography_with_spacing(buf: &mut Vec<u8>, spacing: u8) {
     escpos_char_size_normal(buf);
 }
 
-fn escpos_dense_body(buf: &mut Vec<u8>) {
+pub(crate) fn escpos_dense_body(buf: &mut Vec<u8>) {
     escpos_line_spacing(buf, LINE_SPACING_DENSE);
+}
+
+/// Separación breve tras un título de sección (p. ej. DETALLE).
+pub(crate) fn append_section_gap(buf: &mut Vec<u8>) {
+    append_line(buf, "");
 }
 
 fn escpos_reset_for_barcode(buf: &mut Vec<u8>) {
@@ -141,12 +154,12 @@ fn to_escpos_bytes(s: &str) -> Vec<u8> {
         .collect()
 }
 
-fn append_line(buf: &mut Vec<u8>, text: &str) {
+pub(crate) fn append_line(buf: &mut Vec<u8>, text: &str) {
     buf.extend(to_escpos_bytes(text));
     buf.push(b'\n');
 }
 
-fn wrap_lines(text: &str, max: usize) -> Vec<String> {
+pub(crate) fn wrap_lines(text: &str, max: usize) -> Vec<String> {
     let t = normalize_ticket_text(text);
     let t = t.trim();
     if t.is_empty() {
@@ -172,7 +185,7 @@ fn wrap_lines(text: &str, max: usize) -> Vec<String> {
     lines
 }
 
-fn format_clp(n: f64) -> String {
+pub(crate) fn format_clp(n: f64) -> String {
     let v = n.round() as i64;
     let s = v.to_string();
     let mut out = String::new();
@@ -185,11 +198,11 @@ fn format_clp(n: f64) -> String {
     out.chars().rev().collect::<String>()
 }
 
-fn money(n: f64) -> String {
+pub(crate) fn money(n: f64) -> String {
     format!("${}", format_clp(n))
 }
 
-fn format_datetime(iso: &str) -> String {
+pub(crate) fn format_datetime(iso: &str) -> String {
     if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(iso) {
         return dt.with_timezone(&chrono::Local).format("%d/%m/%Y %H:%M").to_string();
     }
@@ -225,8 +238,42 @@ fn full_divider() -> String {
     "-".repeat(WIDTH)
 }
 
+/// Etiqueta + valor en toda la línea (sin columna de montos; p. ej. nombre de cliente).
+pub(crate) fn append_label_value_wrapped(buf: &mut Vec<u8>, label: &str, value: &str) {
+    let label = normalize_ticket_text(label);
+    let value = normalize_ticket_text(value.trim());
+    if value.is_empty() {
+        return;
+    }
+    let label_cols = char_count(&label);
+    let first_max = WIDTH.saturating_sub(label_cols);
+    let lines = wrap_lines(&value, first_max);
+    for (i, line) in lines.iter().enumerate() {
+        if i == 0 {
+            append_line(
+                buf,
+                &format!("{label}{}", pad_left_cols(line, first_max)),
+            );
+        } else {
+            append_line(buf, &pad_left_cols(line, WIDTH));
+        }
+    }
+}
+
+pub(crate) fn pad_label_value(label: &str, value: &str) -> String {
+    let label = normalize_ticket_text(label);
+    let value = normalize_ticket_text(value);
+    let label_cols = char_count(&label);
+    let value_cols = WIDTH.saturating_sub(label_cols);
+    format!(
+        "{}{}",
+        pad_left_cols(&label, label_cols),
+        pad_left_cols(&value, value_cols)
+    )
+}
+
 /// Etiqueta a la izquierda + monto alineado en los últimos 15 caracteres de la línea.
-fn pad_left(label: &str, amount: &str) -> String {
+pub(crate) fn pad_left(label: &str, amount: &str) -> String {
     let label = normalize_ticket_text(label);
     let amount = pad_right_cols(amount, MONEY_COL);
     let label_max = WIDTH.saturating_sub(MONEY_COL);
@@ -245,8 +292,27 @@ fn chars_take(s: &str, max: usize) -> String {
     s.chars().take(max).collect()
 }
 
+/// Nombre del producto a ancho completo; el total va en la línea `cantidad × precio`.
+pub(crate) fn append_product_line_block(
+    buf: &mut Vec<u8>,
+    name: &str,
+    qty_unit_label: &str,
+    line_total: &str,
+) {
+    escpos_font_b(buf);
+    escpos_char_size_normal(buf);
+    escpos_line_spacing(buf, LINE_SPACING_PRODUCT_NAME);
+    for line in wrap_lines(name, WIDTH_FONT_B) {
+        append_line(buf, &line);
+    }
+    escpos_font_a(buf);
+    escpos_char_size_normal(buf);
+    escpos_line_spacing(buf, LINE_SPACING_DENSE);
+    append_line(buf, &pad_left(qty_unit_label, line_total));
+}
+
 /// Nombre de producto + total de línea en una fila si cabe; si no, nombre envuelto y monto al final.
-fn product_name_amount_lines(name: &str, amount: &str) -> Vec<String> {
+pub(crate) fn product_name_amount_lines(name: &str, amount: &str) -> Vec<String> {
     let name = normalize_ticket_text(name);
     let amount = pad_right_cols(amount, MONEY_COL);
     if char_count(&name) <= NAME_COL {
@@ -266,7 +332,7 @@ fn product_name_amount_lines(name: &str, amount: &str) -> Vec<String> {
     out
 }
 
-fn append_divider(buf: &mut Vec<u8>) {
+pub(crate) fn append_divider(buf: &mut Vec<u8>) {
     append_line(buf, &full_divider());
 }
 
@@ -277,14 +343,20 @@ fn append_barcode_hri_settings(buf: &mut Vec<u8>) {
     buf.extend_from_slice(&[0x1D, 0x48, 0x00]);
 }
 
-/// `GS v 0` — imagen raster; funciona aunque `GS k` nativo falle.
-fn append_gs_v0_raster(buf: &mut Vec<u8>, bitmap: &[u8], width_bytes: u16, height_dots: u16) {
-    buf.extend_from_slice(&[0x1D, 0x76, 0x30, 0x00]);
-    buf.push((width_bytes & 0xFF) as u8);
-    buf.push(((width_bytes >> 8) & 0xFF) as u8);
-    buf.push((height_dots & 0xFF) as u8);
-    buf.push(((height_dots >> 8) & 0xFF) as u8);
-    buf.extend_from_slice(bitmap);
+pub(crate) fn append_ticket_logo(buf: &mut Vec<u8>, logo_base64: Option<&str>) {
+    let Some(b64) = logo_base64.map(str::trim).filter(|s| !s.is_empty()) else {
+        return;
+    };
+    match logo_base64_to_raster(b64) {
+        Ok(Some((bitmap, w_bytes, h_dots))) => {
+            tracing::debug!(w_bytes, h_dots, "escpos: logo raster");
+            escpos_align(buf, 1);
+            append_gs_v0(buf, &bitmap, w_bytes, h_dots);
+            buf.push(b'\n');
+        }
+        Ok(None) => {}
+        Err(e) => tracing::warn!(err = %e, "escpos: logo omitido"),
+    }
 }
 
 fn append_native_barcode_command(buf: &mut Vec<u8>, fn_code: u8, data: &[u8]) {
@@ -347,7 +419,7 @@ fn append_ean13_native(buf: &mut Vec<u8>, folio: &str) -> bool {
 }
 
 /// Raster CODE128 → CODE39 → CODE128 `{B` → EAN-13 (sin texto bajo las barras).
-fn append_barcode_centered(buf: &mut Vec<u8>, payload: &str) {
+pub(crate) fn append_barcode_centered(buf: &mut Vec<u8>, payload: &str) {
     let folio = payload.trim();
     if folio.is_empty() {
         return;
@@ -361,7 +433,7 @@ fn append_barcode_centered(buf: &mut Vec<u8>, payload: &str) {
     if let Ok((bitmap, w_bytes, h_dots)) = code128_raster_bitmap(folio) {
         tracing::debug!(%folio, w_bytes, h_dots, "barcode escpos: raster CODE128");
         escpos_align(buf, 1);
-        append_gs_v0_raster(buf, &bitmap, w_bytes, h_dots);
+        append_gs_v0(buf, &bitmap, w_bytes, h_dots);
         buf.push(b'\n');
         printed = true;
     }
@@ -418,6 +490,8 @@ fn append_totals_compact(buf: &mut Vec<u8>, ticket: &PosSaleTicket) {
 pub fn build_pos_sale_ticket_escpos(ticket: &PosSaleTicket) -> Result<Vec<u8>> {
     let mut buf = escpos_init();
     escpos_apply_ticket_typography(&mut buf);
+
+    append_ticket_logo(&mut buf, ticket.company.logo_base64.as_deref());
 
     let store = ticket
         .company
@@ -497,15 +571,13 @@ pub fn build_pos_sale_ticket_escpos(ticket: &PosSaleTicket) -> Result<Vec<u8>> {
     append_line(&mut buf, heading);
     escpos_bold(&mut buf, false);
     escpos_align(&mut buf, 0);
+    append_section_gap(&mut buf);
 
     for line in &ticket.lines {
         let mut name = line.product_name.trim().to_string();
         if !line.attributes.is_empty() {
             name.push_str(" · ");
             name.push_str(&line.attributes.join(" · "));
-        }
-        for row in product_name_amount_lines(&name, &money(line.line_gross)) {
-            append_line(&mut buf, &row);
         }
         let unit_suffix = line
             .unit_symbol
@@ -519,10 +591,8 @@ pub fn build_pos_sale_ticket_escpos(ticket: &PosSaleTicket) -> Result<Vec<u8>> {
         } else {
             format!("{:.2}", line.quantity)
         };
-        append_line(
-            &mut buf,
-            &format!("{qty}x {}{}", money(line.unit_price_with_tax), unit_suffix),
-        );
+        let qty_unit = format!("{qty}x {}{}", money(line.unit_price_with_tax), unit_suffix);
+        append_product_line_block(&mut buf, &name, &qty_unit, &money(line.line_gross));
         if line.discount_amount.unwrap_or(0.0) > 0.01 {
             let lbl = line
                 .discount_label

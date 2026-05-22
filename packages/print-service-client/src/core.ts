@@ -1,4 +1,8 @@
 import type { PosSaleTicketPayload, PosSaleTicketPrintExtras } from "./pos-sale-ticket";
+import type {
+  PosQuotationTicketPayload,
+  PosQuotationTicketPrintExtras,
+} from "./pos-quotation-ticket";
 
 /** Protocol version sent to the local print agent (see docs/print_service_app_developer_guide_v2.md). */
 export const PRINT_PROTOCOL_VERSION = "2.1";
@@ -44,6 +48,7 @@ export type PrinterHealthPayload = {
 
 /** Capacidades del agente (protocolo 2.1+). */
 export const AGENT_CAPABILITY_POS_SALE_TICKET = "pos-sale-ticket";
+export const AGENT_CAPABILITY_POS_QUOTATION_TICKET = "pos-quotation-ticket";
 export const AGENT_CAPABILITY_PDF_BASE64 = "pdf-base64";
 
 export type HelloResponseData = {
@@ -369,6 +374,31 @@ export class PrintServiceConnection {
     return this.enqueuePosPrint(body);
   }
 
+  /**
+   * Cotización POS: el agente genera PDF o ESC/POS desde JSON (`type: "pos-quotation-ticket"`).
+   */
+  enqueuePosQuotationTicket(
+    ticket: PosQuotationTicketPayload,
+    extras: PosQuotationTicketPrintExtras & { purpose?: string },
+    omitPrinterDisplayLabel = false,
+  ): Promise<unknown> {
+    const purpose = extras.purpose ?? "tickets";
+    const body: Record<string, unknown> = {
+      purpose,
+      type: "pos-quotation-ticket",
+      ticket,
+      filename: extras.filename,
+      copies: 1,
+      sourceApp: extras.sourceApp ?? "pwa-pos",
+      documentType: extras.documentType,
+      internalFolio: extras.internalFolio,
+    };
+    if (omitPrinterDisplayLabel) {
+      return this.enqueuePrint(body);
+    }
+    return this.enqueuePosPrint(body);
+  }
+
   private sendHello(): void {
     const rid = randomId();
     const body: Record<string, unknown> = {
@@ -574,6 +604,16 @@ export function agentSupportsPosSaleTicket(hello: HelloResponseData | null | und
   return caps.includes(AGENT_CAPABILITY_POS_SALE_TICKET);
 }
 
+export function agentSupportsPosQuotationTicket(
+  hello: HelloResponseData | null | undefined,
+): boolean {
+  const caps = hello?.agentCapabilities;
+  if (!Array.isArray(caps) || caps.length === 0) {
+    return false;
+  }
+  return caps.includes(AGENT_CAPABILITY_POS_QUOTATION_TICKET);
+}
+
 export function isPosAgentPrintConfiguredForPurpose(purpose: PosPrintAgentPurpose): boolean {
   if (typeof window === "undefined") return false;
   const { ticketsAlias, documentsAlias } = readPosPurposePrinterAliasesFromStorage();
@@ -655,7 +695,8 @@ export type PosDocumentPrintKind =
   | "sale"
   | "quotation"
   | "backorder"
-  | "customerCreditNote";
+  | "customerCreditNote"
+  | "cashClosing";
 
 export const POS_DOCUMENT_PRINT_MODES_CHANGED_EVENT = "flowstore:pos-document-print-modes-changed";
 
@@ -663,12 +704,14 @@ const LS_POS_DOC_PRINT_SALE = "printPosDocPrintSale";
 const LS_POS_DOC_PRINT_QUOTATION = "printPosDocPrintQuotation";
 const LS_POS_DOC_PRINT_BACKORDER = "printPosDocPrintBackorder";
 const LS_POS_DOC_PRINT_CUSTOMER_CREDIT_NOTE = "printPosDocPrintCustomerCreditNote";
+const LS_POS_DOC_PRINT_CASH_CLOSING = "printPosDocPrintCashClosing";
 
 const DEFAULT_POS_DOCUMENT_PRINT_MODES: Record<PosDocumentPrintKind, PosDocumentPrintMode> = {
   sale: "ticket",
   quotation: "ticket",
   backorder: "ticket",
   customerCreditNote: "ticket",
+  cashClosing: "ticket",
 };
 
 function parsePosDocumentPrintMode(raw: string | null): PosDocumentPrintMode | null {
@@ -694,6 +737,9 @@ export function readPosDocumentPrintModesFromStorage(): Record<PosDocumentPrintK
     customerCreditNote:
       parsePosDocumentPrintMode(localStorage.getItem(LS_POS_DOC_PRINT_CUSTOMER_CREDIT_NOTE)) ??
       DEFAULT_POS_DOCUMENT_PRINT_MODES.customerCreditNote,
+    cashClosing:
+      parsePosDocumentPrintMode(localStorage.getItem(LS_POS_DOC_PRINT_CASH_CLOSING)) ??
+      DEFAULT_POS_DOCUMENT_PRINT_MODES.cashClosing,
   };
 }
 
@@ -710,6 +756,7 @@ export function writePosDocumentPrintModesToStorage(
     quotation: LS_POS_DOC_PRINT_QUOTATION,
     backorder: LS_POS_DOC_PRINT_BACKORDER,
     customerCreditNote: LS_POS_DOC_PRINT_CUSTOMER_CREDIT_NOTE,
+    cashClosing: LS_POS_DOC_PRINT_CASH_CLOSING,
   };
   let changed = false;
   for (const kind of Object.keys(keyByKind) as PosDocumentPrintKind[]) {

@@ -1,22 +1,26 @@
 /**
  * Estilos tickets térmicos 80 mm (POS → agente KaiPrinters).
- * Área útil ~64 mm, alineación segura y cola larga para corte/feed.
+ * El PDF usa 72 mm de ancho de página (= zona imprimible) para evitar que CUPS escale
+ * una hoja de 80 mm y deje el texto estrecho otra vez.
+ *
+ * El PDF vectorial (`pos-sale-ticket`) en `print-service/src-tauri/src/pos_sale_ticket_pdf.rs`
+ * replica estas medidas y la estructura de `buildPosSaleReceiptHtml`.
  */
 
-/** Ancho físico de la bobina. */
-export const THERMAL_TICKET_PAGE_WIDTH_MM = 80;
+/** Ancho del PDF enviado a la impresora (imprimible en bobina 80 mm, no el ancho del rollo). */
+export const THERMAL_TICKET_PAGE_WIDTH_MM = 72;
 
-/** Ancho dibujado en PDF (impresoras 80 mm suelen imprimir ~72 mm útiles). */
-export const THERMAL_TICKET_AGENT_CONTENT_WIDTH_MM = 64;
+/** Ancho del contenido dentro del PDF. */
+export const THERMAL_TICKET_AGENT_CONTENT_WIDTH_MM = 70;
 
-/** Margen izquierdo en PDF (alinear a la zona imprimible, evita corte a la derecha). */
-export const THERMAL_TICKET_AGENT_LEFT_INSET_MM = 5;
+/** Margen izquierdo al colocar el raster en el PDF. */
+export const THERMAL_TICKET_AGENT_LEFT_INSET_MM = 1;
 
-/** Espacio en blanco extra al final del PDF, además del padding HTML. */
-export const THERMAL_TICKET_PDF_EXTRA_FEED_MM = 16;
+/** Espacio en blanco extra al final del PDF rasterizado, además del padding HTML. */
+export const THERMAL_TICKET_PDF_EXTRA_FEED_MM = 28;
 
 /** Cola inferior dentro del HTML rasterizado. */
-export const THERMAL_TICKET_BOTTOM_PADDING = "36mm";
+export const THERMAL_TICKET_BOTTOM_PADDING = "48mm";
 
 /** @deprecated Usar THERMAL_TICKET_AGENT_LEFT_INSET_MM */
 export const THERMAL_TICKET_AGENT_SIDE_INSET_MM = THERMAL_TICKET_AGENT_LEFT_INSET_MM;
@@ -33,12 +37,12 @@ export function thermalReceiptTicketCss(): string {
   const tail = THERMAL_TICKET_BOTTOM_PADDING;
   const contentW = THERMAL_TICKET_RECEIPT_WIDTH_MM;
   return `
-  @page { size: 80mm auto; margin: 0; }
+  @page { size: 72mm auto; margin: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; min-height: 0; overflow: hidden; width: ${contentW}mm; max-width: ${contentW}mm; }
   body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif; font-size: 10px; line-height: 1.25; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .receipt { width: ${contentW}mm; max-width: ${contentW}mm; margin: 0; padding: 0 0 ${tail}; overflow: hidden; }
-  .logo { display: block; max-width: 44mm; max-height: 20mm; margin: 0 auto 4px; object-fit: contain; }
+  .logo { display: block; max-width: 48mm; max-height: 20mm; margin: 0 auto 4px; object-fit: contain; }
   .store { font-size: 12px; font-weight: ${w}; text-align: center; margin: 0 0 2px; line-height: 1.15; word-break: break-word; }
   .legal { font-size: 9px; text-align: center; margin: 0; color: #333; word-break: break-word; }
   .muted { color: #555; font-size: 8.5px; word-break: break-word; }
@@ -46,6 +50,7 @@ export function thermalReceiptTicketCss(): string {
   .row { display: flex; justify-content: space-between; gap: 3px; font-size: 9px; margin: 2px 0; align-items: flex-start; max-width: 100%; }
   .row > span { min-width: 0; word-break: break-word; overflow-wrap: anywhere; }
   .row > span:last-child { flex-shrink: 0; text-align: right; max-width: 42%; }
+  .row.customer-name .customer-name-value { flex: 1; max-width: none; text-align: left; }
   .sep { border-top: 1px dashed #888; margin: 5px 0; }
   .section-title { font-size: 9px; font-weight: ${w}; text-transform: uppercase; letter-spacing: 0.02em; margin: 4px 0 2px; color: #333; }
   table.lines { width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 9px; }
@@ -57,7 +62,7 @@ export function thermalReceiptTicketCss(): string {
   .tright { text-align: right; }
   .tot { font-size: 10px; font-weight: ${w}; }
   .barcode-wrap { display: flex; justify-content: center; width: 100%; max-width: 100%; margin-top: 5px; overflow: hidden; }
-  .barcode-wrap svg { max-width: 56mm; height: auto; }
+  .barcode-wrap svg { max-width: 62mm; height: auto; }
   .wrap { font-size: 9px; white-space: pre-wrap; word-break: break-word; margin: 0; }
 `.trim();
 }
@@ -68,11 +73,11 @@ export function thermalReceiptTicketBodyCss(): string {
   const tail = THERMAL_TICKET_BOTTOM_PADDING;
   const contentW = THERMAL_TICKET_RECEIPT_WIDTH_MM;
   return `
-@page { size: 80mm auto; margin: 0; }
+@page { size: 72mm auto; margin: 0; }
 html, body { margin: 0; padding: 0; min-height: 0; overflow: hidden; width: ${contentW}mm; max-width: ${contentW}mm; }
 body { font-family: system-ui, sans-serif; font-size: 10px; line-height: 1.25; color: #111; padding: 0 0 ${tail}; }
 .logo { text-align: center; margin: 0 0 4px; }
-.logo img { max-width: 44mm; max-height: 16mm; object-fit: contain; }
+.logo img { max-width: 48mm; max-height: 16mm; object-fit: contain; }
 h1 { font-size: 12px; font-weight: ${w}; text-align: center; margin: 2px 0; word-break: break-word; }
 .muted { color: #555; font-size: 9px; word-break: break-word; }
 .section-title { font-weight: ${w}; margin: 4px 0 2px; font-size: 9px; text-transform: uppercase; }

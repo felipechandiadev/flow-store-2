@@ -83,4 +83,16 @@ describe('cash-session-expected-amount.util', () => {
     ]);
     expect(expected).toBe(8000);
   });
+
+  it('does not double-count opening: session.openingAmount + CASH_SESSION_OPENING tx', () => {
+    const expected = computeCashSessionExpectedAmount(8000, [
+      tx({
+        status: TransactionStatus.CONFIRMED,
+        transactionType: TransactionType.CASH_SESSION_OPENING,
+        paymentMethod: PaymentMethod.CASH,
+        total: 8000,
+      }),
+    ]);
+    expect(expected).toBe(8000);
+  });
 });

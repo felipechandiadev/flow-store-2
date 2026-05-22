@@ -43,6 +43,8 @@ pub struct TicketCompany {
     pub nombre_fantasia: Option<String>,
     pub rut: Option<String>,
     pub business_activity: Option<String>,
+    /// PNG/JPEG en base64 (sin prefijo `data:` o con él); logo en ticket ESC/POS/PDF.
+    pub logo_base64: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

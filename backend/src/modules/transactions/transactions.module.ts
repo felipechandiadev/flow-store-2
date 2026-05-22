@@ -51,6 +51,8 @@ import { DocumentSequencesBootstrap } from './application/document-sequences.boo
 import { BackorderTransactionTypeBootstrap } from './application/backorder-transaction-type.bootstrap';
 import { PosSaleLookupService } from './application/pos-sale-lookup.service';
 import { PosBackorderLookupService } from './application/pos-backorder-lookup.service';
+import { PosSaleReceiptPrintService } from './application/pos-sale-receipt-print.service';
+import { CompaniesModule } from '@modules/companies/companies.module';
 import { SupplierFiscalDocumentPaymentAggregateService } from './application/services/supplier-fiscal-document-payment-aggregate.service';
 
 // Inventory CQRS
@@ -88,6 +90,7 @@ import { StockLevelsModule } from '@modules/stock-levels/stock-levels.module';
     CacheModule,
     ProductVariantsModule,
     StockLevelsModule,
+    CompaniesModule,
   ],
   controllers: [
     TransactionsController,
@@ -102,6 +105,7 @@ import { StockLevelsModule } from '@modules/stock-levels/stock-levels.module';
     DocumentNumberService,
     PosSaleLookupService,
     PosBackorderLookupService,
+    PosSaleReceiptPrintService,
     SupplierFiscalDocumentPaymentAggregateService,
     PurchaseOrdersService,
     TransactionsService, // Adapter for backward compatibility

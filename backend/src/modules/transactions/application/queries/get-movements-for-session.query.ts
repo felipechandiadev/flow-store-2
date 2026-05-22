@@ -2,19 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-  PaymentMethod,
-  Transaction,
-  TransactionType,
-} from '../../domain/transaction.entity';
+import { Transaction, TransactionType } from '../../domain/transaction.entity';
 import { isImmediateSaleReturnRefund } from '@modules/cash-sessions/application/sale-return-transaction-cash-flow.util';
-
-/** Tipo virtual en listados de sesión (no es TransactionType persistido). */
-export const CASH_SESSION_CHANGE_MOVEMENT_TYPE = 'CASH_CHANGE' as const;
 
 export interface SessionMovement {
   id: string;
-  transactionType: TransactionType | typeof CASH_SESSION_CHANGE_MOVEMENT_TYPE;
+  transactionType: TransactionType;
   documentNumber: string;
   createdAt?: Date;
   total: number;
@@ -55,22 +48,17 @@ export class GetMovementsForSessionQueryHandler implements IQueryHandler<GetMove
     const movements: SessionMovement[] = [];
 
     for (const tx of txs) {
-      movements.push(this.mapTransaction(tx));
-
-      if (tx.transactionType === TransactionType.SALE) {
-        const change = Math.max(0, Number(tx.changeAmount) || 0);
-        if (change > 0) {
-          movements.push(this.mapChangeMovement(tx, change));
-        }
+      // Cobros PAYMENT_IN duplican la venta SALE en POS; no listar en movimientos de caja.
+      if (tx.transactionType === TransactionType.PAYMENT_IN) {
+        continue;
       }
+      movements.push(this.mapTransaction(tx));
     }
 
     movements.sort((a, b) => {
       const ta = a.createdAt?.getTime() ?? 0;
       const tb = b.createdAt?.getTime() ?? 0;
       if (tb !== ta) return tb - ta;
-      if (a.transactionType === CASH_SESSION_CHANGE_MOVEMENT_TYPE) return -1;
-      if (b.transactionType === CASH_SESSION_CHANGE_MOVEMENT_TYPE) return 1;
       return String(b.id).localeCompare(String(a.id));
     });
 
@@ -99,20 +87,6 @@ export class GetMovementsForSessionQueryHandler implements IQueryHandler<GetMove
       metadata: tx.metadata || null,
       direction: this.computeDirection(tx),
       relatedTransactionId: tx.relatedTransactionId ?? null,
-    };
-  }
-
-  private mapChangeMovement(tx: Transaction, change: number): SessionMovement {
-    const base = this.mapTransaction(tx);
-    return {
-      ...base,
-      id: `${tx.id}:change`,
-      transactionType: CASH_SESSION_CHANGE_MOVEMENT_TYPE,
-      total: change,
-      paymentMethod: PaymentMethod.CASH,
-      direction: 'OUT',
-      notes: 'Vuelto en efectivo',
-      relatedTransactionId: tx.id,
     };
   }
 

@@ -31,6 +31,7 @@ const INITIAL_DOC_PRINT_MODES: Record<PosDocumentPrintKind, PosDocumentPrintMode
   quotation: "ticket",
   backorder: "ticket",
   customerCreditNote: "ticket",
+  cashClosing: "ticket",
 };
 
 function aliasSelectOptions(aliases: string[], current: string) {
@@ -236,8 +237,8 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
         <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">Impresión según documento</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Formato por defecto al imprimir desde el POS. En cotizaciones, el diálogo de emisión
-            precargará esta opción (puedes cambiarla antes de imprimir).
+            Formato por defecto al imprimir desde el POS (ventas, cotizaciones, cierre de caja, etc.).
+            En cotizaciones, el diálogo de emisión precargará esta opción (puedes cambiarla antes de imprimir).
           </p>
           <div className="mt-4 grid gap-4">
             {(
@@ -250,6 +251,7 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
                   "Notas de crédito",
                   "pos-print-prefs-customer-credit-note-mode",
                 ] as const,
+                ["cashClosing", "Arqueo de caja", "pos-print-prefs-cash-closing-mode"] as const,
               ] as const
             ).map(([kind, label, testId]) => (
               <div key={kind}>

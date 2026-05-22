@@ -57,7 +57,7 @@ function ticketCaptureTarget(doc: Document): HTMLElement {
 
 /**
  * HTML → PDF base64 para KaiPrinters.
- * Tickets: 64 mm de contenido, margen izquierdo, feed extra al final del PDF.
+ * Tickets: 72 mm de contenido, margen izquierdo mínimo, feed extra al final del PDF.
  */
 export async function htmlToPdfBase64(
   html: string,

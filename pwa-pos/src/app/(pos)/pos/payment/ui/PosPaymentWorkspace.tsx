@@ -43,6 +43,7 @@ import {
   buildPosSaleReceiptSnapshot,
   type PosSaleReceiptData,
 } from "@/app/(pos)/pos/payment/ui/PosSaleReceiptDialog";
+import { formatReceiptLineDisplayName } from "@/features/pos-print/lib/format-receipt-line-name";
 import { createBackorderFromPosAction } from "@/features/session/actions/create-backorder.action";
 import { createSaleFromPosAction } from "@/features/session/actions/create-sale.action";
 import { buildCreateBackorderClientPayload } from "@/features/session/lib/build-create-backorder-payload";
@@ -113,7 +114,7 @@ function PaymentCartReadOnlyRow({ line }: { line: PosCartLine }) {
   const lineGross = (Number(line.unitPriceWithTax) || 0) * q;
   const attrBits =
     line.attributes?.map((a: { attributeValue?: string | null }) => String(a.attributeValue ?? "").trim()).filter(Boolean) ?? [];
-  const nameWithAttrs = [line.productName, ...attrBits].filter(Boolean).join(" · ");
+  const nameWithAttrs = formatReceiptLineDisplayName(line.productName, attrBits);
   const unit = line.unitSymbol?.trim() ? ` ${line.unitSymbol.trim()}` : "";
   const qtyPrice = `${q} × ${formatMoney(line.unitPriceWithTax)}${unit}`;
   return (

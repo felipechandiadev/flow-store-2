@@ -2,6 +2,7 @@ import { Controller, Get, Param, Query } from '@nestjs/common';
 import { CurrentCompany } from '@common/tenant';
 import { PosSaleLookupService } from '../application/pos-sale-lookup.service';
 import { PosBackorderLookupService } from '../application/pos-backorder-lookup.service';
+import { PosSaleReceiptPrintService } from '../application/pos-sale-receipt-print.service';
 import {
   ApiTags,
   ApiOperation,
@@ -28,6 +29,7 @@ export class TransactionsController {
     private readonly queryBus: QueryBus,
     private readonly posSaleLookup: PosSaleLookupService,
     private readonly posBackorderLookup: PosBackorderLookupService,
+    private readonly posSaleReceiptPrint: PosSaleReceiptPrintService,
   ) {}
 
   /**
@@ -347,6 +349,23 @@ export class TransactionsController {
         search,
       ),
     );
+  }
+
+  @Get(':id/pos-sale-receipt')
+  @ApiOperation({
+    summary: 'Datos para reimprimir comprobante POS (ticket / documento)',
+    description:
+      'Venta `SALE` o encargo `BACKORDER` con líneas, pagos y promociones para reimpresión en el POS.',
+  })
+  async getPosSaleReceipt(
+    @Param('id') id: string,
+    @CurrentCompany() companyId: string,
+  ) {
+    const receipt = await this.posSaleReceiptPrint.findReceiptByTransactionId(
+      companyId,
+      id,
+    );
+    return { success: true, receipt };
   }
 
   @Get(':id')

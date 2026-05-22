@@ -6,6 +6,18 @@ import type { CashHubDepositCandidate } from "../types/cash-hub-deposit.types";
 import type { CreateSaleApiBody } from "../lib/build-create-sale-payload";
 import type { CreateBackorderApiBody } from "../lib/build-create-backorder-payload";
 
+const BACKEND_CONNECTION_MESSAGE =
+  "No se pudo conectar con el servidor. Comprueba que el backend esté en ejecución.";
+
+/** Evita que un ECONNREFUSED en SSR rompa la página del POS. */
+async function backendFetch(url: string, init: RequestInit): Promise<Response | null> {
+  try {
+    return await fetch(url, { cache: "no-store", ...init });
+  } catch {
+    return null;
+  }
+}
+
 export class CashSessionsRequest {
   static async listOpen(): Promise<ListCashSessionsResponse> {
     const base = process.env.BACKEND_API_URL;
@@ -26,11 +38,13 @@ export class CashSessionsRequest {
     };
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
-    const res = await fetch(`${base}/api/cash-sessions?status=OPEN`, {
+    const res = await backendFetch(`${base}/api/cash-sessions?status=OPEN`, {
       method: "GET",
       headers,
-      cache: "no-store",
     });
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     return res.json();
   }
@@ -62,7 +76,7 @@ export class CashSessionsRequest {
     };
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
-    const res = await fetch(`${base}/api/cash-sessions`, {
+    const res = await backendFetch(`${base}/api/cash-sessions`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -71,8 +85,10 @@ export class CashSessionsRequest {
         openingAmount: input.openingAmount,
         ...(input.cashHubId?.trim() ? { cashHubId: input.cashHubId.trim() } : {}),
       }),
-      cache: "no-store",
     });
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -116,12 +132,14 @@ export class CashSessionsRequest {
     };
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
-    const res = await fetch(`${base}/api/cash-sessions/sales`, {
+    const res = await backendFetch(`${base}/api/cash-sessions/sales`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      cache: "no-store",
     });
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
@@ -184,12 +202,14 @@ export class CashSessionsRequest {
     };
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
-    const res = await fetch(`${base}/api/cash-sessions/customer-returns/confirm-document`, {
+    const res = await backendFetch(`${base}/api/cash-sessions/customer-returns/confirm-document`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      cache: "no-store",
     });
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
@@ -282,12 +302,14 @@ export class CashSessionsRequest {
     };
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
-    const res = await fetch(`${base}/api/cash-sessions/customer-returns/confirm-refund`, {
+    const res = await backendFetch(`${base}/api/cash-sessions/customer-returns/confirm-refund`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      cache: "no-store",
     });
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
@@ -368,12 +390,14 @@ export class CashSessionsRequest {
     };
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
-    const res = await fetch(`${base}/api/cash-sessions/backorders`, {
+    const res = await backendFetch(`${base}/api/cash-sessions/backorders`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      cache: "no-store",
     });
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
@@ -422,14 +446,16 @@ export class CashSessionsRequest {
     };
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
-    const res = await fetch(
+    const res = await backendFetch(
       `${base}/api/cash-sessions/${encodeURIComponent(cashSessionId)}/movements`,
       {
         method: "GET",
         headers,
-        cache: "no-store",
       },
     );
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     if (res.status === 404) {
       return { success: false, message: "Sesión de caja no encontrada", statusCode: 404 };
@@ -480,11 +506,13 @@ export class CashSessionsRequest {
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
     const q = new URLSearchParams({ pointOfSaleId: pointOfSaleId.trim() });
-    const res = await fetch(`${base}/api/cash-sessions/cash-hubs-by-pos?${q.toString()}`, {
+    const res = await backendFetch(`${base}/api/cash-sessions/cash-hubs-by-pos?${q.toString()}`, {
       method: "GET",
       headers,
-      cache: "no-store",
     });
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
@@ -524,10 +552,13 @@ export class CashSessionsRequest {
     };
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
-    const res = await fetch(
+    const res = await backendFetch(
       `${base}/api/cash-sessions/${encodeURIComponent(cashSessionId)}/cash-hubs-for-deposit`,
-      { method: "GET", headers, cache: "no-store" },
+      { method: "GET", headers },
     );
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
@@ -580,7 +611,7 @@ export class CashSessionsRequest {
     };
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
-    const res = await fetch(
+    const res = await backendFetch(
       `${base}/api/cash-sessions/${encodeURIComponent(cashSessionId)}/cash-deposits-from-hub`,
       {
         method: "POST",
@@ -591,9 +622,11 @@ export class CashSessionsRequest {
           userId: body.userId,
           reason: body.reason?.trim() || undefined,
         }),
-        cache: "no-store",
       },
     );
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
@@ -647,10 +680,13 @@ export class CashSessionsRequest {
     };
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
-    const res = await fetch(
+    const res = await backendFetch(
       `${base}/api/cash-sessions/${encodeURIComponent(cashSessionId)}/available-cash`,
-      { method: "GET", headers, cache: "no-store" },
+      { method: "GET", headers },
     );
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
@@ -702,7 +738,7 @@ export class CashSessionsRequest {
     };
     if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
 
-    const res = await fetch(
+    const res = await backendFetch(
       `${base}/api/cash-sessions/${encodeURIComponent(cashSessionId)}/cash-withdrawals-to-hub`,
       {
         method: "POST",
@@ -713,9 +749,11 @@ export class CashSessionsRequest {
           userId: body.userId,
           reason: body.reason?.trim() || undefined,
         }),
-        cache: "no-store",
       },
     );
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
@@ -811,12 +849,14 @@ export class CashSessionsRequest {
       body.counted = input.counted;
     }
 
-    const res = await fetch(`${base}/api/cash-sessions/close`, {
+    const res = await backendFetch(`${base}/api/cash-sessions/close`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      cache: "no-store",
     });
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {

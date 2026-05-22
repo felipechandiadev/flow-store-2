@@ -18,6 +18,7 @@ import {
 import { printPosSaleTicketAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-sale-ticket-agent";
 import { thermalReceiptTicketCss } from "@/features/pos-print/lib/thermal-receipt-ticket-styles";
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
+import { formatReceiptLineDisplayName } from "@/features/pos-print/lib/format-receipt-line-name";
 
 const FALLBACK_METHOD_LABEL: Record<PosPaymentMethodId, string> = {
   CASH: "Efectivo",
@@ -220,8 +221,11 @@ export function buildPosSaleReceiptSnapshot(input: PosSaleReceiptSnapshotInput):
     const q = Number(l.quantity) || 0;
     const gross = (Number(l.unitPriceWithTax) || 0) * q;
     const d = l.discount;
-    const attrBits =
-      l.attributes?.map((a: { attributeValue?: string | null }) => String(a.attributeValue ?? "").trim()).filter(Boolean) ?? [];
+    const attrBits = (
+      l.attributes?.map((a: { attributeValue?: string | null }) =>
+        String(a.attributeValue ?? "").trim(),
+      ) ?? []
+    ).filter(Boolean);
     return {
       productName: l.productName,
       attributes: attrBits,
@@ -300,7 +304,7 @@ export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string
 
   const lineRows = data.lines
     .map((l) => {
-      const name = [l.productName, ...l.attributes].filter(Boolean).join(" · ");
+      const name = formatReceiptLineDisplayName(l.productName, l.attributes);
       const unit = l.unitSymbol?.trim() ? ` ${l.unitSymbol.trim()}` : "";
       const qtyLine = `${l.quantity} × ${formatMoney(l.unitPriceWithTax)}${unit}`;
       const disc =

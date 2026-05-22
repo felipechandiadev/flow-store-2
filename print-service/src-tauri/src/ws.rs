@@ -243,7 +243,7 @@ where
                             ws.send(json_line(&OutResponse::ok(env.request_id.clone(), json!({
                                 "serviceStatus": events::service_status_payload(state.connected(), state.connected_sessions_json()),
                                 "printerHealth": ph["payload"].clone(),
-                                "agentCapabilities": ["pdf-base64", "pos-sale-ticket"],
+                                "agentCapabilities": ["pdf-base64", "pos-sale-ticket", "pos-quotation-ticket"],
                             })))).await.ok();
                             let _ = state.broadcast.send(ph.to_string());
                             let snap = json!({
@@ -418,15 +418,19 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                 .get("type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("pdf-base64");
-            let path = if print_type == "pos-sale-ticket" {
+            let path = if print_type == "pos-sale-ticket" || print_type == "pos-quotation-ticket" {
                 let ticket = match env.extra.get("ticket") {
                     Some(v) => v,
                     None => return OutResponse::err(rid, "ticket_required"),
                 };
-                let folio = ticket
-                    .get("folio")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let folio = if print_type == "pos-quotation-ticket" {
+                    ticket
+                        .get("documentNumber")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                } else {
+                    ticket.get("folio").and_then(|v| v.as_str()).unwrap_or("")
+                };
                 let printer_display_label = env
                     .extra
                     .get("printerDisplayLabel")
@@ -444,20 +448,30 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                     .map(|p| state.db.ticket_escpos_enabled_for_printer(p, purpose))
                     .unwrap_or(false);
                 if use_escpos {
-                    tracing::info!(%folio, printer = ?resolved_printer, "print: pos-sale-ticket → ESC/POS RAW");
-                    match jobs::write_pos_sale_ticket_escpos_from_value(&state.temp_dir, ticket) {
+                    tracing::info!(%folio, %print_type, printer = ?resolved_printer, "print: vector ticket → ESC/POS RAW");
+                    let write = if print_type == "pos-quotation-ticket" {
+                        jobs::write_pos_quotation_ticket_escpos_from_value
+                    } else {
+                        jobs::write_pos_sale_ticket_escpos_from_value
+                    };
+                    match write(&state.temp_dir, ticket) {
                         Ok(p) => p,
                         Err(e) => {
-                            tracing::error!(%folio, err = %e, "pos-sale-ticket ESC/POS failed");
+                            tracing::error!(%folio, %print_type, err = %e, "ticket ESC/POS failed");
                             return OutResponse::err(rid, format!("{e:#}"));
                         }
                     }
                 } else {
-                    tracing::info!(%folio, printer = ?resolved_printer, "print: pos-sale-ticket → PDF vectorial");
-                    match jobs::write_pos_sale_ticket_pdf_from_value(&state.temp_dir, ticket) {
+                    tracing::info!(%folio, %print_type, printer = ?resolved_printer, "print: vector ticket → PDF");
+                    let write = if print_type == "pos-quotation-ticket" {
+                        jobs::write_pos_quotation_ticket_pdf_from_value
+                    } else {
+                        jobs::write_pos_sale_ticket_pdf_from_value
+                    };
+                    match write(&state.temp_dir, ticket) {
                         Ok(p) => p,
                         Err(e) => {
-                            tracing::error!(%folio, err = %e, "pos-sale-ticket PDF failed");
+                            tracing::error!(%folio, %print_type, err = %e, "ticket PDF failed");
                             return OutResponse::err(rid, format!("{e:#}"));
                         }
                     }
