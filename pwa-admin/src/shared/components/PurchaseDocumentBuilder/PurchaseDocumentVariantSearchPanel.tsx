@@ -229,11 +229,19 @@ export function PurchaseDocumentVariantSearchPanel({
                     <p className="mt-0.5 text-[11px] text-muted-foreground">{item.categoryName}</p>
                   ) : null}
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs tabular-nums text-foreground">
-                    <span>PMP {formatMoney(item.pmp)}</span>
-                    {item.unitLabel ? (
+                    {item.pmp != null && Number(item.pmp) > 0 ? (
+                      <span>
+                        PMP{" "}
+                        {formatMoney(item.pmp)}
+                        {item.stockBaseUnitLabel ? ` / ${item.stockBaseUnitLabel}` : ""}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Sin PMP</span>
+                    )}
+                    {item.purchaseUnitLabel ? (
                       <>
                         <InlineSepDot />
-                        <span className="text-muted-foreground">{item.unitLabel}</span>
+                        <span className="text-muted-foreground">Compra: {item.purchaseUnitLabel}</span>
                       </>
                     ) : null}
                   </p>

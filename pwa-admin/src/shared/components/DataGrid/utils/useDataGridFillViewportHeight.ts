@@ -4,6 +4,9 @@ import { useLayoutEffect, useState, type RefObject } from "react";
 
 const MIN_GRID_HEIGHT_PX = 200;
 
+/** Reserva para fila de pestañas en fallback CSS (`fillViewportInTabLayout`). */
+export const DATA_GRID_TAB_LAYOUT_FALLBACK_EXTRA_PX = 52;
+
 function collectScrollParents(el: HTMLElement): HTMLElement[] {
   const parents: HTMLElement[] = [];
   let node: HTMLElement | null = el.parentElement;
@@ -72,6 +75,9 @@ export function useDataGridFillViewportHeight(
 }
 
 /** Fallback CSS mientras se mide (shell admin: topbar + padding del main). */
-export function dataGridFillViewportFallbackHeight(bottomInset: number): string {
-  return `calc(100dvh - var(--app-topbar-height, 3.75rem) - 2.5rem - ${bottomInset}px)`;
+export function dataGridFillViewportFallbackHeight(
+  bottomInset: number,
+  extraTopInset = 0,
+): string {
+  return `calc(100dvh - var(--app-topbar-height, 3.75rem) - 2.5rem - ${bottomInset + extraTopInset}px)`;
 }

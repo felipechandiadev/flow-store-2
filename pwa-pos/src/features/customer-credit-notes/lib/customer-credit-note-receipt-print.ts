@@ -1,5 +1,5 @@
 import type { CustomerCreditNotePrintData } from "../types/customer-credit-note-print.types";
-import { printPosHtmlViaAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-agent-print";
+import { printCustomerCreditNoteReceiptAgentOrBrowserFireAndForget } from "@/features/customer-credit-notes/lib/customer-credit-note-ticket-agent";
 import { thermalReceiptTicketBodyCss } from "@/features/pos-print/lib/thermal-receipt-ticket-styles";
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
 
@@ -107,12 +107,5 @@ ${refundBlock}
 }
 
 export function printCustomerCreditNoteReceipt(data: CustomerCreditNotePrintData): void {
-  const html = buildCustomerCreditNoteReceiptHtml(data, window.location.origin);
-  const folio = data.creditNoteFolio?.trim() || "nota-credito";
-  printPosHtmlViaAgentOrBrowserFireAndForget(html, "tickets", {
-    filename: `${folio}.pdf`,
-    iframeTitle: "Impresión nota de crédito",
-    documentType: "CUSTOMER_CREDIT_NOTE",
-    internalFolio: folio,
-  });
+  printCustomerCreditNoteReceiptAgentOrBrowserFireAndForget(data);
 }

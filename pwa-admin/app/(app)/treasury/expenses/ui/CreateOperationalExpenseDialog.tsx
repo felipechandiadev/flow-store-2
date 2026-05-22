@@ -40,7 +40,7 @@ import {
   InvoicePlannedPaymentLines,
   type InvoicePlannedPaymentLineState,
   type InvoicePlannedPaymentMethodUI,
-} from "../../../purchasing/dte/invoices/ui/InvoicePlannedPaymentLines";
+} from "@/shared/components/PlannedPaymentLines/InvoicePlannedPaymentLines";
 
 type CreateOperationalExpenseDialogProps = {
   open: boolean;

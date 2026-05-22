@@ -5,11 +5,16 @@ import {
   PrintServiceConnection,
   buildWebSocketUrl,
   printServicePageRequiresTls,
+  readAdminDocumentPrintModesFromStorage,
   readAdminPurposePrinterAliasFromStorage,
   readPrintServiceConfigFromStorage,
+  type AdminDocumentPrintKind,
+  type AdminDocumentPrintMode,
+  writeAdminDocumentPrintModesToStorage,
   writeAdminPurposePrinterAliasToStorage,
   writePrintServiceConfigToStorage,
 } from "@flowstore/print-service-client";
+import { DocumentPrintModeToggle } from "@/shared/components/PrintDocuments/DocumentPrintModeToggle";
 import { Button } from "@/shared/components/Button";
 import { Select } from "@/shared/components/Select";
 import TextField from "@/shared/components/TextField";
@@ -41,15 +46,24 @@ function aliasSelectOptions(aliases: string[], current: string) {
   return options;
 }
 
+const INITIAL_DOC_PRINT_MODES: Record<AdminDocumentPrintKind, AdminDocumentPrintMode> = {
+  sale: "document",
+  backorder: "ticket",
+};
+
 export function AdminLocalPrintingSettingsForm({ className = "" }: Props) {
   const formId = useId();
   const [host, setHost] = useState("127.0.0.1");
   const [port, setPort] = useState("14567");
   const [wssPort, setWssPort] = useState("14568");
   const [useTls, setUseTls] = useState(false);
+  const [ticketsAlias, setTicketsAlias] = useState("");
   const [documentsAlias, setDocumentsAlias] = useState("");
+  const [ticketAliases, setTicketAliases] = useState<string[]>([]);
   const [documentAliases, setDocumentAliases] = useState<string[]>([]);
   const [aliasesLoading, setAliasesLoading] = useState(false);
+  const [docPrintModes, setDocPrintModes] =
+    useState<Record<AdminDocumentPrintKind, AdminDocumentPrintMode>>(INITIAL_DOC_PRINT_MODES);
   const [storageHydrated, setStorageHydrated] = useState(false);
 
   useEffect(() => {
@@ -58,7 +72,10 @@ export function AdminLocalPrintingSettingsForm({ className = "" }: Props) {
     setPort(String(c.port));
     setWssPort(String(c.wssPort));
     setUseTls(c.useTls);
-    setDocumentsAlias(readAdminPurposePrinterAliasFromStorage().documentsAlias);
+    const a = readAdminPurposePrinterAliasFromStorage();
+    setTicketsAlias(a.ticketsAlias);
+    setDocumentsAlias(a.documentsAlias);
+    setDocPrintModes(readAdminDocumentPrintModesFromStorage());
     setStorageHydrated(true);
   }, []);
 
@@ -91,8 +108,10 @@ export function AdminLocalPrintingSettingsForm({ className = "" }: Props) {
         aliasesByPurpose?: Record<string, unknown>;
       };
       const abp = raw?.aliasesByPurpose ?? {};
+      setTicketAliases(stringList(abp.tickets));
       setDocumentAliases(stringList(abp.documents));
     } catch {
+      setTicketAliases([]);
       setDocumentAliases([]);
     } finally {
       c.disconnect({ ifConnecting: reachedOpen ? "default" : "abandon" });
@@ -105,6 +124,10 @@ export function AdminLocalPrintingSettingsForm({ className = "" }: Props) {
     void refreshAliasesFromAgent();
   }, [storageHydrated, refreshAliasesFromAgent]);
 
+  const ticketOptions = useMemo(
+    () => aliasSelectOptions(ticketAliases, ticketsAlias),
+    [ticketAliases, ticketsAlias],
+  );
   const documentOptions = useMemo(
     () => aliasSelectOptions(documentAliases, documentsAlias),
     [documentAliases, documentsAlias],
@@ -117,8 +140,13 @@ export function AdminLocalPrintingSettingsForm({ className = "" }: Props) {
       wssPort: Number(wssPort) || 14568,
       useTls,
     });
-    writeAdminPurposePrinterAliasToStorage({ documentsAlias });
-  }, [host, port, useTls, wssPort, documentsAlias]);
+    writeAdminPurposePrinterAliasToStorage({ ticketsAlias, documentsAlias });
+    writeAdminDocumentPrintModesToStorage(docPrintModes);
+  }, [host, port, useTls, wssPort, ticketsAlias, documentsAlias, docPrintModes]);
+
+  const setDocMode = useCallback((kind: AdminDocumentPrintKind, mode: AdminDocumentPrintMode) => {
+    setDocPrintModes((prev) => ({ ...prev, [kind]: mode }));
+  }, []);
 
   return (
     <>
@@ -177,7 +205,7 @@ export function AdminLocalPrintingSettingsForm({ className = "" }: Props) {
             <div>
               <h2 className="text-sm font-semibold text-foreground">Impresoras por tipo</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                En el panel de administración solo se imprimen documentos en hoja.
+                Elija el alias configurado en KaiPrinters para tickets térmicos y documentos en hoja.
               </p>
             </div>
             <Button
@@ -192,24 +220,74 @@ export function AdminLocalPrintingSettingsForm({ className = "" }: Props) {
               Actualizar desde el agente
             </Button>
           </div>
-          <div className="mt-4 max-w-md">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {storageHydrated ? (
-              <Select
-                label="Documentos"
-                options={documentOptions}
-                value={documentsAlias || null}
-                onChange={(id) => setDocumentsAlias(id == null ? "" : String(id))}
-                allowClear
-                alwaysShowLabel
-                data-test-id="admin-print-prefs-documents-alias"
-              />
+              <>
+                <Select
+                  label="Tickets"
+                  options={ticketOptions}
+                  value={ticketsAlias || null}
+                  onChange={(id) => setTicketsAlias(id == null ? "" : String(id))}
+                  allowClear
+                  alwaysShowLabel
+                  data-test-id="admin-print-prefs-tickets-alias"
+                />
+                <Select
+                  label="Documentos"
+                  options={documentOptions}
+                  value={documentsAlias || null}
+                  onChange={(id) => setDocumentsAlias(id == null ? "" : String(id))}
+                  allowClear
+                  alwaysShowLabel
+                  data-test-id="admin-print-prefs-documents-alias"
+                />
+              </>
             ) : (
-              <div
-                className="h-14 rounded-lg border border-border bg-muted/20"
-                aria-hidden
-                data-test-id="admin-print-prefs-documents-alias-skeleton"
-              />
+              <>
+                <div
+                  className="h-14 rounded-lg border border-border bg-muted/20"
+                  aria-hidden
+                  data-test-id="admin-print-prefs-tickets-alias-skeleton"
+                />
+                <div
+                  className="h-14 rounded-lg border border-border bg-muted/20"
+                  aria-hidden
+                  data-test-id="admin-print-prefs-documents-alias-skeleton"
+                />
+              </>
             )}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-foreground">Impresión según documento</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Formato por defecto al imprimir desde administración (ventas y encargos).
+          </p>
+          <div className="mt-4 grid gap-4">
+            {(
+              [
+                ["sale", "Ventas", "admin-print-prefs-sale-mode"] as const,
+                ["backorder", "Encargos", "admin-print-prefs-backorder-mode"] as const,
+              ] as const
+            ).map(([kind, label, testId]) => (
+              <div key={kind}>
+                <p className="mb-2 text-sm font-medium text-foreground">{label}</p>
+                {storageHydrated ? (
+                  <DocumentPrintModeToggle
+                    value={docPrintModes[kind]}
+                    onChange={(mode) => setDocMode(kind, mode)}
+                    data-test-id={testId}
+                  />
+                ) : (
+                  <div
+                    className="h-[52px] rounded-lg border border-border bg-muted/20"
+                    aria-hidden
+                    data-test-id={`${testId}-skeleton`}
+                  />
+                )}
+              </div>
+            ))}
           </div>
         </section>
       </form>

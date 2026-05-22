@@ -1,6 +1,7 @@
 import type { PosSaleReceiptData } from "@/app/(pos)/pos/payment/ui/PosSaleReceiptDialog";
 import {
   agentSupportsPosSaleTicket,
+  agentTicketEscposEnabled,
   isPosAgentPrintConfiguredForPurpose,
   POS_SALE_TICKET_PAYLOAD_VERSION,
   PrintServiceConnection,
@@ -119,12 +120,35 @@ export function posSaleReceiptToTicketPayload(
   };
 }
 
-async function assertQueued(
-  res: unknown,
-): Promise<void> {
+async function assertQueued(res: unknown): Promise<void> {
   const r = res as { jobId?: string; queued?: boolean };
   if (r && r.queued === false && !r.jobId) {
     throw new Error("enqueue_rejected");
+  }
+}
+
+async function tryEnqueueSaleTicketVector(
+  conn: PrintServiceConnection,
+  ticket: PosSaleTicketPayload,
+  meta: PosSaleTicketPrintExtras,
+): Promise<boolean> {
+  try {
+    await enqueueSaleTicketOnAgent(conn, ticket, meta, false);
+    logPath("agent-vector", "pos-sale-ticket");
+    return true;
+  } catch (e) {
+    if (!isUnknownPrinterLabelError(e)) {
+      console.warn(`${LOG} pos-sale-ticket falló:`, e);
+      return false;
+    }
+  }
+  try {
+    await enqueueSaleTicketOnAgent(conn, ticket, meta, true);
+    logPath("agent-vector", "pos-sale-ticket (sin alias, mapeo propósito)");
+    return true;
+  } catch (e2) {
+    console.warn(`${LOG} vector con/sin alias falló:`, e2);
+    return false;
   }
 }
 
@@ -163,8 +187,8 @@ async function enqueueSaleTicketPdfOnAgent(
 }
 
 /**
- * Ticket de venta: agente construye PDF vectorial (`pos-sale-ticket`) si el binario lo soporta.
- * Fallback: PDF rasterizado (html2canvas) o diálogo del navegador.
+ * Ticket de venta: agente genera ESC/POS o PDF vectorial (`pos-sale-ticket`).
+ * Si ESC/POS está activo en KaiPrinters, no se encola PDF rasterizado de respaldo.
  */
 export async function printPosSaleTicketAgentOrBrowser(
   data: PosSaleReceiptData,
@@ -185,34 +209,30 @@ export async function printPosSaleTicketAgentOrBrowser(
   );
   const ticketVector = posSaleReceiptToTicketPayload(data, { logoBase64 });
   let result: "agent-vector" | "agent-raster" | "browser" = "browser";
+  let skipBrowserFallback = false;
 
   await withPrintAgentConnection("tickets", async (conn, hello: HelloResponseData | null) => {
+    const escposMode = await agentTicketEscposEnabled(conn, "tickets");
     const vectorOk = agentSupportsPosSaleTicket(hello);
 
     if (vectorOk) {
-      try {
-        await enqueueSaleTicketOnAgent(conn, ticketVector, meta, false);
-        logPath("agent-vector", "pos-sale-ticket");
+      const enqueued = await tryEnqueueSaleTicketVector(conn, ticketVector, meta);
+      if (enqueued) {
         result = "agent-vector";
         return;
-      } catch (e) {
-        if (isUnknownPrinterLabelError(e)) {
-          try {
-            await enqueueSaleTicketOnAgent(conn, ticketVector, meta, true);
-            logPath("agent-vector", "pos-sale-ticket (sin alias, mapeo propósito)");
-            result = "agent-vector";
-            return;
-          } catch (e2) {
-            console.warn(`${LOG} vector con/sin alias falló:`, e2);
-          }
-        } else {
-          console.warn(`${LOG} pos-sale-ticket falló:`, e);
-        }
       }
     } else {
       console.warn(
-        `${LOG} agente sin capacidad pos-sale-ticket — reinicie KaiPrinters (npm run tauri dev). Usando PDF rasterizado.`,
+        `${LOG} agente sin capacidad pos-sale-ticket — reinicie KaiPrinters (npm run tauri dev).`,
       );
+    }
+
+    if (escposMode) {
+      skipBrowserFallback = true;
+      console.warn(
+        `${LOG} Tickets con ESC/POS directo en KaiPrinters: no se encola PDF rasterizado. Revise alias y mapeo.`,
+      );
+      return;
     }
 
     try {
@@ -236,7 +256,7 @@ export async function printPosSaleTicketAgentOrBrowser(
     }
   });
 
-  if (result === "browser") {
+  if (result === "browser" && !skipBrowserFallback) {
     logPath("browser", "fallback final");
     const html = buildPosSaleReceiptHtml(data, window.location.origin);
     printHtmlInHiddenIframe(html, "Impresión ticket");

@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
+import { dataGridFillViewportTabPageProps } from "@/shared/components/layouts/layoutPageTokens";
 import Badge, { type BadgeVariant } from "@/shared/components/Badge/Badge";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import {
@@ -221,7 +222,7 @@ export default function SalesTransactionsDataGrid({
         rows={rows}
         totalRows={total}
         totalGeneral={total}
-        height="85vh"
+        {...dataGridFillViewportTabPageProps}
         showExportButton={false}
         showSortButton={false}
         showFilterButton={false}

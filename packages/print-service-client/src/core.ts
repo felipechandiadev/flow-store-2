@@ -3,6 +3,14 @@ import type {
   PosQuotationTicketPayload,
   PosQuotationTicketPrintExtras,
 } from "./pos-quotation-ticket";
+import type {
+  PosCustomerCreditNoteTicketPayload,
+  PosCustomerCreditNoteTicketPrintExtras,
+} from "./pos-customer-credit-note-ticket";
+import type {
+  PosCashClosingTicketPayload,
+  PosCashClosingTicketPrintExtras,
+} from "./pos-cash-closing-ticket";
 
 /** Protocol version sent to the local print agent (see docs/print_service_app_developer_guide_v2.md). */
 export const PRINT_PROTOCOL_VERSION = "2.1";
@@ -49,10 +57,23 @@ export type PrinterHealthPayload = {
 /** Capacidades del agente (protocolo 2.1+). */
 export const AGENT_CAPABILITY_POS_SALE_TICKET = "pos-sale-ticket";
 export const AGENT_CAPABILITY_POS_QUOTATION_TICKET = "pos-quotation-ticket";
+export const AGENT_CAPABILITY_POS_CUSTOMER_CREDIT_NOTE_TICKET =
+  "pos-customer-credit-note-ticket";
+export const AGENT_CAPABILITY_POS_CASH_CLOSING_TICKET = "pos-cash-closing-ticket";
 export const AGENT_CAPABILITY_PDF_BASE64 = "pdf-base64";
+
+export type AgentMappingLineConfig = {
+  purpose?: string;
+  systemPrinterName?: string;
+  sortOrder?: number;
+  displayLabel?: string | null;
+  ticketEscposEnabled?: boolean;
+};
 
 export type HelloResponseData = {
   agentCapabilities?: string[];
+  /** Primera impresora de tickets sin alias; ver `agentTicketEscposEnabled` con alias POS. */
+  ticketEscposEnabled?: boolean;
   serviceStatus?: {
     status?: string;
     connectedClients?: number;
@@ -399,6 +420,56 @@ export class PrintServiceConnection {
     return this.enqueuePosPrint(body);
   }
 
+  /**
+   * Nota de crédito POS: el agente genera PDF o ESC/POS desde JSON (`type: "pos-customer-credit-note-ticket"`).
+   */
+  enqueuePosCustomerCreditNoteTicket(
+    ticket: PosCustomerCreditNoteTicketPayload,
+    extras: PosCustomerCreditNoteTicketPrintExtras & { purpose?: string },
+    omitPrinterDisplayLabel = false,
+  ): Promise<unknown> {
+    const purpose = extras.purpose ?? "tickets";
+    const body: Record<string, unknown> = {
+      purpose,
+      type: "pos-customer-credit-note-ticket",
+      ticket,
+      filename: extras.filename,
+      copies: 1,
+      sourceApp: extras.sourceApp ?? "pwa-pos",
+      documentType: extras.documentType,
+      internalFolio: extras.internalFolio,
+    };
+    if (omitPrinterDisplayLabel) {
+      return this.enqueuePrint(body);
+    }
+    return this.enqueuePosPrint(body);
+  }
+
+  /**
+   * Arqueo de caja POS: el agente genera PDF o ESC/POS desde JSON (`type: "pos-cash-closing-ticket"`).
+   */
+  enqueuePosCashClosingTicket(
+    ticket: PosCashClosingTicketPayload,
+    extras: PosCashClosingTicketPrintExtras & { purpose?: string },
+    omitPrinterDisplayLabel = false,
+  ): Promise<unknown> {
+    const purpose = extras.purpose ?? "tickets";
+    const body: Record<string, unknown> = {
+      purpose,
+      type: "pos-cash-closing-ticket",
+      ticket,
+      filename: extras.filename,
+      copies: 1,
+      sourceApp: extras.sourceApp ?? "pwa-pos",
+      documentType: extras.documentType,
+      internalFolio: extras.internalFolio,
+    };
+    if (omitPrinterDisplayLabel) {
+      return this.enqueuePrint(body);
+    }
+    return this.enqueuePosPrint(body);
+  }
+
   private sendHello(): void {
     const rid = randomId();
     const body: Record<string, unknown> = {
@@ -614,6 +685,52 @@ export function agentSupportsPosQuotationTicket(
   return caps.includes(AGENT_CAPABILITY_POS_QUOTATION_TICKET);
 }
 
+export function agentSupportsPosCustomerCreditNoteTicket(
+  hello: HelloResponseData | null | undefined,
+): boolean {
+  const caps = hello?.agentCapabilities;
+  if (!Array.isArray(caps) || caps.length === 0) {
+    return false;
+  }
+  return caps.includes(AGENT_CAPABILITY_POS_CUSTOMER_CREDIT_NOTE_TICKET);
+}
+
+export function agentSupportsPosCashClosingTicket(
+  hello: HelloResponseData | null | undefined,
+): boolean {
+  const caps = hello?.agentCapabilities;
+  if (!Array.isArray(caps) || caps.length === 0) {
+    return false;
+  }
+  return caps.includes(AGENT_CAPABILITY_POS_CASH_CLOSING_TICKET);
+}
+
+/**
+ * Si KaiPrinters imprimirá tickets en ESC/POS (misma resolución que el agente al encolar).
+ * Usa alias de Tickets del POS si está configurado; si no, la primera línea del propósito.
+ */
+export async function agentTicketEscposEnabled(
+  conn: PrintServiceConnection,
+  purpose: PosPrintAgentPurpose = "tickets",
+): Promise<boolean> {
+  const { ticketsAlias } = readPosPurposePrinterAliasesFromStorage();
+  try {
+    const cfg = (await conn.getConfig()) as { mappingLines?: AgentMappingLineConfig[] };
+    const lines = (cfg.mappingLines ?? []).filter((l) => l.purpose === purpose);
+    if (ticketsAlias && purpose === "tickets") {
+      const matched = lines.find((l) => (l.displayLabel ?? "").trim() === ticketsAlias);
+      if (matched) return matched.ticketEscposEnabled === true;
+    }
+    const ordered = [...lines].sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+    );
+    if (ordered[0]) return ordered[0].ticketEscposEnabled === true;
+  } catch {
+    /* get_config opcional */
+  }
+  return false;
+}
+
 export function isPosAgentPrintConfiguredForPurpose(purpose: PosPrintAgentPurpose): boolean {
   if (typeof window === "undefined") return false;
   const { ticketsAlias, documentsAlias } = readPosPurposePrinterAliasesFromStorage();
@@ -651,24 +768,33 @@ export function writePosPurposePrinterAliasesToStorage(aliases: {
   }
 }
 
-/** Elección del panel admin: impresora por alias para documentos (hoja). Solo localStorage. */
+/** Alias de impresora por propósito en pwa-admin (solo localStorage). */
+const LS_ADMIN_TICKETS_ALIAS = "printAdminPurposeTicketsAlias";
 const LS_ADMIN_DOCUMENTS_ALIAS = "printAdminPurposeDocumentsAlias";
 
 export function readAdminPurposePrinterAliasFromStorage(): {
+  ticketsAlias: string;
   documentsAlias: string;
 } {
   if (typeof window === "undefined") {
-    return { documentsAlias: "" };
+    return { ticketsAlias: "", documentsAlias: "" };
   }
   return {
+    ticketsAlias: (localStorage.getItem(LS_ADMIN_TICKETS_ALIAS) || "").trim(),
     documentsAlias: (localStorage.getItem(LS_ADMIN_DOCUMENTS_ALIAS) || "").trim(),
   };
 }
 
 export function writeAdminPurposePrinterAliasToStorage(aliases: {
+  ticketsAlias?: string;
   documentsAlias?: string;
 }): void {
   if (typeof window === "undefined") return;
+  if (aliases.ticketsAlias !== undefined) {
+    const t = aliases.ticketsAlias.trim();
+    if (t) localStorage.setItem(LS_ADMIN_TICKETS_ALIAS, t);
+    else localStorage.removeItem(LS_ADMIN_TICKETS_ALIAS);
+  }
   if (aliases.documentsAlias !== undefined) {
     const t = aliases.documentsAlias.trim();
     if (t) localStorage.setItem(LS_ADMIN_DOCUMENTS_ALIAS, t);
@@ -676,15 +802,100 @@ export function writeAdminPurposePrinterAliasToStorage(aliases: {
   }
 }
 
+export function isAdminAgentPrintConfiguredForPurpose(purpose: string): boolean {
+  if (typeof window === "undefined") return false;
+  const { ticketsAlias, documentsAlias } = readAdminPurposePrinterAliasFromStorage();
+  const p = (purpose || "documents").trim().toLowerCase();
+  if (p === "tickets") return ticketsAlias.length > 0;
+  return documentsAlias.length > 0;
+}
+
 /**
- * Añade `printerDisplayLabel` para impresiones de documentos desde pwa-admin.
+ * Añade `printerDisplayLabel` al payload de `print` según propósito y alias guardados en admin.
+ */
+export function mergeAdminPrinterDisplayLabelForPurposeIntoPrintExtras(
+  purpose: string,
+  extra: Record<string, unknown>,
+): Record<string, unknown> {
+  const { ticketsAlias, documentsAlias } = readAdminPurposePrinterAliasFromStorage();
+  const p = (purpose || "documents").trim().toLowerCase();
+  const lbl = p === "tickets" ? ticketsAlias : documentsAlias;
+  if (!lbl) return extra;
+  return { ...extra, printerDisplayLabel: lbl };
+}
+
+/**
+ * @deprecated Usar `mergeAdminPrinterDisplayLabelForPurposeIntoPrintExtras("documents", extra)`.
  */
 export function mergeAdminPrinterDisplayLabelIntoPrintExtras(
   extra: Record<string, unknown>,
 ): Record<string, unknown> {
-  const { documentsAlias } = readAdminPurposePrinterAliasFromStorage();
-  if (!documentsAlias) return extra;
-  return { ...extra, printerDisplayLabel: documentsAlias };
+  return mergeAdminPrinterDisplayLabelForPurposeIntoPrintExtras("documents", extra);
+}
+
+/** Formato de impresión en administración (ticket 80 mm vs hoja). */
+export type AdminDocumentPrintMode = "ticket" | "document";
+
+export type AdminDocumentPrintKind = "sale" | "backorder";
+
+export const ADMIN_DOCUMENT_PRINT_MODES_CHANGED_EVENT =
+  "flowstore:admin-document-print-modes-changed";
+
+const LS_ADMIN_DOC_PRINT_SALE = "printAdminDocPrintSale";
+const LS_ADMIN_DOC_PRINT_BACKORDER = "printAdminDocPrintBackorder";
+
+const DEFAULT_ADMIN_DOCUMENT_PRINT_MODES: Record<AdminDocumentPrintKind, AdminDocumentPrintMode> =
+  {
+    sale: "document",
+    backorder: "ticket",
+  };
+
+function parseAdminDocumentPrintMode(raw: string | null): AdminDocumentPrintMode | null {
+  if (raw === "ticket" || raw === "document") return raw;
+  return null;
+}
+
+export function readAdminDocumentPrintModesFromStorage(): Record<
+  AdminDocumentPrintKind,
+  AdminDocumentPrintMode
+> {
+  if (typeof window === "undefined") {
+    return { ...DEFAULT_ADMIN_DOCUMENT_PRINT_MODES };
+  }
+  return {
+    sale:
+      parseAdminDocumentPrintMode(localStorage.getItem(LS_ADMIN_DOC_PRINT_SALE)) ??
+      DEFAULT_ADMIN_DOCUMENT_PRINT_MODES.sale,
+    backorder:
+      parseAdminDocumentPrintMode(localStorage.getItem(LS_ADMIN_DOC_PRINT_BACKORDER)) ??
+      DEFAULT_ADMIN_DOCUMENT_PRINT_MODES.backorder,
+  };
+}
+
+export function getAdminDocumentPrintMode(kind: AdminDocumentPrintKind): AdminDocumentPrintMode {
+  return readAdminDocumentPrintModesFromStorage()[kind];
+}
+
+export function writeAdminDocumentPrintModesToStorage(
+  modes: Partial<Record<AdminDocumentPrintKind, AdminDocumentPrintMode>>,
+): void {
+  if (typeof window === "undefined") return;
+  const keyByKind: Record<AdminDocumentPrintKind, string> = {
+    sale: LS_ADMIN_DOC_PRINT_SALE,
+    backorder: LS_ADMIN_DOC_PRINT_BACKORDER,
+  };
+  let changed = false;
+  for (const kind of Object.keys(keyByKind) as AdminDocumentPrintKind[]) {
+    const mode = modes[kind];
+    if (mode === undefined) continue;
+    localStorage.setItem(keyByKind[kind], mode);
+    changed = true;
+  }
+  if (changed && typeof globalThis.window !== "undefined") {
+    globalThis.window.dispatchEvent(
+      new CustomEvent(ADMIN_DOCUMENT_PRINT_MODES_CHANGED_EVENT),
+    );
+  }
 }
 
 /** Formato de impresión por tipo de documento del POS (ticket 80 mm vs hoja). */

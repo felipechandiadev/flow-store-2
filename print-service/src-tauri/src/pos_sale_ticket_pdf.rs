@@ -58,7 +58,7 @@ pub struct TicketCustomer {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct TicketQuotation {
+pub(crate) struct TicketQuotation {
     document_number: Option<String>,
     valid_until: Option<String>,
 }

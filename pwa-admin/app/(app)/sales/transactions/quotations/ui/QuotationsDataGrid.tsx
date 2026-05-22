@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
+import { dataGridFillViewportTabPageProps } from "@/shared/components/layouts/layoutPageTokens";
 import Badge, { type BadgeVariant } from "@/shared/components/Badge/Badge";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import {
@@ -65,7 +66,7 @@ export default function QuotationsDataGrid({
           data-test-id={`quotations-row-actions-${r.id}`}
         >
           <IconButton
-            icon="Eye"
+            icon="MoreHorizontal"
             variant="basicSecondary"
             size="sm"
             ariaLabel="Ver detalle"
@@ -174,7 +175,7 @@ export default function QuotationsDataGrid({
         rows={rows}
         totalRows={total}
         totalGeneral={total}
-        height="85vh"
+        {...dataGridFillViewportTabPageProps}
         showExportButton={false}
         showSortButton={false}
         showFilterButton={false}

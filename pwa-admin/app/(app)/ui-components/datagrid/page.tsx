@@ -51,6 +51,7 @@ const DATAGRID_PROPS: PropRow[] = [
   { prop: 'filters', type: 'string (opcional)', default: '—', desc: "Formato de filtros por columna se codifica en `?filters=` (ver `ColHeader`)." },
   { prop: 'height', type: 'number | string', default: "'70vh'", desc: "Alto CSS del contenedor del grid (px si es número, o string e.g. '420px', '50vh'). Ignorado si `fillViewport` es true." },
   { prop: 'fillViewport', type: 'boolean', default: 'false', desc: "Calcula la altura para que el pie quede al borde inferior del viewport; solo el cuerpo (filas) hace scroll. Útil en páginas de listado a pantalla completa." },
+  { prop: 'fillViewportInTabLayout', type: 'boolean', default: 'false', desc: "Con `fillViewport` bajo TabPageLayout: fallback CSS más bajo; la medición en px usa el top real del grid (pestañas incluidas)." },
   { prop: 'viewportBottomInset', type: 'number', default: '24', desc: "Margen inferior en px al calcular `fillViewport` (p. ej. `pb-6` del `<main>` del shell admin)." },
   { prop: 'totalRows', type: 'number (opcional)', default: 'length de rows', desc: "Total de ítems para el pie: paginación y contadores (e.g. resultados de servidor)." },
   { prop: 'totalGeneral', type: 'number (opcional)', default: '—', desc: "Segundo contador en el pie (p. ej. total global) según `Footer`/`Pagination`." },

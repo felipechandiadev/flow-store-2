@@ -1,3 +1,5 @@
+import { DATA_GRID_TAB_LAYOUT_FALLBACK_EXTRA_PX } from "../DataGrid/utils/useDataGridFillViewportHeight";
+
 /**
  * Clases compartidas entre {@link BasicPageLayout}, {@link TabPageLayout} y {@link CollectionPageLayout}
  * para raíz, cabecera, título, subtítulo y contenido principal.
@@ -28,3 +30,12 @@ export const layoutPageContentClassName =
  */
 export const adminFillViewportBelowTopBarClassName =
   "h-[calc(100dvh-var(--app-topbar-height,3.75rem)-2.5rem)] min-h-[calc(100dvh-var(--app-topbar-height,3.75rem)-2.5rem)]";
+
+/** Alias documentado; ver {@link DATA_GRID_TAB_LAYOUT_FALLBACK_EXTRA_PX}. */
+export const LAYOUT_TAB_PAGE_FALLBACK_VIEWPORT_EXTRA_PX = DATA_GRID_TAB_LAYOUT_FALLBACK_EXTRA_PX;
+
+/** Props recomendadas para `DataGrid` dentro de `TabPageLayout` (ventas, compras, DTE, etc.). */
+export const dataGridFillViewportTabPageProps = {
+  fillViewport: true,
+  fillViewportInTabLayout: true,
+} as const;

@@ -9,7 +9,7 @@ use crate::ticket_barcode::{
     folio_prefers_code128_charset_a,
 };
 use anyhow::Result;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Font A en bobina 80 mm (48 columnas estándar).
 pub(crate) const WIDTH: usize = 48;
@@ -18,7 +18,6 @@ pub(crate) const WIDTH_FONT_B: usize = 64;
 const LINE_SPACING_PRODUCT_NAME: u8 = 18;
 /// Columna derecha reservada a montos en CLP (`$12.345.678`).
 const MONEY_COL: usize = 15;
-const NAME_COL: usize = WIDTH - MONEY_COL;
 const LINE_SPACING_HEADER: u8 = 26;
 const LINE_SPACING_DENSE: u8 = 20;
 const BARCODE_HEIGHT_DOTS: u8 = 80;
@@ -311,27 +310,6 @@ pub(crate) fn append_product_line_block(
     append_line(buf, &pad_left(qty_unit_label, line_total));
 }
 
-/// Nombre de producto + total de línea en una fila si cabe; si no, nombre envuelto y monto al final.
-pub(crate) fn product_name_amount_lines(name: &str, amount: &str) -> Vec<String> {
-    let name = normalize_ticket_text(name);
-    let amount = pad_right_cols(amount, MONEY_COL);
-    if char_count(&name) <= NAME_COL {
-        return vec![format!("{}{}", pad_left_cols(&name, NAME_COL), amount)];
-    }
-    let wrapped = wrap_lines(&name, NAME_COL);
-    let mut out = Vec::new();
-    for (i, line) in wrapped.iter().enumerate() {
-        let is_last = i + 1 == wrapped.len();
-        if is_last && char_count(line) <= NAME_COL {
-            out.push(format!("{}{}", pad_left_cols(line, NAME_COL), amount));
-            return out;
-        }
-        out.push(line.clone());
-    }
-    out.push(amount);
-    out
-}
-
 pub(crate) fn append_divider(buf: &mut Vec<u8>) {
     append_line(buf, &full_divider());
 }
@@ -573,7 +551,7 @@ pub fn build_pos_sale_ticket_escpos(ticket: &PosSaleTicket) -> Result<Vec<u8>> {
     escpos_align(&mut buf, 0);
     append_section_gap(&mut buf);
 
-    for line in &ticket.lines {
+    for (idx, line) in ticket.lines.iter().enumerate() {
         let mut name = line.product_name.trim().to_string();
         if !line.attributes.is_empty() {
             name.push_str(" · ");
@@ -606,6 +584,9 @@ pub fn build_pos_sale_ticket_escpos(ticket: &PosSaleTicket) -> Result<Vec<u8>> {
                     &format!("-${}", format_clp(line.discount_amount.unwrap_or(0.0))),
                 ),
             );
+        }
+        if idx + 1 < ticket.lines.len() {
+            append_section_gap(&mut buf);
         }
     }
 
@@ -693,13 +674,6 @@ pub fn write_pos_sale_ticket_escpos_from_value(
     Ok(p)
 }
 
-pub fn write_pos_sale_ticket_escpos(path: &Path, value: &serde_json::Value) -> Result<()> {
-    let ticket = parse_pos_sale_ticket_from_value(value)?;
-    let bytes = build_pos_sale_ticket_escpos(&ticket)?;
-    std::fs::write(path, &bytes)?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -723,14 +697,6 @@ mod tests {
     #[test]
     fn escpos_money_uses_dollar_byte() {
         assert_eq!(to_escpos_bytes("$10.000"), b"$10.000");
-    }
-
-    #[test]
-    fn product_row_fits_name_and_amount_on_one_line() {
-        let lines = product_name_amount_lines("Producto corto", "$12.000");
-        assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0].chars().count(), WIDTH);
-        assert!(lines[0].ends_with("$12.000"));
     }
 
     #[test]

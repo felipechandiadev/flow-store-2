@@ -106,6 +106,15 @@ export class CreateReceptionDto {
   @IsUUID()
   userId?: string;
 
+  /** POS: sesión de caja abierta; pagos en efectivo al momento salen de la caja (no cash hub). */
+  @IsOptional()
+  @IsUUID()
+  cashSessionId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  pointOfSaleId?: string;
+
   @IsOptional()
   @IsString()
   reference?: string;

@@ -95,4 +95,29 @@ describe('cash-session-expected-amount.util', () => {
     ]);
     expect(expected).toBe(8000);
   });
+
+  it('SUPPLIER_PAYMENT in cash with cashSessionId reduces expected amount', () => {
+    const expected = computeCashSessionExpectedAmount(10000, [
+      tx({
+        status: TransactionStatus.CONFIRMED,
+        transactionType: TransactionType.SUPPLIER_PAYMENT,
+        paymentMethod: PaymentMethod.CASH,
+        cashSessionId: 'session-1',
+        total: 3500,
+      }),
+    ]);
+    expect(expected).toBe(6500);
+  });
+
+  it('SUPPLIER_PAYMENT transfer without cashSessionId does not affect cash expected', () => {
+    const expected = computeCashSessionExpectedAmount(10000, [
+      tx({
+        status: TransactionStatus.CONFIRMED,
+        transactionType: TransactionType.SUPPLIER_PAYMENT,
+        paymentMethod: PaymentMethod.TRANSFER,
+        total: 3500,
+      }),
+    ]);
+    expect(expected).toBe(10000);
+  });
 });

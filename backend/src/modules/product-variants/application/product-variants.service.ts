@@ -666,6 +666,8 @@ export class ProductVariantsService {
       .leftJoinAndSelect('v.product', 'product')
       .leftJoinAndSelect('product.category', 'category')
       .leftJoinAndSelect('v.unit', 'unit')
+      .leftJoinAndSelect('v.purchaseUnit', 'purchaseUnit')
+      .leftJoinAndSelect('v.stockBaseUnit', 'stockBaseUnit')
       .where('v.deletedAt IS NULL')
       .andWhere('product.deletedAt IS NULL');
 
@@ -708,21 +710,46 @@ export class ProductVariantsService {
     qb.skip((page - 1) * pageSize).take(pageSize);
     const [variants, total] = await qb.getManyAndCount();
 
-    const items = variants.map((v) => ({
-      id: v.id,
-      productId: v.productId ?? '',
-      productName: v.product?.name ?? '',
-      categoryName: v.product?.category?.name ?? null,
-      sku: v.sku,
-      barcode: v.barcode ?? null,
-      pmp: pmpForApi(v.pmp),
-      attributeValues:
-        v.attributeValues && typeof v.attributeValues === 'object' && !Array.isArray(v.attributeValues)
-          ? (v.attributeValues as Record<string, string>)
-          : {},
-      unitLabel: v.unit?.symbol || v.unit?.name || null,
-      defaultTaxIds: Array.isArray(v.taxIds) ? v.taxIds.map((x) => String(x)) : [],
-    }));
+    const companyId = variants[0]?.companyId;
+    const items = await Promise.all(
+      variants.map(async (v) => {
+        const pmp = pmpForApi(v.pmp);
+        const suggestedPurchaseUnitCost =
+          companyId && pmp != null
+            ? await this.conversion.purchaseUnitCostFromPmpForVariant(v, pmp, companyId)
+            : null;
+        const purchaseUnitLabel =
+          (v as any).purchaseUnit?.symbol ||
+          (v as any).purchaseUnit?.name ||
+          v.unit?.symbol ||
+          v.unit?.name ||
+          null;
+        const stockBaseUnitLabel =
+          (v as any).stockBaseUnit?.symbol ||
+          (v as any).stockBaseUnit?.name ||
+          null;
+        return {
+          id: v.id,
+          productId: v.productId ?? '',
+          productName: v.product?.name ?? '',
+          categoryName: v.product?.category?.name ?? null,
+          sku: v.sku,
+          barcode: v.barcode ?? null,
+          pmp,
+          suggestedPurchaseUnitCost,
+          purchaseUnitLabel,
+          stockBaseUnitLabel,
+          attributeValues:
+            v.attributeValues &&
+            typeof v.attributeValues === 'object' &&
+            !Array.isArray(v.attributeValues)
+              ? (v.attributeValues as Record<string, string>)
+              : {},
+          unitLabel: purchaseUnitLabel,
+          defaultTaxIds: Array.isArray(v.taxIds) ? v.taxIds.map((x) => String(x)) : [],
+        };
+      }),
+    );
 
     return { items, page, pageSize, total };
   }

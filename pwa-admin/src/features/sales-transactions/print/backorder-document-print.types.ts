@@ -1,13 +1,13 @@
-/** Contrato alineado con `PosSaleReceiptData` del POS (solo encargo / hoja). */
-export type BackorderDocumentPrintData = {
+/** Contrato alineado con `PosSaleReceiptData` del POS (venta / encargo, hoja o ticket). */
+export type SaleReceiptPrintData = {
   folio: string;
   issuedAtIso: string;
-  documentKind: "backorder";
-  backorder: {
+  documentKind: "sale" | "backorder";
+  backorder?: {
     depositAmount: number;
     orderTotal: number;
     percent: number;
-  };
+  } | null;
   company: {
     razonSocial: string;
     nombreFantasia: string | null;
@@ -44,3 +44,6 @@ export type BackorderDocumentPrintData = {
   };
   payments: Array<{ label: string; amount: number; detail: string | null }>;
 };
+
+/** @deprecated Usar `SaleReceiptPrintData`. */
+export type BackorderDocumentPrintData = SaleReceiptPrintData;

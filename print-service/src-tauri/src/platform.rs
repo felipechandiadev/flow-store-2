@@ -2,12 +2,15 @@
 
 use anyhow::{Context, Result};
 use serde::Serialize;
+#[cfg(target_os = "macos")]
 use std::collections::HashMap;
 use std::path::Path;
 #[cfg(target_os = "windows")]
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::{Mutex, OnceLock};
+#[cfg(target_os = "macos")]
+use std::sync::Mutex;
+use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PrinterInfo {
@@ -470,8 +473,8 @@ fn print_raw_mac(printer: &str, data: &[u8]) -> Result<()> {
 fn print_raw_windows(printer: &str, data: &[u8]) -> Result<()> {
     use std::ffi::c_void;
     use std::os::windows::ffi::OsStrExt;
-    use windows::core::PCWSTR;
-    use windows::Win32::Foundation::HANDLE;
+    use windows::core::PWSTR;
+    use windows::Win32::Foundation::{BOOL, HANDLE};
     use windows::Win32::Graphics::Printing::*;
 
     let wide: Vec<u16> = std::ffi::OsStr::new(printer)
@@ -480,37 +483,36 @@ fn print_raw_windows(printer: &str, data: &[u8]) -> Result<()> {
         .collect();
     let mut h_printer = HANDLE::default();
     unsafe {
-        OpenPrinterW(PCWSTR(wide.as_ptr()), &mut h_printer, None)
-            .map_err(|e| anyhow::anyhow!("OpenPrinterW: {e}"))?;
-        let doc_name: Vec<u16> = "KaiPrinters\0".encode_utf16().collect();
-        let datatype: Vec<u16> = "RAW\0".encode_utf16().collect();
-        let doc_info = DOC_INFO_1W {
-            pDocName: PCWSTR(doc_name.as_ptr()),
-            pOutputFile: windows::core::PWSTR::null(),
-            pDatatype: PCWSTR(datatype.as_ptr()),
-        };
-        let job_id = StartDocPrinterW(
-            h_printer,
-            1,
-            Some(&doc_info as *const DOC_INFO_1W as *const u8),
+        OpenPrinterW(
+            windows::core::PCWSTR(wide.as_ptr()),
+            &mut h_printer,
+            None,
         )
-        .map_err(|e| anyhow::anyhow!("StartDocPrinterW: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("OpenPrinterW: {e}"))?;
+        let mut doc_name: Vec<u16> = "KaiPrinters\0".encode_utf16().collect();
+        let mut datatype: Vec<u16> = "RAW\0".encode_utf16().collect();
+        let doc_info = DOC_INFO_1W {
+            pDocName: PWSTR(doc_name.as_mut_ptr()),
+            pOutputFile: PWSTR::null(),
+            pDatatype: PWSTR(datatype.as_mut_ptr()),
+        };
+        let job_id = StartDocPrinterW(h_printer, 1, &doc_info);
         if job_id == 0 {
             let _ = ClosePrinter(h_printer);
             anyhow::bail!("StartDocPrinterW returned 0");
         }
         let mut written: u32 = 0;
-        WritePrinter(
+        let ok = WritePrinter(
             h_printer,
             data.as_ptr() as *const c_void,
             data.len() as u32,
             &mut written,
-        )
-        .map_err(|e| {
-            let _ = EndDocPrinterW(h_printer);
+        );
+        if ok == BOOL(0) {
+            let _ = EndDocPrinter(h_printer);
             let _ = ClosePrinter(h_printer);
-            anyhow::anyhow!("WritePrinter: {e}")
-        })?;
+            anyhow::bail!("WritePrinter failed");
+        }
         if written as usize != data.len() {
             tracing::warn!(
                 expected = data.len(),
@@ -518,8 +520,8 @@ fn print_raw_windows(printer: &str, data: &[u8]) -> Result<()> {
                 "WritePrinter wrote fewer bytes than expected"
             );
         }
-        EndDocPrinterW(h_printer).ok();
-        ClosePrinter(h_printer).ok();
+        let _ = EndDocPrinter(h_printer);
+        let _ = ClosePrinter(h_printer);
     }
     Ok(())
 }

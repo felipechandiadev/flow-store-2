@@ -108,7 +108,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
 
   const printService = usePrintServiceConnection({
     clientId: "pwa-admin",
-    requiredPurposes: ["documents", "reports"],
+    requiredPurposes: ["documents", "tickets", "reports"],
     appLabel: "KaiStore Administración",
     userDisplayName: personName || undefined,
     companyName: companyTradeName?.trim() ? companyTradeName.trim() : undefined,

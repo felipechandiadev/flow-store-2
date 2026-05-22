@@ -391,6 +391,22 @@ impl Db {
         false
     }
 
+    /// Si el trabajo de tickets usaría ESC/POS (misma resolución de impresora que `print` en WS).
+    pub fn ticket_escpos_enabled_for_enqueue(
+        &self,
+        purpose: &str,
+        display_label: Option<&str>,
+    ) -> Result<bool> {
+        if purpose != "tickets" {
+            return Ok(false);
+        }
+        let resolved = self.resolve_printer_for_enqueue(purpose, display_label)?;
+        Ok(resolved
+            .as_deref()
+            .map(|p| self.ticket_escpos_enabled_for_printer(p, purpose))
+            .unwrap_or(false))
+    }
+
     /// Impresora que usará un trabajo encolado (alias POS o primera del propósito).
     pub fn resolve_printer_for_enqueue(
         &self,

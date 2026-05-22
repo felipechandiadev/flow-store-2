@@ -61,11 +61,17 @@ export function computeCashSessionExpectedAmount(
       }
       case TransactionType.CASH_SESSION_WITHDRAWAL:
       case TransactionType.CASH_SESSION_TO_HUB_TRANSFER:
+      case TransactionType.BANK_TO_CASH_TRANSFER:
+        cashOut += total;
+        break;
       case TransactionType.OPERATING_EXPENSE:
       case TransactionType.SUPPLIER_PAYMENT:
       case TransactionType.PAYROLL_PAYMENT:
       case TransactionType.EXPENSE_PAYMENT:
-      case TransactionType.BANK_TO_CASH_TRANSFER:
+        if (tx.paymentMethod === PaymentMethod.CASH && tx.cashSessionId) {
+          cashOut += total;
+        }
+        break;
       case TransactionType.SALE_RETURN: {
         const { cashOut: returnOut } = saleReturnTransactionCashFlows(tx);
         cashOut += returnOut;

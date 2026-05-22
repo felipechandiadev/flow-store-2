@@ -157,7 +157,7 @@ pub fn build_pos_quotation_ticket_escpos(q: &PosQuotationTicket) -> Result<Vec<u
     escpos_align(&mut buf, 0);
     append_section_gap(&mut buf);
 
-    for line in &q.lines {
+    for (idx, line) in q.lines.iter().enumerate() {
         let name = line_display_name(line);
         let qty = if (line.quantity.fract()).abs() < 0.001 {
             format!("{}", line.quantity.round() as i64)
@@ -166,6 +166,9 @@ pub fn build_pos_quotation_ticket_escpos(q: &PosQuotationTicket) -> Result<Vec<u
         };
         let qty_unit = format!("{qty}x {}", money(line_unit_price_with_tax(line)));
         append_product_line_block(&mut buf, &name, &qty_unit, &money(line.total));
+        if idx + 1 < q.lines.len() {
+            append_section_gap(&mut buf);
+        }
     }
 
     append_divider(&mut buf);

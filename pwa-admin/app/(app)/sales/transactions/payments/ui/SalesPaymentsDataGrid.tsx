@@ -3,7 +3,9 @@
 import { useCallback, useMemo, useState } from "react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
+import { dataGridFillViewportTabPageProps } from "@/shared/components/layouts/layoutPageTokens";
 import Badge, { type BadgeVariant } from "@/shared/components/Badge/Badge";
+import IconButton from "@/shared/components/IconButton/IconButton";
 import {
   SALES_PAYMENT_STATUS_LABEL,
   type SalesPaymentMethod,
@@ -12,6 +14,7 @@ import {
 } from "@/features/sales-payments/types/sales-payment.types";
 import { formatSalePaymentMethodDisplay } from "@/features/sales-transactions/lib/format-sale-payment-method";
 import SaleTransactionDetailDialog from "../../ui/SaleTransactionDetailDialog";
+import SalesPaymentDetailDialog from "./SalesPaymentDetailDialog";
 
 type SalesPaymentsDataGridProps = {
   rows: SalesPaymentRow[];
@@ -51,15 +54,41 @@ export default function SalesPaymentsDataGrid({
   rows,
   total,
 }: SalesPaymentsDataGridProps) {
+  const [selectedPayment, setSelectedPayment] = useState<SalesPaymentRow | null>(
+    null,
+  );
   const [saleDetailId, setSaleDetailId] = useState<string | null>(null);
+
+  const openPaymentDetail = useCallback((r: SalesPaymentRow) => {
+    setSelectedPayment(r);
+  }, []);
 
   const openSaleDetail = useCallback((saleId: string | null | undefined) => {
     const id = saleId?.trim();
     if (id) setSaleDetailId(id);
   }, []);
 
-  const columns: DataGridColumn[] = useMemo(
-    () => [
+  const columns: DataGridColumn[] = useMemo(() => {
+    function SalesPaymentActionsCell({ row }: { row: any; column: DataGridColumn }) {
+      const r = row as SalesPaymentRow;
+      return (
+        <div
+          className="flex items-center justify-center"
+          data-test-id={`sales-payments-row-actions-${r.id}`}
+        >
+          <IconButton
+            icon="MoreHorizontal"
+            variant="basicSecondary"
+            size="sm"
+            ariaLabel="Ver detalle del cobro"
+            onClick={() => openPaymentDetail(r)}
+            data-test-id={`sales-payments-row-detail-${r.id}`}
+          />
+        </div>
+      );
+    }
+
+    return [
       {
         field: "documentNumber",
         headerName: "Folio pago",
@@ -177,9 +206,18 @@ export default function SalesPaymentsDataGrid({
           );
         },
       },
-    ],
-    [openSaleDetail],
-  );
+      {
+        field: "actions",
+        headerName: "",
+        width: 72,
+        minWidth: 72,
+        align: "center",
+        sortable: false,
+        filterable: false,
+        actionComponent: SalesPaymentActionsCell,
+      },
+    ];
+  }, [openPaymentDetail, openSaleDetail]);
 
   return (
     <>
@@ -188,11 +226,17 @@ export default function SalesPaymentsDataGrid({
         rows={rows}
         totalRows={total}
         totalGeneral={total}
-        height="85vh"
+        {...dataGridFillViewportTabPageProps}
         showExportButton={false}
         showSortButton={false}
         showFilterButton={false}
         data-test-id="sales-payments-data-grid"
+      />
+      <SalesPaymentDetailDialog
+        payment={selectedPayment}
+        open={selectedPayment != null}
+        onClose={() => setSelectedPayment(null)}
+        onOpenRelatedSale={openSaleDetail}
       />
       <SaleTransactionDetailDialog
         transactionId={saleDetailId}

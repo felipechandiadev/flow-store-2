@@ -27,6 +27,12 @@ import {
   PaymentStatus,
 } from '@modules/transactions/domain/transaction.entity';
 import { applyDteNumberToSupplierDocumentDto } from '@modules/transactions/presentation/helpers/supplier-dte-create.helper';
+import {
+  CashSession,
+  CashSessionStatus,
+} from '@modules/cash-sessions/domain/cash-session.entity';
+import { CashSessionsService } from '@modules/cash-sessions/application/cash-sessions.service';
+
 @Injectable()
 export class ReceptionsService {
   private logger = new Logger(ReceptionsService.name);
@@ -46,10 +52,48 @@ export class ReceptionsService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(Transaction)
     private readonly transactionRepo: Repository<Transaction>,
+    @InjectRepository(CashSession)
+    private readonly cashSessionRepo: Repository<CashSession>,
     private readonly transactionsService: TransactionsService,
     private readonly documentNumberService: DocumentNumberService,
     private readonly variantsService: ProductVariantsService,
+    private readonly cashSessionsService: CashSessionsService,
   ) {}
+
+  private resolvePosCashSessionId(data: any): string | null {
+    const id =
+      typeof data?.cashSessionId === 'string' ? data.cashSessionId.trim() : '';
+    return id || null;
+  }
+
+  private async assertPosCashSessionForReception(data: any): Promise<void> {
+    const sessionId = this.resolvePosCashSessionId(data);
+    if (!sessionId) {
+      return;
+    }
+    const session = await this.cashSessionRepo.findOne({
+      where: { id: sessionId },
+    });
+    if (!session) {
+      throw new BadRequestException('Sesión de caja no encontrada.');
+    }
+    if (session.status !== CashSessionStatus.OPEN) {
+      throw new BadRequestException(
+        `La sesión de caja está en estado ${session.status}; no se pueden registrar pagos en efectivo.`,
+      );
+    }
+    const posId =
+      typeof data?.pointOfSaleId === 'string' ? data.pointOfSaleId.trim() : '';
+    if (
+      posId &&
+      session.pointOfSaleId &&
+      session.pointOfSaleId !== posId
+    ) {
+      throw new BadRequestException(
+        'La sesión de caja no pertenece al punto de venta indicado.',
+      );
+    }
+  }
 
   private async resolveBranchIdForReception(reception: {
     branchId?: string | null;
@@ -892,7 +936,8 @@ export class ReceptionsService {
             continue;
           }
           const unitPrice = Number(l.unitPrice ?? l.price ?? 0) || 0;
-          const lineSubtotal = qty * unitPrice;
+          const unitCost = Number(l.unitCost ?? l.unitPrice ?? 0) || 0;
+          const lineSubtotal = qty * (unitCost > 0 ? unitCost : unitPrice);
           const tline: CreateTransactionLineDto = {
             productId: l.productId || undefined,
             productVariantId: l.productVariantId || undefined,
@@ -901,11 +946,8 @@ export class ReceptionsService {
             variantName: l.variantName || undefined,
             quantity: qty,
             // Valorización de inventario: costo unitario de compra (unitCost o precio de línea)
-            unitPrice:
-              Number(l.unitCost ?? l.unitPrice ?? 0) > 0
-                ? Number(l.unitCost ?? l.unitPrice ?? 0)
-                : unitPrice,
-            unitCost: Number(l.unitCost ?? l.unitPrice ?? 0) || 0,
+            unitPrice: unitCost > 0 ? unitCost : unitPrice,
+            unitCost,
             discountPercentage: 0,
             discountAmount: 0,
             taxRate: 0,
@@ -1061,6 +1103,8 @@ export class ReceptionsService {
   }
 
   async createDirect(data: any) {
+    await this.assertPosCashSessionForReception(data);
+
     const purchaseOrderId =
       typeof data.purchaseOrderId === 'string' && data.purchaseOrderId.trim()
         ? data.purchaseOrderId.trim()
@@ -1339,7 +1383,11 @@ export class ReceptionsService {
     };
   }
 
-  private validatePaymentLine(l: any, label: string): string | null {
+  private validatePaymentLine(
+    l: any,
+    label: string,
+    opts?: { posCashSessionId?: string | null; isScheduledLine?: boolean },
+  ): string | null {
     const due = typeof l?.dueDate === 'string' ? l.dueDate.trim() : '';
     const amount = this.roundClp(l?.amount);
     const pm = String(l?.paymentMethod || '').toUpperCase();
@@ -1348,8 +1396,23 @@ export class ReceptionsService {
     if (!['CASH', 'TRANSFER', 'CHECK'].includes(pm))
       return `${label}: medio de pago inválido.`;
     if (pm === 'CASH') {
-      const hub = typeof l?.cashHubId === 'string' ? l.cashHubId.trim() : '';
-      if (!hub) return `${label}: efectivo requiere centro de acopio (cashHubId).`;
+      const posSessionId = opts?.posCashSessionId?.trim() || '';
+      if (posSessionId) {
+        const hub = typeof l?.cashHubId === 'string' ? l.cashHubId.trim() : '';
+        if (hub) {
+          return `${label}: en POS el efectivo sale de la caja; no use centro de acopio.`;
+        }
+        if (!opts?.isScheduledLine) {
+          const lineSession =
+            typeof l?.cashSessionId === 'string' ? l.cashSessionId.trim() : '';
+          if (!lineSession && !posSessionId) {
+            return `${label}: efectivo en POS requiere sesión de caja.`;
+          }
+        }
+      } else {
+        const hub = typeof l?.cashHubId === 'string' ? l.cashHubId.trim() : '';
+        if (!hub) return `${label}: efectivo requiere centro de acopio (cashHubId).`;
+      }
     }
     if (pm === 'TRANSFER' || pm === 'CHECK') {
       const c = l?.companyBankAccountKey;
@@ -1364,8 +1427,14 @@ export class ReceptionsService {
     return null;
   }
 
-  private toPlannedPaymentMeta(line: any) {
+  private toPlannedPaymentMeta(line: any, posCashSessionId?: string | null) {
     const pm = String(line?.paymentMethod || '').toUpperCase();
+    const lineSession =
+      pm === 'CASH' && line?.cashSessionId != null
+        ? String(line.cashSessionId).trim()
+        : null;
+    const sessionId =
+      lineSession || (pm === 'CASH' && posCashSessionId ? posCashSessionId.trim() : null);
     return {
       dueDate: String(line?.dueDate || '').trim(),
       amount: this.roundClp(line?.amount),
@@ -1387,7 +1456,11 @@ export class ReceptionsService {
           ? String(line.chequeNumber).trim()
           : null,
       cashHubId:
-        pm === 'CASH' && line?.cashHubId != null ? String(line.cashHubId).trim() : null,
+        pm === 'CASH' && !sessionId && line?.cashHubId != null
+          ? String(line.cashHubId).trim()
+          : null,
+      cashSessionId: sessionId || null,
+      paymentSource: sessionId ? 'pos_cash_session' : pm === 'CASH' ? 'cash_hub' : null,
     };
   }
 
@@ -1403,6 +1476,7 @@ export class ReceptionsService {
       scheduledLines: any[];
     },
     docTotal: number,
+    posCashSessionId?: string | null,
   ): string | null {
     const eps = 2;
     const { mode } = payment;
@@ -1410,11 +1484,17 @@ export class ReceptionsService {
     const sched = payment.scheduledLines as any[];
 
     for (let i = 0; i < paid.length; i++) {
-      const err = this.validatePaymentLine(paid[i], `Abono ${i + 1}`);
+      const err = this.validatePaymentLine(paid[i], `Abono ${i + 1}`, {
+        posCashSessionId,
+        isScheduledLine: false,
+      });
       if (err) return err;
     }
     for (let i = 0; i < sched.length; i++) {
-      const err = this.validatePaymentLine(sched[i], `Cuota ${i + 1}`);
+      const err = this.validatePaymentLine(sched[i], `Cuota ${i + 1}`, {
+        posCashSessionId,
+        isScheduledLine: true,
+      });
       if (err) return err;
     }
 
@@ -1496,14 +1576,33 @@ export class ReceptionsService {
           ? String(opts.line.companyBankAccountKey).trim()
           : undefined;
     }
+    const posSessionId = this.resolvePosCashSessionId(opts.dtoHost);
     if (pm === 'CASH') {
-      dto.cashHubId =
-        opts.line.cashHubId != null ? String(opts.line.cashHubId).trim() : undefined;
+      const lineSession =
+        typeof opts.line?.cashSessionId === 'string'
+          ? opts.line.cashSessionId.trim()
+          : '';
+      const sessionId = lineSession || posSessionId || '';
+      if (sessionId) {
+        dto.cashSessionId = sessionId;
+        const posId =
+          typeof opts.dtoHost?.pointOfSaleId === 'string'
+            ? opts.dtoHost.pointOfSaleId.trim()
+            : '';
+        if (posId) {
+          dto.pointOfSaleId = posId;
+        }
+      } else if (opts.line.cashHubId != null) {
+        dto.cashHubId = String(opts.line.cashHubId).trim();
+      }
     }
     dto.notes = opts.note;
     dto.metadata = {
       origin: 'RECEPTION_SUPPLIER_PAYMENT',
-      receptionSupplierPaymentLine: this.toPlannedPaymentMeta(opts.line),
+      receptionSupplierPaymentLine: this.toPlannedPaymentMeta(
+        opts.line,
+        posSessionId,
+      ),
     };
     await this.transactionsService.createTransaction(dto);
   }
@@ -1541,8 +1640,13 @@ export class ReceptionsService {
     const payment = this.normalizeSupplierDocumentPayment(
       data?.supplierDocumentPayment ?? null,
     );
+    const posCashSessionId = this.resolvePosCashSessionId(data);
 
-    const planErr = this.validateReceptionSupplierPaymentPlan(payment, totalDoc);
+    const planErr = this.validateReceptionSupplierPaymentPlan(
+      payment,
+      totalDoc,
+      posCashSessionId,
+    );
     if (planErr) {
       return planErr;
     }
@@ -1580,15 +1684,21 @@ export class ReceptionsService {
     if (payment.mode === 'COMPLETED') {
       parentPaymentStatus = PaymentStatus.PAID;
       parentAmountPaid = totalDoc;
-      plannedForMeta = paid.map((l) => this.toPlannedPaymentMeta(l));
+      plannedForMeta = paid.map((l) =>
+        this.toPlannedPaymentMeta(l, posCashSessionId),
+      );
     } else if (payment.mode === 'PARTIAL') {
       parentPaymentStatus = PaymentStatus.PARTIAL;
       parentAmountPaid = this.sumLineAmounts(paid);
-      plannedForMeta = [...paid, ...sched].map((l) => this.toPlannedPaymentMeta(l));
+      plannedForMeta = [...paid, ...sched].map((l) =>
+        this.toPlannedPaymentMeta(l, posCashSessionId),
+      );
     } else if (payment.mode === 'PENDING_SCHEDULED') {
       parentPaymentStatus = PaymentStatus.PENDING;
       parentAmountPaid = 0;
-      plannedForMeta = sched.map((l) => this.toPlannedPaymentMeta(l));
+      plannedForMeta = sched.map((l) =>
+        this.toPlannedPaymentMeta(l, posCashSessionId),
+      );
     } else {
       parentPaymentStatus = PaymentStatus.PENDING;
       parentAmountPaid = 0;
@@ -1674,6 +1784,19 @@ export class ReceptionsService {
           asDraft: true,
           note: `Cuota programada recepción (${i + 1}/${sched.length})`,
         });
+      }
+    }
+
+    if (posCashSessionId) {
+      try {
+        await this.cashSessionsService.refreshExpectedAmountForSession(
+          posCashSessionId,
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(
+          `No se pudo recalcular efectivo esperado de sesión ${posCashSessionId}: ${msg}`,
+        );
       }
     }
 

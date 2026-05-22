@@ -173,6 +173,7 @@ export default function UsersDataGrid({ data, total, page, limit }: Props) {
 | `title` | `string` | - | Título del grid |
 | `height` | `number \| string` | `'70vh'` | Altura del componente (ignorado si `fillViewport`) |
 | `fillViewport` | `boolean` | `false` | Pie al borde inferior del viewport; solo el body hace scroll |
+| `fillViewportInTabLayout` | `boolean` | `false` | Con `fillViewport`, resta ~52px en el fallback CSS si hay pestañas encima (`dataGridFillViewportTabPageProps`) |
 | `viewportBottomInset` | `number` | `24` | Margen inferior en px al calcular `fillViewport` |
 | `limit` | `number` | `25` | Filas por página por defecto |
 | `showBorder` | `boolean` | `false` | Mostrar borde alrededor |

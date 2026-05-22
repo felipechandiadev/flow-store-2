@@ -205,3 +205,35 @@ pub fn write_pos_quotation_ticket_escpos_from_value(
 ) -> Result<PathBuf> {
     crate::pos_quotation_ticket::write_pos_quotation_ticket_escpos_from_value(dir, value)
 }
+
+pub fn write_pos_customer_credit_note_ticket_pdf_from_value(
+    dir: &PathBuf,
+    value: &serde_json::Value,
+) -> Result<PathBuf> {
+    crate::pos_customer_credit_note_ticket::write_pos_customer_credit_note_ticket_pdf_from_value(
+        dir, value,
+    )
+}
+
+pub fn write_pos_customer_credit_note_ticket_escpos_from_value(
+    dir: &PathBuf,
+    value: &serde_json::Value,
+) -> Result<PathBuf> {
+    crate::pos_customer_credit_note_ticket::write_pos_customer_credit_note_ticket_escpos_from_value(
+        dir, value,
+    )
+}
+
+pub fn write_pos_cash_closing_ticket_pdf_from_value(
+    dir: &PathBuf,
+    value: &serde_json::Value,
+) -> Result<PathBuf> {
+    crate::pos_cash_closing_ticket::write_pos_cash_closing_ticket_pdf_from_value(dir, value)
+}
+
+pub fn write_pos_cash_closing_ticket_escpos_from_value(
+    dir: &PathBuf,
+    value: &serde_json::Value,
+) -> Result<PathBuf> {
+    crate::pos_cash_closing_ticket::write_pos_cash_closing_ticket_escpos_from_value(dir, value)
+}

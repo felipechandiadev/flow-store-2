@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog";
-import { Button } from "@/shared/components/Button";
 import Alert from "@/shared/components/Alert/Alert";
 import Badge from "@/shared/components/Badge/Badge";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { getCompanyDetailsAction } from "@/features/settings-company/actions/company.action";
 import { getSaleTransactionDetailAction } from "@/features/sales-transactions/actions/sale-transaction-detail.action";
-import { printBackorderDocument } from "@/features/sales-transactions/print/backorder-document-print";
-import { mapBackorderDetailToPrintData } from "@/features/sales-transactions/print/map-backorder-detail-to-print-data";
+import {
+  canAdminReprintSaleReceipt,
+  reprintAdminSaleDocument,
+  reprintAdminSaleTicket,
+} from "@/features/sales-transactions/print/reprint-admin-sale-transaction";
 import type { SaleTransactionDetail } from "@/features/sales-transactions/types/sale-transaction-detail.types";
 import {
   SALES_PAYMENT_STATUS_LABEL,
@@ -73,24 +75,47 @@ export default function SaleTransactionDetailDialog({
   const [detail, setDetail] = useState<SaleTransactionDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [printing, setPrinting] = useState(false);
+  const [printBusy, setPrintBusy] = useState<"ticket" | "document" | null>(null);
+  const [printNotice, setPrintNotice] = useState<string | null>(null);
 
   const isBackorder = detail?.transactionType === "BACKORDER";
   const isSaleReturn = detail?.transactionType === "SALE_RETURN";
   const linkedNc = detail?.linkedCustomerCreditNote ?? null;
+  const canPrint = detail ? canAdminReprintSaleReceipt(detail.transactionType) : false;
 
-  const handlePrintBackorder = useCallback(async () => {
-    if (!detail || detail.transactionType !== "BACKORDER") return;
-    setPrinting(true);
+  const handlePrintTicket = useCallback(async () => {
+    if (!detail || !canAdminReprintSaleReceipt(detail.transactionType)) return;
+    setPrintBusy("ticket");
+    setPrintNotice(null);
     setError(null);
     try {
       const company = await getCompanyDetailsAction();
-      const printData = mapBackorderDetailToPrintData(detail, company);
-      printBackorderDocument(printData);
+      const res = await reprintAdminSaleTicket(detail, company);
+      if (!res.success) {
+        setPrintNotice(res.message ?? "No se pudo reimprimir el ticket");
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo imprimir el encargo");
+      setError(e instanceof Error ? e.message : "No se pudo imprimir el ticket");
     } finally {
-      setPrinting(false);
+      setPrintBusy(null);
+    }
+  }, [detail]);
+
+  const handlePrintDocument = useCallback(async () => {
+    if (!detail || !canAdminReprintSaleReceipt(detail.transactionType)) return;
+    setPrintBusy("document");
+    setPrintNotice(null);
+    setError(null);
+    try {
+      const company = await getCompanyDetailsAction();
+      const res = reprintAdminSaleDocument(detail, company);
+      if (!res.success) {
+        setPrintNotice(res.message ?? "No se pudo imprimir el documento");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo imprimir el documento");
+    } finally {
+      setPrintBusy(null);
     }
   }, [detail]);
 
@@ -132,20 +157,41 @@ export default function SaleTransactionDetailDialog({
       scroll="paper"
       maxHeight="min(85vh, 720px)"
       showCloseButton
-      hideActions={!isBackorder || loading}
+      hideActions={loading || !canPrint}
       actionsJustify="end"
+      alertArea={
+        printNotice ? (
+          <Alert variant="info" data-test-id="sale-detail-print-notice">
+            {printNotice}
+          </Alert>
+        ) : null
+      }
       actions={
-        isBackorder && !loading ? (
-          <IconButton
-            icon="Printer"
-            variant="basicSecondary"
-            size="md"
-            ariaLabel="Imprimir documento de encargo"
-            isLoading={printing}
-            disabled={printing}
-            onClick={() => void handlePrintBackorder()}
-            data-test-id="backorder-detail-print"
-          />
+        !loading && canPrint ? (
+          <div className="flex items-center justify-end gap-1">
+            <IconButton
+              icon="Receipt"
+              variant="basicSecondary"
+              size="sm"
+              ariaLabel="Reimprimir ticket"
+              title="Reimprimir ticket (80 mm)"
+              isLoading={printBusy === "ticket"}
+              disabled={printBusy != null && printBusy !== "ticket"}
+              onClick={() => void handlePrintTicket()}
+              data-test-id="sale-detail-print-ticket"
+            />
+            <IconButton
+              icon="FileText"
+              variant="basicSecondary"
+              size="sm"
+              ariaLabel="Imprimir documento"
+              title="Imprimir documento (hoja)"
+              isLoading={printBusy === "document"}
+              disabled={printBusy != null && printBusy !== "document"}
+              onClick={() => void handlePrintDocument()}
+              data-test-id="sale-detail-print-document"
+            />
+          </div>
         ) : undefined
       }
       data-test-id="sale-transaction-detail-dialog"
@@ -414,13 +460,6 @@ export default function SaleTransactionDetailDialog({
           </>
         ) : null}
 
-        {!isBackorder ? (
-          <div className="flex justify-end border-t border-border pt-3">
-            <Button type="button" variant="secondary" onClick={onClose}>
-              Cerrar
-            </Button>
-          </div>
-        ) : null}
       </div>
     </Dialog>
   );

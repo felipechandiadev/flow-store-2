@@ -1063,4 +1063,25 @@ export class CashSessionsService {
       transactions,
     );
   }
+
+  /** Recalcula y persiste el efectivo esperado tras transacciones externas (p. ej. pago proveedor desde POS). */
+  async refreshExpectedAmountForSession(cashSessionId: string): Promise<void> {
+    const id = String(cashSessionId || '').trim();
+    if (!id) {
+      return;
+    }
+    await this.dataSource.transaction(async (manager) => {
+      const session = await manager.getRepository(CashSession).findOne({
+        where: { id },
+      });
+      if (!session || session.status !== CashSessionStatus.OPEN) {
+        return;
+      }
+      session.expectedAmount = await this.recomputeCashSessionExpectedAmount(
+        manager,
+        session,
+      );
+      await manager.getRepository(CashSession).save(session);
+    });
+  }
 }

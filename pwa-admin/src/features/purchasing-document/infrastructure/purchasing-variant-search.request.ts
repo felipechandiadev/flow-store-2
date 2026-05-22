@@ -52,9 +52,34 @@ function normalizeItem(row: unknown): PurchasingVariantSearchResult["items"][num
       o.categoryName != null && String(o.categoryName).trim() ? String(o.categoryName).trim() : null,
     sku: o.sku != null ? String(o.sku) : "",
     barcode: o.barcode != null && String(o.barcode).trim() ? String(o.barcode).trim() : null,
-    pmp: typeof o.pmp === "number" && Number.isFinite(o.pmp) ? o.pmp : Number(o.pmp) || 0,
+    pmp:
+      o.pmp == null || o.pmp === ""
+        ? null
+        : typeof o.pmp === "number" && Number.isFinite(o.pmp)
+          ? o.pmp
+          : Number.isFinite(Number(o.pmp))
+            ? Number(o.pmp)
+            : null,
+    suggestedPurchaseUnitCost:
+      o.suggestedPurchaseUnitCost == null || o.suggestedPurchaseUnitCost === ""
+        ? null
+        : Number.isFinite(Number(o.suggestedPurchaseUnitCost))
+          ? Number(o.suggestedPurchaseUnitCost)
+          : null,
+    purchaseUnitLabel:
+      o.purchaseUnitLabel != null && String(o.purchaseUnitLabel).trim()
+        ? String(o.purchaseUnitLabel).trim()
+        : null,
+    stockBaseUnitLabel:
+      o.stockBaseUnitLabel != null && String(o.stockBaseUnitLabel).trim()
+        ? String(o.stockBaseUnitLabel).trim()
+        : null,
     attributeValues,
-    unitLabel: o.unitLabel != null && String(o.unitLabel).trim() ? String(o.unitLabel).trim() : null,
+    unitLabel:
+      (o.purchaseUnitLabel != null && String(o.purchaseUnitLabel).trim()
+        ? String(o.purchaseUnitLabel).trim()
+        : null) ??
+      (o.unitLabel != null && String(o.unitLabel).trim() ? String(o.unitLabel).trim() : null),
     defaultTaxIds,
   };
 }

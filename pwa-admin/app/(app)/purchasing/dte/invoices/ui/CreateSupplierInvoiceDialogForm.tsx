@@ -28,7 +28,7 @@ import {
   InvoicePlannedPaymentLines,
   type InvoicePlannedPaymentLineState,
   type InvoicePlannedPaymentMethodUI,
-} from "./InvoicePlannedPaymentLines";
+} from "@/shared/components/PlannedPaymentLines/InvoicePlannedPaymentLines";
 
 export type CreateSupplierInvoiceDialogFormProps = {
   onClose?: () => void;

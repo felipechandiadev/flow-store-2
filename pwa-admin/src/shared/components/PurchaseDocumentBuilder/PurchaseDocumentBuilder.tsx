@@ -272,6 +272,10 @@ function receptionLineReadyForInventory(line: PurchaseDocumentLine): boolean {
 }
 
 function initialUnitCostFromVariant(item: PurchasingVariantSearchItem): number {
+  const suggested = item.suggestedPurchaseUnitCost;
+  if (suggested != null && Number.isFinite(Number(suggested)) && Number(suggested) > 0) {
+    return Math.round(Number(suggested));
+  }
   if (item.pmp != null && Number.isFinite(Number(item.pmp)) && Number(item.pmp) > 0) {
     return Math.round(Number(item.pmp));
   }

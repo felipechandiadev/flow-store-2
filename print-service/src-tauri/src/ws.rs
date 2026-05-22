@@ -35,6 +35,90 @@ fn json_line(v: &impl serde::Serialize) -> Message {
     )
 }
 
+fn is_vector_pos_ticket_type(print_type: &str) -> bool {
+    matches!(
+        print_type,
+        "pos-sale-ticket"
+            | "pos-quotation-ticket"
+            | "pos-customer-credit-note-ticket"
+            | "pos-cash-closing-ticket"
+    )
+}
+
+fn vector_ticket_folio(print_type: &str, ticket: &serde_json::Value) -> String {
+    match print_type {
+        "pos-quotation-ticket" => ticket
+            .get("documentNumber")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        "pos-customer-credit-note-ticket" => ticket
+            .get("creditNoteFolio")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        "pos-cash-closing-ticket" => {
+            let sid = ticket
+                .get("cashSessionId")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if sid.chars().count() > 8 {
+                sid.chars().take(8).collect()
+            } else {
+                sid.to_string()
+            }
+        }
+        _ => ticket
+            .get("folio")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+    }
+}
+
+type WriteVectorTicketFn =
+    fn(&std::path::PathBuf, &serde_json::Value) -> anyhow::Result<std::path::PathBuf>;
+
+fn vector_ticket_escpos_writer(print_type: &str) -> WriteVectorTicketFn {
+    match print_type {
+        "pos-quotation-ticket" => jobs::write_pos_quotation_ticket_escpos_from_value,
+        "pos-customer-credit-note-ticket" => {
+            jobs::write_pos_customer_credit_note_ticket_escpos_from_value
+        }
+        "pos-cash-closing-ticket" => jobs::write_pos_cash_closing_ticket_escpos_from_value,
+        _ => jobs::write_pos_sale_ticket_escpos_from_value,
+    }
+}
+
+fn vector_ticket_pdf_writer(print_type: &str) -> WriteVectorTicketFn {
+    match print_type {
+        "pos-quotation-ticket" => jobs::write_pos_quotation_ticket_pdf_from_value,
+        "pos-customer-credit-note-ticket" => jobs::write_pos_customer_credit_note_ticket_pdf_from_value,
+        "pos-cash-closing-ticket" => jobs::write_pos_cash_closing_ticket_pdf_from_value,
+        _ => jobs::write_pos_sale_ticket_pdf_from_value,
+    }
+}
+
+/// Nombre en cola acorde al payload real (`.escpos` vs `.pdf`).
+fn ticket_queue_filename(requested: &str, folio: &str, escpos: bool) -> String {
+    if !escpos {
+        return requested.to_string();
+    }
+    if requested.ends_with(".pdf") {
+        let stem = requested.strip_suffix(".pdf").unwrap_or(requested);
+        return format!("{stem}.escpos");
+    }
+    let base = folio.trim();
+    if !base.is_empty() {
+        return format!("{base}.escpos");
+    }
+    if requested.contains('.') {
+        requested.to_string()
+    } else {
+        format!("{requested}.escpos")
+    }
+}
+
 pub async fn run_ws_loop(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<bool>) -> Result<()> {
     let port = state.db.listen_port();
     let host = state.db.listen_host();
@@ -240,10 +324,21 @@ where
                             );
                             hello_ok = true;
                             let ph = events::emit_printer_health_json(&state.db, &required)?;
+                            let ticket_escpos = state
+                                .db
+                                .ticket_escpos_enabled_for_enqueue("tickets", None)
+                                .unwrap_or(false);
                             ws.send(json_line(&OutResponse::ok(env.request_id.clone(), json!({
                                 "serviceStatus": events::service_status_payload(state.connected(), state.connected_sessions_json()),
                                 "printerHealth": ph["payload"].clone(),
-                                "agentCapabilities": ["pdf-base64", "pos-sale-ticket", "pos-quotation-ticket"],
+                                "agentCapabilities": [
+                                    "pdf-base64",
+                                    "pos-sale-ticket",
+                                    "pos-quotation-ticket",
+                                    "pos-customer-credit-note-ticket",
+                                    "pos-cash-closing-ticket",
+                                ],
+                                "ticketEscposEnabled": ticket_escpos,
                             })))).await.ok();
                             let _ = state.broadcast.send(ph.to_string());
                             let snap = json!({
@@ -418,65 +513,70 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                 .get("type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("pdf-base64");
-            let path = if print_type == "pos-sale-ticket" || print_type == "pos-quotation-ticket" {
+            let printer_display_label_early = env
+                .extra
+                .get("printerDisplayLabel")
+                .or_else(|| env.extra.get("printerAlias"))
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            let mut queue_filename = filename.to_string();
+            let path = if is_vector_pos_ticket_type(print_type) {
                 let ticket = match env.extra.get("ticket") {
                     Some(v) => v,
                     None => return OutResponse::err(rid, "ticket_required"),
                 };
-                let folio = if print_type == "pos-quotation-ticket" {
-                    ticket
-                        .get("documentNumber")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                } else {
-                    ticket.get("folio").and_then(|v| v.as_str()).unwrap_or("")
-                };
-                let printer_display_label = env
-                    .extra
-                    .get("printerDisplayLabel")
-                    .or_else(|| env.extra.get("printerAlias"))
-                    .and_then(|v| v.as_str())
-                    .map(str::trim)
-                    .filter(|s| !s.is_empty());
-                let resolved_printer = state
+                let folio = vector_ticket_folio(print_type, ticket);
+                let use_escpos = state
                     .db
-                    .resolve_printer_for_enqueue(purpose, printer_display_label)
-                    .ok()
-                    .flatten();
-                let use_escpos = resolved_printer
-                    .as_deref()
-                    .map(|p| state.db.ticket_escpos_enabled_for_printer(p, purpose))
+                    .ticket_escpos_enabled_for_enqueue(purpose, printer_display_label_early)
                     .unwrap_or(false);
                 if use_escpos {
-                    tracing::info!(%folio, %print_type, printer = ?resolved_printer, "print: vector ticket → ESC/POS RAW");
-                    let write = if print_type == "pos-quotation-ticket" {
-                        jobs::write_pos_quotation_ticket_escpos_from_value
-                    } else {
-                        jobs::write_pos_sale_ticket_escpos_from_value
-                    };
+                    queue_filename = ticket_queue_filename(filename, &folio, true);
+                }
+                let resolved_printer = state
+                    .db
+                    .resolve_printer_for_enqueue(purpose, printer_display_label_early)
+                    .ok()
+                    .flatten();
+                if use_escpos {
+                    tracing::info!(folio = %folio, %print_type, printer = ?resolved_printer, "print: vector ticket → ESC/POS RAW");
+                    let write = vector_ticket_escpos_writer(print_type);
                     match write(&state.temp_dir, ticket) {
                         Ok(p) => p,
                         Err(e) => {
-                            tracing::error!(%folio, %print_type, err = %e, "ticket ESC/POS failed");
+                            tracing::error!(folio = %folio, %print_type, err = %e, "ticket ESC/POS failed");
                             return OutResponse::err(rid, format!("{e:#}"));
                         }
                     }
                 } else {
-                    tracing::info!(%folio, %print_type, printer = ?resolved_printer, "print: vector ticket → PDF");
-                    let write = if print_type == "pos-quotation-ticket" {
-                        jobs::write_pos_quotation_ticket_pdf_from_value
-                    } else {
-                        jobs::write_pos_sale_ticket_pdf_from_value
-                    };
+                    tracing::info!(folio = %folio, %print_type, printer = ?resolved_printer, "print: vector ticket → PDF");
+                    let write = vector_ticket_pdf_writer(print_type);
                     match write(&state.temp_dir, ticket) {
                         Ok(p) => p,
                         Err(e) => {
-                            tracing::error!(%folio, %print_type, err = %e, "ticket PDF failed");
+                            tracing::error!(folio = %folio, %print_type, err = %e, "ticket PDF failed");
                             return OutResponse::err(rid, format!("{e:#}"));
                         }
                     }
                 }
             } else {
+                if purpose == "tickets"
+                    && state
+                        .db
+                        .ticket_escpos_enabled_for_enqueue(purpose, printer_display_label_early)
+                        .unwrap_or(false)
+                {
+                    tracing::warn!(
+                        purpose,
+                        label = ?printer_display_label_early,
+                        "rechazado pdf-base64: tickets en modo ESC/POS (use ticket vectorial pos-*)"
+                    );
+                    return OutResponse::err(
+                        rid,
+                        "ticket_escpos_enabled_use_vector_ticket".to_string(),
+                    );
+                }
                 let b64 = match env.extra.get("payload").and_then(|v| v.as_str()) {
                     Some(s) => s,
                     None => return OutResponse::err(rid, "payload_required"),
@@ -518,7 +618,7 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
             if let Err(e) = state.db.insert_job(
                 &id,
                 Some(purpose),
-                filename,
+                &queue_filename,
                 path.to_string_lossy().as_ref(),
                 copies,
                 env.client_id.as_deref(),

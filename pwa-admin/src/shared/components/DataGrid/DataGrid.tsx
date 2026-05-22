@@ -13,6 +13,7 @@ import {
 
 export type { DataGridCellOverflow };
 import {
+  DATA_GRID_TAB_LAYOUT_FALLBACK_EXTRA_PX,
   dataGridFillViewportFallbackHeight,
   useDataGridFillViewportHeight,
 } from './utils/useDataGridFillViewportHeight';
@@ -78,6 +79,11 @@ export interface DataGridProps {
    * el cuerpo (filas) hace scroll dentro del espacio restante. Ignora `height` si está activo.
    */
   fillViewport?: boolean;
+  /**
+   * Grid bajo {@link TabPageLayout} (fila de pestañas encima): el fallback CSS resta altura extra
+   * hasta medir; la altura en px sigue usando el `top` real del contenedor.
+   */
+  fillViewportInTabLayout?: boolean;
   /** Margen inferior en px al calcular `fillViewport` (p. ej. `pb-6` del `<main>`). Default 24. */
   viewportBottomInset?: number;
   totalRows?: number;
@@ -131,6 +137,7 @@ const DataGrid: React.FC<DataGridProps> = ({
   filters,
   height = '70vh',
   fillViewport = false,
+  fillViewportInTabLayout = false,
   viewportBottomInset = 24,
   totalRows,
   totalGeneral,
@@ -276,17 +283,31 @@ const DataGrid: React.FC<DataGridProps> = ({
   const visibleColumns = columns.filter((c) => !c.hide);
   const computedStyles = calculateColumnStyles(columns, screenWidth);
 
+  const tabLayoutFallbackExtra =
+    fillViewport && fillViewportInTabLayout ? DATA_GRID_TAB_LAYOUT_FALLBACK_EXTRA_PX : 0;
+
   const containerStyle = useMemo((): React.CSSProperties => {
     if (fillViewport) {
       if (fillViewportHeightPx != null) {
         return { height: fillViewportHeightPx };
       }
-      return { height: dataGridFillViewportFallbackHeight(viewportBottomInset) };
+      return {
+        height: dataGridFillViewportFallbackHeight(
+          viewportBottomInset,
+          tabLayoutFallbackExtra,
+        ),
+      };
     }
     return {
       height: typeof height === 'number' ? `${height}px` : height,
     };
-  }, [fillViewport, fillViewportHeightPx, height, viewportBottomInset]);
+  }, [
+    fillViewport,
+    fillViewportHeightPx,
+    height,
+    viewportBottomInset,
+    tabLayoutFallbackExtra,
+  ]);
 
   return (
     <div

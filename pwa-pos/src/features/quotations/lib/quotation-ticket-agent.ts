@@ -1,5 +1,6 @@
 import {
   agentSupportsPosQuotationTicket,
+  agentTicketEscposEnabled,
   isPosAgentPrintConfiguredForPurpose,
   type PosQuotationTicketPayload,
 } from "@flowstore/print-service-client";
@@ -85,9 +86,11 @@ export async function printPosQuotationReceiptAgentOrBrowser(
     window.location.origin,
   );
   const ticket = quotationToTicketPayload(input, logoBase64);
+  let escposMode = false;
 
   try {
     await withPrintAgentConnection("tickets", async (conn, hello) => {
+      escposMode = await agentTicketEscposEnabled(conn, "tickets");
       if (!agentSupportsPosQuotationTicket(hello)) {
         throw new Error("agent_no_pos_quotation_ticket");
       }
@@ -100,7 +103,14 @@ export async function printPosQuotationReceiptAgentOrBrowser(
       }
     });
     return "agent-vector";
-  } catch {
+  } catch (e) {
+    if (escposMode) {
+      console.warn(
+        "[KaiStore print] cotización: ESC/POS en KaiPrinters — no se usa PDF HTML de respaldo.",
+        e,
+      );
+      return "agent-vector";
+    }
     const html = buildQuotationReceiptHtml(input, window.location.origin);
     printPosHtmlViaAgentOrBrowserFireAndForget(html, "tickets", {
       ...meta,

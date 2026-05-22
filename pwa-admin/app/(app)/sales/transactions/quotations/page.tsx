@@ -11,7 +11,10 @@ export default async function Page() {
   const total = res.success ? res.total : 0;
 
   return (
-    <div className="min-h-0 p-0" data-test-id="sales-transactions-quotations-page-root">
+    <div
+      className="flex min-h-0 flex-1 flex-col p-0"
+      data-test-id="sales-transactions-quotations-page-root"
+    >
       <Suspense
         fallback={
           <div

@@ -305,6 +305,51 @@ export class VariantQuantityConversionService {
   }
 
   /**
+   * Convierte PMP (moneda por 1 unidad base de stock) al costo por 1 unidad de compra de la variante.
+   * Usado en búsqueda de compras para prellenar el costo de línea en recepciones.
+   */
+  async purchaseUnitCostFromPmpForVariant(
+    variant: ProductVariant,
+    pmp: number | null | undefined,
+    companyId: string,
+  ): Promise<number | null> {
+    const units = await this.unitRepo.find({
+      where: { companyId, deletedAt: IsNull() },
+    });
+    return this.purchaseUnitCostFromPmp(variant, pmp, new Map(units.map((u) => [u.id, u])));
+  }
+
+  purchaseUnitCostFromPmp(
+    variant: ProductVariant,
+    pmp: number | null | undefined,
+    byId: Map<string, Unit>,
+  ): number | null {
+    if (pmp == null || !Number.isFinite(Number(pmp)) || Number(pmp) <= 0) {
+      return null;
+    }
+    const purchaseUnitId = (variant.purchaseUnitId ?? variant.unitId ?? '').trim();
+    if (!purchaseUnitId) {
+      return null;
+    }
+    try {
+      const r = this.toVariantStockBaseSync(
+        variant,
+        1,
+        purchaseUnitId,
+        byId,
+        'purchase',
+      );
+      const basePerPurchase = Number(r.quantityInBase) || 0;
+      if (basePerPurchase <= 0) {
+        return null;
+      }
+      return Number((Number(pmp) * basePerPurchase).toFixed(2));
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Completa `unitId`, `quantityInBase`, `unitConversionFactor`, `unitOfMeasure` en cada línea con variante.
    */
   async enrichCreateTransactionDto(dto: CreateTransactionDto, companyId: string): Promise<void> {

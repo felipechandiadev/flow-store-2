@@ -6,7 +6,9 @@ export default function SalesTransactionsLayout({ children }: { children: ReactN
   return (
     <TabPageLayout
       tabs={<SalesTransactionsTabs />}
-      className="min-h-0"
+      className="min-h-0 flex-1"
+      contentClassName="flex min-h-0 flex-1 flex-col"
+      compact
       data-test-id="sales-transactions-layout"
     >
       {children}

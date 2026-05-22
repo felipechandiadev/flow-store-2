@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog";
 import { Button } from "@/shared/components/Button";
-import { Select } from "@/shared/components/Select";
 import { TextField } from "@/shared/components/TextField/TextField";
 import Badge from "@/shared/components/Badge/Badge";
 import Alert from "@/shared/components/Alert/Alert";
+import IconButton from "@/shared/components/IconButton/IconButton";
+import { getCompanyDetailsAction } from "@/features/settings-company/actions/company.action";
 import {
   QUOTATION_EFFECTIVE_STATUS_LABEL,
   type QuotationDetail,
@@ -15,9 +16,12 @@ import {
 } from "@/features/quotations/types/quotation.types";
 import {
   cancelQuotationAction,
-  convertQuotationAction,
   getQuotationByIdAction,
 } from "@/features/quotations/actions/quotations.action";
+import {
+  reprintAdminQuotationDocument,
+  reprintAdminQuotationTicket,
+} from "@/features/quotations/print/print-admin-quotation";
 
 type Props = {
   quotation: QuotationRow | null;
@@ -72,11 +76,10 @@ export function QuotationDetailDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [printBusy, setPrintBusy] = useState<"ticket" | "document" | null>(null);
+  const [printNotice, setPrintNotice] = useState<string | null>(null);
 
   const [cancelReason, setCancelReason] = useState("");
-  const [convertTarget, setConvertTarget] = useState<"SALE" | "CUSTOMER_ORDER">(
-    "SALE",
-  );
 
   const open = !!quotation;
 
@@ -96,12 +99,48 @@ export function QuotationDetailDialog({
     if (!quotation) {
       setDetail(null);
       setCancelReason("");
-      setConvertTarget("SALE");
       setError(null);
+      setPrintNotice(null);
       return;
     }
     void refetch(quotation.id);
   }, [quotation, refetch]);
+
+  const handlePrintTicket = useCallback(async () => {
+    if (!detail) return;
+    setPrintBusy("ticket");
+    setPrintNotice(null);
+    setError(null);
+    try {
+      const company = await getCompanyDetailsAction();
+      const res = await reprintAdminQuotationTicket(detail, company);
+      if (!res.success) {
+        setPrintNotice(res.message ?? "No se pudo imprimir el ticket");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo imprimir el ticket");
+    } finally {
+      setPrintBusy(null);
+    }
+  }, [detail]);
+
+  const handlePrintDocument = useCallback(async () => {
+    if (!detail) return;
+    setPrintBusy("document");
+    setPrintNotice(null);
+    setError(null);
+    try {
+      const company = await getCompanyDetailsAction();
+      const res = reprintAdminQuotationDocument(detail, company);
+      if (!res.success) {
+        setPrintNotice(res.message ?? "No se pudo imprimir el documento");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo imprimir el documento");
+    } finally {
+      setPrintBusy(null);
+    }
+  }, [detail]);
 
   if (!quotation) return null;
 
@@ -110,7 +149,7 @@ export function QuotationDetailDialog({
     quotation.effectiveStatus) as QuotationEffectiveStatus;
 
   const canCancel = status === "ACTIVE" || status === "EXPIRED";
-  const canConvert = status === "ACTIVE";
+  const canPrint = !!detail && !loading;
 
   async function doCancel() {
     if (!quotation) return;
@@ -128,21 +167,6 @@ export function QuotationDetailDialog({
     onChanged();
   }
 
-  async function doConvert() {
-    if (!quotation) return;
-    setBusy(true);
-    setError(null);
-    const res = await convertQuotationAction(quotation.id, {
-      targetType: convertTarget,
-    });
-    setBusy(false);
-    if (!res.success) {
-      setError(res.error);
-      return;
-    }
-    onChanged();
-  }
-
   return (
     <Dialog
       open={open}
@@ -151,34 +175,59 @@ export function QuotationDetailDialog({
       size="xl"
       scroll="paper"
       showCloseButton
-      alertArea={error ? <Alert variant="error">{error}</Alert> : undefined}
+      hideActions={loading && !canCancel}
+      actionsJustify="end"
+      alertArea={
+        <>
+          {error ? <Alert variant="error">{error}</Alert> : null}
+          {printNotice ? (
+            <Alert variant="info" data-test-id="quotation-detail-print-notice">
+              {printNotice}
+            </Alert>
+          ) : null}
+        </>
+      }
       actions={
         <div className="flex w-full flex-wrap items-center justify-end gap-2">
-          <Button variant="outlinedSecondary" onClick={onClose} disabled={busy}>
-            Cerrar
-          </Button>
+          {canPrint ? (
+            <div className="flex items-center gap-1">
+              <IconButton
+                icon="Receipt"
+                variant="basicSecondary"
+                size="sm"
+                ariaLabel="Imprimir ticket"
+                title="Imprimir ticket (80 mm)"
+                isLoading={printBusy === "ticket"}
+                disabled={printBusy != null && printBusy !== "ticket"}
+                onClick={() => void handlePrintTicket()}
+                data-test-id="quotation-detail-print-ticket"
+              />
+              <IconButton
+                icon="FileText"
+                variant="basicSecondary"
+                size="sm"
+                ariaLabel="Imprimir documento"
+                title="Imprimir documento (hoja)"
+                isLoading={printBusy === "document"}
+                disabled={printBusy != null && printBusy !== "document"}
+                onClick={() => void handlePrintDocument()}
+                data-test-id="quotation-detail-print-document"
+              />
+            </div>
+          ) : null}
           {canCancel ? (
             <Button
               variant="outlined"
               onClick={doCancel}
-              disabled={busy}
+              disabled={busy || printBusy != null}
               data-test-id="quotation-cancel-btn"
             >
               {busy ? "Anulando…" : "Anular"}
             </Button>
           ) : null}
-          {canConvert ? (
-            <Button
-              variant="primary"
-              onClick={doConvert}
-              disabled={busy}
-              data-test-id="quotation-convert-btn"
-            >
-              {busy ? "Convirtiendo…" : `Convertir a ${convertTarget}`}
-            </Button>
-          ) : null}
         </div>
       }
+      data-test-id="quotation-detail-dialog"
     >
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
@@ -297,36 +346,18 @@ export function QuotationDetailDialog({
             </div>
           ) : null}
 
-          {canCancel || canConvert ? (
-            <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/5 p-3">
-              {canConvert ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Select
-                    label="Convertir a"
-                    options={[
-                      { id: "SALE", label: "Venta (SALE)" },
-                      { id: "CUSTOMER_ORDER", label: "Pedido cliente" },
-                    ]}
-                    value={convertTarget}
-                    onChange={(v) =>
-                      setConvertTarget((v as "SALE" | "CUSTOMER_ORDER") ?? "SALE")
-                    }
-                    data-test-id="quotation-convert-target"
-                  />
-                </div>
-              ) : null}
-              {canCancel ? (
-                <TextField
-                  label="Motivo de anulación (opcional)"
-                  value={cancelReason}
-                  onChange={(e) =>
-                    setCancelReason(
-                      (e as React.ChangeEvent<HTMLInputElement>).target.value,
-                    )
-                  }
-                  data-test-id="quotation-cancel-reason"
-                />
-              ) : null}
+          {canCancel ? (
+            <div className="rounded-lg border border-border bg-muted/5 p-3">
+              <TextField
+                label="Motivo de anulación (opcional)"
+                value={cancelReason}
+                onChange={(e) =>
+                  setCancelReason(
+                    (e as React.ChangeEvent<HTMLInputElement>).target.value,
+                  )
+                }
+                data-test-id="quotation-cancel-reason"
+              />
             </div>
           ) : null}
         </div>

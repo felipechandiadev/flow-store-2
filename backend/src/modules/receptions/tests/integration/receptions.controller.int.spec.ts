@@ -156,6 +156,45 @@ describe('ReceptionsController (Integration)', () => {
     expect(service.createDirect).not.toHaveBeenCalled();
   });
 
+  it('should accept cashSessionId and pointOfSaleId on createDirect (POS)', async () => {
+    await request(app.getHttpServer())
+      .post('/receptions/direct')
+      .send({
+        storageId: '11111111-1111-4111-8111-111111111111',
+        branchId: '22222222-2222-4222-8222-222222222222',
+        cashSessionId: '33333333-3333-4333-8333-333333333333',
+        pointOfSaleId: '44444444-4444-4444-8444-444444444444',
+        documentType: 'invoice',
+        lines: [{ quantity: 1, unitPrice: 10 }],
+        supplierDocumentPayment: {
+          mode: 'COMPLETED',
+          paidLines: [
+            {
+              dueDate: '2026-05-18',
+              amount: 10,
+              paymentMethod: 'CASH',
+            },
+          ],
+          scheduledLines: [],
+        },
+        supplierFiscalAmounts: {
+          subtotalNeto: 10,
+          taxAmount: 0,
+          total: 10,
+          taxId: null,
+          taxRatePct: 0,
+        },
+      })
+      .expect(201);
+
+    expect(service.createDirect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cashSessionId: '33333333-3333-4333-8333-333333333333',
+        pointOfSaleId: '44444444-4444-4444-8444-444444444444',
+      }),
+    );
+  });
+
   it('should accept documentType other on createDirect', async () => {
     await request(app.getHttpServer())
       .post('/receptions/direct')

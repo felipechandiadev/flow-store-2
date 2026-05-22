@@ -28,7 +28,7 @@ import {
   InvoicePlannedPaymentLines,
   type InvoicePlannedPaymentLineState,
   type InvoicePlannedPaymentMethodUI,
-} from "../../../../app/(app)/purchasing/dte/invoices/ui/InvoicePlannedPaymentLines";
+} from "@/shared/components/PlannedPaymentLines/InvoicePlannedPaymentLines";
 import { formatMoney } from "./PurchaseDocumentProductPreview";
 
 const MODE_OPTIONS: Option[] = [
@@ -87,6 +87,8 @@ function lineToPayload(l: InvoicePlannedPaymentLineState): ReceptionPlannedPayme
   };
 }
 
+export type PaymentCashContext = "admin_cash_hub" | "pos_cash_session";
+
 export type PurchaseDocumentReceptionPaymentDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -99,6 +101,7 @@ export type PurchaseDocumentReceptionPaymentDialogProps = {
   cashHubOptions: Option[];
   referenceLoading: boolean;
   initialDraft?: ReceptionSupplierDocumentPaymentPayload | null;
+  paymentCashContext?: PaymentCashContext;
 };
 
 export function PurchaseDocumentReceptionPaymentDialog({
@@ -112,7 +115,9 @@ export function PurchaseDocumentReceptionPaymentDialog({
   cashHubOptions,
   referenceLoading,
   initialDraft,
+  paymentCashContext = "admin_cash_hub",
 }: PurchaseDocumentReceptionPaymentDialogProps) {
+  const isPosCash = paymentCashContext === "pos_cash_session";
   const [paymentMode, setPaymentMode] = useState<ReceptionDocumentPaymentMode>("PENDING");
   const [partialAmountStr, setPartialAmountStr] = useState("0");
   const [paidLines, setPaidLines] = useState<InvoicePlannedPaymentLineState[]>([]);

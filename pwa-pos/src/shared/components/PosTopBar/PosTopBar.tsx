@@ -261,6 +261,24 @@ export default function PosTopBar({
               data-test-id="pos-topbar-customers"
             />
             <IconButton
+              icon="ShoppingCart"
+              variant="basic"
+              size="md"
+              ariaLabel="Ir al punto de venta"
+              title="Punto de venta"
+              onClick={() => router.push("/pos")}
+              data-test-id="pos-topbar-pos"
+            />
+            <IconButton
+              icon="FileCheck"
+              variant="basic"
+              size="md"
+              ariaLabel="Recepción de compra"
+              title="Recepción de compra"
+              onClick={() => router.push("/purchasing/receptions/new")}
+              data-test-id="pos-topbar-reception"
+            />
+            <IconButton
               icon="ArrowLeftRight"
               variant="basic"
               size="md"

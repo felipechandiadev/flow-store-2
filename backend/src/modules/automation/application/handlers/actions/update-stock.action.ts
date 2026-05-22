@@ -277,7 +277,11 @@ export class UpdateStockActionHandler {
           }
           const rawPmp = (variant as { pmp?: number | null }).pmp;
           const prevPmp =
-            rawPmp != null && Number.isFinite(Number(rawPmp)) ? Number(rawPmp) : null;
+            rawPmp != null &&
+            Number.isFinite(Number(rawPmp)) &&
+            Number(rawPmp) > 0
+              ? Number(rawPmp)
+              : null;
           const G0 = globalStockBeforeTx.get(variantId) ?? 0;
           const pmpResult = resolvePmpAfterValuedInbound({
             prevPmp,

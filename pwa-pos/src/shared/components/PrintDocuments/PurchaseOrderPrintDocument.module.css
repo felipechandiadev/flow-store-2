@@ -1,0 +1,128 @@
+.summaryGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 0.9rem;
+}
+
+.field {
+  font-size: 11px;
+  color: #111827;
+}
+
+.label {
+  font-size: 10px;
+  color: #6b7280;
+  margin: 0 0 0.2rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.value {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #111827;
+}
+
+.supplierIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  font-size: 11px;
+  color: #111827;
+}
+
+.supplierIdentityFull {
+  grid-column: 1 / -1;
+  margin-top: 0.15rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(17, 24, 39, 0.12);
+}
+
+.supplierPrintBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5px;
+}
+
+.thead th {
+  text-align: left;
+  padding: 0.3rem 0.45rem;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.22);
+  color: #374151;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tbody td {
+  padding: 0.32rem 0.45rem;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.12);
+  vertical-align: top;
+}
+
+.num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.printTotals {
+  margin-top: 0.85rem;
+  border: 1px solid rgba(17, 24, 39, 0.18);
+  border-radius: 6px;
+  padding: 0.32rem 0.5rem;
+  font-size: 9px;
+  color: #111827;
+}
+
+.printTotalsRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.12rem 0;
+}
+
+.printTotalsTotalRow {
+  margin-top: 0.1rem;
+  padding-top: 0.22rem;
+  border-top: 1px solid rgba(17, 24, 39, 0.16);
+  font-weight: 800;
+}
+
+.printNotesBlock {
+  margin-top: 0.5rem;
+  font-size: 9px;
+}
+
+.printNotesLabel {
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 9px;
+  margin: 0 0 0.2rem 0;
+}
+
+.printNotesBody {
+  margin: 0;
+  color: #111827;
+  white-space: pre-wrap;
+  line-height: 1.35;
+}
+

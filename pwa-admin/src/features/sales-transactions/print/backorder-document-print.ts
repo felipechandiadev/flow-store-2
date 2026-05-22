@@ -1,5 +1,6 @@
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
-import type { BackorderDocumentPrintData } from "./backorder-document-print.types";
+import type { SaleReceiptPrintData } from "./backorder-document-print.types";
+import { formatReceiptLineDisplayName } from "./format-receipt-line-name";
 
 function escapeHtml(s: string) {
   return s
@@ -81,9 +82,10 @@ function printHtmlInHiddenIframe(html: string, title: string): void {
   }, 120);
 }
 
-/** HTML A4 del encargo (misma plantilla que POS `buildPosSaleDocumentHtml`). */
-export function buildBackorderDocumentHtml(data: BackorderDocumentPrintData): string {
-  const documentTitle = "ENCARGO";
+/** HTML A4 venta o encargo (misma plantilla que POS `buildPosSaleDocumentHtml`). */
+export function buildSaleReceiptDocumentHtml(data: SaleReceiptPrintData): string {
+  const isBackorder = data.documentKind === "backorder";
+  const documentTitle = isBackorder ? "ENCARGO" : "VENTA";
   const folio = data.folio.trim() || "—";
   const barcodeSvg = receiptBarcodeSvgString(folio);
   const c = data.company;
@@ -124,7 +126,7 @@ export function buildBackorderDocumentHtml(data: BackorderDocumentPrintData): st
 
   const lineRows = data.lines
     .map((l, idx) => {
-      const name = [l.productName, ...l.attributes].filter(Boolean).join(" · ");
+      const name = formatReceiptLineDisplayName(l.productName, l.attributes);
       const qty = Number(l.quantity) || 0;
       const price = Number(l.unitPriceWithTax) || 0;
       const lineTotal = Math.round(l.lineGross);
@@ -138,14 +140,29 @@ export function buildBackorderDocumentHtml(data: BackorderDocumentPrintData): st
     })
     .join("");
 
-  const bo = data.backorder;
-  const orderTotal = bo.orderTotal;
-  const depositAmount = bo.depositAmount;
-  const backorderHeaderLine = `<p class="documentDate" style="margin-top:0.35rem;font-weight:600">Abono: ${formatMoneyClp(depositAmount)}${bo.percent > 0 ? ` · ${bo.percent}%` : ""}</p>`;
+  const promoRows =
+    data.promotions.length > 0
+      ? data.promotions
+          .map(
+            (p) =>
+              `<div class="printTotalsRow"><span>${escapeHtml(p.code)} ${escapeHtml(p.name)}</span><span class="num">−${formatMoneyClp(p.amount)}</span></div>`,
+          )
+          .join("")
+      : "";
 
-  const backorderTotals = `<div class="printTotalsRow"><span>Total del pedido</span><span class="num">${formatMoneyClp(orderTotal)}</span></div>
+  const bo = data.backorder;
+  const orderTotal = bo?.orderTotal ?? data.totals.total;
+  const depositAmount = bo?.depositAmount ?? data.totals.paid;
+  const backorderHeaderLine =
+    isBackorder && bo
+      ? `<p class="documentDate" style="margin-top:0.35rem;font-weight:600">Abono: ${formatMoneyClp(depositAmount)}${bo.percent > 0 ? ` · ${bo.percent}%` : ""}</p>`
+      : "";
+
+  const backorderTotals = isBackorder
+    ? `<div class="printTotalsRow"><span>Total del pedido</span><span class="num">${formatMoneyClp(orderTotal)}</span></div>
        <div class="printTotalsRow printTotalsTotalRow"><span>Abono</span><span class="num">${formatMoneyClp(depositAmount)}</span></div>
-       <div class="printTotalsRow"><span>Saldo pendiente</span><span class="num">${formatMoneyClp(Math.max(0, orderTotal - depositAmount))}</span></div>`;
+       <div class="printTotalsRow"><span>Saldo pendiente</span><span class="num">${formatMoneyClp(Math.max(0, orderTotal - depositAmount))}</span></div>`
+    : `<div class="printTotalsRow printTotalsTotalRow"><span>Total</span><span class="num">${formatMoneyClp(data.totals.total)}</span></div>`;
 
   const payRows = data.payments
     .map(
@@ -212,7 +229,7 @@ export function buildBackorderDocumentHtml(data: BackorderDocumentPrintData): st
   .documentBarcodeFooter { margin-top: 1rem; display: flex; justify-content: flex-end; width: 100%; }
   .documentBarcodeFooter .barcode-wrap svg { max-width: 55mm; height: auto; }
 </style></head><body>
-<div class="page" data-test-id="admin-backorder-print-document">
+<div class="page" data-test-id="admin-sale-receipt-print-document">
   <header class="companyHeader">
     <div>
       ${companyHeaderLeft}
@@ -245,6 +262,7 @@ export function buildBackorderDocumentHtml(data: BackorderDocumentPrintData): st
       <div class="printTotalsRow"><span>Subtotal neto</span><span class="num">${formatMoneyClp(data.totals.subtotalNet)}</span></div>
       <div class="printTotalsRow"><span>Impuestos</span><span class="num">${formatMoneyClp(data.totals.taxes)}</span></div>
       ${discountRows}
+      ${promoRows}
       ${backorderTotals}
     </div>
     ${paymentsSection}
@@ -258,7 +276,21 @@ export function buildBackorderDocumentHtml(data: BackorderDocumentPrintData): st
 </body></html>`;
 }
 
-export function printBackorderDocument(data: BackorderDocumentPrintData): void {
-  const html = buildBackorderDocumentHtml(data);
-  printHtmlInHiddenIframe(html, "Impresión encargo documento");
+export function printSaleReceiptDocument(data: SaleReceiptPrintData): void {
+  const title =
+    data.documentKind === "backorder"
+      ? "Impresión encargo documento"
+      : "Impresión venta documento";
+  const html = buildSaleReceiptDocumentHtml(data);
+  printHtmlInHiddenIframe(html, title);
+}
+
+/** @deprecated Usar `printSaleReceiptDocument`. */
+export function printBackorderDocument(data: SaleReceiptPrintData): void {
+  printSaleReceiptDocument(data);
+}
+
+/** @deprecated Usar `buildSaleReceiptDocumentHtml`. */
+export function buildBackorderDocumentHtml(data: SaleReceiptPrintData): string {
+  return buildSaleReceiptDocumentHtml(data);
 }

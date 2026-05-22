@@ -12,6 +12,8 @@ import { User } from '@modules/users/domain/user.entity';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 import { ProductVariantsModule } from '@modules/product-variants/product-variants.module';
 import { Transaction } from '@modules/transactions/domain/transaction.entity';
+import { CashSessionsModule } from '@modules/cash-sessions/cash-sessions.module';
+import { CashSession } from '@modules/cash-sessions/domain/cash-session.entity';
 
 @Module({
   imports: [
@@ -23,9 +25,11 @@ import { Transaction } from '@modules/transactions/domain/transaction.entity';
       Company,
       User,
       Transaction,
+      CashSession,
     ]),
     TransactionsModule,
     ProductVariantsModule,
+    CashSessionsModule,
     CqrsModule,
   ],
   controllers: [ReceptionsController],
