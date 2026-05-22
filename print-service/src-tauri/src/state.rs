@@ -1,3 +1,4 @@
+use crate::agent_log::AgentLog;
 use crate::db::Db;
 use parking_lot::Mutex;
 use std::collections::HashMap;
@@ -37,10 +38,11 @@ pub struct AppState {
     pub jobs_completed_total: AtomicU64,
     pub ws_listener: Mutex<Option<ListenerControl>>,
     pub wss_listener: Mutex<Option<ListenerControl>>,
+    pub agent_log: Arc<AgentLog>,
 }
 
 impl AppState {
-    pub fn new(db: Arc<Db>, temp_dir: PathBuf, data_dir: PathBuf) -> Arc<Self> {
+    pub fn new(db: Arc<Db>, temp_dir: PathBuf, data_dir: PathBuf, agent_log: Arc<AgentLog>) -> Arc<Self> {
         let (broadcast, _) = broadcast::channel(256);
         let (ws_disconnect_all, _) = broadcast::channel::<()>(32);
         Arc::new(Self {
@@ -54,6 +56,7 @@ impl AppState {
             jobs_completed_total: AtomicU64::new(0),
             ws_listener: Mutex::new(None),
             wss_listener: Mutex::new(None),
+            agent_log,
         })
     }
 

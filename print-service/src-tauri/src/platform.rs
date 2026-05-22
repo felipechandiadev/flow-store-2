@@ -1,9 +1,13 @@
-//! OS printers + send PDF path to spooler (macOS `lp`, Windows `printto`).
+//! OS printers + send PDF path to spooler (macOS `lp`, Windows Ghostscript `mswinpr2`).
 
 use anyhow::{Context, Result};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::Path;
+#[cfg(target_os = "windows")]
+use std::path::PathBuf;
 use std::process::Command;
+use std::sync::{Mutex, OnceLock};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PrinterInfo {
@@ -249,11 +253,282 @@ fn list_windows() -> Result<Vec<PrinterInfo>> {
     Ok(outv)
 }
 
+/// Puntaje del valor de corte (mayor = mejor). Valores «sin corte» devuelven -1.
+#[cfg(target_os = "macos")]
+fn cut_value_score(value: &str) -> i32 {
+    let lower = value.trim_start_matches('*').to_lowercase();
+    if lower.is_empty()
+        || lower.contains("nocut")
+        || lower == "none"
+        || lower == "0none"
+        || lower == "off"
+        || lower == "false"
+    {
+        return -1;
+    }
+    if lower.contains("fullcut") {
+        return 100;
+    }
+    if lower.contains("partialcut") {
+        return 85;
+    }
+    if lower.contains("endofpage") {
+        return 90;
+    }
+    if lower.contains("endofjob") {
+        return 88;
+    }
+    if lower.contains("everypage") {
+        return 87;
+    }
+    // Epson: FeedCutAfterJobEnd = 1Line, 2Line, … (no 0None)
+    if lower.ends_with("line") {
+        return 45;
+    }
+    if matches!(lower.as_str(), "on" | "true" | "1") {
+        return 30;
+    }
+    -1
+}
+
+/// Prioriza PageCutType / DocCutType sobre FeedCutAfterJobEnd.
+#[cfg(target_os = "macos")]
+fn cut_option_key_bonus(option_key: &str) -> i32 {
+    let k = option_key.to_lowercase();
+    if k.contains("pagecuttype") {
+        return 25;
+    }
+    if k.contains("doccuttype") {
+        return 15;
+    }
+    if k.contains("feedcut") {
+        return 5;
+    }
+    0
+}
+
+/// Mejor valor de corte en una línea de `lpoptions -l` (p. ej. `PageCutType=2FullCutPage`).
+#[cfg(target_os = "macos")]
+fn parse_cups_cut_lp_option(lpoptions_line: &str) -> Option<(i32, String)> {
+    let line = lpoptions_line.trim();
+    let lower = line.to_lowercase();
+    if !(lower.contains("cut") || lower.contains("cutter") || lower.contains("corte")) {
+        return None;
+    }
+    let (_, rhs) = line.split_once(':')?;
+    let option_key = line.split_once(':')?.0.split('/').next()?.trim();
+    if option_key.is_empty() {
+        return None;
+    }
+    let mut best_score = -1i32;
+    let mut best_token = "";
+    for t in rhs.split_whitespace() {
+        let bare = t.trim_start_matches('*');
+        if bare.is_empty() {
+            continue;
+        }
+        let score = cut_value_score(bare);
+        if score > best_score {
+            best_score = score;
+            best_token = bare;
+        }
+    }
+    if best_score < 0 || best_token.is_empty() {
+        return None;
+    }
+    let total = best_score + cut_option_key_bonus(option_key);
+    Some((total, format!("{option_key}={best_token}")))
+}
+
+#[cfg(target_os = "macos")]
+fn cups_cut_option_cache() -> &'static Mutex<HashMap<String, Option<String>>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Lee `lpoptions -l` y devuelve la mejor opción de corte para tickets (p. ej. `CutMedia=EndOfPage`).
+#[cfg(target_os = "macos")]
+pub fn detect_cups_cut_option(printer: &str) -> Option<String> {
+    let name = printer.trim();
+    if name.is_empty() {
+        return None;
+    }
+    if let Ok(cache) = cups_cut_option_cache().lock() {
+        if let Some(hit) = cache.get(name) {
+            return hit.clone();
+        }
+    }
+    let out = Command::new("lpoptions")
+        .args(["-p", name, "-l"])
+        .output()
+        .ok()?;
+    let mut best: Option<(i32, String)> = None;
+    if out.status.success() {
+        let text = String::from_utf8_lossy(&out.stdout);
+        for line in text.lines() {
+            if let Some((score, opt)) = parse_cups_cut_lp_option(line) {
+                if best.as_ref().map(|(s, _)| score > *s).unwrap_or(true) {
+                    best = Some((score, opt));
+                }
+            }
+        }
+    }
+    let best = best.map(|(_, opt)| opt);
+    if let Ok(mut cache) = cups_cut_option_cache().lock() {
+        cache.insert(name.to_string(), best.clone());
+    }
+    best
+}
+
+/// Altura de la primera página del PDF en mm (lee `/MediaBox` del PDF generado por printpdf).
+pub fn pdf_page_height_mm(pdf_path: &Path) -> Result<f32> {
+    const PT_TO_MM: f32 = 0.352_778;
+    let bytes = std::fs::read(pdf_path).context("read pdf")?;
+    let hay = String::from_utf8_lossy(&bytes);
+    let idx = hay.find("/MediaBox").context("MediaBox not found")?;
+    let tail = &hay[idx..hay.len().min(idx + 80)];
+    let nums: Vec<f32> = tail
+        .split(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
+        .filter_map(|t| t.parse::<f32>().ok())
+        .collect();
+    if nums.len() >= 4 {
+        let h_pt = (nums[3] - nums[1]).max(1.0);
+        return Ok(h_pt * PT_TO_MM);
+    }
+    anyhow::bail!("could not parse MediaBox");
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ThermalPrintOptions {
+    pub thermal_80mm: bool,
+    pub auto_cut: bool,
+}
+
+/// Envía bytes ESC/POS a la impresora (RAW). En tickets con `auto_cut` añade feed + corte GS V.
+pub fn print_escpos_to_printer(
+    escpos_path: &Path,
+    printer: &str,
+    copies: u32,
+    thermal: ThermalPrintOptions,
+) -> Result<()> {
+    let mut data = std::fs::read(escpos_path).with_context(|| {
+        format!("read escpos {}", escpos_path.display())
+    })?;
+    if thermal.auto_cut {
+        data.extend(crate::pos_sale_ticket_escpos::escpos_feed_and_cut_commands());
+    }
+    for i in 0..copies.max(1) {
+        print_raw_bytes_to_printer(printer, &data)
+            .with_context(|| format!("copia ESC/POS {} de {}", i + 1, copies.max(1)))?;
+    }
+    tracing::info!(
+        printer,
+        bytes = data.len(),
+        auto_cut = thermal.auto_cut,
+        "ESC/POS enviado a impresora (RAW)"
+    );
+    Ok(())
+}
+
+fn print_raw_bytes_to_printer(printer: &str, data: &[u8]) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        return print_raw_mac(printer, data);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return print_raw_windows(printer, data);
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        tracing::warn!(printer, len = data.len(), "stub raw print (unsupported OS)");
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn print_raw_mac(printer: &str, data: &[u8]) -> Result<()> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let path = std::env::temp_dir().join(format!("kai_escpos_{id}.bin"));
+    std::fs::write(&path, data).context("write escpos temp")?;
+    let status = Command::new("lp")
+        .arg("-d")
+        .arg(printer)
+        .arg("-o")
+        .arg("raw")
+        .arg(&path)
+        .status()
+        .context("lp raw")?;
+    let _ = std::fs::remove_file(&path);
+    if !status.success() {
+        anyhow::bail!("lp raw exited {:?}", status.code());
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn print_raw_windows(printer: &str, data: &[u8]) -> Result<()> {
+    use std::ffi::c_void;
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::Graphics::Printing::*;
+
+    let wide: Vec<u16> = std::ffi::OsStr::new(printer)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut h_printer = HANDLE::default();
+    unsafe {
+        OpenPrinterW(PCWSTR(wide.as_ptr()), &mut h_printer, None)
+            .map_err(|e| anyhow::anyhow!("OpenPrinterW: {e}"))?;
+        let doc_name: Vec<u16> = "KaiPrinters\0".encode_utf16().collect();
+        let datatype: Vec<u16> = "RAW\0".encode_utf16().collect();
+        let doc_info = DOC_INFO_1W {
+            pDocName: PCWSTR(doc_name.as_ptr()),
+            pOutputFile: windows::core::PWSTR::null(),
+            pDatatype: PCWSTR(datatype.as_ptr()),
+        };
+        let job_id = StartDocPrinterW(
+            h_printer,
+            1,
+            Some(&doc_info as *const DOC_INFO_1W as *const u8),
+        )
+        .map_err(|e| anyhow::anyhow!("StartDocPrinterW: {e}"))?;
+        if job_id == 0 {
+            let _ = ClosePrinter(h_printer);
+            anyhow::bail!("StartDocPrinterW returned 0");
+        }
+        let mut written: u32 = 0;
+        WritePrinter(
+            h_printer,
+            data.as_ptr() as *const c_void,
+            data.len() as u32,
+            &mut written,
+        )
+        .map_err(|e| {
+            let _ = EndDocPrinterW(h_printer);
+            let _ = ClosePrinter(h_printer);
+            anyhow::anyhow!("WritePrinter: {e}")
+        })?;
+        if written as usize != data.len() {
+            tracing::warn!(
+                expected = data.len(),
+                written,
+                "WritePrinter wrote fewer bytes than expected"
+            );
+        }
+        EndDocPrinterW(h_printer).ok();
+        ClosePrinter(h_printer).ok();
+    }
+    Ok(())
+}
+
 pub fn print_pdf_to_printer(
     pdf_path: &Path,
     printer: &str,
     copies: u32,
-    _thermal_80mm: bool,
+    thermal: ThermalPrintOptions,
 ) -> Result<()> {
     #[cfg(target_os = "macos")]
     {
@@ -262,13 +537,41 @@ pub fn print_pdf_to_printer(
             .arg(printer)
             .arg("-n")
             .arg(copies.max(1).to_string());
-        if _thermal_80mm {
+        if thermal.thermal_80mm {
+            // Altura del rollo = altura real del PDF (evita banda blanca por media=72x297mm fija).
+            let page_h_mm = pdf_page_height_mm(pdf_path)
+                .unwrap_or(120.0)
+                .clamp(40.0, 1200.0);
+            let media = format!("Custom.72x{page_h_mm:.0}mm");
+            tracing::debug!(%media, "CUPS thermal media");
+            cmd.arg("-o").arg(media);
             cmd.arg("-o")
-                .arg("media=Custom.80x297mm")
-                .arg("-o")
                 .arg("fit-to-page=false")
                 .arg("-o")
-                .arg("print-scaling=none");
+                .arg("print-scaling=none")
+                .arg("-o")
+                .arg("page-left=0")
+                .arg("-o")
+                .arg("page-right=0")
+                .arg("-o")
+                .arg("page-top=0")
+                .arg("-o")
+                .arg("page-bottom=0")
+                .arg("-o")
+                .arg("margin=0");
+            if thermal.auto_cut {
+                if let Some(cut) = detect_cups_cut_option(printer) {
+                    tracing::info!(printer, cut_option = %cut, "CUPS: solicitar corte de ticket");
+                    cmd.arg("-o").arg(cut);
+                } else {
+                    tracing::debug!(
+                        printer,
+                        "CUPS: la cola no expone opción de corte (solo feed en blanco del PDF)"
+                    );
+                }
+            } else {
+                tracing::debug!(printer, "CUPS: corte automático desactivado en KaiPrinters");
+            }
         }
         let status = cmd.arg(pdf_path).status().context("lp")?;
         if !status.success() {
@@ -278,7 +581,7 @@ pub fn print_pdf_to_printer(
     }
     #[cfg(target_os = "windows")]
     {
-        return print_windows(pdf_path, printer, copies);
+        return print_windows(pdf_path, printer, copies, thermal);
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
@@ -288,38 +591,235 @@ pub fn print_pdf_to_printer(
 }
 
 #[cfg(target_os = "windows")]
-fn print_windows(pdf_path: &Path, printer: &str, copies: u32) -> Result<()> {
-    use std::ffi::OsStr;
-    use std::os::windows::ffi::OsStrExt;
-    use windows::core::PCWSTR;
-    use windows::Win32::Foundation::HWND;
-    use windows::Win32::UI::Shell::ShellExecuteW;
-    use windows::Win32::UI::WindowsAndMessaging::SW_HIDE;
+static GHOSTSCRIPT_EXE: OnceLock<Option<PathBuf>> = OnceLock::new();
 
-    let path_w: Vec<u16> = pdf_path.as_os_str().encode_wide().chain(Some(0)).collect();
-    let printer_w: Vec<u16> = OsStr::new(printer)
-        .encode_wide()
-        .chain(Some(0))
-        .collect();
-    let verb: Vec<u16> = OsStr::new("printto")
-        .encode_wide()
-        .chain(Some(0))
-        .collect();
-
-    for _ in 0..copies.max(1) {
-        let r = unsafe {
-            ShellExecuteW(
-                HWND::default(),
-                PCWSTR(verb.as_ptr()),
-                PCWSTR(path_w.as_ptr()),
-                PCWSTR(printer_w.as_ptr()),
-                PCWSTR::null(),
-                SW_HIDE,
-            )
+#[cfg(target_os = "windows")]
+fn ghostscript_candidates() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Ok(p) = std::env::var("KAI_PRINTERS_GHOSTSCRIPT") {
+        out.push(PathBuf::from(p));
+    }
+    for key in ["ProgramFiles", "ProgramFiles(x86)"] {
+        let Ok(root) = std::env::var(key) else {
+            continue;
         };
-        if r.0 as isize <= 32 {
-            anyhow::bail!("ShellExecuteW printto failed code {}", r.0 as isize);
+        let gs_dir = PathBuf::from(&root).join("gs");
+        if let Ok(entries) = std::fs::read_dir(&gs_dir) {
+            let mut versions: Vec<PathBuf> = entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.is_dir())
+                .collect();
+            versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+            for ver in versions {
+                out.push(ver.join("bin").join("gswin64c.exe"));
+                out.push(ver.join("bin").join("gswin32c.exe"));
+            }
+        }
+        out.push(
+            PathBuf::from(&root)
+                .join("KaiPrinters")
+                .join("gs")
+                .join("bin")
+                .join("gswin64c.exe"),
+        );
+    }
+    out
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_ghostscript_exe() -> Result<PathBuf> {
+    if let Some(cached) = GHOSTSCRIPT_EXE.get().and_then(|o| o.clone()) {
+        return Ok(cached);
+    }
+    if let Some(p) = ghostscript_candidates()
+        .into_iter()
+        .find(|c| c.is_file())
+    {
+        let _ = GHOSTSCRIPT_EXE.set(Some(p.clone()));
+        return Ok(p);
+    }
+    use std::os::windows::process::CommandExt;
+    for bin in ["gswin64c.exe", "gswin32c.exe"] {
+        let out = Command::new("where")
+            .arg(bin)
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .with_context(|| format!("where {bin}"))?;
+        if out.status.success() {
+            let line = String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if !line.is_empty() {
+                let p = PathBuf::from(line);
+                if p.is_file() {
+                    let _ = GHOSTSCRIPT_EXE.set(Some(p.clone()));
+                    return Ok(p);
+                }
+            }
         }
     }
+    anyhow::bail!(
+        "Ghostscript no encontrado. Instalá la versión 64 bits desde \
+         https://ghostscript.com/releases/gsdnld.html (añade gswin64c al PATH) \
+         o definí KAI_PRINTERS_GHOSTSCRIPT con la ruta completa a gswin64c.exe"
+    )
+}
+
+/// `-sOutputFile` para el dispositivo `mswinpr2` (nombre de cola de Windows).
+#[cfg(target_os = "windows")]
+fn ghostscript_printer_output_arg(printer: &str) -> String {
+    let name = printer.trim();
+    if name.contains(' ') {
+        format!("-sOutputFile=\"%printer%{name}\"")
+    } else {
+        format!("-sOutputFile=%printer%{name}")
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn print_windows_ghostscript(
+    gs: &Path,
+    pdf_path: &Path,
+    printer: &str,
+    thermal: ThermalPrintOptions,
+) -> Result<()> {
+    use std::os::windows::process::CommandExt;
+    let pdf = pdf_path
+        .canonicalize()
+        .unwrap_or_else(|_| pdf_path.to_path_buf());
+    let output_arg = ghostscript_printer_output_arg(printer);
+    let mut cmd = Command::new(gs);
+    cmd.creation_flags(CREATE_NO_WINDOW)
+        .arg("-dBATCH")
+        .arg("-dNOPAUSE")
+        .arg("-dSAFER")
+        .arg("-dPrinted")
+        .arg("-sDEVICE=mswinpr2")
+        .arg(&output_arg);
+    if thermal.thermal_80mm {
+        cmd.arg("-dFIXEDMEDIA").arg("-dPDFFitPage");
+    }
+    let out = cmd
+        .arg(&pdf)
+        .output()
+        .with_context(|| format!("ghostscript ({})", gs.display()))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        anyhow::bail!(
+            "Ghostscript salió {:?}: {stdout}{stderr}",
+            out.status.code()
+        );
+    }
+    tracing::info!(
+        printer,
+        ghostscript = ?gs,
+        thermal_80mm = thermal.thermal_80mm,
+        "Windows: PDF enviado a impresora vía Ghostscript"
+    );
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn print_windows_one_copy(
+    pdf_path: &Path,
+    printer: &str,
+    thermal: ThermalPrintOptions,
+) -> Result<()> {
+    let gs = resolve_ghostscript_exe()?;
+    print_windows_ghostscript(&gs, pdf_path, printer, thermal)
+}
+
+#[cfg(target_os = "windows")]
+fn print_windows(
+    pdf_path: &Path,
+    printer: &str,
+    copies: u32,
+    thermal: ThermalPrintOptions,
+) -> Result<()> {
+    if !pdf_path.is_file() {
+        anyhow::bail!("PDF temporal no encontrado: {}", pdf_path.display());
+    }
+    for i in 0..copies.max(1) {
+        print_windows_one_copy(pdf_path, printer, thermal)
+            .with_context(|| format!("copia {} de {}", i + 1, copies.max(1)))?;
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GhostscriptStatus {
+    pub installed: bool,
+    pub path: Option<String>,
+}
+
+pub fn host_platform() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "other"
+    }
+}
+
+pub fn ghostscript_status() -> GhostscriptStatus {
+    #[cfg(target_os = "windows")]
+    {
+        match resolve_ghostscript_exe() {
+            Ok(p) => GhostscriptStatus {
+                installed: true,
+                path: Some(p.display().to_string()),
+            },
+            Err(_) => GhostscriptStatus {
+                installed: false,
+                path: None,
+            },
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        GhostscriptStatus {
+            installed: true,
+            path: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_cut_media_end_of_page() {
+        let opt = parse_cups_cut_lp_option("CutMedia/Cut Media: None *EndOfPage EndOfJob")
+            .map(|(_, s)| s);
+        assert_eq!(opt.as_deref(), Some("CutMedia=EndOfPage"));
+    }
+
+    #[test]
+    fn skips_none_only_cut() {
+        let opt = parse_cups_cut_lp_option("CutMedia/Cut: *None Off");
+        assert!(opt.is_none());
+    }
+
+    #[test]
+    fn prefers_full_cut_page_over_feed_none() {
+        let page = parse_cups_cut_lp_option(
+            "PageCutType/1. Page Cut Type: *0NoCutPage 1PartialCutPage 2FullCutPage",
+        );
+        let feed = parse_cups_cut_lp_option(
+            "FeedCutAfterJobEnd/3. Feed Cut After Job End: *0None 1Line 2Line",
+        );
+        let (page_score, page_opt) = page.unwrap();
+        let (feed_score, feed_opt) = feed.unwrap();
+        assert_eq!(page_opt.as_str(), "PageCutType=2FullCutPage");
+        assert_eq!(feed_opt.as_str(), "FeedCutAfterJobEnd=1Line");
+        assert!(page_score > feed_score);
+    }
 }

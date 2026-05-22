@@ -7,6 +7,7 @@ import IconButton from "./shared/components/IconButton/IconButton";
 import Switch from "./shared/components/Switch";
 import { Select } from "./shared/components/Select";
 import SharedTextField from "./shared/components/TextField/TextField";
+import { AgentLogPanel } from "./features/agent-log/AgentLogPanel";
 
 const APP_NAME = "KaiPrinters";
 const DEFAULT_AGENT_DISPLAY_NAME = APP_NAME;
@@ -55,6 +56,9 @@ type MappingLineRow = {
   systemPrinterName: string;
   sortOrder: number;
   displayLabel?: string;
+  autoCutEnabled?: boolean;
+  /** Solo aplica con propósito `tickets`: bytes ESC/POS RAW en lugar de PDF. */
+  ticketEscposEnabled?: boolean;
 };
 
 type JobRow = {
@@ -67,6 +71,12 @@ type JobRow = {
   internalFolio?: string;
   sourceApp?: string;
   requestedBy?: string;
+  error?: string;
+};
+
+type GhostscriptStatus = {
+  installed?: boolean;
+  path?: string;
 };
 
 type DashboardPayload = {
@@ -75,6 +85,8 @@ type DashboardPayload = {
   wssEnabled?: boolean;
   wsListening?: boolean;
   wssListening?: boolean;
+  hostPlatform?: string;
+  ghostscript?: GhostscriptStatus;
   agentDisplayName?: string;
   printers?: PrinterRow[];
   mappings?: MappingRow[];
@@ -145,6 +157,8 @@ export default function App() {
   const [settingsSaveBusy, setSettingsSaveBusy] = useState(false);
   const [networkBusy, setNetworkBusy] = useState(false);
   const [lineTestBusyId, setLineTestBusyId] = useState<string | null>(null);
+  const [cutTestBusyId, setCutTestBusyId] = useState<string | null>(null);
+  const [printersRefreshBusy, setPrintersRefreshBusy] = useState(false);
 
   /** Solo mostramos acciones en la fila del summary cuando el `<details>` está expandido */
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
@@ -158,6 +172,8 @@ export default function App() {
       systemPrinterName: String(row.systemPrinterName ?? ""),
       sortOrder: typeof row.sortOrder === "number" ? row.sortOrder : 0,
       displayLabel: row.displayLabel ? String(row.displayLabel) : undefined,
+      autoCutEnabled: row.autoCutEnabled !== false,
+      ticketEscposEnabled: row.ticketEscposEnabled === true,
     }));
     setLocalLines(lines);
     setSettings({
@@ -181,6 +197,8 @@ export default function App() {
         printers: d.printers,
         wsListening: d.wsListening,
         wssListening: d.wssListening,
+        hostPlatform: d.hostPlatform,
+        ghostscript: d.ghostscript,
       };
     });
   }, []);
@@ -237,6 +255,8 @@ export default function App() {
   const printers = dashboard?.printers ?? [];
   const jobs = dashboard?.jobs ?? [];
   const sessions = dashboard?.serviceStatus?.sessions ?? [];
+  const isWindows = dashboard?.hostPlatform === "windows";
+  const ghostscript = dashboard?.ghostscript;
   const wsListening = Boolean(dashboard?.wsListening);
   const wssListening = Boolean(dashboard?.wssListening);
   const wssEnabledCfg = Boolean(dashboard?.wssEnabled);
@@ -256,6 +276,8 @@ export default function App() {
       systemPrinterName: l.systemPrinterName.trim(),
       sortOrder: idx,
       displayLabel: l.displayLabel!.trim(),
+      autoCutEnabled: l.autoCutEnabled !== false,
+      ticketEscposEnabled: l.ticketEscposEnabled === true,
     }));
     try {
       await invoke("set_mapping_lines", { lines: payload });
@@ -295,6 +317,48 @@ export default function App() {
       await handleSaveSettings();
     } else {
       setConfigEdit(true);
+    }
+  }
+
+  async function handleRefreshPrinters() {
+    if (printersRefreshBusy) return;
+    setPrintersRefreshBusy(true);
+    try {
+      const d = (await invoke("get_dashboard")) as DashboardPayload;
+      setDashboard((prev) => ({
+        ...(prev ?? {}),
+        printers: d.printers,
+        printerHealth: d.printerHealth ?? prev?.printerHealth,
+        hostPlatform: d.hostPlatform ?? prev?.hostPlatform,
+        ghostscript: d.ghostscript ?? prev?.ghostscript,
+      }));
+    } catch {
+      window.alert("No se pudo actualizar la lista de impresoras del sistema.");
+    } finally {
+      setPrintersRefreshBusy(false);
+    }
+  }
+
+  async function handleLineTestCut(line: MappingLineRow) {
+    const printer = line.systemPrinterName.trim();
+    if (!printer) {
+      window.alert("Seleccioná una impresora del sistema para probar el corte.");
+      return;
+    }
+    setCutTestBusyId(line.id);
+    try {
+      await invoke("queue_test_cut_print", { systemPrinterName: printer });
+      await fetchDashboard("live");
+    } catch (e: unknown) {
+      const msg =
+        typeof e === "string"
+          ? e
+          : e && typeof e === "object" && "message" in e && typeof (e as Error).message === "string"
+            ? (e as Error).message
+            : "No se pudo encolar la prueba de corte.";
+      window.alert(msg);
+    } finally {
+      setCutTestBusyId(null);
     }
   }
 
@@ -371,6 +435,8 @@ export default function App() {
         purpose: DEFAULT_PURPOSE,
         systemPrinterName: "",
         sortOrder: prev.length,
+        autoCutEnabled: true,
+        ticketEscposEnabled: false,
       },
     ]);
   }
@@ -415,7 +481,7 @@ export default function App() {
         <details className="print-acc min-w-0 max-w-full overflow-hidden py-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 py-2 font-semibold [&::-webkit-details-marker]:hidden">
           <ChevronDown className="print-acc-chevron h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden />
-          <span className="text-sm">Clientes conectados</span>
+          <span className="text-sm">Apps conectadas</span>
           <span className="ml-auto text-xs font-normal text-muted-foreground">{sessions.length}</span>
         </summary>
         {sessions.length > 0 ? (
@@ -495,6 +561,31 @@ export default function App() {
             onChange={(wssEnabled) => setSettings((s) => ({ ...s, wssEnabled }))}
             data-test-id="config-wss-enabled"
           />
+          {settings.wssEnabled ? (
+            <div className="space-y-2 rounded-md border border-border bg-neutral/30 p-3 text-xs text-muted-foreground">
+              <p>
+                El POS en HTTPS (<code className="text-foreground">wss://127.0.0.1</code>) debe confiar el
+                certificado local. Si ves <strong className="text-foreground">CertificateUnknown</strong> en el
+                registro, instalá el certificado y reiniciá el navegador del POS.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground hover:bg-accent/40"
+                  onClick={() => void invoke("install_wss_trust_certificate").then((msg) => window.alert(String(msg))).catch((e) => window.alert(String(e)))}
+                >
+                  Confiar certificado WSS
+                </button>
+                <button
+                  type="button"
+                  className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground hover:bg-accent/40"
+                  onClick={() => void invoke("open_app_data_dir").catch(() => {})}
+                >
+                  Abrir carpeta del certificado
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </details>
 
@@ -508,6 +599,21 @@ export default function App() {
           <span className="min-w-0 flex-1 truncate text-sm">Impresoras</span>
           {printersDetailsOpen ? (
             <>
+              <IconButton
+                type="button"
+                icon="RefreshCw"
+                variant="basicSecondary"
+                size="xs"
+                className="shrink-0"
+                disabled={printersRefreshBusy}
+                isLoading={printersRefreshBusy}
+                ariaLabel="Actualizar lista de impresoras del sistema"
+                title="Actualizar impresoras del sistema"
+                onClick={(e) => {
+                  e.preventDefault();
+                  void handleRefreshPrinters();
+                }}
+              />
               <IconButton
                 type="button"
                 icon="Plus"
@@ -536,6 +642,47 @@ export default function App() {
           ) : null}
         </summary>
         <div className="space-y-3 py-2">
+          {isWindows ? (
+            <div className="space-y-2 rounded-md border border-border bg-neutral/30 p-3 text-xs text-muted-foreground">
+              <p>
+                En Windows, KaiPrinters envía los PDF a la impresora con{" "}
+                <strong className="text-foreground">Ghostscript</strong> (64 bits). Sin él, los trabajos
+                fallan en la cola.
+              </p>
+              {ghostscript?.installed ? (
+                <p className="text-foreground">
+                  Ghostscript detectado
+                  {ghostscript.path ? (
+                    <>
+                      : <code className="text-xs break-all">{ghostscript.path}</code>
+                    </>
+                  ) : null}
+                </p>
+              ) : (
+                <p className="font-medium text-error">
+                  Ghostscript no encontrado. Instalá la versión 64 bits y reiniciá KaiPrinters, o definí la
+                  variable <code className="text-foreground">KAI_PRINTERS_GHOSTSCRIPT</code> con la ruta a{" "}
+                  <code className="text-foreground">gswin64c.exe</code>.
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground hover:bg-accent/40"
+                  onClick={() => void invoke("open_ghostscript_download").catch((e) => window.alert(String(e)))}
+                >
+                  Descargar Ghostscript
+                </button>
+                <button
+                  type="button"
+                  className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground hover:bg-accent/40"
+                  onClick={() => void handleRefreshPrinters()}
+                >
+                  Comprobar de nuevo
+                </button>
+              </div>
+            </div>
+          ) : null}
           {localLines.length > 0 ? (
             <div className="divide-y divide-border">
               {localLines.map((line) => {
@@ -564,19 +711,6 @@ export default function App() {
                     options={purposeOpts}
                     name={`purpose-${line.id}`}
                   />
-                  <Select
-                    label="Impresora del sistema"
-                    placeholder="Seleccionar"
-                    density="compact"
-                    value={line.systemPrinterName || null}
-                    onChange={(pid) =>
-                      setLocalLines((rows) =>
-                        rows.map((r) => (r.id === line.id ? { ...r, systemPrinterName: pid == null ? "" : String(pid) } : r)),
-                      )
-                    }
-                    options={printerOpts}
-                    name={`printer-${line.id}`}
-                  />
                   <SharedTextField
                     label="Alias"
                     name={`alias-${line.id}`}
@@ -591,6 +725,61 @@ export default function App() {
                       )
                     }
                   />
+                  <Select
+                    label="Impresora del sistema"
+                    placeholder="Seleccionar"
+                    density="compact"
+                    value={line.systemPrinterName || null}
+                    onChange={(pid) =>
+                      setLocalLines((rows) =>
+                        rows.map((r) => (r.id === line.id ? { ...r, systemPrinterName: pid == null ? "" : String(pid) } : r)),
+                      )
+                    }
+                    options={printerOpts}
+                    name={`printer-${line.id}`}
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <Switch
+                      label="Corte automático"
+                      labelPosition="right"
+                      disabled={!line.systemPrinterName.trim()}
+                      checked={line.autoCutEnabled !== false}
+                      onChange={(enabled) =>
+                        setLocalLines((rows) =>
+                          rows.map((r) => (r.id === line.id ? { ...r, autoCutEnabled: enabled } : r)),
+                        )
+                      }
+                      data-test-id={`line-auto-cut-${line.id}`}
+                    />
+                    <IconButton
+                      type="button"
+                      icon="Scissors"
+                      variant="basicSecondary"
+                      size="xs"
+                      className="shrink-0"
+                      disabled={!line.systemPrinterName.trim() || cutTestBusyId === line.id}
+                      isLoading={cutTestBusyId === line.id}
+                      ariaLabel="Probar corte automático en esta impresora"
+                      title="Imprime una línea y corta el papel"
+                      onClick={() => void handleLineTestCut(line)}
+                    />
+                  </div>
+                  {line.purpose === "tickets" ? (
+                    <Switch
+                      label="ESC/POS directo (sin PDF)"
+                      labelPosition="right"
+                      disabled={!line.systemPrinterName.trim()}
+                      checked={line.ticketEscposEnabled === true}
+                      onChange={(enabled) =>
+                        setLocalLines((rows) =>
+                          rows.map((r) =>
+                            r.id === line.id ? { ...r, ticketEscposEnabled: enabled } : r,
+                          ),
+                        )
+                      }
+                      data-test-id={`line-ticket-escpos-${line.id}`}
+                    />
+                  ) : null}
                   <div className="mt-2 flex shrink-0 justify-end gap-1">
                     <IconButton
                       type="button"
@@ -653,6 +842,7 @@ export default function App() {
                   <span className="sr-only">Eliminar</span>
                 </th>
                 <th className="p-1.5 text-left font-semibold">Estado</th>
+                <th className="p-1.5 text-left font-semibold">Error</th>
                 <th className="p-1.5 text-left font-semibold">Doc</th>
                 <th className="p-1.5 text-left font-semibold">Folio</th>
                 <th className="p-1.5 text-left font-semibold">App</th>
@@ -662,7 +852,7 @@ export default function App() {
             <tbody>
               {jobs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="border-b border-border p-2 text-muted-foreground">
+                  <td colSpan={7} className="border-b border-border p-2 text-muted-foreground">
                     Sin pendientes ni errores.
                   </td>
                 </tr>
@@ -686,6 +876,18 @@ export default function App() {
                     <td className="p-1.5 align-top">
                       <code className="print-code text-[0.65rem]">{escapeHtml(j.status)}</code>
                     </td>
+                    <td
+                      className="max-w-28 p-1.5 align-top text-error"
+                      title={escapeHtml(j.error || "")}
+                    >
+                      {j.status === "error" && j.error ? (
+                        <span className="line-clamp-3 whitespace-pre-wrap break-words text-[0.65rem]">
+                          {escapeHtml(j.error)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="max-w-18 truncate p-1.5 align-top" title={escapeHtml(j.documentType || j.filename || "")}>
                       {escapeHtml(j.documentType || j.filename || "—")}
                     </td>
@@ -697,6 +899,16 @@ export default function App() {
               )}
             </tbody>
           </table>
+        </div>
+      </details>
+
+      <details className="print-acc min-w-0 max-w-full overflow-hidden py-3">
+        <summary className="flex cursor-pointer list-none items-center gap-2 py-2 font-semibold [&::-webkit-details-marker]:hidden">
+          <ChevronDown className="print-acc-chevron h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden />
+          <span className="min-w-0 text-sm">Registro y errores</span>
+        </summary>
+        <div className="py-2">
+          <AgentLogPanel />
         </div>
       </details>
 

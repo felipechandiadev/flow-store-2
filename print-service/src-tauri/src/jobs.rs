@@ -2,6 +2,7 @@
 
 use crate::db::{Db, PendingJob};
 use crate::pos_sale_ticket_pdf;
+use crate::cut_test_pdf;
 use crate::ticket_test_pdf;
 use crate::platform;
 use crate::state::AppState;
@@ -33,7 +34,14 @@ pub fn spawn_worker(state: Arc<AppState>) {
                     let _ = db.bump_retry(&job.id);
                     let _ = db.update_job_status(&job.id, "pending", None);
                 } else {
-                    let _ = db.update_job_status(&job.id, "error", Some(&format!("{e:#}")));
+                    let err_msg = format!("{e:#}");
+                    state.agent_log.push_error(format!(
+                        "Impresión fallida (trabajo {}, propósito {:?}): {}",
+                        job.id,
+                        job.purpose,
+                        err_msg
+                    ));
+                    let _ = db.update_job_status(&job.id, "error", Some(&err_msg));
                     let fail = serde_json::json!({
                         "version": crate::protocol::PROTOCOL_VERSION,
                         "event": "print_job_failed",
@@ -92,8 +100,26 @@ fn process_one(db: &Db, job: &PendingJob, notify: &tokio::sync::broadcast::Sende
     }
     let mut last_err: Option<anyhow::Error> = None;
     for printer in &printers {
-        let thermal = purpose == "tickets";
-        match platform::print_pdf_to_printer(&path, printer, job.copies.max(1) as u32, thermal) {
+        let thermal_80 = purpose == "tickets";
+        let force_cut_test = job.document_type.as_deref() == Some("test_cut");
+        let auto_cut =
+            thermal_80 && (force_cut_test || db.auto_cut_enabled_for_printer(printer, purpose));
+        let thermal = platform::ThermalPrintOptions {
+            thermal_80mm: thermal_80,
+            auto_cut,
+        };
+        let copies = job.copies.max(1) as u32;
+        let is_escpos = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("escpos"))
+            .unwrap_or(false);
+        let print_result = if is_escpos {
+            platform::print_escpos_to_printer(&path, printer, copies, thermal)
+        } else {
+            platform::print_pdf_to_printer(&path, printer, copies, thermal)
+        };
+        match print_result {
             Ok(()) => {
                 let _ = std::fs::remove_file(&path);
                 db.delete_job(&job.id)?;
@@ -105,7 +131,10 @@ fn process_one(db: &Db, job: &PendingJob, notify: &tokio::sync::broadcast::Sende
                 let _ = notify.send(ev.to_string());
                 return Ok(());
             }
-            Err(e) => last_err = Some(e),
+            Err(e) => {
+                tracing::warn!(job_id = %job.id, printer = %printer, "intento en impresora: {e:#}");
+                last_err = Some(e);
+            }
         }
     }
     Err(last_err.unwrap_or_else(|| anyhow::anyhow!("print failed")))
@@ -120,6 +149,15 @@ pub fn decode_pdf_base64_to_temp(dir: &PathBuf, b64: &str) -> Result<PathBuf> {
     let id = uuid::Uuid::new_v4().to_string();
     let p = dir.join(format!("job_{id}.pdf"));
     std::fs::write(&p, &bytes)?;
+    Ok(p)
+}
+
+/// PDF mínimo con una línea para probar corte automático (tickets / 80 mm).
+pub fn write_cut_test_pdf_path(dir: &PathBuf) -> Result<PathBuf> {
+    std::fs::create_dir_all(dir)?;
+    let id = uuid::Uuid::new_v4().to_string();
+    let p = dir.join(format!("cut_test_{id}.pdf"));
+    cut_test_pdf::write_cut_test_pdf(&p)?;
     Ok(p)
 }
 
@@ -143,4 +181,12 @@ pub fn write_pos_sale_ticket_pdf_from_value(
     value: &serde_json::Value,
 ) -> Result<PathBuf> {
     pos_sale_ticket_pdf::write_pos_sale_ticket_pdf_from_value(dir, value)
+}
+
+/// Genera bytes ESC/POS de ticket de venta POS desde JSON (`pos-sale-ticket-escpos`).
+pub fn write_pos_sale_ticket_escpos_from_value(
+    dir: &PathBuf,
+    value: &serde_json::Value,
+) -> Result<PathBuf> {
+    crate::pos_sale_ticket_escpos::write_pos_sale_ticket_escpos_from_value(dir, value)
 }

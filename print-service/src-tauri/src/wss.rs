@@ -11,6 +11,19 @@ use tokio_rustls::TlsAcceptor;
 use crate::state::AppState;
 use crate::ws;
 
+fn log_tls_handshake_rejected(state: &AppState, e: &impl std::fmt::Display) {
+    let msg = format!("{e:#}");
+    tracing::warn!("tls handshake: {msg}");
+    if msg.contains("CertificateUnknown") || msg.contains("certificate") {
+        state.agent_log.push_warn(
+            "WSS: el navegador rechazó el certificado local (CertificateUnknown). \
+             En KaiPrinters → Configuración usá «Confiar certificado WSS» (Windows) o importá \
+             agent-tls-cert.der en «Entidades de certificación raíz de confianza». \
+             Luego cerrá el navegador del POS y volvé a abrirlo.",
+        );
+    }
+}
+
 pub async fn run_wss_loop(
     state: Arc<AppState>,
     tls: Arc<ServerConfig>,
@@ -50,7 +63,7 @@ pub async fn run_wss_loop(
                                                         tracing::warn!("wss connection ended: {e:#}");
                                                     }
                                                 }
-                                                Err(e) => tracing::warn!("tls handshake: {e:#}"),
+                                                Err(e) => log_tls_handshake_rejected(&st, &e),
                                             }
                                         });
                                     }
@@ -88,7 +101,7 @@ pub async fn run_wss_loop(
                                         tracing::warn!("wss connection ended: {e:#}");
                                     }
                                 }
-                                Err(e) => tracing::warn!("tls handshake: {e:#}"),
+                                Err(e) => log_tls_handshake_rejected(&st, &e),
                             }
                         });
                     }

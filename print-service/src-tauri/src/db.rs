@@ -14,6 +14,7 @@ pub struct PendingJob {
     pub copies: i32,
     /** Si viene informado: imprimir sólo en esta impresora (p. ej. prueba desde una línea de mapeo). */
     pub target_system_printer: Option<String>,
+    pub document_type: Option<String>,
 }
 
 const SCHEMA: &str = r#"
@@ -135,6 +136,72 @@ fn migrate_v3(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// Corte automático por línea de mapeo (impresora del sistema).
+fn migrate_v4(conn: &Connection) -> Result<()> {
+    let cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(printer_mapping_lines)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if cols.iter().any(|c| c == "auto_cut_enabled") {
+        return Ok(());
+    }
+    conn.execute(
+        "ALTER TABLE printer_mapping_lines ADD COLUMN auto_cut_enabled INTEGER NOT NULL DEFAULT 1",
+        [],
+    )?;
+    let global_off: bool = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'auto_cut_enabled'",
+            [],
+            |r| {
+                let v: String = r.get(0)?;
+                Ok(v.trim().eq_ignore_ascii_case("false"))
+            },
+        )
+        .unwrap_or(false);
+    if global_off {
+        conn.execute("UPDATE printer_mapping_lines SET auto_cut_enabled = 0", [])?;
+    }
+    Ok(())
+}
+
+fn json_auto_cut_enabled(row: &serde_json::Value) -> bool {
+    row.get("autoCutEnabled")
+        .and_then(|v| {
+            v.as_bool()
+                .or_else(|| v.as_i64().map(|n| n != 0))
+                .or_else(|| v.as_u64().map(|n| n != 0))
+        })
+        .unwrap_or(true)
+}
+
+/// Motor ESC/POS directo (RAW) para tickets en esta línea de mapeo.
+fn json_ticket_escpos_enabled(row: &serde_json::Value) -> bool {
+    row.get("ticketEscposEnabled")
+        .and_then(|v| {
+            v.as_bool()
+                .or_else(|| v.as_i64().map(|n| n != 0))
+                .or_else(|| v.as_u64().map(|n| n != 0))
+        })
+        .unwrap_or(false)
+}
+
+/// Tickets térmicos: ESC/POS RAW en lugar de PDF (Ghostscript en Windows).
+fn migrate_v5(conn: &Connection) -> Result<()> {
+    let cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(printer_mapping_lines)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if cols.iter().any(|c| c == "ticket_escpos_enabled") {
+        return Ok(());
+    }
+    conn.execute(
+        "ALTER TABLE printer_mapping_lines ADD COLUMN ticket_escpos_enabled INTEGER NOT NULL DEFAULT 0",
+        [],
+    )?;
+    Ok(())
+}
+
 fn migrate_v2(conn: &Connection) -> Result<()> {
     let sql = r#"
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mapping_lines_display_label_unique
@@ -177,6 +244,8 @@ impl Db {
         migrate_v1(&conn).context("migrate_v1")?;
         migrate_v2(&conn).context("migrate_v2")?;
         migrate_v3(&conn).context("migrate_v3")?;
+        migrate_v4(&conn).context("migrate_v4")?;
+        migrate_v5(&conn).context("migrate_v5")?;
         Ok(Self {
             inner: Arc::new(Mutex::new(conn)),
         })
@@ -229,6 +298,112 @@ impl Db {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| Self::default_agent_display_name().to_string())
+    }
+
+    /// Corte CUPS según la línea de mapeo (impresora + propósito). Por defecto activado.
+    pub fn auto_cut_enabled_for_printer(&self, system_printer_name: &str, purpose: &str) -> bool {
+        let name = system_printer_name.trim();
+        if name.is_empty() {
+            return true;
+        }
+        let c = self.inner.lock();
+        let mut stmt = match c.prepare(
+            "SELECT auto_cut_enabled FROM printer_mapping_lines
+             WHERE trim(system_printer_name) = trim(?1) AND purpose = ?2
+             ORDER BY sort_order ASC, id ASC LIMIT 1",
+        ) {
+            Ok(s) => s,
+            Err(_) => return true,
+        };
+        let mut rows = match stmt.query(params![name, purpose]) {
+            Ok(r) => r,
+            Err(_) => return true,
+        };
+        if let Some(row) = rows.next().ok().flatten() {
+            if let Ok(v) = row.get::<_, i32>(0) {
+                return v != 0;
+            }
+        }
+        let mut fallback = match c.prepare(
+            "SELECT auto_cut_enabled FROM printer_mapping_lines
+             WHERE trim(system_printer_name) = trim(?1)
+             ORDER BY sort_order ASC, id ASC LIMIT 1",
+        ) {
+            Ok(s) => s,
+            Err(_) => return true,
+        };
+        let mut rows = match fallback.query(params![name]) {
+            Ok(r) => r,
+            Err(_) => return true,
+        };
+        if let Some(row) = rows.next().ok().flatten() {
+            if let Ok(v) = row.get::<_, i32>(0) {
+                return v != 0;
+            }
+        }
+        true
+    }
+
+    /// ESC/POS RAW para tickets según la línea de mapeo. Por defecto desactivado (PDF).
+    pub fn ticket_escpos_enabled_for_printer(&self, system_printer_name: &str, purpose: &str) -> bool {
+        if purpose != "tickets" {
+            return false;
+        }
+        let name = system_printer_name.trim();
+        if name.is_empty() {
+            return false;
+        }
+        let c = self.inner.lock();
+        let mut stmt = match c.prepare(
+            "SELECT ticket_escpos_enabled FROM printer_mapping_lines
+             WHERE trim(system_printer_name) = trim(?1) AND purpose = ?2
+             ORDER BY sort_order ASC, id ASC LIMIT 1",
+        ) {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+        let mut rows = match stmt.query(params![name, purpose]) {
+            Ok(r) => r,
+            Err(_) => return false,
+        };
+        if let Some(row) = rows.next().ok().flatten() {
+            if let Ok(v) = row.get::<_, i32>(0) {
+                return v != 0;
+            }
+        }
+        let mut fallback = match c.prepare(
+            "SELECT ticket_escpos_enabled FROM printer_mapping_lines
+             WHERE trim(system_printer_name) = trim(?1)
+             ORDER BY sort_order ASC, id ASC LIMIT 1",
+        ) {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+        let mut rows = match fallback.query(params![name]) {
+            Ok(r) => r,
+            Err(_) => return false,
+        };
+        if let Some(row) = rows.next().ok().flatten() {
+            if let Ok(v) = row.get::<_, i32>(0) {
+                return v != 0;
+            }
+        }
+        false
+    }
+
+    /// Impresora que usará un trabajo encolado (alias POS o primera del propósito).
+    pub fn resolve_printer_for_enqueue(
+        &self,
+        purpose: &str,
+        display_label: Option<&str>,
+    ) -> Result<Option<String>> {
+        if let Some(lbl) = display_label.map(str::trim).filter(|s| !s.is_empty()) {
+            return self.system_printer_for_purpose_display_label(purpose, lbl);
+        }
+        Ok(self
+            .printers_for_purpose_ordered(purpose)?
+            .into_iter()
+            .next())
     }
 
     pub fn listen_host(&self) -> String {
@@ -309,15 +484,20 @@ impl Db {
     pub fn list_mapping_lines(&self) -> Result<Vec<serde_json::Value>> {
         let c = self.inner.lock();
         let mut stmt = c.prepare(
-            "SELECT id, purpose, system_printer_name, sort_order, display_label FROM printer_mapping_lines ORDER BY purpose, sort_order ASC, id ASC",
+            "SELECT id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled
+             FROM printer_mapping_lines ORDER BY purpose, sort_order ASC, id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
+            let auto_cut: i32 = r.get(5)?;
+            let ticket_escpos: i32 = r.get(6)?;
             Ok(serde_json::json!({
                 "id": r.get::<_, String>(0)?,
                 "purpose": r.get::<_, String>(1)?,
                 "systemPrinterName": r.get::<_, String>(2)?,
                 "sortOrder": r.get::<_, i32>(3)?,
                 "displayLabel": r.get::<_, Option<String>>(4)?,
+                "autoCutEnabled": auto_cut != 0,
+                "ticketEscposEnabled": ticket_escpos != 0,
             }))
         })?;
         let mut out = Vec::new();
@@ -407,15 +587,19 @@ impl Db {
             let display_label = row
                 .get("displayLabel")
                 .and_then(|v| v.as_str());
+            let auto_cut: i32 = if json_auto_cut_enabled(row) { 1 } else { 0 };
+            let ticket_escpos: i32 = if json_ticket_escpos_enabled(row) { 1 } else { 0 };
             tx.execute(
-                "INSERT INTO printer_mapping_lines(id, purpose, system_printer_name, sort_order, display_label)
-                 VALUES(?1, ?2, ?3, ?4, ?5)",
+                "INSERT INTO printer_mapping_lines(id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     id,
                     purpose,
                     system_printer_name,
                     sort_order,
-                    display_label
+                    display_label,
+                    auto_cut,
+                    ticket_escpos,
                 ],
             )?;
         }
@@ -466,7 +650,7 @@ impl Db {
     pub fn next_pending_job(&self) -> Result<Option<PendingJob>> {
         let c = self.inner.lock();
         let mut stmt = c.prepare(
-            "SELECT id, payload_ref, purpose, copies, target_system_printer FROM print_jobs WHERE status = 'pending'
+            "SELECT id, payload_ref, purpose, copies, target_system_printer, document_type FROM print_jobs WHERE status = 'pending'
              ORDER BY priority DESC, created_at ASC LIMIT 1",
         )?;
         let mut rows = stmt.query([])?;
@@ -477,6 +661,7 @@ impl Db {
                 purpose: r.get(2)?,
                 copies: r.get(3)?,
                 target_system_printer: r.get(4)?,
+                document_type: r.get(5)?,
             }));
         }
         Ok(None)

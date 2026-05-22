@@ -427,12 +427,39 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                     .get("folio")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
-                tracing::info!(%folio, "print: pos-sale-ticket → generar PDF vectorial");
-                match jobs::write_pos_sale_ticket_pdf_from_value(&state.temp_dir, ticket) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        tracing::error!(%folio, err = %e, "pos-sale-ticket PDF failed");
-                        return OutResponse::err(rid, format!("{e:#}"));
+                let printer_display_label = env
+                    .extra
+                    .get("printerDisplayLabel")
+                    .or_else(|| env.extra.get("printerAlias"))
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty());
+                let resolved_printer = state
+                    .db
+                    .resolve_printer_for_enqueue(purpose, printer_display_label)
+                    .ok()
+                    .flatten();
+                let use_escpos = resolved_printer
+                    .as_deref()
+                    .map(|p| state.db.ticket_escpos_enabled_for_printer(p, purpose))
+                    .unwrap_or(false);
+                if use_escpos {
+                    tracing::info!(%folio, printer = ?resolved_printer, "print: pos-sale-ticket → ESC/POS RAW");
+                    match jobs::write_pos_sale_ticket_escpos_from_value(&state.temp_dir, ticket) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            tracing::error!(%folio, err = %e, "pos-sale-ticket ESC/POS failed");
+                            return OutResponse::err(rid, format!("{e:#}"));
+                        }
+                    }
+                } else {
+                    tracing::info!(%folio, printer = ?resolved_printer, "print: pos-sale-ticket → PDF vectorial");
+                    match jobs::write_pos_sale_ticket_pdf_from_value(&state.temp_dir, ticket) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            tracing::error!(%folio, err = %e, "pos-sale-ticket PDF failed");
+                            return OutResponse::err(rid, format!("{e:#}"));
+                        }
                     }
                 }
             } else {

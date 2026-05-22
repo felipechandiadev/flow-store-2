@@ -8,12 +8,16 @@ use rcgen::{generate_simple_self_signed, CertifiedKey};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use rustls::ServerConfig;
 
-const CERT_FILE: &str = "agent-tls-cert.der";
+pub const WSS_CERT_FILE: &str = "agent-tls-cert.der";
 const KEY_FILE: &str = "agent-tls-key.der";
+
+pub fn wss_cert_path(data_dir: &Path) -> std::path::PathBuf {
+    data_dir.join(WSS_CERT_FILE)
+}
 
 pub fn load_or_create_server_config(dir: &Path) -> anyhow::Result<Arc<ServerConfig>> {
     std::fs::create_dir_all(dir).ok();
-    let cert_path = dir.join(CERT_FILE);
+    let cert_path = dir.join(WSS_CERT_FILE);
     let key_path = dir.join(KEY_FILE);
 
     if !cert_path.exists() || !key_path.exists() {

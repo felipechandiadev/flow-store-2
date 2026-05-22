@@ -1,8 +1,11 @@
+mod agent_log;
 mod db;
 mod events;
 mod jobs;
 mod ticket_test_pdf;
+mod cut_test_pdf;
 mod pos_sale_ticket_pdf;
+mod pos_sale_ticket_escpos;
 mod ticket_barcode;
 mod platform;
 mod port_release;
@@ -24,8 +27,10 @@ use tauri::menu::{Menu, MenuItem};
 #[cfg(target_os = "macos")]
 use tauri::menu::{AboutMetadata, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
+use tauri::webview::WebviewWindowBuilder;
 use tauri::Emitter;
 use tauri::Manager;
+use tauri::WebviewUrl;
 use tokio::sync::watch;
 use tracing_subscriber::prelude::*;
 
@@ -45,11 +50,12 @@ fn load_tray_icon() -> Option<Image<'static>> {
     }
 }
 
-fn init_tracing() -> anyhow::Result<()> {
+fn init_tracing(agent_log: Arc<agent_log::AgentLog>) -> anyhow::Result<()> {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
     tracing_subscriber::registry()
         .with(filter)
+        .with(agent_log::AgentLogLayer::new(agent_log))
         .with(
             tracing_subscriber::fmt::layer()
                 .with_writer(std::io::stderr)
@@ -265,7 +271,178 @@ fn get_dashboard(state: tauri::State<'_, Arc<AppState>>) -> Result<serde_json::V
         "wsListening": state.ws_listener_running(),
         "wssListening": state.wss_listener_running(),
         "agentDisplayName": agent_display_name,
+        "agentLogs": state.agent_log.list(),
+        "hostPlatform": platform::host_platform(),
+        "ghostscript": platform::ghostscript_status(),
     }))
+}
+
+#[tauri::command]
+fn get_agent_logs(state: tauri::State<'_, Arc<AppState>>) -> Vec<agent_log::AgentLogEntry> {
+    state.agent_log.list()
+}
+
+#[tauri::command]
+fn clear_agent_logs(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+    state.agent_log.clear();
+    Ok(())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn get_wss_certificate_path(state: tauri::State<'_, Arc<AppState>>) -> Result<String, String> {
+    Ok(tls::wss_cert_path(&state.data_dir)
+        .to_string_lossy()
+        .into_owned())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn open_app_data_dir(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+    let dir = state.data_dir.to_string_lossy().to_string();
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = dir;
+        Err("open_app_data_dir: plataforma no soportada".into())
+    }
+}
+
+const GHOSTSCRIPT_DOWNLOAD_URL: &str = "https://ghostscript.com/releases/gsdnld.html";
+
+fn open_external_url(url: &str) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = url;
+        Err("open_external_url: plataforma no soportada".into())
+    }
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn open_ghostscript_download() -> Result<(), String> {
+    open_external_url(GHOSTSCRIPT_DOWNLOAD_URL)
+}
+
+/// Instala el certificado autofirmado WSS para que el navegador confíe WSS desde HTTPS (POS en la nube).
+#[tauri::command(rename_all = "snake_case")]
+fn install_wss_trust_certificate(state: tauri::State<'_, Arc<AppState>>) -> Result<String, String> {
+    let cert = tls::wss_cert_path(&state.data_dir);
+    if !cert.is_file() {
+        return Err(
+            "No existe el certificado WSS. Encendé el servicio (WSS) en KaiPrinters al menos una vez.".into(),
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var("HOME").map_err(|_| "variable HOME no definida".to_string())?;
+        let keychain = std::path::PathBuf::from(home).join("Library/Keychains/login.keychain-db");
+        let status = std::process::Command::new("security")
+            .args([
+                "add-trusted-cert",
+                "-d",
+                "-r",
+                "trustRoot",
+                "-k",
+            ])
+            .arg(&keychain)
+            .arg(&cert)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err(format!(
+                "security add-trusted-cert falló (código {:?}). \
+                 Importá manualmente agent-tls-cert.der desde Acceso a Llaveros → Sistema → confiar.",
+                status.code()
+            ));
+        }
+        state.agent_log.push(
+            "info",
+            "Certificado WSS confiado en Llaveros (macOS). Cerrá Safari/Chrome por completo y volvé a abrir el POS.",
+            None,
+        );
+        return Ok(
+            "Certificado instalado en el llavero del usuario. Cerrá el navegador del POS por completo y volvé a abrirlo.".into(),
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let out = std::process::Command::new("certutil")
+            .args(["-addstore", "-user", "Root"])
+            .arg(cert.as_os_str())
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            return Err(format!(
+                "certutil falló ({}): {stdout} {stderr}",
+                out.status.code().unwrap_or(-1)
+            ));
+        }
+        state.agent_log.push(
+            "info",
+            "Certificado WSS instalado en «Entidades de certificación raíz de confianza» (usuario). Cerrá Chrome/Edge por completo y volvé a abrir el POS.",
+            None,
+        );
+        return Ok(
+            "Certificado instalado. Cerrá el navegador del POS por completo y volvé a abrirlo.".into(),
+        );
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        Err("install_wss_trust_certificate no está disponible en esta plataforma.".into())
+    }
+}
+
+#[tauri::command]
+async fn open_agent_logs_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window("logs") {
+        w.show().map_err(|e| e.to_string())?;
+        w.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    let url = WebviewUrl::App("/?view=logs".into());
+    WebviewWindowBuilder::new(&app, "logs", url)
+        .title("KaiPrinters — Registro y errores")
+        .inner_size(480.0, 520.0)
+        .resizable(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -327,6 +504,73 @@ fn set_service_settings(
     }
     notify_printer_health_and_config(&state);
     Ok(())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn queue_test_cut_print(
+    state: tauri::State<'_, Arc<AppState>>,
+    system_printer_name: Option<String>,
+) -> Result<String, String> {
+    let target_sp = system_printer_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .or_else(|| {
+            state.db.list_mapping_lines().ok().and_then(|lines| {
+                let pick = |purpose: &str| {
+                    lines.iter().find(|l| {
+                        l.get("purpose").and_then(|v| v.as_str()) == Some(purpose)
+                            && l.get("systemPrinterName")
+                                .and_then(|v| v.as_str())
+                                .map(str::trim)
+                                .filter(|s| !s.is_empty())
+                                .is_some()
+                    })
+                };
+                pick("tickets")
+                    .or_else(|| pick("labels"))
+                    .or_else(|| {
+                        lines.iter().find(|l| {
+                            l.get("systemPrinterName")
+                                .and_then(|v| v.as_str())
+                                .map(str::trim)
+                                .filter(|s| !s.is_empty())
+                                .is_some()
+                        })
+                    })
+                    .and_then(|l| {
+                        l.get("systemPrinterName")
+                            .and_then(|v| v.as_str())
+                            .map(String::from)
+                    })
+            })
+        })
+        .ok_or_else(|| {
+            "Asigná una impresora del sistema en la sección Impresoras antes de probar el corte."
+                .to_string()
+        })?;
+
+    let path = jobs::write_cut_test_pdf_path(&state.temp_dir).map_err(|e| e.to_string())?;
+    let id = uuid::Uuid::new_v4().to_string();
+    state
+        .db
+        .insert_job(
+            &id,
+            Some("tickets"),
+            "cut_test.pdf",
+            path.to_string_lossy().as_ref(),
+            1,
+            Some("local_ui"),
+            0,
+            Some("test_cut"),
+            None,
+            None,
+            None,
+            Some(target_sp.as_str()),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(id)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -420,13 +664,14 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .map_err(|e| format!("app_data_dir: {e}"))?;
-            init_tracing().map_err(|e| format!("tracing: {e}"))?;
+            let agent_log = agent_log::AgentLog::new();
+            init_tracing(agent_log.clone()).map_err(|e| format!("tracing: {e}"))?;
 
             let db = Arc::new(db::Db::open(&data_dir).map_err(|e| format!("db: {e}"))?);
             security::ensure_defaults(&db).map_err(|e| format!("defaults: {e}"))?;
 
             let temp_dir = data_dir.join("temp_print");
-            let state = AppState::new(db.clone(), temp_dir, data_dir.clone());
+            let state = AppState::new(db.clone(), temp_dir, data_dir.clone(), agent_log.clone());
             let st_worker = state.clone();
             let st_health = state.clone();
 
@@ -440,6 +685,11 @@ pub fn run() {
             jobs::spawn_worker(st_worker);
             spawn_printer_health_tick(st_health);
             spawn_dashboard_ui_events(handle.clone(), state.clone());
+
+            let app_emit = handle.clone();
+            agent_log.set_notify(Arc::new(move || {
+                let _ = app_emit.emit("agent-log-update", ());
+            }));
 
             app.manage(state);
 
@@ -536,8 +786,16 @@ pub fn run() {
             set_mapping_lines,
             set_service_settings,
             queue_test_print,
+            queue_test_cut_print,
             cancel_print_job,
             cancel_all_print_jobs,
+            get_agent_logs,
+            clear_agent_logs,
+            get_wss_certificate_path,
+            open_app_data_dir,
+            install_wss_trust_certificate,
+            open_ghostscript_download,
+            open_agent_logs_window,
             stop_print_network,
             start_print_network,
         ])

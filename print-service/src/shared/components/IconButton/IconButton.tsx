@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ChevronDown, Pencil, Plus, Power, Printer, Save, Trash2, X } from "lucide-react";
+import { ChevronDown, Pencil, Plus, Power, Printer, RefreshCw, Save, Scissors, Trash2, X } from "lucide-react";
 import type { ButtonHTMLAttributes, MouseEventHandler } from "react";
 
 import "./icon-button.css";
@@ -13,7 +13,9 @@ const ICONS = {
   Plus,
   Power,
   Printer,
+  RefreshCw,
   Save,
+  Scissors,
   Trash2,
   X,
 } as const satisfies Record<string, LucideIcon>;
