@@ -72,6 +72,10 @@ impl AgentLog {
         self.push("warn", message, None);
     }
 
+    pub fn push_info(&self, message: impl Into<String>) {
+        self.push("info", message, None);
+    }
+
     pub fn list(&self) -> Vec<AgentLogEntry> {
         self.entries.lock().iter().cloned().collect()
     }

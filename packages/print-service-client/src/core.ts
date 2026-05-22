@@ -148,8 +148,49 @@ export class PrintServiceConnection {
   private readonly pending = new Map<string, PendingEntry>();
   /** Si `disconnect()` ocurre en CONNECTING, aplazamos un `close()` duro para no dejar el socket colgado. */
   private connectTeardownTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
+  private helloPayload: HelloResponseData | null = null;
+  private helloWaiters: Array<{
+    resolve: (d: HelloResponseData) => void;
+    reject: (e: Error) => void;
+  }> = [];
 
   constructor(private readonly opts: PrintServiceConnectionOptions) {}
+
+  private deliverHello(data: HelloResponseData): void {
+    this.helloPayload = data;
+    this.opts.onHello?.(data);
+    const waiters = this.helloWaiters.splice(0);
+    for (const w of waiters) {
+      w.resolve(data);
+    }
+  }
+
+  /**
+   * Espera la respuesta `hello` del agente (capabilities, printerHealth).
+   * Sin esto, `onHello` puede llegar después del primer `print` y el POS cree que no hay vector/ESC/POS.
+   */
+  waitForHello(timeoutMs = 6_000): Promise<HelloResponseData> {
+    if (this.helloPayload) {
+      return Promise.resolve(this.helloPayload);
+    }
+    return new Promise((resolve, reject) => {
+      const timer = globalThis.setTimeout(() => {
+        const idx = this.helloWaiters.findIndex((w) => w.resolve === resolve);
+        if (idx >= 0) this.helloWaiters.splice(idx, 1);
+        reject(new Error("hello_timeout"));
+      }, timeoutMs);
+      this.helloWaiters.push({
+        resolve: (d) => {
+          globalThis.clearTimeout(timer);
+          resolve(d);
+        },
+        reject: (e) => {
+          globalThis.clearTimeout(timer);
+          reject(e);
+        },
+      });
+    });
+  }
 
   /**
    * Espera a `readyState === OPEN` (handshake listo). Útil en UI de prueba para no llamar
@@ -203,6 +244,8 @@ export class PrintServiceConnection {
       globalThis.clearTimeout(this.connectTeardownTimer);
       this.connectTeardownTimer = null;
     }
+    this.helloPayload = null;
+    this.helloWaiters = [];
     try {
       const ws = new WebSocket(this.opts.url);
       this.ws = ws;
@@ -577,8 +620,8 @@ export class PrintServiceConnection {
 
     if (msg.ok === true && msg.data && typeof msg.data === "object") {
       const d = msg.data as Record<string, unknown>;
-      if ("printerHealth" in d || "serviceStatus" in d) {
-        this.opts.onHello?.(d as HelloResponseData);
+      if ("printerHealth" in d || "serviceStatus" in d || "agentCapabilities" in d) {
+        this.deliverHello(d as HelloResponseData);
       }
     }
   }
@@ -669,40 +712,41 @@ export function isPosDocumentAgentPrintConfigured(): boolean {
 /** Alias del POS guardado para el propósito indicado. */
 export function agentSupportsPosSaleTicket(hello: HelloResponseData | null | undefined): boolean {
   const caps = hello?.agentCapabilities;
-  if (!Array.isArray(caps) || caps.length === 0) {
-    return false;
+  if (Array.isArray(caps) && caps.length > 0) {
+    return caps.includes(AGENT_CAPABILITY_POS_SALE_TICKET);
   }
-  return caps.includes(AGENT_CAPABILITY_POS_SALE_TICKET);
+  // KaiPrinters 2.1+ (hello con serviceStatus aunque capabilities lleguen vacías)
+  return Boolean(hello?.serviceStatus);
 }
 
 export function agentSupportsPosQuotationTicket(
   hello: HelloResponseData | null | undefined,
 ): boolean {
   const caps = hello?.agentCapabilities;
-  if (!Array.isArray(caps) || caps.length === 0) {
-    return false;
+  if (Array.isArray(caps) && caps.length > 0) {
+    return caps.includes(AGENT_CAPABILITY_POS_QUOTATION_TICKET);
   }
-  return caps.includes(AGENT_CAPABILITY_POS_QUOTATION_TICKET);
+  return Boolean(hello?.serviceStatus);
 }
 
 export function agentSupportsPosCustomerCreditNoteTicket(
   hello: HelloResponseData | null | undefined,
 ): boolean {
   const caps = hello?.agentCapabilities;
-  if (!Array.isArray(caps) || caps.length === 0) {
-    return false;
+  if (Array.isArray(caps) && caps.length > 0) {
+    return caps.includes(AGENT_CAPABILITY_POS_CUSTOMER_CREDIT_NOTE_TICKET);
   }
-  return caps.includes(AGENT_CAPABILITY_POS_CUSTOMER_CREDIT_NOTE_TICKET);
+  return Boolean(hello?.serviceStatus);
 }
 
 export function agentSupportsPosCashClosingTicket(
   hello: HelloResponseData | null | undefined,
 ): boolean {
   const caps = hello?.agentCapabilities;
-  if (!Array.isArray(caps) || caps.length === 0) {
-    return false;
+  if (Array.isArray(caps) && caps.length > 0) {
+    return caps.includes(AGENT_CAPABILITY_POS_CASH_CLOSING_TICKET);
   }
-  return caps.includes(AGENT_CAPABILITY_POS_CASH_CLOSING_TICKET);
+  return Boolean(hello?.serviceStatus);
 }
 
 /**
@@ -995,7 +1039,7 @@ export function mergePrinterDisplayLabelForPurposeIntoPrintExtras(
   if (p === "tickets") lbl = ticketsAlias;
   else if (p === "documents") lbl = documentsAlias;
   if (!lbl) return extra;
-  return { ...extra, printerDisplayLabel: lbl };
+  return { ...extra, printerDisplayLabel: lbl, printerAlias: lbl };
 }
 
 /** Solo páginas HTTPS exigen WSS (mixed content). En `http://localhost` usamos WS salvo que el usuario active «Usar WSS» en el panel. */

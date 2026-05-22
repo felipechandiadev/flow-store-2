@@ -1,6 +1,7 @@
 //! OS printers + send PDF path to spooler (macOS `lp`, Windows Ghostscript `mswinpr2`).
 
 use anyhow::{Context, Result};
+use crate::print_diag;
 use serde::Serialize;
 #[cfg(target_os = "macos")]
 use std::collections::HashMap;
@@ -466,11 +467,41 @@ fn print_raw_mac(printer: &str, data: &[u8]) -> Result<()> {
     if !status.success() {
         anyhow::bail!("lp raw exited {:?}", status.code());
     }
+    print_diag::info(format!(
+        "macOS RAW (lp -o raw): «{printer}», {} bytes",
+        data.len()
+    ));
     Ok(())
 }
 
 #[cfg(target_os = "windows")]
 fn print_raw_windows(printer: &str, data: &[u8]) -> Result<()> {
+    match print_raw_windows_spooler(printer, data) {
+        Ok(written) => {
+            print_diag::info(format!(
+                "Windows RAW (spooler): «{printer}», {written}/{} bytes escritos",
+                data.len()
+            ));
+            Ok(())
+        }
+        Err(e) => {
+            print_diag::warn(format!(
+                "Windows RAW spooler falló en «{printer}»: {e:#}; probando copy /B"
+            ));
+            tracing::warn!(
+                printer,
+                err = %e,
+                "Win32 RAW spooler falló; intentando copy /B a cola local"
+            );
+            print_raw_windows_copy(printer, data)
+                .with_context(|| format!("RAW spooler: {e:#}"))
+        }
+    }
+}
+
+/// Envío RAW vía spooler (OpenPrinter → StartDoc → StartPage → WritePrinter → EndPage → EndDoc).
+#[cfg(target_os = "windows")]
+fn print_raw_windows_spooler(printer: &str, data: &[u8]) -> Result<u32> {
     use std::ffi::c_void;
     use std::os::windows::ffi::OsStrExt;
     use windows::core::PWSTR;
@@ -481,27 +512,38 @@ fn print_raw_windows(printer: &str, data: &[u8]) -> Result<()> {
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
+    let mut open_datatype: Vec<u16> = "RAW\0".encode_utf16().collect();
+    let defaults = PRINTER_DEFAULTSW {
+        pDatatype: PWSTR(open_datatype.as_mut_ptr()),
+        pDevMode: std::ptr::null_mut(),
+        DesiredAccess: PRINTER_ACCESS_USE,
+    };
     let mut h_printer = HANDLE::default();
+    let mut written: u32 = 0;
     unsafe {
         OpenPrinterW(
             windows::core::PCWSTR(wide.as_ptr()),
             &mut h_printer,
-            None,
+            Some(&defaults),
         )
-        .map_err(|e| anyhow::anyhow!("OpenPrinterW: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("OpenPrinterW({printer}): {e}"))?;
         let mut doc_name: Vec<u16> = "KaiPrinters\0".encode_utf16().collect();
-        let mut datatype: Vec<u16> = "RAW\0".encode_utf16().collect();
+        let mut doc_datatype: Vec<u16> = "RAW\0".encode_utf16().collect();
         let doc_info = DOC_INFO_1W {
             pDocName: PWSTR(doc_name.as_mut_ptr()),
             pOutputFile: PWSTR::null(),
-            pDatatype: PWSTR(datatype.as_mut_ptr()),
+            pDatatype: PWSTR(doc_datatype.as_mut_ptr()),
         };
         let job_id = StartDocPrinterW(h_printer, 1, &doc_info);
         if job_id == 0 {
             let _ = ClosePrinter(h_printer);
             anyhow::bail!("StartDocPrinterW returned 0");
         }
-        let mut written: u32 = 0;
+        if StartPagePrinter(h_printer) == BOOL(0) {
+            let _ = EndDocPrinter(h_printer);
+            let _ = ClosePrinter(h_printer);
+            anyhow::bail!("StartPagePrinter failed");
+        }
         let ok = WritePrinter(
             h_printer,
             data.as_ptr() as *const c_void,
@@ -509,6 +551,7 @@ fn print_raw_windows(printer: &str, data: &[u8]) -> Result<()> {
             &mut written,
         );
         if ok == BOOL(0) {
+            let _ = EndPagePrinter(h_printer);
             let _ = EndDocPrinter(h_printer);
             let _ = ClosePrinter(h_printer);
             anyhow::bail!("WritePrinter failed");
@@ -520,9 +563,38 @@ fn print_raw_windows(printer: &str, data: &[u8]) -> Result<()> {
                 "WritePrinter wrote fewer bytes than expected"
             );
         }
+        let _ = EndPagePrinter(h_printer);
         let _ = EndDocPrinter(h_printer);
         let _ = ClosePrinter(h_printer);
     }
+    Ok(written)
+}
+
+/// Respaldo: `copy /B` a `\\localhost\\<cola>` (suele funcionar cuando el driver ignora WritePrinter sin página).
+#[cfg(target_os = "windows")]
+fn print_raw_windows_copy(printer: &str, data: &[u8]) -> Result<()> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let path = std::env::temp_dir().join(format!("kai_escpos_{id}.bin"));
+    std::fs::write(&path, data).context("write escpos temp")?;
+    let dest = format!(r"\\localhost\{printer}");
+    let path_s = path.to_string_lossy();
+    let status = Command::new("cmd")
+        .creation_flags(CREATE_NO_WINDOW)
+        .args(["/C", "copy", "/B", &path_s, &dest])
+        .status()
+        .context("copy /B to printer")?;
+    let _ = std::fs::remove_file(&path);
+    if !status.success() {
+        anyhow::bail!("copy /B to {dest} exited {:?}", status.code());
+    }
+    print_diag::info(format!(
+        "Windows RAW (copy /B): «{printer}» → {dest}, {} bytes",
+        data.len()
+    ));
+    tracing::info!(printer, dest, bytes = data.len(), "ESC/POS enviado vía copy /B");
     Ok(())
 }
 

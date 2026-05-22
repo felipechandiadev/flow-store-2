@@ -17,6 +17,33 @@ export type PosAgentPrintMeta = {
   internalFolio?: string;
 };
 
+export function isUnknownPrinterLabelError(e: unknown): boolean {
+  return String(e).includes("unknown_printer_display_label");
+}
+
+/**
+ * Encola ticket vectorial: con ESC/POS activo prueba primero sin alias (mapeo por propósito).
+ */
+export async function enqueueVectorTicketWithMappingFallback(
+  escposMode: boolean,
+  withAlias: () => Promise<void>,
+  withoutAlias: () => Promise<void>,
+): Promise<boolean> {
+  const attempts = escposMode ? [withoutAlias, withAlias] : [withAlias, withoutAlias];
+  for (const attempt of attempts) {
+    try {
+      await attempt();
+      return true;
+    } catch (e) {
+      if (!isUnknownPrinterLabelError(e)) {
+        console.warn("[KaiStore print] enqueue vector:", e);
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
 export function buildAgentWebSocketUrl(): string {
   const cfg = readPrintServiceConfigFromStorage();
   const tls = printServicePageRequiresTls() || cfg.useTls;
@@ -44,9 +71,13 @@ export async function withPrintAgentConnection<T>(
 
   try {
     conn.connect();
-    await conn.waitForOpen(8_000);
+    await conn.waitForOpen(12_000);
     reachedOpen = true;
-    await new Promise((r) => globalThis.setTimeout(r, 450));
+    try {
+      hello = await conn.waitForHello(6_000);
+    } catch {
+      hello = null;
+    }
     return await fn(conn, hello);
   } finally {
     conn.disconnect({ ifConnecting: reachedOpen ? "default" : "abandon" });
@@ -61,7 +92,7 @@ async function tryEnqueueOnAgent(
   const base64 = await htmlToPdfBase64(html, purpose);
 
   await withPrintAgentConnection(purpose, async (conn) => {
-    const res = (await conn.enqueuePosPrint({
+    const baseBody = {
       purpose,
       type: "pdf-base64",
       payload: base64,
@@ -70,8 +101,14 @@ async function tryEnqueueOnAgent(
       sourceApp: "pwa-pos",
       documentType: meta.documentType,
       internalFolio: meta.internalFolio,
-    })) as { jobId?: string; queued?: boolean };
-
+    };
+    let res: { jobId?: string; queued?: boolean };
+    try {
+      res = (await conn.enqueuePosPrint(baseBody)) as { jobId?: string; queued?: boolean };
+    } catch (e) {
+      if (!isUnknownPrinterLabelError(e)) throw e;
+      res = (await conn.enqueuePrint(baseBody)) as { jobId?: string; queued?: boolean };
+    }
     if (res && res.queued === false && !res.jobId) {
       throw new Error("enqueue_rejected");
     }

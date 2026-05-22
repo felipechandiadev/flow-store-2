@@ -4,7 +4,10 @@ use crate::db::{Db, PendingJob};
 use crate::pos_sale_ticket_pdf;
 use crate::cut_test_pdf;
 use crate::ticket_test_pdf;
+use crate::ticket_test_escpos;
+use crate::escpos_qa;
 use crate::platform;
+use crate::print_diag;
 use crate::state::AppState;
 use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
@@ -27,7 +30,7 @@ pub fn spawn_worker(state: Arc<AppState>) {
                     continue;
                 }
             };
-            if let Err(e) = process_one(&db, &job, &notify) {
+            if let Err(e) = process_one(&state, &job) {
                 tracing::error!(job_id = %job.id, "print job: {e:#}");
                 let retries = db.retry_count(&job.id).unwrap_or(0);
                 if retries < 3 {
@@ -76,10 +79,22 @@ fn printers_for_purpose_with_fallback(db: &Db, purpose: &str) -> Result<Vec<Stri
             printers = docs;
         }
     }
+    if printers.is_empty() && purpose == "documents" {
+        let tickets = db.printers_for_purpose_ordered("tickets")?;
+        if !tickets.is_empty() {
+            tracing::warn!(
+                "no printer mapped for documents; using tickets mapping as fallback ({})",
+                tickets.join(", ")
+            );
+            printers = tickets;
+        }
+    }
     Ok(printers)
 }
 
-fn process_one(db: &Db, job: &PendingJob, notify: &tokio::sync::broadcast::Sender<String>) -> Result<()> {
+fn process_one(state: &Arc<AppState>, job: &PendingJob) -> Result<()> {
+    let db = state.db.as_ref();
+    let notify = &state.broadcast;
     db.update_job_status(&job.id, "printing", None)?;
     let path = PathBuf::from(&job.payload_ref);
     if !path.exists() {
@@ -98,10 +113,14 @@ fn process_one(db: &Db, job: &PendingJob, notify: &tokio::sync::broadcast::Sende
             "no printer mapped for {purpose} (configure «Tickets» in KaiPrinters or map «Documentos»)"
         );
     }
+    let payload_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
     let mut last_err: Option<anyhow::Error> = None;
     for printer in &printers {
         let thermal_80 = purpose == "tickets";
-        let force_cut_test = job.document_type.as_deref() == Some("test_cut");
+        let force_cut_test = matches!(
+            job.document_type.as_deref(),
+            Some("test_cut") | Some("test_escpos_qa")
+        );
         let auto_cut =
             thermal_80 && (force_cut_test || db.auto_cut_enabled_for_printer(printer, purpose));
         let thermal = platform::ThermalPrintOptions {
@@ -114,6 +133,13 @@ fn process_one(db: &Db, job: &PendingJob, notify: &tokio::sync::broadcast::Sende
             .and_then(|e| e.to_str())
             .map(|e| e.eq_ignore_ascii_case("escpos"))
             .unwrap_or(false);
+        if is_escpos {
+            let kind = job.document_type.as_deref().unwrap_or("ticket");
+            print_diag::info(format!(
+                "Trabajo {} ({kind}): enviando ESC/POS ({payload_bytes} bytes) → «{printer}», corte={}, copias={copies}",
+                job.id, auto_cut = auto_cut
+            ));
+        }
         let print_result = if is_escpos {
             platform::print_escpos_to_printer(&path, printer, copies, thermal)
         } else {
@@ -121,6 +147,12 @@ fn process_one(db: &Db, job: &PendingJob, notify: &tokio::sync::broadcast::Sende
         };
         match print_result {
             Ok(()) => {
+                if is_escpos {
+                    print_diag::info(format!(
+                        "Trabajo {}: ESC/POS entregado al spooler de «{printer}» ({payload_bytes} bytes en archivo)",
+                        job.id
+                    ));
+                }
                 let _ = std::fs::remove_file(&path);
                 db.delete_job(&job.id)?;
                 let ev = serde_json::json!({
@@ -132,6 +164,12 @@ fn process_one(db: &Db, job: &PendingJob, notify: &tokio::sync::broadcast::Sende
                 return Ok(());
             }
             Err(e) => {
+                if is_escpos {
+                    print_diag::error(format!(
+                        "Trabajo {}: falló ESC/POS en «{printer}»: {e:#}",
+                        job.id
+                    ));
+                }
                 tracing::warn!(job_id = %job.id, printer = %printer, "intento en impresora: {e:#}");
                 last_err = Some(e);
             }
@@ -152,19 +190,39 @@ pub fn decode_pdf_base64_to_temp(dir: &PathBuf, b64: &str) -> Result<PathBuf> {
     Ok(p)
 }
 
-/// PDF mínimo con una línea para probar corte automático (tickets / 80 mm).
-pub fn write_cut_test_pdf_path(dir: &PathBuf) -> Result<PathBuf> {
+/// Prueba de corte: PDF (CUPS/GS) o ESC/POS según `use_escpos`.
+pub fn write_cut_test_path(dir: &PathBuf, use_escpos: bool) -> Result<PathBuf> {
     std::fs::create_dir_all(dir)?;
     let id = uuid::Uuid::new_v4().to_string();
+    if use_escpos {
+        let p = dir.join(format!("cut_test_{id}.escpos"));
+        ticket_test_escpos::write_cut_test_escpos(&p)?;
+        return Ok(p);
+    }
     let p = dir.join(format!("cut_test_{id}.pdf"));
     cut_test_pdf::write_cut_test_pdf(&p)?;
     Ok(p)
 }
 
-/// PDF de prueba: ticket 80 mm para `tickets`, documento A4 mínimo para `documents`.
-pub fn write_test_print_pdf(dir: &PathBuf, purpose: &str, agent_label: &str) -> Result<PathBuf> {
+/// PDF mínimo con una línea para probar corte automático (tickets / 80 mm).
+pub fn write_cut_test_pdf_path(dir: &PathBuf) -> Result<PathBuf> {
+    write_cut_test_path(dir, false)
+}
+
+/// Prueba de impresión: ticket 80 mm (PDF o ESC/POS) o documento A4 mínimo.
+pub fn write_test_print_path(
+    dir: &PathBuf,
+    purpose: &str,
+    agent_label: &str,
+    use_escpos: bool,
+) -> Result<PathBuf> {
     std::fs::create_dir_all(dir)?;
     let id = uuid::Uuid::new_v4().to_string();
+    if purpose == "tickets" && use_escpos {
+        let p = dir.join(format!("test_{id}.escpos"));
+        ticket_test_escpos::write_pos_ticket_test_escpos(&p, agent_label)?;
+        return Ok(p);
+    }
     let p = dir.join(format!("test_{id}.pdf"));
     if purpose == "tickets" {
         ticket_test_pdf::write_pos_ticket_test_pdf(&p, agent_label)?;
@@ -173,6 +231,24 @@ pub fn write_test_print_pdf(dir: &PathBuf, purpose: &str, agent_label: &str) -> 
         std::fs::write(&p, PDF)?;
     }
     Ok(p)
+}
+
+/// PDF de prueba: ticket 80 mm para `tickets`, documento A4 mínimo para `documents`.
+pub fn write_test_print_pdf(dir: &PathBuf, purpose: &str, agent_label: &str) -> Result<PathBuf> {
+    write_test_print_path(dir, purpose, agent_label, false)
+}
+
+/// Hoja QA ESC/POS (siempre RAW; no depende del switch «ESC/POS directo»).
+pub fn write_escpos_qa_path(
+    dir: &PathBuf,
+    agent_label: &str,
+    system_printer: &str,
+) -> Result<(PathBuf, usize)> {
+    std::fs::create_dir_all(dir)?;
+    let id = uuid::Uuid::new_v4().to_string();
+    let p = dir.join(format!("escpos_qa_{id}.escpos"));
+    let bytes = escpos_qa::write_escpos_qa_file(&p, agent_label, system_printer)?;
+    Ok((p, bytes))
 }
 
 /// Genera PDF vectorial de ticket de venta POS desde JSON (`pos-sale-ticket`).

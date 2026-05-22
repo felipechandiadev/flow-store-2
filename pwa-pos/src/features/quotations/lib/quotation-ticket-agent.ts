@@ -6,7 +6,10 @@ import {
 } from "@flowstore/print-service-client";
 import type { CompanyDetails } from "@/features/company/infrastructure/company.request";
 import { fetchReceiptLogoBase64 } from "@/features/pos-print/lib/pos-sale-ticket-agent";
-import { withPrintAgentConnection } from "@/features/pos-print/lib/pos-agent-print";
+import {
+  enqueueVectorTicketWithMappingFallback,
+  withPrintAgentConnection,
+} from "@/features/pos-print/lib/pos-agent-print";
 import { printPosHtmlViaAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-agent-print";
 import {
   buildQuotationReceiptHtml,
@@ -62,7 +65,7 @@ function quotationToTicketPayload(
  */
 export async function printPosQuotationReceiptAgentOrBrowser(
   input: QuotationReceiptPrintInput,
-): Promise<"agent-vector" | "browser"> {
+): Promise<"agent-vector" | "browser" | "agent-unavailable"> {
   if (typeof window === "undefined") return "browser";
 
   const folio = input.quotation.documentNumber?.trim() || "cotizacion";
@@ -89,27 +92,41 @@ export async function printPosQuotationReceiptAgentOrBrowser(
   let escposMode = false;
 
   try {
+    let enqueued = false;
     await withPrintAgentConnection("tickets", async (conn, hello) => {
       escposMode = await agentTicketEscposEnabled(conn, "tickets");
       if (!agentSupportsPosQuotationTicket(hello)) {
         throw new Error("agent_no_pos_quotation_ticket");
       }
-      const res = (await conn.enqueuePosQuotationTicket(ticket, {
-        ...meta,
-        sourceApp: "pwa-pos",
-      })) as { jobId?: string; queued?: boolean };
-      if (res && res.queued === false && !res.jobId) {
-        throw new Error("enqueue_rejected");
-      }
+      enqueued = await enqueueVectorTicketWithMappingFallback(
+        escposMode,
+        async () => {
+          const res = (await conn.enqueuePosQuotationTicket(ticket, {
+            ...meta,
+            sourceApp: "pwa-pos",
+          })) as { jobId?: string; queued?: boolean };
+          if (res && res.queued === false && !res.jobId) {
+            throw new Error("enqueue_rejected");
+          }
+        },
+        async () => {
+          const res = (await conn.enqueuePosQuotationTicket(
+            ticket,
+            { ...meta, sourceApp: "pwa-pos" },
+            true,
+          )) as { jobId?: string; queued?: boolean };
+          if (res && res.queued === false && !res.jobId) {
+            throw new Error("enqueue_rejected");
+          }
+        },
+      );
+      if (!enqueued) throw new Error("enqueue_quotation_failed");
     });
     return "agent-vector";
   } catch (e) {
     if (escposMode) {
-      console.warn(
-        "[KaiStore print] cotización: ESC/POS en KaiPrinters — no se usa PDF HTML de respaldo.",
-        e,
-      );
-      return "agent-vector";
+      console.warn("[KaiStore print] cotización ESC/POS: no se encoló en KaiPrinters.", e);
+      return "agent-unavailable";
     }
     const html = buildQuotationReceiptHtml(input, window.location.origin);
     printPosHtmlViaAgentOrBrowserFireAndForget(html, "tickets", {

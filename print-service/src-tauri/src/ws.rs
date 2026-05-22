@@ -541,6 +541,10 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                     .flatten();
                 if use_escpos {
                     tracing::info!(folio = %folio, %print_type, printer = ?resolved_printer, "print: vector ticket → ESC/POS RAW");
+                    state.agent_log.push_info(format!(
+                        "Encolando {print_type} ESC/POS (folio {folio}) → impresora {:?}, alias {:?}",
+                        resolved_printer, printer_display_label_early
+                    ));
                     let write = vector_ticket_escpos_writer(print_type);
                     match write(&state.temp_dir, ticket) {
                         Ok(p) => p,
@@ -567,11 +571,13 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                         .ticket_escpos_enabled_for_enqueue(purpose, printer_display_label_early)
                         .unwrap_or(false)
                 {
-                    tracing::warn!(
-                        purpose,
-                        label = ?printer_display_label_early,
-                        "rechazado pdf-base64: tickets en modo ESC/POS (use ticket vectorial pos-*)"
+                    let msg = format!(
+                        "Rechazado PDF en tickets (modo ESC/POS activo, alias {:?}). \
+                         El POS debe enviar ticket vectorial (pos-sale-ticket, pos-quotation-ticket, etc.), no pdf-base64.",
+                        printer_display_label_early
                     );
+                    tracing::warn!(purpose, label = ?printer_display_label_early, "{msg}");
+                    state.agent_log.push_warn(msg);
                     return OutResponse::err(
                         rid,
                         "ticket_escpos_enabled_use_vector_ticket".to_string(),
@@ -631,20 +637,54 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
             ) {
                 return OutResponse::err(rid, format!("{e:#}"));
             }
+            let escpos_job = queue_filename.ends_with(".escpos");
+            state.agent_log.push_info(format!(
+                "POS encoló {print_type} ({}) propósito={purpose} alias={:?} cola={:?}",
+                if escpos_job { "ESC/POS" } else { "PDF" },
+                printer_display_label,
+                target_system_printer
+            ));
             OutResponse::ok(rid, json!({ "jobId": id, "queued": true }))
         }
         "test_print" => {
             let purpose = env.extra.get("purpose").and_then(|v| v.as_str()).unwrap_or("documents");
+            let printer_display_label = env
+                .extra
+                .get("printerDisplayLabel")
+                .or_else(|| env.extra.get("printerAlias"))
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            let resolved = state
+                .db
+                .resolve_printer_for_enqueue(purpose, printer_display_label)
+                .ok()
+                .flatten();
+            let use_escpos = purpose == "tickets"
+                && resolved
+                    .as_deref()
+                    .map(|p| state.db.ticket_escpos_enabled_for_printer(p, purpose))
+                    .unwrap_or(false);
             let agent_label = state.db.agent_display_name();
-            let path = match jobs::write_test_print_pdf(&state.temp_dir, purpose, &agent_label) {
+            let path = match jobs::write_test_print_path(
+                &state.temp_dir,
+                purpose,
+                &agent_label,
+                use_escpos,
+            ) {
                 Ok(p) => p,
                 Err(e) => return OutResponse::err(rid, format!("{e:#}")),
+            };
+            let filename = if use_escpos {
+                "test_print.escpos"
+            } else {
+                "test_print.pdf"
             };
             let id = uuid::Uuid::new_v4().to_string();
             if let Err(e) = state.db.insert_job(
                 &id,
                 Some(purpose),
-                "test_print.pdf",
+                filename,
                 path.to_string_lossy().as_ref(),
                 1,
                 env.client_id.as_deref(),

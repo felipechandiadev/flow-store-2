@@ -30,7 +30,7 @@ export async function loadPosSaleReceiptDataForReprint(
 export async function reprintSaleTicket(transactionId: string): Promise<{
   success: boolean;
   message?: string;
-  channel?: "agent-vector" | "agent-raster" | "browser";
+  channel?: "agent-vector" | "agent-raster" | "browser" | "agent-unavailable";
 }> {
   const loaded = await loadPosSaleReceiptDataForReprint(transactionId);
   if (!loaded.success) {

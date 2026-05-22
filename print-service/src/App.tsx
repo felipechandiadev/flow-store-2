@@ -20,6 +20,7 @@ function normalizeAgentDisplayName(raw: string | undefined): string {
 
 const PURPOSES = [
   { id: "tickets", label: "Tickets" },
+  { id: "documents", label: "Documentos" },
   { id: "labels", label: "Etiquetas" },
   { id: "reports", label: "Informes" },
 ] as const;
@@ -28,7 +29,6 @@ const DEFAULT_PURPOSE = PURPOSES[0].id;
 
 function normalizeMappingPurpose(purpose: string | undefined): string {
   const p = (purpose?.trim() || DEFAULT_PURPOSE).toLowerCase();
-  if (p === "documents") return DEFAULT_PURPOSE;
   return PURPOSES.some(({ id }) => id === p) ? p : DEFAULT_PURPOSE;
 }
 
@@ -157,6 +157,7 @@ export default function App() {
   const [settingsSaveBusy, setSettingsSaveBusy] = useState(false);
   const [networkBusy, setNetworkBusy] = useState(false);
   const [lineTestBusyId, setLineTestBusyId] = useState<string | null>(null);
+  const [escposQaBusyId, setEscposQaBusyId] = useState<string | null>(null);
   const [cutTestBusyId, setCutTestBusyId] = useState<string | null>(null);
   const [printersRefreshBusy, setPrintersRefreshBusy] = useState(false);
 
@@ -362,6 +363,36 @@ export default function App() {
     }
   }
 
+  async function handleLineEscposQa(line: MappingLineRow) {
+    const printer = line.systemPrinterName.trim();
+    if (!printer) {
+      window.alert("Seleccioná una impresora del sistema para la prueba ESC/POS.");
+      return;
+    }
+    if (line.purpose !== "tickets") {
+      window.alert("La prueba ESC/POS QA solo está disponible en líneas de propósito Tickets.");
+      return;
+    }
+    setEscposQaBusyId(line.id);
+    try {
+      await invoke("queue_escpos_qa_print", {
+        systemPrinterName: printer,
+        purpose: line.purpose,
+      });
+      await fetchDashboard("live");
+    } catch (e: unknown) {
+      const msg =
+        typeof e === "string"
+          ? e
+          : e && typeof e === "object" && "message" in e && typeof (e as Error).message === "string"
+            ? (e as Error).message
+            : "No se pudo encolar la prueba ESC/POS.";
+      window.alert(msg);
+    } finally {
+      setEscposQaBusyId(null);
+    }
+  }
+
   async function handleLineTestPrint(line: MappingLineRow) {
     const printer = line.systemPrinterName.trim();
     if (!printer) {
@@ -375,7 +406,10 @@ export default function App() {
     }
     setLineTestBusyId(line.id);
     try {
-      await invoke("queue_test_print", { purpose: line.purpose, systemPrinterName: printer });
+      await invoke("queue_test_print", {
+        purpose: line.purpose,
+        systemPrinterName: printer,
+      });
       await fetchDashboard("live");
     } catch {
       window.alert("No se pudo encolar la prueba de impresión.");
@@ -765,20 +799,38 @@ export default function App() {
                     />
                   </div>
                   {line.purpose === "tickets" ? (
-                    <Switch
-                      label="ESC/POS directo (sin PDF)"
-                      labelPosition="right"
-                      disabled={!line.systemPrinterName.trim()}
-                      checked={line.ticketEscposEnabled === true}
-                      onChange={(enabled) =>
-                        setLocalLines((rows) =>
-                          rows.map((r) =>
-                            r.id === line.id ? { ...r, ticketEscposEnabled: enabled } : r,
-                          ),
-                        )
-                      }
-                      data-test-id={`line-ticket-escpos-${line.id}`}
-                    />
+                    <>
+                      <Switch
+                        label="ESC/POS directo (sin PDF)"
+                        labelPosition="right"
+                        disabled={!line.systemPrinterName.trim()}
+                        checked={line.ticketEscposEnabled === true}
+                        onChange={(enabled) =>
+                          setLocalLines((rows) =>
+                            rows.map((r) =>
+                              r.id === line.id ? { ...r, ticketEscposEnabled: enabled } : r,
+                            ),
+                          )
+                        }
+                        data-test-id={`line-ticket-escpos-${line.id}`}
+                      />
+                      <button
+                        type="button"
+                        className="mt-2 w-full rounded-md border border-sky-600/40 bg-sky-50 px-3 py-2 text-left text-xs font-medium text-sky-900 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-100 dark:hover:bg-sky-900/50"
+                        disabled={!line.systemPrinterName.trim() || escposQaBusyId === line.id}
+                        title="Envía bytes RAW de prueba (tipografía, montos, código de barras). No requiere activar el switch de producción."
+                        data-test-id={`line-escpos-qa-${line.id}`}
+                        onClick={() => void handleLineEscposQa(line)}
+                      >
+                        {escposQaBusyId === line.id
+                          ? "Enviando prueba ESC/POS…"
+                          : "Prueba ESC/POS (QA RAW)"}
+                      </button>
+                      <p className="mt-1 text-[0.65rem] leading-snug text-muted-foreground">
+                        Usá esta prueba para validar RAW en Windows. Revisá el registro con
+                        «Diagnóstico ESC/POS» activo.
+                      </p>
+                    </>
                   ) : null}
                   <div className="mt-2 flex shrink-0 justify-end gap-1">
                     <IconButton

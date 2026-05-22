@@ -1,8 +1,11 @@
 mod agent_log;
+mod print_diag;
 mod db;
 mod events;
 mod jobs;
 mod ticket_test_pdf;
+mod ticket_test_escpos;
+mod escpos_qa;
 mod cut_test_pdf;
 mod pos_sale_ticket_pdf;
 mod escpos_raster;
@@ -516,7 +519,7 @@ fn set_service_settings(
     Ok(())
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command]
 fn queue_test_cut_print(
     state: tauri::State<'_, Arc<AppState>>,
     system_printer_name: Option<String>,
@@ -561,14 +564,30 @@ fn queue_test_cut_print(
                 .to_string()
         })?;
 
-    let path = jobs::write_cut_test_pdf_path(&state.temp_dir).map_err(|e| e.to_string())?;
+    let use_escpos = state
+        .db
+        .ticket_escpos_enabled_for_printer(&target_sp, "tickets");
+    let path = jobs::write_cut_test_path(&state.temp_dir, use_escpos).map_err(|e| e.to_string())?;
+    let filename = if use_escpos {
+        "cut_test.escpos"
+    } else {
+        "cut_test.pdf"
+    };
+    let format_label = if use_escpos {
+        "ESC/POS RAW"
+    } else {
+        "PDF"
+    };
+    state.agent_log.push_info(format!(
+        "Prueba de corte encolada ({format_label}) → «{target_sp}»"
+    ));
     let id = uuid::Uuid::new_v4().to_string();
     state
         .db
         .insert_job(
             &id,
             Some("tickets"),
-            "cut_test.pdf",
+            filename,
             path.to_string_lossy().as_ref(),
             1,
             Some("local_ui"),
@@ -583,7 +602,59 @@ fn queue_test_cut_print(
     Ok(id)
 }
 
-#[tauri::command(rename_all = "snake_case")]
+#[tauri::command]
+fn queue_escpos_qa_print(
+    state: tauri::State<'_, Arc<AppState>>,
+    system_printer_name: Option<String>,
+    purpose: Option<String>,
+) -> Result<String, String> {
+    let purpose = purpose
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("tickets");
+    if purpose != "tickets" {
+        return Err(
+            "La prueba ESC/POS QA solo aplica a líneas con propósito «Tickets».".to_string(),
+        );
+    }
+    let target_sp = system_printer_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .ok_or_else(|| "Seleccioná una impresora del sistema en la línea.".to_string())?;
+    let agent_label = state.db.agent_display_name();
+    let (path, bytes) = jobs::write_escpos_qa_path(&state.temp_dir, &agent_label, &target_sp)
+        .map_err(|e| e.to_string())?;
+    let escpos_on = state.db.ticket_escpos_enabled_for_printer(&target_sp, purpose);
+    let auto_cut = state.db.auto_cut_enabled_for_printer(&target_sp, purpose);
+    state.agent_log.push_info(format!(
+        "QA ESC/POS encolada: {bytes} bytes → «{target_sp}» (switch producción ESC/POS={}, corte={auto_cut})",
+        escpos_on = escpos_on
+    ));
+    let id = uuid::Uuid::new_v4().to_string();
+    state
+        .db
+        .insert_job(
+            &id,
+            Some(purpose),
+            "escpos_qa.escpos",
+            path.to_string_lossy().as_ref(),
+            1,
+            Some("local_ui"),
+            0,
+            Some("test_escpos_qa"),
+            None,
+            None,
+            None,
+            Some(target_sp.as_str()),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(id)
+}
+
+#[tauri::command]
 fn queue_test_print(
     state: tauri::State<'_, Arc<AppState>>,
     purpose: Option<String>,
@@ -598,15 +669,38 @@ fn queue_test_print(
         .map(str::trim)
         .filter(|s| !s.is_empty());
     let agent_label = state.db.agent_display_name();
-    let path = jobs::write_test_print_pdf(&state.temp_dir, purpose, &agent_label)
-        .map_err(|e| e.to_string())?;
+    let use_escpos = purpose == "tickets"
+        && target_sp
+            .map(|p| state.db.ticket_escpos_enabled_for_printer(p, purpose))
+            .unwrap_or(false);
+    let path =
+        jobs::write_test_print_path(&state.temp_dir, purpose, &agent_label, use_escpos)
+            .map_err(|e| e.to_string())?;
+    let filename = if use_escpos {
+        "test_print.escpos"
+    } else {
+        "test_print.pdf"
+    };
+    let format_label = if use_escpos {
+        "ESC/POS RAW"
+    } else if purpose == "tickets" {
+        "PDF ticket"
+    } else {
+        "PDF documento"
+    };
+    let printer_note = target_sp
+        .map(|p| format!("«{p}»"))
+        .unwrap_or_else(|| "(primera cola del propósito)".to_string());
+    state.agent_log.push_info(format!(
+        "Prueba de impresión encolada ({format_label}, {purpose}) → {printer_note}"
+    ));
     let id = uuid::Uuid::new_v4().to_string();
     state
         .db
         .insert_job(
             &id,
             Some(purpose),
-            "test_print.pdf",
+            filename,
             path.to_string_lossy().as_ref(),
             1,
             Some("local_ui"),
@@ -675,6 +769,7 @@ pub fn run() {
                 .app_data_dir()
                 .map_err(|e| format!("app_data_dir: {e}"))?;
             let agent_log = agent_log::AgentLog::new();
+            print_diag::init(agent_log.clone());
             init_tracing(agent_log.clone()).map_err(|e| format!("tracing: {e}"))?;
 
             let db = Arc::new(db::Db::open(&data_dir).map_err(|e| format!("db: {e}"))?);
@@ -796,6 +891,7 @@ pub fn run() {
             set_mapping_lines,
             set_service_settings,
             queue_test_print,
+            queue_escpos_qa_print,
             queue_test_cut_print,
             cancel_print_job,
             cancel_all_print_jobs,

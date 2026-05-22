@@ -536,7 +536,7 @@ impl Db {
         let c = self.inner.lock();
         let mut stmt = c.prepare(
             "SELECT system_printer_name FROM printer_mapping_lines
-             WHERE purpose = ?1 AND trim(display_label) = ?2
+             WHERE purpose = ?1 AND lower(trim(display_label)) = lower(trim(?2))
              ORDER BY sort_order ASC, id ASC LIMIT 1",
         )?;
         let mut rows = stmt.query(params![purpose, t])?;

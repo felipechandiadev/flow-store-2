@@ -7,7 +7,10 @@ import {
 } from "@flowstore/print-service-client";
 import type { CustomerCreditNotePrintData } from "@/features/customer-credit-notes/types/customer-credit-note-print.types";
 import { fetchReceiptLogoBase64 } from "@/features/pos-print/lib/pos-sale-ticket-agent";
-import { withPrintAgentConnection } from "@/features/pos-print/lib/pos-agent-print";
+import {
+  enqueueVectorTicketWithMappingFallback,
+  withPrintAgentConnection,
+} from "@/features/pos-print/lib/pos-agent-print";
 import { printPosHtmlViaAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-agent-print";
 import { buildCustomerCreditNoteReceiptHtml } from "@/features/customer-credit-notes/lib/customer-credit-note-receipt-print";
 
@@ -54,7 +57,7 @@ function creditNoteToTicketPayload(
 
 export async function printCustomerCreditNoteReceiptAgentOrBrowser(
   data: CustomerCreditNotePrintData,
-): Promise<"agent-vector" | "browser"> {
+): Promise<"agent-vector" | "browser" | "agent-unavailable"> {
   if (typeof window === "undefined") return "browser";
 
   const folio = data.creditNoteFolio?.trim() || "nota-credito";
@@ -79,27 +82,41 @@ export async function printCustomerCreditNoteReceiptAgentOrBrowser(
   let escposMode = false;
 
   try {
+    let enqueued = false;
     await withPrintAgentConnection("tickets", async (conn, hello) => {
       escposMode = await agentTicketEscposEnabled(conn, "tickets");
       if (!agentSupportsPosCustomerCreditNoteTicket(hello)) {
         throw new Error("agent_no_pos_customer_credit_note_ticket");
       }
-      const res = (await conn.enqueuePosCustomerCreditNoteTicket(ticket, {
-        ...meta,
-        sourceApp: "pwa-pos",
-      })) as { jobId?: string; queued?: boolean };
-      if (res && res.queued === false && !res.jobId) {
-        throw new Error("enqueue_rejected");
-      }
+      enqueued = await enqueueVectorTicketWithMappingFallback(
+        escposMode,
+        async () => {
+          const res = (await conn.enqueuePosCustomerCreditNoteTicket(ticket, {
+            ...meta,
+            sourceApp: "pwa-pos",
+          })) as { jobId?: string; queued?: boolean };
+          if (res && res.queued === false && !res.jobId) {
+            throw new Error("enqueue_rejected");
+          }
+        },
+        async () => {
+          const res = (await conn.enqueuePosCustomerCreditNoteTicket(
+            ticket,
+            { ...meta, sourceApp: "pwa-pos" },
+            true,
+          )) as { jobId?: string; queued?: boolean };
+          if (res && res.queued === false && !res.jobId) {
+            throw new Error("enqueue_rejected");
+          }
+        },
+      );
+      if (!enqueued) throw new Error("enqueue_credit_note_failed");
     });
     return "agent-vector";
   } catch (e) {
     if (escposMode) {
-      console.warn(
-        "[KaiStore print] nota de crédito: ESC/POS en KaiPrinters — no se usa PDF HTML de respaldo.",
-        e,
-      );
-      return "agent-vector";
+      console.warn("[KaiStore print] NC ESC/POS: no se encoló en KaiPrinters.", e);
+      return "agent-unavailable";
     }
     const html = buildCustomerCreditNoteReceiptHtml(data, window.location.origin);
     printPosHtmlViaAgentOrBrowserFireAndForget(html, "tickets", meta);
