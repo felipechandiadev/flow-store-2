@@ -21,16 +21,12 @@ export function isUnknownPrinterLabelError(e: unknown): boolean {
   return String(e).includes("unknown_printer_display_label");
 }
 
-/**
- * Encola ticket vectorial: con ESC/POS activo prueba primero sin alias (mapeo por propósito).
- */
+/** Tickets: primero mapeo por propósito (sin alias), luego con alias del POS. */
 export async function enqueueVectorTicketWithMappingFallback(
-  escposMode: boolean,
   withAlias: () => Promise<void>,
   withoutAlias: () => Promise<void>,
 ): Promise<boolean> {
-  const attempts = escposMode ? [withoutAlias, withAlias] : [withAlias, withoutAlias];
-  for (const attempt of attempts) {
+  for (const attempt of [withoutAlias, withAlias]) {
     try {
       await attempt();
       return true;
@@ -42,6 +38,10 @@ export async function enqueueVectorTicketWithMappingFallback(
     }
   }
   return false;
+}
+
+export function printTicketHtmlInBrowser(html: string, title: string): void {
+  printHtmlInHiddenIframe(html, title);
 }
 
 export function buildAgentWebSocketUrl(): string {
@@ -84,11 +84,14 @@ export async function withPrintAgentConnection<T>(
   }
 }
 
-async function tryEnqueueOnAgent(
+async function tryEnqueueDocumentPdfOnAgent(
   html: string,
   purpose: PosPrintAgentPurpose,
   meta: PosAgentPrintMeta,
 ): Promise<void> {
+  if (purpose === "tickets") {
+    throw new Error("tickets_no_pdf");
+  }
   const base64 = await htmlToPdfBase64(html, purpose);
 
   await withPrintAgentConnection(purpose, async (conn) => {
@@ -116,8 +119,7 @@ async function tryEnqueueOnAgent(
 }
 
 /**
- * Si el POS tiene alias + agente conectado y propósito mapeado → envía PDF al agente (sin diálogo).
- * En cualquier otro caso → `window.print()` en iframe oculto.
+ * Documentos: PDF al agente si hay alias; tickets: solo diálogo del navegador (HTML).
  */
 export async function printPosHtmlViaAgentOrBrowser(
   html: string,
@@ -126,13 +128,18 @@ export async function printPosHtmlViaAgentOrBrowser(
 ): Promise<"agent" | "browser"> {
   if (typeof window === "undefined") return "browser";
 
+  if (purpose === "tickets") {
+    printTicketHtmlInBrowser(html, meta.iframeTitle);
+    return "browser";
+  }
+
   if (!isPosAgentPrintConfiguredForPurpose(purpose)) {
     printHtmlInHiddenIframe(html, meta.iframeTitle);
     return "browser";
   }
 
   try {
-    await tryEnqueueOnAgent(html, purpose, meta);
+    await tryEnqueueDocumentPdfOnAgent(html, purpose, meta);
     return "agent";
   } catch (e) {
     if (process.env.NODE_ENV !== "production") {
@@ -143,7 +150,6 @@ export async function printPosHtmlViaAgentOrBrowser(
   }
 }
 
-/** Dispara impresión agente o navegador sin bloquear al llamador. */
 export function printPosHtmlViaAgentOrBrowserFireAndForget(
   html: string,
   purpose: PosPrintAgentPurpose,

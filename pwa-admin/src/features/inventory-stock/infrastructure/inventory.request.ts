@@ -185,6 +185,16 @@ function normalizeRow(row: unknown): StockGridRow | null {
       const n = typeof raw === "number" && Number.isFinite(raw) ? raw : Number(raw);
       return Number.isFinite(n) && n > 0 ? n : null;
     })(),
+    stockBaseUnitId: o.stockBaseUnitId != null ? String(o.stockBaseUnitId) : undefined,
+    saleUnitId: o.saleUnitId != null ? String(o.saleUnitId) : undefined,
+    stockBaseQtyPerSaleUnit: (() => {
+      const raw = o.stockBaseQtyPerSaleUnit ?? o.stockBaseQtyPerCountSaleUnit;
+      if (raw == null || raw === "") {
+        return null;
+      }
+      const n = typeof raw === "number" && Number.isFinite(raw) ? raw : Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })(),
     attributeValues: parseAttributeValues(o.attributeValues),
     totalStock:
       typeof o.totalStock === "number" && Number.isFinite(o.totalStock) ? o.totalStock : Number(o.totalStock) || 0,

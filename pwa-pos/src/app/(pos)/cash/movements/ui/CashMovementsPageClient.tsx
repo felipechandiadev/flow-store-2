@@ -134,11 +134,7 @@ export default function CashMovementsPageClient() {
         setPrintNotice(res.message ?? "No se pudo reimprimir el ticket");
         return;
       }
-      if (res.channel === "agent-unavailable") {
-        setPrintNotice(
-          "No se pudo enviar el ticket a KaiPrinters (ESC/POS activo). Revise que el alias Tickets coincida con el displayLabel de la línea y el registro del agente.",
-        );
-      } else if (res.channel === "browser") {
+      if (res.channel === "browser") {
         setPrintNotice(
           "Ticket enviado al diálogo de impresión del navegador (KaiPrinters no disponible o sin impresora Tickets).",
         );

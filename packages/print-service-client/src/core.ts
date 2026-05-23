@@ -398,8 +398,13 @@ export class PrintServiceConnection {
     return this.request("test_print", { purpose: purpose ?? "documents" });
   }
 
-  /** Encola un PDF (base64) en el agente. Incluye metadatos opcionales acordados en protocolo 2.1. */
+  /** Encola un job de impresión. Los tickets no admiten `pdf-base64` (solo vectorial → ESC/POS). */
   enqueuePrint(extra: Record<string, unknown>): Promise<unknown> {
+    const purpose = typeof extra.purpose === "string" ? extra.purpose : "documents";
+    const type = typeof extra.type === "string" ? extra.type : "pdf-base64";
+    if (purpose === "tickets" && type === "pdf-base64") {
+      return Promise.reject(new Error("tickets_no_pdf_use_vector_or_browser"));
+    }
     return this.request("print", extra);
   }
 
@@ -412,10 +417,7 @@ export class PrintServiceConnection {
     return this.enqueuePrint(mergePrinterDisplayLabelForPurposeIntoPrintExtras(purpose, { ...extra }));
   }
 
-  /**
-   * Ticket de venta POS: el agente genera PDF vectorial desde JSON (`type: "pos-sale-ticket"`).
-   * @param omitPrinterDisplayLabel Si true, usa solo mapeo por propósito (sin alias del POS).
-   */
+  /** Ticket de venta POS: el agente genera ESC/POS desde JSON (`type: "pos-sale-ticket"`). */
   enqueuePosSaleTicket(
     ticket: PosSaleTicketPayload,
     extras: PosSaleTicketPrintExtras & { purpose?: string },
@@ -438,9 +440,7 @@ export class PrintServiceConnection {
     return this.enqueuePosPrint(body);
   }
 
-  /**
-   * Cotización POS: el agente genera PDF o ESC/POS desde JSON (`type: "pos-quotation-ticket"`).
-   */
+  /** Cotización POS: ESC/POS desde JSON (`type: "pos-quotation-ticket"`). */
   enqueuePosQuotationTicket(
     ticket: PosQuotationTicketPayload,
     extras: PosQuotationTicketPrintExtras & { purpose?: string },

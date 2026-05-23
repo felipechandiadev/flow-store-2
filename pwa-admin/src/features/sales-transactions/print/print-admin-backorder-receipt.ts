@@ -15,7 +15,7 @@ export async function printAdminBackorderReceipt(
     return;
   }
   const channel = await printAdminSaleTicket(data);
-  if (channel === "skipped") {
-    printSaleReceiptDocument(data);
+  if (channel === "browser") {
+    console.info("[KaiStore admin print] ticket impreso vía navegador.");
   }
 }

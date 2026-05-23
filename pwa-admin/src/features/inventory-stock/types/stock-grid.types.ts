@@ -43,6 +43,10 @@ export type StockGridRow = {
   saleUnitSymbol: string;
   /** Stock base por 1 unidad de venta en conteo; null si no hay puente conteo. */
   stockBaseQtyPerCountSaleUnit: number | null;
+  stockBaseUnitId?: string;
+  saleUnitId?: string;
+  /** Cantidad en unidad base de stock equivalente a 1 unidad de venta (conversión UOM). */
+  stockBaseQtyPerSaleUnit?: number | null;
   attributeValues: Record<string, string>;
   totalStock: number;
   availableStock: number;

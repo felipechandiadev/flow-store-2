@@ -413,7 +413,7 @@ export function printPosSaleReceipt(data: PosSaleReceiptData): void {
   if (typeof window === "undefined") return;
   const folio = data.folio.trim() || "ticket";
   printPosSaleTicketAgentOrBrowserFireAndForget(data, {
-    filename: `${folio}.pdf`,
+    filename: `${folio}.escpos`,
     documentType: data.documentKind === "backorder" ? "BACKORDER" : "SALE",
     internalFolio: folio,
   });

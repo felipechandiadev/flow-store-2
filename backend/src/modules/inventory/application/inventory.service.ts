@@ -18,6 +18,8 @@ import { User } from '@modules/users/domain/user.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { ProductVariantsService } from '@modules/product-variants/application/product-variants.service';
+import { VariantQuantityConversionService } from '@modules/product-variants/application/variant-quantity-conversion.service';
+import { Unit } from '@modules/units/domain/unit.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
 import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
 import { UpdateStockLevelThresholdsDto } from './dto/update-stock-level-thresholds.dto';
@@ -53,6 +55,7 @@ export class InventoryService {
     private readonly dataSource: DataSource,
     private readonly transactionsService: TransactionsService,
     private readonly productVariantsService: ProductVariantsService,
+    private readonly variantQtyConversion: VariantQuantityConversionService,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly notificationInbox: NotificationInboxService,
@@ -118,6 +121,36 @@ export class InventoryService {
 
     const variants = await variantQb.getMany();
     const variantIds = variants.map((v) => v.id);
+
+    const companyIds = [...new Set(variants.map((v) => v.companyId).filter(Boolean))];
+    let unitsById = new Map<string, Unit>();
+    if (companyIds.length > 0) {
+      const unitRows = await this.dataSource.getRepository(Unit).find({
+        where: { companyId: In(companyIds), deletedAt: IsNull() },
+      });
+      unitsById = new Map(unitRows.map((u) => [u.id, u]));
+    }
+
+    const stockBaseQtyPerSaleUnitFor = (variant: ProductVariant): number | null => {
+      const stockId = variant.stockBaseUnitId ?? variant.unitId;
+      const saleId = variant.saleUnitId ?? variant.unitId;
+      if (!stockId || !saleId || stockId === saleId) {
+        return null;
+      }
+      try {
+        const r = this.variantQtyConversion.toVariantStockBaseSync(
+          variant,
+          1,
+          saleId,
+          unitsById,
+          'sale',
+        );
+        const q = Number(r.quantityInBase);
+        return Number.isFinite(q) && q > 0 ? q : null;
+      } catch {
+        return parsePositiveBridge((variant as any).stockBaseQtyPerCountSaleUnit);
+      }
+    };
 
     const stockLevels: StockLevel[] = [];
     const CHUNK = 500;
@@ -204,6 +237,9 @@ export class InventoryService {
         stockBaseQtyPerCountSaleUnit: parsePositiveBridge(
           (variant as any).stockBaseQtyPerCountSaleUnit,
         ),
+        stockBaseUnitId: variant.stockBaseUnitId ?? variant.unitId,
+        saleUnitId: variant.saleUnitId ?? variant.unitId,
+        stockBaseQtyPerSaleUnit: stockBaseQtyPerSaleUnitFor(variant),
         attributeValues: variant.attributeValues || {},
         totalStock: 0,
         availableStock: 0,

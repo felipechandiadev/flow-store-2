@@ -202,6 +202,61 @@ fn migrate_v5(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// Logo de ticket por línea (ruta relativa bajo app_data_dir, p. ej. `ticket_logos/{id}.png`).
+fn migrate_v6(conn: &Connection) -> Result<()> {
+    let cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(printer_mapping_lines)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if cols.iter().any(|c| c == "ticket_logo_path") {
+        return Ok(());
+    }
+    conn.execute(
+        "ALTER TABLE printer_mapping_lines ADD COLUMN ticket_logo_path TEXT",
+        [],
+    )?;
+    Ok(())
+}
+
+fn non_empty_logo_path(raw: Option<String>) -> Option<String> {
+    raw.map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn query_ticket_logo_path_by_label(
+    conn: &Connection,
+    purpose: &str,
+    display_label: &str,
+) -> Result<Option<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT ticket_logo_path FROM printer_mapping_lines
+         WHERE purpose = ?1 AND lower(trim(display_label)) = lower(trim(?2))
+         ORDER BY sort_order ASC, id ASC LIMIT 1",
+    )?;
+    let mut rows = stmt.query(params![purpose, display_label])?;
+    if let Some(r) = rows.next()? {
+        return Ok(non_empty_logo_path(r.get(0)?));
+    }
+    Ok(None)
+}
+
+fn query_ticket_logo_path_by_printer(
+    conn: &Connection,
+    purpose: &str,
+    system_printer: &str,
+) -> Result<Option<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT ticket_logo_path FROM printer_mapping_lines
+         WHERE purpose = ?1 AND trim(system_printer_name) = trim(?2)
+         ORDER BY sort_order ASC, id ASC LIMIT 1",
+    )?;
+    let mut rows = stmt.query(params![purpose, system_printer])?;
+    if let Some(r) = rows.next()? {
+        return Ok(non_empty_logo_path(r.get(0)?));
+    }
+    Ok(None)
+}
+
 fn migrate_v2(conn: &Connection) -> Result<()> {
     let sql = r#"
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mapping_lines_display_label_unique
@@ -246,6 +301,7 @@ impl Db {
         migrate_v3(&conn).context("migrate_v3")?;
         migrate_v4(&conn).context("migrate_v4")?;
         migrate_v5(&conn).context("migrate_v5")?;
+        migrate_v6(&conn).context("migrate_v6")?;
         Ok(Self {
             inner: Arc::new(Mutex::new(conn)),
         })
@@ -497,15 +553,40 @@ impl Db {
         Ok(names)
     }
 
+  /// Ruta relativa del logo configurado en la línea que imprimirá el ticket.
+    pub fn ticket_logo_rel_path_for_enqueue(
+        &self,
+        purpose: &str,
+        display_label: Option<&str>,
+        system_printer: Option<&str>,
+    ) -> Result<Option<String>> {
+        if purpose != "tickets" {
+            return Ok(None);
+        }
+        let c = self.inner.lock();
+        if let Some(lbl) = display_label.map(str::trim).filter(|s| !s.is_empty()) {
+            if let Some(path) = query_ticket_logo_path_by_label(&c, purpose, lbl)? {
+                return Ok(Some(path));
+            }
+        }
+        if let Some(pr) = system_printer.map(str::trim).filter(|s| !s.is_empty()) {
+            if let Some(path) = query_ticket_logo_path_by_printer(&c, purpose, pr)? {
+                return Ok(Some(path));
+            }
+        }
+        Ok(None)
+    }
+
     pub fn list_mapping_lines(&self) -> Result<Vec<serde_json::Value>> {
         let c = self.inner.lock();
         let mut stmt = c.prepare(
-            "SELECT id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled
+            "SELECT id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path
              FROM printer_mapping_lines ORDER BY purpose, sort_order ASC, id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
             let auto_cut: i32 = r.get(5)?;
             let ticket_escpos: i32 = r.get(6)?;
+            let ticket_logo_path: Option<String> = r.get(7)?;
             Ok(serde_json::json!({
                 "id": r.get::<_, String>(0)?,
                 "purpose": r.get::<_, String>(1)?,
@@ -514,6 +595,7 @@ impl Db {
                 "displayLabel": r.get::<_, Option<String>>(4)?,
                 "autoCutEnabled": auto_cut != 0,
                 "ticketEscposEnabled": ticket_escpos != 0,
+                "ticketLogoPath": ticket_logo_path.filter(|s| !s.trim().is_empty()),
             }))
         })?;
         let mut out = Vec::new();
@@ -605,9 +687,17 @@ impl Db {
                 .and_then(|v| v.as_str());
             let auto_cut: i32 = if json_auto_cut_enabled(row) { 1 } else { 0 };
             let ticket_escpos: i32 = if json_ticket_escpos_enabled(row) { 1 } else { 0 };
+            let ticket_logo_path = if purpose == "tickets" {
+                row.get("ticketLogoPath")
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+            } else {
+                None
+            };
             tx.execute(
-                "INSERT INTO printer_mapping_lines(id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO printer_mapping_lines(id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params![
                     id,
                     purpose,
@@ -616,6 +706,7 @@ impl Db {
                     display_label,
                     auto_cut,
                     ticket_escpos,
+                    ticket_logo_path,
                 ],
             )?;
         }

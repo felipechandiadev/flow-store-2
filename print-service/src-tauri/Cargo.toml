@@ -45,6 +45,7 @@ barcoders = "2.0"
 rcgen = "0.13"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 tokio-rustls = "0.26"
+rfd = "0.15"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [

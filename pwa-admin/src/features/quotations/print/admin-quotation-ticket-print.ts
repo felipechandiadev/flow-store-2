@@ -1,6 +1,5 @@
 import {
   agentSupportsPosQuotationTicket,
-  agentTicketEscposEnabled,
   type HelloResponseData,
   type PosQuotationTicketPayload,
 } from "@flowstore/print-service-client";
@@ -85,47 +84,35 @@ export async function printAdminQuotationTicket(
 
   const folio = input.quotation.documentNumber?.trim() || "cotizacion";
   const meta = {
-    filename: `${folio}.pdf`,
+    filename: `${folio}.escpos`,
     documentType: "QUOTATION",
     internalFolio: folio,
   };
+  const html = buildQuotationReceiptHtml(input, window.location.origin);
 
   if (!isAdminPrintAgentConfigured("tickets")) {
-    const html = buildQuotationReceiptHtml(input, window.location.origin);
     printHtmlInHiddenIframe(html, "Impresión cotización");
     return { success: true, channel: "browser" };
   }
 
   const logoBase64 = await fetchReceiptLogoBase64(null, window.location.origin);
   const ticket = quotationToTicketPayload(input, logoBase64);
-  let escposMode = false;
   let enqueued = false;
 
   try {
     await withAdminPrintAgentConnection("tickets", async (conn, hello: HelloResponseData | null) => {
-      escposMode = await agentTicketEscposEnabled(conn, "tickets");
       if (!agentSupportsPosQuotationTicket(hello)) {
         throw new Error("agent_no_pos_quotation_ticket");
       }
       await enqueueQuotationTicket(conn, ticket, meta);
       enqueued = true;
     });
-    if (enqueued) return { success: true, channel: "agent" };
   } catch (e) {
-    if (escposMode) {
-      console.warn(
-        "[KaiStore admin print] cotización: ESC/POS en KaiPrinters — sin PDF HTML de respaldo.",
-        e,
-      );
-      return {
-        success: false,
-        message:
-          "No se pudo imprimir en térmica. Revise KaiPrinters o desactive ESC/POS para usar respaldo.",
-      };
-    }
+    console.warn("[KaiStore admin print] cotización agente:", e);
   }
 
-  const html = buildQuotationReceiptHtml(input, window.location.origin);
+  if (enqueued) return { success: true, channel: "agent" };
+
   printHtmlInHiddenIframe(html, "Impresión cotización");
   return { success: true, channel: "browser" };
 }

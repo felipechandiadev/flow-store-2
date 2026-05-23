@@ -1,6 +1,5 @@
 import {
   agentSupportsPosQuotationTicket,
-  agentTicketEscposEnabled,
   isPosAgentPrintConfiguredForPurpose,
   type PosQuotationTicketPayload,
 } from "@flowstore/print-service-client";
@@ -8,9 +7,9 @@ import type { CompanyDetails } from "@/features/company/infrastructure/company.r
 import { fetchReceiptLogoBase64 } from "@/features/pos-print/lib/pos-sale-ticket-agent";
 import {
   enqueueVectorTicketWithMappingFallback,
+  printTicketHtmlInBrowser,
   withPrintAgentConnection,
 } from "@/features/pos-print/lib/pos-agent-print";
-import { printPosHtmlViaAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-agent-print";
 import {
   buildQuotationReceiptHtml,
   type QuotationReceiptPrintInput,
@@ -60,27 +59,23 @@ function quotationToTicketPayload(
   };
 }
 
-/**
- * Cotización ticket 80 mm: agente vectorial (PDF/ESC/POS) o fallback HTML→PDF del navegador.
- */
+/** Cotización ticket 80 mm: agente ESC/POS o diálogo del navegador. */
 export async function printPosQuotationReceiptAgentOrBrowser(
   input: QuotationReceiptPrintInput,
-): Promise<"agent-vector" | "browser" | "agent-unavailable"> {
+): Promise<"agent" | "browser"> {
   if (typeof window === "undefined") return "browser";
 
   const folio = input.quotation.documentNumber?.trim() || "cotizacion";
   const meta = {
-    filename: `${folio}.pdf`,
+    filename: `${folio}.escpos`,
     documentType: "QUOTATION",
     internalFolio: folio,
   };
+  const html = buildQuotationReceiptHtml(input, window.location.origin);
+  const iframeTitle = "Impresión cotización";
 
   if (!isPosAgentPrintConfiguredForPurpose("tickets")) {
-    const html = buildQuotationReceiptHtml(input, window.location.origin);
-    printPosHtmlViaAgentOrBrowserFireAndForget(html, "tickets", {
-      ...meta,
-      iframeTitle: "Impresión cotización",
-    });
+    printTicketHtmlInBrowser(html, iframeTitle);
     return "browser";
   }
 
@@ -89,17 +84,14 @@ export async function printPosQuotationReceiptAgentOrBrowser(
     window.location.origin,
   );
   const ticket = quotationToTicketPayload(input, logoBase64);
-  let escposMode = false;
+  let enqueued = false;
 
   try {
-    let enqueued = false;
     await withPrintAgentConnection("tickets", async (conn, hello) => {
-      escposMode = await agentTicketEscposEnabled(conn, "tickets");
       if (!agentSupportsPosQuotationTicket(hello)) {
         throw new Error("agent_no_pos_quotation_ticket");
       }
       enqueued = await enqueueVectorTicketWithMappingFallback(
-        escposMode,
         async () => {
           const res = (await conn.enqueuePosQuotationTicket(ticket, {
             ...meta,
@@ -120,21 +112,15 @@ export async function printPosQuotationReceiptAgentOrBrowser(
           }
         },
       );
-      if (!enqueued) throw new Error("enqueue_quotation_failed");
     });
-    return "agent-vector";
   } catch (e) {
-    if (escposMode) {
-      console.warn("[KaiStore print] cotización ESC/POS: no se encoló en KaiPrinters.", e);
-      return "agent-unavailable";
-    }
-    const html = buildQuotationReceiptHtml(input, window.location.origin);
-    printPosHtmlViaAgentOrBrowserFireAndForget(html, "tickets", {
-      ...meta,
-      iframeTitle: "Impresión cotización",
-    });
-    return "browser";
+    console.warn("[KaiStore print] cotización agente:", e);
   }
+
+  if (enqueued) return "agent";
+
+  printTicketHtmlInBrowser(html, iframeTitle);
+  return "browser";
 }
 
 export function printPosQuotationReceiptAgentOrBrowserFireAndForget(

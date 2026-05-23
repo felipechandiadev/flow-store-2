@@ -15,17 +15,17 @@ export function canAdminReprintSaleReceipt(transactionType: string): boolean {
 export async function reprintAdminSaleTicket(
   detail: SaleTransactionDetail,
   company: CompanyDetails | null,
-): Promise<{ success: boolean; message?: string; channel?: "agent" | "skipped" }> {
+): Promise<{ success: boolean; message?: string; channel?: "agent" | "browser" }> {
   if (!canAdminReprintSaleReceipt(detail.transactionType)) {
     return { success: false, message: "Este tipo de transacción no admite ticket" };
   }
   const data = mapSaleTransactionDetailToPrintData(detail, company);
   const channel = await printAdminSaleTicketExplicit(data);
-  if (channel === "skipped") {
+  if (channel === "browser") {
     return {
-      success: false,
-      message:
-        "No se pudo enviar el ticket al agente. Configure alias «Tickets» en Impresión local y KaiPrinters.",
+      success: true,
+      channel,
+      message: "Ticket enviado al diálogo de impresión del navegador.",
     };
   }
   return { success: true, channel };

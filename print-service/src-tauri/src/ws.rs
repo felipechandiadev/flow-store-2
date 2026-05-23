@@ -90,20 +90,8 @@ fn vector_ticket_escpos_writer(print_type: &str) -> WriteVectorTicketFn {
     }
 }
 
-fn vector_ticket_pdf_writer(print_type: &str) -> WriteVectorTicketFn {
-    match print_type {
-        "pos-quotation-ticket" => jobs::write_pos_quotation_ticket_pdf_from_value,
-        "pos-customer-credit-note-ticket" => jobs::write_pos_customer_credit_note_ticket_pdf_from_value,
-        "pos-cash-closing-ticket" => jobs::write_pos_cash_closing_ticket_pdf_from_value,
-        _ => jobs::write_pos_sale_ticket_pdf_from_value,
-    }
-}
-
-/// Nombre en cola acorde al payload real (`.escpos` vs `.pdf`).
-fn ticket_queue_filename(requested: &str, folio: &str, escpos: bool) -> String {
-    if !escpos {
-        return requested.to_string();
-    }
+/// Nombre en cola acorde al payload ESC/POS (`.escpos`).
+fn ticket_queue_filename(requested: &str, folio: &str, _escpos: bool) -> String {
     if requested.ends_with(".pdf") {
         let stem = requested.strip_suffix(".pdf").unwrap_or(requested);
         return format!("{stem}.escpos");
@@ -324,10 +312,7 @@ where
                             );
                             hello_ok = true;
                             let ph = events::emit_printer_health_json(&state.db, &required)?;
-                            let ticket_escpos = state
-                                .db
-                                .ticket_escpos_enabled_for_enqueue("tickets", None)
-                                .unwrap_or(false);
+                            let ticket_escpos = true;
                             ws.send(json_line(&OutResponse::ok(env.request_id.clone(), json!({
                                 "serviceStatus": events::service_status_payload(state.connected(), state.connected_sessions_json()),
                                 "printerHealth": ph["payload"].clone(),
@@ -527,61 +512,46 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                     None => return OutResponse::err(rid, "ticket_required"),
                 };
                 let folio = vector_ticket_folio(print_type, ticket);
-                let use_escpos = state
-                    .db
-                    .ticket_escpos_enabled_for_enqueue(purpose, printer_display_label_early)
-                    .unwrap_or(false);
-                if use_escpos {
-                    queue_filename = ticket_queue_filename(filename, &folio, true);
-                }
+                queue_filename = ticket_queue_filename(filename, &folio, true);
                 let resolved_printer = state
                     .db
                     .resolve_printer_for_enqueue(purpose, printer_display_label_early)
                     .ok()
                     .flatten();
-                if use_escpos {
-                    tracing::info!(folio = %folio, %print_type, printer = ?resolved_printer, "print: vector ticket → ESC/POS RAW");
-                    state.agent_log.push_info(format!(
-                        "Encolando {print_type} ESC/POS (folio {folio}) → impresora {:?}, alias {:?}",
-                        resolved_printer, printer_display_label_early
-                    ));
-                    let write = vector_ticket_escpos_writer(print_type);
-                    match write(&state.temp_dir, ticket) {
-                        Ok(p) => p,
-                        Err(e) => {
-                            tracing::error!(folio = %folio, %print_type, err = %e, "ticket ESC/POS failed");
-                            return OutResponse::err(rid, format!("{e:#}"));
-                        }
-                    }
-                } else {
-                    tracing::info!(folio = %folio, %print_type, printer = ?resolved_printer, "print: vector ticket → PDF");
-                    let write = vector_ticket_pdf_writer(print_type);
-                    match write(&state.temp_dir, ticket) {
-                        Ok(p) => p,
-                        Err(e) => {
-                            tracing::error!(folio = %folio, %print_type, err = %e, "ticket PDF failed");
-                            return OutResponse::err(rid, format!("{e:#}"));
-                        }
+                tracing::info!(folio = %folio, %print_type, printer = ?resolved_printer, "print: vector ticket → ESC/POS RAW");
+                state.agent_log.push_info(format!(
+                    "Encolando {print_type} ESC/POS (folio {folio}) → impresora {:?}, alias {:?}",
+                    resolved_printer, printer_display_label_early
+                ));
+                let mut ticket_value = ticket.clone();
+                if purpose == "tickets" {
+                    crate::ticket_logos::merge_mapping_logo_into_ticket(
+                        &state.data_dir,
+                        &state.db,
+                        purpose,
+                        printer_display_label_early,
+                        resolved_printer.as_deref(),
+                        &mut ticket_value,
+                    );
+                }
+                let write = vector_ticket_escpos_writer(print_type);
+                match write(&state.temp_dir, &ticket_value) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        tracing::error!(folio = %folio, %print_type, err = %e, "ticket ESC/POS failed");
+                        return OutResponse::err(rid, format!("{e:#}"));
                     }
                 }
             } else {
-                if purpose == "tickets"
-                    && state
-                        .db
-                        .ticket_escpos_enabled_for_enqueue(purpose, printer_display_label_early)
-                        .unwrap_or(false)
-                {
+                if purpose == "tickets" {
                     let msg = format!(
-                        "Rechazado PDF en tickets (modo ESC/POS activo, alias {:?}). \
-                         El POS debe enviar ticket vectorial (pos-sale-ticket, pos-quotation-ticket, etc.), no pdf-base64.",
+                        "Rechazado PDF en tickets (alias {:?}). \
+                         Use ticket vectorial (pos-sale-ticket, etc.) o impresión del navegador.",
                         printer_display_label_early
                     );
                     tracing::warn!(purpose, label = ?printer_display_label_early, "{msg}");
                     state.agent_log.push_warn(msg);
-                    return OutResponse::err(
-                        rid,
-                        "ticket_escpos_enabled_use_vector_ticket".to_string(),
-                    );
+                    return OutResponse::err(rid, "tickets_no_pdf_use_vector_or_browser".to_string());
                 }
                 let b64 = match env.extra.get("payload").and_then(|v| v.as_str()) {
                     Some(s) => s,
@@ -660,11 +630,7 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                 .resolve_printer_for_enqueue(purpose, printer_display_label)
                 .ok()
                 .flatten();
-            let use_escpos = purpose == "tickets"
-                && resolved
-                    .as_deref()
-                    .map(|p| state.db.ticket_escpos_enabled_for_printer(p, purpose))
-                    .unwrap_or(false);
+            let use_escpos = purpose == "tickets";
             let agent_label = state.db.agent_display_name();
             let path = match jobs::write_test_print_path(
                 &state.temp_dir,

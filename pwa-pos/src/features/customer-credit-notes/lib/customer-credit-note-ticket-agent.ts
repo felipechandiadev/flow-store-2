@@ -1,6 +1,5 @@
 import {
   agentSupportsPosCustomerCreditNoteTicket,
-  agentTicketEscposEnabled,
   isPosAgentPrintConfiguredForPurpose,
   POS_CUSTOMER_CREDIT_NOTE_TICKET_PAYLOAD_VERSION,
   type PosCustomerCreditNoteTicketPayload,
@@ -9,9 +8,9 @@ import type { CustomerCreditNotePrintData } from "@/features/customer-credit-not
 import { fetchReceiptLogoBase64 } from "@/features/pos-print/lib/pos-sale-ticket-agent";
 import {
   enqueueVectorTicketWithMappingFallback,
+  printTicketHtmlInBrowser,
   withPrintAgentConnection,
 } from "@/features/pos-print/lib/pos-agent-print";
-import { printPosHtmlViaAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-agent-print";
 import { buildCustomerCreditNoteReceiptHtml } from "@/features/customer-credit-notes/lib/customer-credit-note-receipt-print";
 
 function creditNoteToTicketPayload(
@@ -57,20 +56,20 @@ function creditNoteToTicketPayload(
 
 export async function printCustomerCreditNoteReceiptAgentOrBrowser(
   data: CustomerCreditNotePrintData,
-): Promise<"agent-vector" | "browser" | "agent-unavailable"> {
+): Promise<"agent" | "browser"> {
   if (typeof window === "undefined") return "browser";
 
   const folio = data.creditNoteFolio?.trim() || "nota-credito";
   const meta = {
-    filename: `${folio}.pdf`,
+    filename: `${folio}.escpos`,
     documentType: "CUSTOMER_CREDIT_NOTE",
     internalFolio: folio,
     iframeTitle: "Impresión nota de crédito",
   };
+  const html = buildCustomerCreditNoteReceiptHtml(data, window.location.origin);
 
   if (!isPosAgentPrintConfiguredForPurpose("tickets")) {
-    const html = buildCustomerCreditNoteReceiptHtml(data, window.location.origin);
-    printPosHtmlViaAgentOrBrowserFireAndForget(html, "tickets", meta);
+    printTicketHtmlInBrowser(html, meta.iframeTitle);
     return "browser";
   }
 
@@ -79,17 +78,14 @@ export async function printCustomerCreditNoteReceiptAgentOrBrowser(
     window.location.origin,
   );
   const ticket = creditNoteToTicketPayload(data, logoBase64);
-  let escposMode = false;
+  let enqueued = false;
 
   try {
-    let enqueued = false;
     await withPrintAgentConnection("tickets", async (conn, hello) => {
-      escposMode = await agentTicketEscposEnabled(conn, "tickets");
       if (!agentSupportsPosCustomerCreditNoteTicket(hello)) {
         throw new Error("agent_no_pos_customer_credit_note_ticket");
       }
       enqueued = await enqueueVectorTicketWithMappingFallback(
-        escposMode,
         async () => {
           const res = (await conn.enqueuePosCustomerCreditNoteTicket(ticket, {
             ...meta,
@@ -110,18 +106,15 @@ export async function printCustomerCreditNoteReceiptAgentOrBrowser(
           }
         },
       );
-      if (!enqueued) throw new Error("enqueue_credit_note_failed");
     });
-    return "agent-vector";
   } catch (e) {
-    if (escposMode) {
-      console.warn("[KaiStore print] NC ESC/POS: no se encoló en KaiPrinters.", e);
-      return "agent-unavailable";
-    }
-    const html = buildCustomerCreditNoteReceiptHtml(data, window.location.origin);
-    printPosHtmlViaAgentOrBrowserFireAndForget(html, "tickets", meta);
-    return "browser";
+    console.warn("[KaiStore print] NC agente:", e);
   }
+
+  if (enqueued) return "agent";
+
+  printTicketHtmlInBrowser(html, meta.iframeTitle);
+  return "browser";
 }
 
 export function printCustomerCreditNoteReceiptAgentOrBrowserFireAndForget(

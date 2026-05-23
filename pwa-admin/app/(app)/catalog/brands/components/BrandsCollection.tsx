@@ -32,7 +32,7 @@ export function BrandsCollection({ initialBrands }: BrandsCollectionProps) {
       showSearch
       searchParamName="search"
       searchLabel="Buscar"
-      searchPlaceholder="Buscar por nombre o descripción"
+      searchPlaceholder="Buscar..."
       contentEmptyMessage="No hay marcas que mostrar"
       contentItems={
         filtered.length > 0

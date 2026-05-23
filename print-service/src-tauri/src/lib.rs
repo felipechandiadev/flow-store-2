@@ -26,6 +26,7 @@ mod protocol;
 mod security;
 mod state;
 mod tls;
+mod ticket_logos;
 mod ws;
 mod wss;
 
@@ -669,10 +670,7 @@ fn queue_test_print(
         .map(str::trim)
         .filter(|s| !s.is_empty());
     let agent_label = state.db.agent_display_name();
-    let use_escpos = purpose == "tickets"
-        && target_sp
-            .map(|p| state.db.ticket_escpos_enabled_for_printer(p, purpose))
-            .unwrap_or(false);
+    let use_escpos = purpose == "tickets";
     let path =
         jobs::write_test_print_path(&state.temp_dir, purpose, &agent_label, use_escpos)
             .map_err(|e| e.to_string())?;
@@ -735,15 +733,79 @@ fn cancel_all_print_jobs(state: tauri::State<'_, Arc<AppState>>) -> Result<(), S
     Ok(())
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TicketLogoPickResult {
+    ticket_logo_path: String,
+    display_name: String,
+}
+
+#[tauri::command(rename_all = "camelCase")]
+async fn pick_and_store_ticket_logo(
+    state: tauri::State<'_, Arc<AppState>>,
+    line_id: String,
+) -> Result<TicketLogoPickResult, String> {
+    let line_id = line_id.trim().to_string();
+    if line_id.is_empty() {
+        return Err("line_id_required".into());
+    }
+    let picked = tauri::async_runtime::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .add_filter("Imagen PNG/JPEG", &["png", "jpg", "jpeg"])
+            .pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or_else(|| "cancelled".to_string())?;
+
+    let display_name = picked
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("logo")
+        .to_string();
+
+    let data_dir = state.data_dir.clone();
+    let line_id_copy = line_id.clone();
+    let rel = tauri::async_runtime::spawn_blocking(move || {
+        ticket_logos::import_logo(&data_dir, &line_id_copy, &picked)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+
+    Ok(TicketLogoPickResult {
+        ticket_logo_path: rel,
+        display_name,
+    })
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn clear_ticket_logo(
+    state: tauri::State<'_, Arc<AppState>>,
+    line_id: String,
+    ticket_logo_path: Option<String>,
+) -> Result<(), String> {
+    if let Some(ref p) = ticket_logo_path {
+        ticket_logos::delete_logo_file(&state.data_dir, p);
+    } else {
+        ticket_logos::delete_logos_for_line(&state.data_dir, line_id.trim());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn set_mapping_lines(
     state: tauri::State<'_, Arc<AppState>>,
     lines: Vec<serde_json::Value>,
 ) -> Result<(), String> {
+    let old_lines = state.db.list_mapping_lines().unwrap_or_default();
     state
         .db
         .replace_all_mapping_lines(&lines)
         .map_err(|e| e.to_string())?;
+    if let Err(e) = ticket_logos::cleanup_orphaned_after_save(&state.data_dir, &old_lines, &lines) {
+        tracing::warn!(err = %e, "ticket logo cleanup");
+    }
     notify_printer_health_and_config(&state);
     Ok(())
 }
@@ -840,7 +902,8 @@ pub fn run() {
                 tray = tray.icon(icon);
                 #[cfg(target_os = "macos")]
                 {
-                    tray = tray.icon_as_template(true);
+                    // Icono a color (yin-yang); no usar template o macOS lo aplana a un solo tono.
+                    tray = tray.icon_as_template(false);
                 }
             }
 
@@ -888,6 +951,8 @@ pub fn run() {
             get_metrics,
             get_dashboard,
             set_printer_mapping,
+            pick_and_store_ticket_logo,
+            clear_ticket_logo,
             set_mapping_lines,
             set_service_settings,
             queue_test_print,

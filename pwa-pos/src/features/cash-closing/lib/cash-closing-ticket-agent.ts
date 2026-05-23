@@ -1,6 +1,5 @@
 import {
   agentSupportsPosCashClosingTicket,
-  agentTicketEscposEnabled,
   getPosDocumentPrintMode,
   isPosAgentPrintConfiguredForPurpose,
   POS_CASH_CLOSING_TICKET_PAYLOAD_VERSION,
@@ -14,13 +13,14 @@ import {
   printPosHtmlViaAgentOrBrowser,
   printPosHtmlViaAgentOrBrowserFireAndForget,
   enqueueVectorTicketWithMappingFallback,
+  printTicketHtmlInBrowser,
   withPrintAgentConnection,
 } from "@/features/pos-print/lib/pos-agent-print";
 
 function arqueoPrintMeta(input: CashClosingPrintInput) {
   const ref = input.cashSessionId.slice(0, 8) || "arqueo";
   return {
-    filename: `arqueo-${ref}.pdf`,
+    filename: `arqueo-${ref}.escpos`,
     iframeTitle: "Arqueo de caja",
     documentType: "CASH_SESSION_CLOSE",
     internalFolio: ref,
@@ -68,16 +68,14 @@ function cashClosingToTicketPayload(
 
 async function printCashClosingTicketVector(
   input: CashClosingPrintInput,
-): Promise<"agent-vector" | "browser" | "agent-unavailable"> {
+): Promise<"agent" | "browser"> {
   if (typeof window === "undefined") return "browser";
 
   const meta = arqueoPrintMeta(input);
+  const html = buildCashClosingReceiptHtml(input, window.location.origin);
+
   if (!isPosAgentPrintConfiguredForPurpose("tickets")) {
-    printPosHtmlViaAgentOrBrowserFireAndForget(
-      buildCashClosingReceiptHtml(input, window.location.origin),
-      "tickets",
-      meta,
-    );
+    printTicketHtmlInBrowser(html, meta.iframeTitle);
     return "browser";
   }
 
@@ -86,17 +84,14 @@ async function printCashClosingTicketVector(
     window.location.origin,
   );
   const ticket = cashClosingToTicketPayload(input, logoBase64);
-  let escposMode = false;
+  let enqueued = false;
 
   try {
-    let enqueued = false;
     await withPrintAgentConnection("tickets", async (conn, hello) => {
-      escposMode = await agentTicketEscposEnabled(conn, "tickets");
       if (!agentSupportsPosCashClosingTicket(hello)) {
         throw new Error("agent_no_pos_cash_closing_ticket");
       }
       enqueued = await enqueueVectorTicketWithMappingFallback(
-        escposMode,
         async () => {
           const res = (await conn.enqueuePosCashClosingTicket(ticket, {
             ...meta,
@@ -117,21 +112,15 @@ async function printCashClosingTicketVector(
           }
         },
       );
-      if (!enqueued) throw new Error("enqueue_cash_closing_failed");
     });
-    return "agent-vector";
   } catch (e) {
-    if (escposMode) {
-      console.warn("[KaiStore print] arqueo ESC/POS: no se encoló en KaiPrinters.", e);
-      return "agent-unavailable";
-    }
-    printPosHtmlViaAgentOrBrowserFireAndForget(
-      buildCashClosingReceiptHtml(input, window.location.origin),
-      "tickets",
-      meta,
-    );
-    return "browser";
+    console.warn("[KaiStore print] arqueo agente:", e);
   }
+
+  if (enqueued) return "agent";
+
+  printTicketHtmlInBrowser(html, meta.iframeTitle);
+  return "browser";
 }
 
 export function printCashClosingArqueo(input: CashClosingPrintInput): void {
@@ -147,7 +136,7 @@ export function printCashClosingArqueo(input: CashClosingPrintInput): void {
 
 export async function printCashClosingArqueoAwait(
   input: CashClosingPrintInput,
-): Promise<"agent" | "agent-vector" | "browser" | "agent-unavailable"> {
+): Promise<"agent" | "browser"> {
   if (typeof window === "undefined") return "browser";
   const mode = getPosDocumentPrintMode("cashClosing");
   const meta = arqueoPrintMeta(input);

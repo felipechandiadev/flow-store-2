@@ -32,7 +32,7 @@ export function AttributesCollection({ initialAttributes }: AttributesCollection
       showSearch
       searchParamName="search"
       searchLabel="Buscar"
-      searchPlaceholder="Buscar por nombre, descripción u opción"
+      searchPlaceholder="Buscar..."
       contentEmptyMessage="No hay atributos que mostrar"
       contentItems={
         filtered.length > 0

@@ -1,6 +1,5 @@
 import {
   agentSupportsPosSaleTicket,
-  agentTicketEscposEnabled,
   type HelloResponseData,
   type PosSaleTicketPayload,
   type PosSaleTicketPrintExtras,
@@ -11,7 +10,9 @@ import {
   isAdminPrintAgentConfigured,
   withAdminPrintAgentConnection,
 } from "@/features/print/lib/admin-agent-print";
+import { printHtmlInHiddenIframe } from "@/features/print/lib/print-html-in-hidden-iframe";
 import type { SaleReceiptPrintData } from "./backorder-document-print.types";
+import { buildSaleReceiptTicketHtml } from "./sale-receipt-ticket-print-html";
 import { mapSaleReceiptToPosSaleTicketPayload } from "./map-backorder-to-sale-ticket";
 
 function isUnknownPrinterLabelError(e: unknown): boolean {
@@ -46,65 +47,50 @@ async function enqueueBackorderTicketOnAgent(
   await enqueueAdminPrint(conn, "tickets", body);
 }
 
-/**
- * Encargo en ticket 80 mm vía agente (ESC/POS o PDF vectorial según KaiPrinters).
- */
+/** Ticket 80 mm: agente ESC/POS o diálogo del navegador. */
 export async function printAdminSaleTicket(
   data: SaleReceiptPrintData,
-): Promise<"agent" | "skipped"> {
-  if (typeof window === "undefined") return "skipped";
+): Promise<"agent" | "browser"> {
+  if (typeof window === "undefined") return "browser";
+
+  const origin = window.location.origin;
+  const html = buildSaleReceiptTicketHtml(data, origin);
+  const iframeTitle = "Impresión ticket";
 
   if (!isAdminPrintAgentConfigured("tickets")) {
-    console.warn(
-      "[KaiStore admin print] Configure alias «Tickets» en Impresión local para imprimir en térmica.",
-    );
-    return "skipped";
+    printHtmlInHiddenIframe(html, iframeTitle);
+    return "browser";
   }
 
   const folio = data.folio.trim() || "ticket";
   const meta: PosSaleTicketPrintExtras = {
-    filename: `${folio}.pdf`,
+    filename: `${folio}.escpos`,
     documentType: data.documentKind === "backorder" ? "BACKORDER" : "SALE",
     internalFolio: folio,
   };
   const ticket = mapSaleReceiptToPosSaleTicketPayload(data);
-
-  let escposMode = false;
   let enqueued = false;
 
-  await withAdminPrintAgentConnection("tickets", async (conn, hello: HelloResponseData | null) => {
-    escposMode = await agentTicketEscposEnabled(conn, "tickets");
-    if (!agentSupportsPosSaleTicket(hello)) {
-      console.warn(
-        "[KaiStore admin print] Agente sin pos-sale-ticket — reinicie KaiPrinters.",
-      );
-      return;
-    }
-    try {
-      await enqueueBackorderTicketOnAgent(conn, ticket, meta, false);
-      enqueued = true;
-      return;
-    } catch (e) {
-      if (!isUnknownPrinterLabelError(e)) {
-        console.warn("[KaiStore admin print] pos-sale-ticket falló:", e);
-        return;
+  try {
+    await withAdminPrintAgentConnection("tickets", async (conn, hello: HelloResponseData | null) => {
+      if (!agentSupportsPosSaleTicket(hello)) {
+        throw new Error("agent_no_pos_sale_ticket");
       }
-    }
-    try {
-      await enqueueBackorderTicketOnAgent(conn, ticket, meta, true);
-      enqueued = true;
-    } catch (e2) {
-      console.warn("[KaiStore admin print] vector con/sin alias falló:", e2);
-    }
-  });
+      try {
+        await enqueueBackorderTicketOnAgent(conn, ticket, meta, false);
+        enqueued = true;
+      } catch (e) {
+        if (!isUnknownPrinterLabelError(e)) throw e;
+        await enqueueBackorderTicketOnAgent(conn, ticket, meta, true);
+        enqueued = true;
+      }
+    });
+  } catch (e) {
+    console.warn("[KaiStore admin print] ticket agente:", e);
+  }
 
   if (enqueued) return "agent";
 
-  if (escposMode) {
-    console.warn(
-      "[KaiStore admin print] ESC/POS activo: no se usa PDF rasterizado de respaldo.",
-    );
-  }
-
-  return "skipped";
+  printHtmlInHiddenIframe(html, iframeTitle);
+  return "browser";
 }

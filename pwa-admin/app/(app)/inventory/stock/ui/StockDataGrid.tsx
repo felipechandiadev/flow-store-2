@@ -43,24 +43,49 @@ function findStorageQuantity(
   return Number.isFinite(q) ? Math.max(0, q) : undefined;
 }
 
+function stockQtyPerSaleUnit(row: StockGridRow | undefined): number | null {
+  if (!row) {
+    return null;
+  }
+  const f = row.stockBaseQtyPerSaleUnit ?? row.stockBaseQtyPerCountSaleUnit;
+  return f != null && f > 0 && Number.isFinite(f) ? f : null;
+}
+
 function usesSaleUnitCount(row: StockGridRow | undefined): boolean {
-  const bridge = row?.stockBaseQtyPerCountSaleUnit;
-  return bridge != null && bridge > 0 && Boolean((row?.saleUnitSymbol || "").trim());
+  const bridge = stockQtyPerSaleUnit(row);
+  return bridge != null && Boolean((row?.saleUnitSymbol || row?.saleUnitOfMeasure || "").trim());
+}
+
+function unitLabelSymbol(row: StockGridRow, kind: "stock" | "sale"): string {
+  const sym =
+    kind === "stock"
+      ? (row.stockUnitSymbol || "").trim()
+      : (row.saleUnitSymbol || "").trim();
+  if (sym) {
+    return sym;
+  }
+  const label = kind === "stock" ? row.unitOfMeasure : row.saleUnitOfMeasure;
+  const t = (label || "").trim();
+  const paren = t.match(/\(([^)]+)\)\s*$/);
+  if (paren?.[1]?.trim()) {
+    return paren[1].trim();
+  }
+  return t;
 }
 
 function physicalToCountQty(physicalQty: number, row: StockGridRow | undefined): number {
-  if (!usesSaleUnitCount(row)) {
+  const bridge = stockQtyPerSaleUnit(row);
+  if (bridge == null) {
     return physicalQty;
   }
-  const bridge = row!.stockBaseQtyPerCountSaleUnit!;
   return physicalQty / bridge;
 }
 
 function countQtyToPhysical(countQty: number, row: StockGridRow | undefined): number {
-  if (!usesSaleUnitCount(row)) {
+  const bridge = stockQtyPerSaleUnit(row);
+  if (bridge == null) {
     return countQty;
   }
-  const bridge = row!.stockBaseQtyPerCountSaleUnit!;
   return countQty * bridge;
 }
 
@@ -68,19 +93,36 @@ function roundCountQty(n: number): number {
   return Math.max(0, Math.round(n * 1000) / 1000);
 }
 
-/** Izquierda: stock base por 1 unidad de venta (puente). Derecha: cantidad actual en unidades de venta. Ej. 250gr/2UN */
+function stockUnitDiffersFromSale(row: StockGridRow): boolean {
+  if (row.stockBaseUnitId && row.saleUnitId) {
+    return row.stockBaseUnitId !== row.saleUnitId;
+  }
+  const stockSym = unitLabelSymbol(row, "stock").toLowerCase();
+  const saleSym = unitLabelSymbol(row, "sale").toLowerCase();
+  if (stockSym && saleSym) {
+    return stockSym !== saleSym;
+  }
+  const stockName = (row.unitOfMeasure || "").trim().toLowerCase();
+  const saleName = (row.saleUnitOfMeasure || "").trim().toLowerCase();
+  if (stockName && saleName) {
+    return stockName !== saleName;
+  }
+  return stockQtyPerSaleUnit(row) != null;
+}
+
+/** Cantidad en unidad base de stock / equivalente en unidad de venta. Ej. 20.000ml/20un */
 function formatStockSlashPair(qty: number, row: StockGridRow): string {
   const n = Number(qty);
   if (!Number.isFinite(n)) {
     return formatQty(0);
   }
-  const stockSym = (row.stockUnitSymbol || "").trim();
-  const saleSym = (row.saleUnitSymbol || "").trim();
-  const bridge = row.stockBaseQtyPerCountSaleUnit;
-  if (bridge != null && bridge > 0 && saleSym && stockSym) {
-    const saleQty = n / bridge;
+  const stockSym = unitLabelSymbol(row, "stock");
+  const saleSym = unitLabelSymbol(row, "sale");
+  const perSale = stockQtyPerSaleUnit(row);
+  if (perSale != null && stockUnitDiffersFromSale(row) && stockSym && saleSym) {
+    const saleQty = n / perSale;
     if (Number.isFinite(saleQty) && saleQty >= 0) {
-      return `${formatQty(bridge)}${stockSym}/${formatQty(saleQty)}${saleSym}`;
+      return `${formatQty(n)}${stockSym}/${formatQty(saleQty)}${saleSym}`;
     }
   }
   return stockSym ? `${formatQty(n)}${stockSym}` : formatQty(n);
@@ -307,7 +349,11 @@ function StockStorageCard({
         <dt className="text-muted-foreground">Físico</dt>
         <dd
           className="text-right font-mono tabular-nums text-foreground"
-          title={row.unitOfMeasure ? `Stock base: ${row.unitOfMeasure}` : undefined}
+          title={
+            stockUnitDiffersFromSale(row)
+              ? `${unitLabelSymbol(row, "stock")} (base) / ${unitLabelSymbol(row, "sale")} (venta)`
+              : row.unitOfMeasure || undefined
+          }
         >
           {formatStockSlashPair(b.quantity, row)}
         </dd>
@@ -320,7 +366,11 @@ function StockStorageCard({
           className={`text-right font-mono tabular-nums ${
             b.availableStock < 0 ? "text-destructive" : "text-foreground"
           }`}
-          title={row.unitOfMeasure ? `Stock base: ${row.unitOfMeasure}` : undefined}
+          title={
+            stockUnitDiffersFromSale(row)
+              ? `${unitLabelSymbol(row, "stock")} (base) / ${unitLabelSymbol(row, "sale")} (venta)`
+              : row.unitOfMeasure || undefined
+          }
         >
           {formatStockSlashPair(b.availableStock, row)}
         </dd>
@@ -418,11 +468,25 @@ function StockExpandPanel({
     [storages, row.storageBreakdown, branchId],
   );
 
+  const stockSym = unitLabelSymbol(row, "stock");
+  const saleSym = unitLabelSymbol(row, "sale");
+  const dualUnits = stockUnitDiffersFromSale(row) && stockSym && saleSym;
+
   return (
     <div className="w-full min-w-0 max-w-none py-1" data-test-id={`stock-expand-${row.variantId}`}>
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Stock por almacén
-      </p>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Stock por almacén
+        </p>
+        {dualUnits ? (
+          <p className="text-xs text-muted-foreground" data-test-id={`stock-expand-uom-${row.variantId}`}>
+            Cantidades en{" "}
+            <span className="font-mono font-medium text-foreground">{stockSym}</span>
+            {" / "}
+            <span className="font-mono font-medium text-foreground">{saleSym}</span>
+          </p>
+        ) : null}
+      </div>
       {cards.length === 0 ? (
         <p className="text-sm text-muted-foreground">No hay almacenes configurados.</p>
       ) : (

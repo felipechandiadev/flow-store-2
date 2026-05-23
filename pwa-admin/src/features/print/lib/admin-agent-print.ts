@@ -45,7 +45,11 @@ export async function withAdminPrintAgentConnection<T>(
     conn.connect();
     await conn.waitForOpen(8_000);
     reachedOpen = true;
-    await new Promise((r) => globalThis.setTimeout(r, 450));
+    try {
+      hello = await conn.waitForHello(6_000);
+    } catch {
+      hello = null;
+    }
     return await fn(conn, hello);
   } finally {
     conn.disconnect({ ifConnecting: reachedOpen ? "default" : "abandon" });

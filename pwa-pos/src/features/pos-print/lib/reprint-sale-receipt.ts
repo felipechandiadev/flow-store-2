@@ -30,7 +30,7 @@ export async function loadPosSaleReceiptDataForReprint(
 export async function reprintSaleTicket(transactionId: string): Promise<{
   success: boolean;
   message?: string;
-  channel?: "agent-vector" | "agent-raster" | "browser" | "agent-unavailable";
+  channel?: "agent" | "browser";
 }> {
   const loaded = await loadPosSaleReceiptDataForReprint(transactionId);
   if (!loaded.success) {
@@ -38,7 +38,7 @@ export async function reprintSaleTicket(transactionId: string): Promise<{
   }
   const folio = loaded.data.folio.trim() || "ticket";
   const channel = await printPosSaleTicketAgentOrBrowser(loaded.data, {
-    filename: `${folio}.pdf`,
+    filename: `${folio}.escpos`,
     documentType: loaded.data.documentKind === "backorder" ? "BACKORDER" : "SALE",
     internalFolio: folio,
   });

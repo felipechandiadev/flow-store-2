@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, FolderOpen, X } from "lucide-react";
 import IconButton from "./shared/components/IconButton/IconButton";
 import Switch from "./shared/components/Switch";
 import { Select } from "./shared/components/Select";
@@ -59,6 +59,10 @@ type MappingLineRow = {
   autoCutEnabled?: boolean;
   /** Solo aplica con propósito `tickets`: bytes ESC/POS RAW en lugar de PDF. */
   ticketEscposEnabled?: boolean;
+  /** Ruta relativa del logo copiado en KaiPrinters (p. ej. ticket_logos/{id}.png). */
+  ticketLogoPath?: string;
+  /** Nombre del archivo original al seleccionarlo. */
+  ticketLogoDisplayName?: string;
 };
 
 type JobRow = {
@@ -110,6 +114,13 @@ function escapeHtml(s: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function logoBasename(path: string | undefined): string {
+  if (!path?.trim()) return "";
+  const normalized = path.replace(/\\/g, "/");
+  const i = normalized.lastIndexOf("/");
+  return i >= 0 ? normalized.slice(i + 1) : normalized;
 }
 
 function newLineId() {
@@ -175,6 +186,8 @@ export default function App() {
       displayLabel: row.displayLabel ? String(row.displayLabel) : undefined,
       autoCutEnabled: row.autoCutEnabled !== false,
       ticketEscposEnabled: row.ticketEscposEnabled === true,
+      ticketLogoPath: row.ticketLogoPath ? String(row.ticketLogoPath) : undefined,
+      ticketLogoDisplayName: row.ticketLogoPath ? logoBasename(String(row.ticketLogoPath)) : undefined,
     }));
     setLocalLines(lines);
     setSettings({
@@ -279,6 +292,9 @@ export default function App() {
       displayLabel: l.displayLabel!.trim(),
       autoCutEnabled: l.autoCutEnabled !== false,
       ticketEscposEnabled: l.ticketEscposEnabled === true,
+      ...(l.purpose === "tickets" && l.ticketLogoPath?.trim()
+        ? { ticketLogoPath: l.ticketLogoPath.trim() }
+        : {}),
     }));
     try {
       await invoke("set_mapping_lines", { lines: payload });
@@ -390,6 +406,48 @@ export default function App() {
       window.alert(msg);
     } finally {
       setEscposQaBusyId(null);
+    }
+  }
+
+  async function handlePickTicketLogo(line: MappingLineRow) {
+    try {
+      const result = (await invoke("pick_and_store_ticket_logo", { lineId: line.id })) as {
+        ticketLogoPath: string;
+        displayName: string;
+      };
+      setLocalLines((rows) =>
+        rows.map((r) =>
+          r.id === line.id
+            ? {
+                ...r,
+                ticketLogoPath: result.ticketLogoPath,
+                ticketLogoDisplayName: result.displayName,
+              }
+            : r,
+        ),
+      );
+    } catch (e: unknown) {
+      const msg = typeof e === "string" ? e : String(e);
+      if (msg === "cancelled") return;
+      window.alert(msg || "No se pudo seleccionar el logo.");
+    }
+  }
+
+  async function handleClearTicketLogo(line: MappingLineRow) {
+    try {
+      await invoke("clear_ticket_logo", {
+        lineId: line.id,
+        ticketLogoPath: line.ticketLogoPath ?? null,
+      });
+      setLocalLines((rows) =>
+        rows.map((r) =>
+          r.id === line.id
+            ? { ...r, ticketLogoPath: undefined, ticketLogoDisplayName: undefined }
+            : r,
+        ),
+      );
+    } catch (e: unknown) {
+      window.alert(typeof e === "string" ? e : "No se pudo quitar el logo.");
     }
   }
 
@@ -732,19 +790,6 @@ export default function App() {
               }
               return (
                 <div key={line.id} className="flex flex-col gap-3 py-3">
-                  <Select
-                    label="Propósito"
-                    placeholder="Seleccionar"
-                    density="compact"
-                    value={line.purpose}
-                    onChange={(id) =>
-                      setLocalLines((rows) =>
-                        rows.map((r) => (r.id === line.id ? { ...r, purpose: String(id ?? DEFAULT_PURPOSE) } : r)),
-                      )
-                    }
-                    options={purposeOpts}
-                    name={`purpose-${line.id}`}
-                  />
                   <SharedTextField
                     label="Alias"
                     name={`alias-${line.id}`}
@@ -759,6 +804,55 @@ export default function App() {
                       )
                     }
                   />
+                  <Select
+                    label="Propósito"
+                    placeholder="Seleccionar"
+                    density="compact"
+                    value={line.purpose}
+                    onChange={(id) =>
+                      setLocalLines((rows) =>
+                        rows.map((r) => (r.id === line.id ? { ...r, purpose: String(id ?? DEFAULT_PURPOSE) } : r)),
+                      )
+                    }
+                    options={purposeOpts}
+                    name={`purpose-${line.id}`}
+                  />
+                  {line.purpose === "tickets" ? (
+                    <SharedTextField
+                      label="Logo"
+                      name={`logo-${line.id}`}
+                      type="text"
+                      density="compact"
+                      readOnly
+                      placeholder="Sin logo (PNG/JPG)"
+                      value={line.ticketLogoDisplayName ?? logoBasename(line.ticketLogoPath) ?? ""}
+                      onChange={() => {}}
+                      endAdornment={
+                        <div className="flex shrink-0 items-center gap-0.5 pr-0.5">
+                          {line.ticketLogoPath ? (
+                            <button
+                              type="button"
+                              className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                              aria-label="Quitar logo"
+                              title="Quitar logo"
+                              onClick={() => void handleClearTicketLogo(line)}
+                            >
+                              <X className="h-4 w-4" strokeWidth={2} aria-hidden />
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                            aria-label="Seleccionar imagen de logo"
+                            title="Seleccionar PNG o JPG"
+                            onClick={() => void handlePickTicketLogo(line)}
+                          >
+                            <FolderOpen className="h-4 w-4" strokeWidth={2} aria-hidden />
+                          </button>
+                        </div>
+                      }
+                    />
+                  ) : null}
                   <Select
                     label="Impresora del sistema"
                     placeholder="Seleccionar"
