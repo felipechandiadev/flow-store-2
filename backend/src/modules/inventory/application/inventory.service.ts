@@ -36,6 +36,11 @@ import {
   STOCK_LEVELS_REPOSITORY,
   type StockLevelsRepositoryPort,
 } from './ports/stock-levels.repository.port';
+import {
+  computeVariantStockAlertKinds,
+  parseStockAlertsQueryParam,
+  stockLevelToThresholdSlice,
+} from '@modules/stock-realtime/variant-stock-alert.util';
 
 function compactUnitSymbol(u: { symbol?: string | null; name?: string | null } | null | undefined): string {
   if (!u) {
@@ -135,6 +140,8 @@ export class InventoryService {
     search?: string;
     branchId?: string;
     storageId?: string;
+    /** Query `stock-alerts`: solo variantes con alerta de umbrales activa. */
+    stockAlerts?: string | boolean;
     page?: number;
     limit?: number;
     sortField?: string;
@@ -296,6 +303,8 @@ export class InventoryService {
         primaryStorageName: '',
         primaryStorageQuantity: 0,
         isBelowMinimum: false,
+        hasStockAlert: false,
+        stockAlertKinds: [] as string[],
       };
       grouped[vid] = row;
 
@@ -323,7 +332,6 @@ export class InventoryService {
       }
 
       const variantThresholds = variantThresholdDefaultsFromRow(variant);
-      let anyBelowEffective = false;
       for (const sl of entries) {
         const qty = Number(sl.physicalStock || 0);
         const reservedQty = Number(sl.committedStock || 0);
@@ -337,12 +345,6 @@ export class InventoryService {
           reorderPoint: sl.reorderPoint ?? null,
           reorderPointEnabled: sl.reorderPointEnabled ?? null,
         });
-        if (
-          resolved.effectiveMinimumStockEnabled &&
-          qty < resolved.effectiveMinimumStock
-        ) {
-          anyBelowEffective = true;
-        }
         row.storageBreakdown.push({
           stockLevelId: sl.id,
           storageId: sl.storageId,
@@ -365,13 +367,19 @@ export class InventoryService {
       }
 
       row.availableAfterReservation = Number(row.availableStock || 0);
-      row.isBelowMinimum =
-        anyBelowEffective ||
-        (variant.minimumStockEnabled &&
-          Number(row.totalStock) < Number(variant.minimumStock || 0));
+      const allSlices = allLevels.map(stockLevelToThresholdSlice);
+      const stockAlertKinds = computeVariantStockAlertKinds(variant, allSlices, {
+        filterStorageId: params?.storageId,
+      });
+      row.stockAlertKinds = stockAlertKinds;
+      row.hasStockAlert = stockAlertKinds.length > 0;
+      row.isBelowMinimum = row.hasStockAlert;
     }
 
-    const rows = variants.map((v) => grouped[v.id]).filter(Boolean);
+    let rows = variants.map((v) => grouped[v.id]).filter(Boolean);
+    if (parseStockAlertsQueryParam(params?.stockAlerts)) {
+      rows = rows.filter((r) => Boolean(r.hasStockAlert));
+    }
     for (const r of rows) {
       r.pmpValue =
         r.pmp != null && Number.isFinite(Number(r.pmp))

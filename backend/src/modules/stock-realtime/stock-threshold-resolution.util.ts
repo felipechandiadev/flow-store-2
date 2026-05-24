@@ -1,5 +1,5 @@
 import type { StockAlertKind } from './stock-realtime.types';
-import { computeStockAlertsFromThresholds } from './stock-alert.util';
+import { computeStockAlertsFromThresholdsScoped } from './stock-alert.util';
 import {
   hasStorageSpecificThresholdConfig,
   resolveThresholdField,
@@ -97,8 +97,14 @@ export function resolveStockThresholds(
     0,
     options?.totalPhysicalStock ?? storagePhysical,
   );
-  const storageScopeMin = hasStorageSpecificThresholdConfig(
+  const minStorageSpecific = hasStorageSpecificThresholdConfig(
     stockEntry.minimumStockEnabled,
+  );
+  const maxStorageSpecific = hasStorageSpecificThresholdConfig(
+    stockEntry.maximumStockEnabled,
+  );
+  const reorderStorageSpecific = hasStorageSpecificThresholdConfig(
+    stockEntry.reorderPointEnabled,
   );
 
   const minResolved = resolveThresholdField(
@@ -123,27 +129,40 @@ export function resolveStockThresholds(
     variantField(variantRow, 'reorder'),
   );
 
-  const comparePhysical = storageScopeMin ? storagePhysical : totalPhysical;
-  const alerts = computeStockAlertsFromThresholds(comparePhysical, {
+  const physicalForMin = minStorageSpecific ? storagePhysical : totalPhysical;
+  const physicalForMax = maxStorageSpecific ? storagePhysical : totalPhysical;
+  const physicalForReorder = reorderStorageSpecific
+    ? storagePhysical
+    : totalPhysical;
+  const alerts = computeStockAlertsFromThresholdsScoped({
     min: minResolved.value,
     max: maxResolved.value,
     reorder: reorderResolved.value,
     minEnabled: minResolved.enabled,
     maxEnabled: maxResolved.enabled,
     reorderEnabled: reorderResolved.enabled,
+    minPhysical: physicalForMin,
+    maxPhysical: physicalForMax,
+    reorderPhysical: physicalForReorder,
   });
 
+  const scope: ThresholdScope =
+    minStorageSpecific || maxStorageSpecific || reorderStorageSpecific
+      ? 'storage'
+      : 'variant_total';
+
   return {
-    scope: storageScopeMin ? 'storage' : 'variant_total',
+    scope,
     min: minResolved.value,
     max: maxResolved.value,
     reorder: reorderResolved.value,
     minEnabled: minResolved.enabled,
     maxEnabled: maxResolved.enabled,
     reorderEnabled: reorderResolved.enabled,
-    comparePhysical,
+    comparePhysical: physicalForMin,
     storagePhysical,
-    totalPhysical: storageScopeMin ? undefined : totalPhysical,
+    totalPhysical:
+      scope === 'variant_total' ? totalPhysical : undefined,
     alerts,
   };
 }

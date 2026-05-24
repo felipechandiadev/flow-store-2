@@ -16,15 +16,40 @@ export function computeStockAlertsFromThresholds(
   physical: number,
   thresholds: StockThresholdEvaluation,
 ): StockAlertKind[] {
-  const { min, max, reorder, minEnabled, maxEnabled, reorderEnabled } =
-    thresholds;
-  if (minEnabled && physical < min) {
+  return computeStockAlertsFromThresholdsScoped({
+    ...thresholds,
+    minPhysical: physical,
+    maxPhysical: physical,
+    reorderPhysical: physical,
+  });
+}
+
+/** Cada umbral puede compararse contra stock del almacén o total de la variante. */
+export function computeStockAlertsFromThresholdsScoped(
+  thresholds: StockThresholdEvaluation & {
+    minPhysical: number;
+    maxPhysical: number;
+    reorderPhysical: number;
+  },
+): StockAlertKind[] {
+  const {
+    min,
+    max,
+    reorder,
+    minEnabled,
+    maxEnabled,
+    reorderEnabled,
+    minPhysical,
+    maxPhysical,
+    reorderPhysical,
+  } = thresholds;
+  if (minEnabled && minPhysical < min) {
     return ['below_minimum'];
   }
-  if (maxEnabled && physical > max) {
+  if (maxEnabled && maxPhysical > max) {
     return ['above_maximum'];
   }
-  if (reorderEnabled && physical <= reorder) {
+  if (reorderEnabled && reorderPhysical <= reorder) {
     return ['reorder'];
   }
   return [];

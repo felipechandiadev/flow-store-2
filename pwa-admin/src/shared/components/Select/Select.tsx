@@ -198,13 +198,13 @@ const Select: React.FC<SelectProps> = ({
         >
         <TextField
           label={textFieldLabel}
-          value={selected ? selected.label : ""}
+          value={selected ? selected.label : (placeholder ?? "")}
           onChange={() => {}}
           placeholder={placeholder}
           name={name}
           required={required}
           data-test-id="select-input"
-          className={textFieldWrapClassName}
+          className={`${textFieldWrapClassName}${!selected && placeholder ? " [&_.fs-text-field__input]:text-muted-foreground" : ""}`.trim()}
           variante="autocomplete"
           readOnly={true}
           disabled={disabled}

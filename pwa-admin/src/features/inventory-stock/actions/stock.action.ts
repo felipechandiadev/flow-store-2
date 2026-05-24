@@ -51,6 +51,7 @@ export async function listStockForGrid(input: ListStockForGridInput): Promise<Li
     search: input.search?.trim(),
     storageId: input.storageId?.trim() || undefined,
     branchId: input.branchId?.trim() || undefined,
+    stockAlerts: input.stockAlerts === true,
     page,
     limit,
     sortField,

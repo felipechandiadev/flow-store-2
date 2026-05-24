@@ -63,6 +63,22 @@ export interface DataGridColumn {
 /** Variante del botón de alta en el header del DataGrid. */
 export type DataGridAddButtonVariant = 'icon' | 'pillOutlined';
 
+export type DataGridRowAppearance = {
+  /** Color de fondo de la fila (celdas + columna expand). CSS válido. */
+  backgroundColor?: string;
+  /** Clases extra en cada celda de la fila. */
+  className?: string;
+  /** Slug en `data-row-appearance` (tests / analytics). */
+  variant?: string;
+};
+
+export type DataGridRowAppearanceContext = {
+  row: unknown;
+  rowIndex: number;
+  isSelected: boolean;
+  isExpanded: boolean;
+};
+
 export interface DataGridProps {
   columns: DataGridColumn[];
   title?: string;
@@ -122,6 +138,13 @@ export interface DataGridProps {
   onRowClick?: (row: any) => void;
   /** Resalta la fila cuyo `row.id` coincide (selección controlada desde fuera). */
   selectedRowId?: string | number | null;
+  /**
+   * Apariencia condicional por fila (fondo, clases, variant para tests).
+   * Prioridad de fondo: selección > apariencia custom > hover > default.
+   */
+  getRowAppearance?: (
+    ctx: DataGridRowAppearanceContext,
+  ) => DataGridRowAppearance | null | undefined;
   /** Oculta pie de paginación (listas cortas estáticas). */
   showFooter?: boolean;
   /**
@@ -175,6 +198,7 @@ const DataGrid: React.FC<DataGridProps> = ({
   actionsColumnField = 'actions',
   onRowClick,
   selectedRowId = null,
+  getRowAppearance,
   showFooter = true,
   paginationMode = 'url',
   page: controlledPage,
@@ -395,6 +419,7 @@ const DataGrid: React.FC<DataGridProps> = ({
           stickyExpandedRowTopPx={expandable ? expandedStickyRowTopPx : undefined}
           onRowClick={onRowClick}
           selectedRowId={selectedRowId}
+          getRowAppearance={getRowAppearance}
         />
       </div>
       {showFooter ? (

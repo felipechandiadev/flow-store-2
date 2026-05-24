@@ -27,12 +27,16 @@ export default async function Page({
   const sort = sortRaw === "desc" ? "desc" : "asc";
   const storageId = parseSp(sp, "storageId");
   const branchId = parseSp(sp, "branchId");
+  const stockAlertsRaw = parseSp(sp, "stock-alerts").toLowerCase();
+  const stockAlerts =
+    stockAlertsRaw === "true" || stockAlertsRaw === "1" || stockAlertsRaw === "yes";
 
   const [result, storages] = await Promise.all([
     listStockForGrid({
       search,
       storageId: storageId || undefined,
       branchId: branchId || undefined,
+      stockAlerts: stockAlerts ? true : undefined,
       page,
       limit,
       sortField,

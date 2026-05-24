@@ -185,6 +185,9 @@ export default function UsersDataGrid({ data, total, page, limit }: Props) {
 | `onExportExcel` | `() => Promise<void>` | - | Callback para exportar a Excel |
 | `expandable` | `boolean` | `false` | Habilitar filas expandibles |
 | `expandableRowContent` | `(row) => ReactNode` | - | Contenido del panel expandido |
+| `getRowAppearance` | `(ctx) => DataGridRowAppearance \| null` | - | Fondo/clases condicionales por fila. Prioridad de fondo: selección > custom > hover > default |
+| `selectedRowId` | `string \| number \| null` | - | Resalta la fila cuyo `row.id` coincide |
+| `onRowClick` | `(row) => void` | - | Clic en la fila |
 
 ### DataGridColumn
 
@@ -317,6 +320,24 @@ function UserActions({ row }: { row: User }) {
       <p>Notas: {row.notes}</p>
     </div>
   )}
+/>
+```
+
+### Fondo condicional por fila
+
+```tsx
+<DataGrid
+  columns={columns}
+  rows={data}
+  totalRows={total}
+  getRowAppearance={({ row }) => {
+    if (!row.isUrgent) return null;
+    return {
+      backgroundColor:
+        'color-mix(in srgb, var(--color-destructive) 8%, var(--color-background))',
+      variant: 'urgent', // data-row-appearance="urgent"
+    };
+  }}
 />
 ```
 

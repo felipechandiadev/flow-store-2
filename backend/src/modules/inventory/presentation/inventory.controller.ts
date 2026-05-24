@@ -68,12 +68,14 @@ export class InventoryController {
       limit?: string;
       sortField?: string;
       sort?: string;
+      'stock-alerts'?: string;
     },
   ) {
     return this.inventoryService.search({
       search: params.search,
       branchId: params.branchId,
       storageId: params.storageId,
+      stockAlerts: params['stock-alerts'],
       page: params.page ? parseInt(params.page, 10) : 1,
       limit: params.limit ? parseInt(params.limit, 10) : 25,
       sortField: params.sortField || 'productName',

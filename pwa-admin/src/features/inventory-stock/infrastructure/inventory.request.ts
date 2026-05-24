@@ -1,6 +1,11 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
-import type { ListStockMovementsResult, StockGridRow, StockMovementRow } from "../types/stock-grid.types";
+import type {
+  ListStockMovementsResult,
+  StockAlertKind,
+  StockGridRow,
+  StockMovementRow,
+} from "../types/stock-grid.types";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -250,6 +255,20 @@ function normalizeRow(row: unknown): StockGridRow | null {
           ? Number(o.pmpValue)
           : null,
     isBelowMinimum: o.isBelowMinimum === true,
+    hasStockAlert: o.hasStockAlert === true || o.isBelowMinimum === true,
+    stockAlertKinds: (() => {
+      if (!Array.isArray(o.stockAlertKinds)) {
+        return undefined;
+      }
+      const kinds: StockAlertKind[] = [];
+      for (const k of o.stockAlertKinds) {
+        const s = String(k);
+        if (s === "below_minimum" || s === "above_maximum" || s === "reorder") {
+          kinds.push(s);
+        }
+      }
+      return kinds.length > 0 ? kinds : undefined;
+    })(),
     primaryStorageName: o.primaryStorageName != null ? String(o.primaryStorageName) : "",
     primaryStorageQuantity:
       typeof o.primaryStorageQuantity === "number" && Number.isFinite(o.primaryStorageQuantity)
@@ -265,6 +284,7 @@ export class InventoryRequest {
     search?: string;
     storageId?: string;
     branchId?: string;
+    stockAlerts?: boolean;
     page?: number;
     limit?: number;
     sortField?: string;
@@ -280,6 +300,9 @@ export class InventoryRequest {
     }
     if (params.branchId?.trim()) {
       q.set("branchId", params.branchId.trim());
+    }
+    if (params.stockAlerts) {
+      q.set("stock-alerts", "true");
     }
     q.set("page", String(Math.max(1, params.page ?? 1)));
     q.set("limit", String(Math.min(500, Math.max(1, params.limit ?? 25))));

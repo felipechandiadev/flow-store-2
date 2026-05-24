@@ -47,6 +47,55 @@ export function computeStorageThresholdAlert(
 export const STOCK_THRESHOLD_ALERT_CARD_CLASS =
   "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/35";
 
+/** Fondo de fila en DataGrid (mismo tinte que {@link STOCK_THRESHOLD_ALERT_CARD_CLASS}). */
+export const STOCK_THRESHOLD_ALERT_ROW_CLASS = "bg-red-50 dark:bg-red-950/35";
+
+/** Inline fallback; usa `--color-error` (no existe `--color-destructive` en el tema). */
+export const STOCK_THRESHOLD_ALERT_ROW_BACKGROUND =
+  "color-mix(in srgb, var(--color-error) 14%, var(--color-background))";
+
+export type StockBreakdownThresholdInput = {
+  quantity: number;
+  effectiveMinimumStock?: number;
+  effectiveMinimumStockEnabled?: boolean;
+  effectiveMaximumStock?: number;
+  effectiveMaximumStockEnabled?: boolean;
+  effectiveReorderPoint?: number;
+  effectiveReorderPointEnabled?: boolean;
+};
+
+/** True si algún almacén del breakdown está en alerta (misma regla que las cards expandidas). */
+export function stockRowHasThresholdAlert(
+  row: {
+    hasStockAlert?: boolean;
+    stockAlertKinds?: StockThresholdAlertKind[];
+    storageBreakdown?: StockBreakdownThresholdInput[];
+  },
+): boolean {
+  if (row.hasStockAlert) {
+    return true;
+  }
+  if (row.stockAlertKinds && row.stockAlertKinds.length > 0) {
+    return true;
+  }
+  for (const b of row.storageBreakdown ?? []) {
+    if (
+      computeStorageThresholdAlert({
+        physical: b.quantity,
+        minimum: b.effectiveMinimumStock,
+        minimumEnabled: b.effectiveMinimumStockEnabled,
+        maximum: b.effectiveMaximumStock,
+        maximumEnabled: b.effectiveMaximumStockEnabled,
+        reorder: b.effectiveReorderPoint,
+        reorderEnabled: b.effectiveReorderPointEnabled,
+      })
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function labelStorageThresholdAlert(kind: StockThresholdAlertKind): string {
   switch (kind) {
     case "below_minimum":

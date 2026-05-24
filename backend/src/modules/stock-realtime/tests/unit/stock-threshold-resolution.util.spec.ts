@@ -63,6 +63,30 @@ describe('resolveStockThresholds', () => {
     expect(resolved.minEnabled).toBe(false);
     expect(resolved.alerts).toEqual([]);
   });
+
+  it('alerts reorder per storage when only storage reorder is enabled', () => {
+    const resolved = resolveStockThresholds(
+      {
+        minimumStock: 0,
+        minimumStockEnabled: false,
+        maximumStock: 0,
+        maximumStockEnabled: false,
+        reorderPoint: 0,
+        reorderPointEnabled: false,
+      },
+      {
+        storageId: 'deposito',
+        productVariantId: 'v1',
+        physicalStock: 50,
+        reorderPoint: 100,
+        reorderPointEnabled: true,
+      },
+      { totalPhysicalStock: 500 },
+    );
+
+    expect(resolved.scope).toBe('storage');
+    expect(resolved.alerts).toEqual(['reorder']);
+  });
 });
 
 describe('sumVariantPhysicalStock', () => {

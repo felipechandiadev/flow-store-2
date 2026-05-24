@@ -6,7 +6,12 @@ import {
   getCellOverflowClassNames,
   resolveColumnCellOverflow,
 } from '../utils/columnStyles';
-import type { DataGridColumn } from '../DataGrid';
+import type {
+  DataGridColumn,
+  DataGridRowAppearance,
+  DataGridRowAppearanceContext,
+} from '../DataGrid';
+import { resolveRowCellBackgroundColor } from '../utils/rowAppearance';
 import IconButton from '@/shared/components/IconButton';
 
 const CELL_BASE_CLASS =
@@ -31,6 +36,9 @@ interface BodyProps {
   stickyExpandedRowTopPx?: number;
   onRowClick?: (row: any) => void;
   selectedRowId?: string | number | null;
+  getRowAppearance?: (
+    ctx: DataGridRowAppearanceContext,
+  ) => DataGridRowAppearance | null | undefined;
 }
 
 const Body: React.FC<BodyProps> = ({
@@ -47,6 +55,7 @@ const Body: React.FC<BodyProps> = ({
   stickyExpandedRowTopPx,
   onRowClick,
   selectedRowId = null,
+  getRowAppearance,
 }) => {
   const [hoveredRowId, setHoveredRowId] = useState<string | number | null>(null);
   const visibleColumns = columns.filter((c) => !c.hide);
@@ -62,6 +71,24 @@ const Body: React.FC<BodyProps> = ({
         const isExpanded = expandedRowIds.has(rowId);
         const isSelected =
           selectedRowId != null && selectedRowId !== '' && String(rowId) === String(selectedRowId);
+        const rowAppearance = getRowAppearance?.({
+          row,
+          rowIndex,
+          isSelected,
+          isExpanded,
+        });
+        const isHovered = hoveredRowId === rowId;
+        const rowBackgroundColor = resolveRowCellBackgroundColor({
+          isSelected,
+          isHovered,
+          appearance: rowAppearance,
+        });
+        const rowAppearanceClassName = rowAppearance?.className?.trim() ?? '';
+        /** Si solo hay clases Tailwind `bg-*`, no pisarlas con `backgroundColor` inline (hover/default). */
+        const rowAppearanceUsesBgClass =
+          Boolean(rowAppearanceClassName) &&
+          /\bbg-/.test(rowAppearanceClassName) &&
+          !rowAppearance?.backgroundColor;
 
         return (
           <React.Fragment key={rowId}>
@@ -92,15 +119,18 @@ const Body: React.FC<BodyProps> = ({
                   : undefined),
               }}
               data-test-id="data-grid-row"
+              data-row-appearance={rowAppearance?.variant}
               aria-selected={onRowClick ? isSelected : undefined}
             >
               {/* Expand/Collapse button */}
               {expandable && (
                 <div
-                  className="w-10 min-w-[40px] px-1 py-1 border-b border-border flex items-center justify-center"
-                  style={{
-                    backgroundColor: hoveredRowId === rowId ? 'var(--color-hover)' : 'transparent',
-                  }}
+                  className={`w-10 min-w-[40px] px-1 py-1 border-b border-border flex items-center justify-center ${rowAppearanceClassName}`}
+                  style={
+                    rowAppearanceUsesBgClass && !isSelected
+                      ? undefined
+                      : { backgroundColor: rowBackgroundColor }
+                  }
                   onMouseEnter={() => setHoveredRowId(rowId)}
                   onMouseLeave={() => setHoveredRowId(null)}
                 >
@@ -120,15 +150,12 @@ const Body: React.FC<BodyProps> = ({
                 const style = computedStyles[colIndex];
                 const isPinnedActionsColumn =
                   pinActionsColumn && column.field === actionsColumnField;
-                const rowBackgroundColor = isSelected
-                  ? 'color-mix(in srgb, var(--color-primary) 16%, var(--color-background))'
-                  : hoveredRowId === rowId
-                    ? 'var(--color-hover)'
-                    : 'var(--color-background)';
 
                 const cellStyle = {
                   ...style,
-                  backgroundColor: rowBackgroundColor,
+                  ...(rowAppearanceUsesBgClass && !isSelected
+                    ? {}
+                    : { backgroundColor: rowBackgroundColor }),
                   ...(isPinnedActionsColumn
                     ? {
                         position: 'sticky' as const,
@@ -155,7 +182,7 @@ const Body: React.FC<BodyProps> = ({
                 const overflowMode = resolveColumnCellOverflow(column);
                 const cellClassName = `${CELL_BASE_CLASS} ${
                   overflowMode === 'wrap' ? 'items-start' : 'items-center'
-                } ${overflow.cell}`;
+                } ${overflow.cell} ${rowAppearanceClassName}`.trim();
                 const displayText =
                   value !== null && value !== undefined ? String(value) : '-';
                 const cellTitle =

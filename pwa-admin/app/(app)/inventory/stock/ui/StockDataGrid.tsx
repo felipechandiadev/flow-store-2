@@ -26,6 +26,8 @@ import {
   computeStorageThresholdAlert,
   labelStorageThresholdAlert,
   STOCK_THRESHOLD_ALERT_CARD_CLASS,
+  STOCK_THRESHOLD_ALERT_ROW_CLASS,
+  stockRowHasThresholdAlert,
 } from "@/features/inventory-stock/lib/stock-threshold-alert";
 
 type StockDataGridProps = {
@@ -262,6 +264,45 @@ function mergeStoragesWithBreakdown(
   return [...fromCatalog, ...extras];
 }
 
+function parseStockAlertsParam(value: string | null): boolean {
+  const s = (value ?? "").trim().toLowerCase();
+  return s === "true" || s === "1" || s === "yes";
+}
+
+function StockAlertsFilter() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const active = parseStockAlertsParam(searchParams.get("stock-alerts"));
+
+  const setActive = (on: boolean) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (on) {
+      next.set("stock-alerts", "true");
+    } else {
+      next.delete("stock-alerts");
+    }
+    next.set("page", "1");
+    const qs = next.toString();
+    router.replace(qs ? `?${qs}` : "?page=1", { scroll: false });
+  };
+
+  return (
+    <div
+      className="flex shrink-0 items-center"
+      data-test-id="stock-grid-stock-alerts-filter"
+    >
+      <Switch
+        checked={active}
+        onChange={setActive}
+        label="Alertas de stock"
+        labelPosition="left"
+        density="compact"
+        data-test-id="stock-alerts-filter-switch"
+      />
+    </div>
+  );
+}
+
 function StockStorageFilter({ storages }: { storages: StorageListItem[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -293,6 +334,9 @@ function StockStorageFilter({ storages }: { storages: StorageListItem[] }) {
         value={current || null}
         onChange={(id) => apply(id == null ? null : String(id))}
         allowClear
+        density="compact"
+        labelLayout="inline"
+        alwaysShowLabel
         data-test-id="stock-storage-filter-select"
       />
     </div>
@@ -1036,9 +1080,24 @@ export default function StockDataGrid({
         showExportButton={false}
         expandable
         expandableRowContent={(row) => expandableRowContent(row as StockGridRow)}
-        headerActions={<StockStorageFilter storages={storages} />}
+        headerActions={
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <StockStorageFilter storages={storages} />
+            <StockAlertsFilter />
+          </div>
+        }
         pinActionsColumn
         actionsColumnField="actions"
+        getRowAppearance={({ row }) => {
+          const r = row as StockGridRow;
+          if (!stockRowHasThresholdAlert(r)) {
+            return null;
+          }
+          return {
+            className: STOCK_THRESHOLD_ALERT_ROW_CLASS,
+            variant: "stock-alert",
+          };
+        }}
         data-test-id="stock-data-grid"
       />
 

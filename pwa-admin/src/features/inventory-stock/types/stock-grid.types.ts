@@ -36,6 +36,8 @@ export type StockStorageBreakdownRow = {
   effectiveReorderPointEnabled?: boolean;
 };
 
+export type StockAlertKind = "below_minimum" | "above_maximum" | "reorder";
+
 export type StockGridRow = {
   id: string;
   variantId: string;
@@ -63,6 +65,9 @@ export type StockGridRow = {
   pmp: number | null;
   pmpValue: number | null;
   isBelowMinimum: boolean;
+  /** Variante con al menos un umbral activo incumplido (mín / máx / reposición). */
+  hasStockAlert?: boolean;
+  stockAlertKinds?: StockAlertKind[];
   primaryStorageName: string;
   primaryStorageQuantity: number;
   storageBreakdown: StockStorageBreakdownRow[];
@@ -73,6 +78,8 @@ export type ListStockForGridInput = {
   search: string;
   storageId?: string;
   branchId?: string;
+  /** Filtra solo variantes en alerta de stock (`stock-alerts=true` en API). */
+  stockAlerts?: boolean;
   page: number;
   limit: number;
   sortField: string;
