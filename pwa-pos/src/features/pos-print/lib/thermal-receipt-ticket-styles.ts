@@ -54,14 +54,17 @@ export function thermalReceiptTicketCss(): string {
   .sep { border-top: 1px dashed #888; margin: 5px 0; }
   .section-title { font-size: 9px; font-weight: ${w}; text-transform: uppercase; letter-spacing: 0.02em; margin: 4px 0 2px; color: #333; }
   table.lines { width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 9px; }
-  table.lines td { vertical-align: top; padding: 3px 0; border-bottom: 1px dotted #ccc; overflow-wrap: anywhere; word-break: break-word; }
-  table.lines tr:last-child td { border-bottom: none; }
-  table.lines .name { width: 58%; max-width: 58%; }
-  table.lines .qty { width: 42%; max-width: 42%; white-space: nowrap; text-align: right; font-size: 8.5px; }
+  table.lines .line-block { vertical-align: top; padding: 3px 0; border-bottom: 1px dotted #ccc; overflow-wrap: anywhere; word-break: break-word; }
+  table.lines tr:last-child .line-block { border-bottom: none; }
+  table.lines .line-name { font-size: 9px; color: #111; }
+  table.lines .line-detail { display: flex; justify-content: space-between; align-items: baseline; gap: 3px; margin-top: 1px; font-size: 9px; color: #111; max-width: 100%; }
+  table.lines .line-detail .line-qty { min-width: 0; flex: 1; }
+  table.lines .line-detail .line-total { flex-shrink: 0; text-align: right; white-space: nowrap; max-width: 42%; }
   .name { word-wrap: break-word; overflow-wrap: anywhere; }
   .tright { text-align: right; }
   .tot { font-size: 10px; font-weight: ${w}; }
-  .barcode-wrap { display: flex; justify-content: center; width: 100%; max-width: 100%; margin-top: 5px; overflow: hidden; }
+  .barcode-section { margin-top: 8px; padding-top: 2px; }
+  .barcode-wrap { display: flex; justify-content: center; width: 100%; max-width: 100%; overflow: hidden; }
   .barcode-wrap svg { max-width: 62mm; height: auto; }
   .wrap { font-size: 9px; white-space: pre-wrap; word-break: break-word; margin: 0; }
 `.trim();
@@ -85,11 +88,14 @@ h1 { font-size: 12px; font-weight: ${w}; text-align: center; margin: 2px 0; word
 .row > span { min-width: 0; word-break: break-word; overflow-wrap: anywhere; }
 .row > span:last-child { flex-shrink: 0; text-align: right; max-width: 42%; }
 .sep { border-top: 1px dashed #999; margin: 4px 0; }
-table.items { width: 100%; table-layout: fixed; border-collapse: collapse; }
-table.items td { vertical-align: top; padding: 2px 0; overflow-wrap: anywhere; word-break: break-word; }
-table.items .name { width: 58%; }
-table.items .tright { width: 42%; text-align: right; white-space: nowrap; font-size: 8.5px; }
-.barcode { text-align: center; margin: 5px 0; max-width: 100%; overflow: hidden; }
+table.items { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 9px; }
+table.items .line-block { vertical-align: top; padding: 2px 0; overflow-wrap: anywhere; word-break: break-word; }
+table.items .line-name { font-size: 9px; color: #111; }
+table.items .line-detail { display: flex; justify-content: space-between; align-items: baseline; gap: 3px; margin-top: 1px; font-size: 9px; color: #111; max-width: 100%; }
+table.items .line-detail .line-qty { min-width: 0; flex: 1; }
+table.items .line-detail .line-total { flex-shrink: 0; text-align: right; white-space: nowrap; max-width: 42%; }
+.barcode-section { margin-top: 8px; padding-top: 2px; }
+.barcode { text-align: center; margin: 0; max-width: 100%; overflow: hidden; }
 .total-row { font-weight: ${w}; font-size: 10px; }
 `.trim();
 }

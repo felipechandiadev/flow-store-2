@@ -19,6 +19,10 @@ mod pos_customer_credit_note_ticket_pdf;
 mod pos_cash_closing_ticket;
 mod pos_cash_closing_ticket_escpos;
 mod pos_cash_closing_ticket_pdf;
+mod pos_cash_count_sheet_ticket;
+mod pos_cash_count_sheet_ticket_escpos;
+mod pos_cash_session_opening_ticket;
+mod pos_cash_session_opening_ticket_escpos;
 mod ticket_barcode;
 mod platform;
 mod port_release;
@@ -27,6 +31,7 @@ mod security;
 mod state;
 mod tls;
 mod ticket_logos;
+mod reachability;
 mod ws;
 mod wss;
 
@@ -84,7 +89,7 @@ fn spawn_printer_health_tick(state: Arc<AppState>) {
         let mut last = String::new();
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(15)).await;
-            let Ok(ev) = events::emit_printer_health_json(&state.db, &[]) else {
+            let Ok(ev) = events::emit_printer_health_json(&state.db, &[], &state.reachability) else {
                 continue;
             };
             let s = ev.to_string();
@@ -216,7 +221,7 @@ async fn start_print_network(state: tauri::State<'_, Arc<AppState>>) -> Result<(
 }
 
 fn notify_printer_health_and_config(state: &Arc<AppState>) {
-    if let Ok(ph) = events::emit_printer_health_json(&state.db, &[]) {
+    if let Ok(ph) = events::emit_printer_health_json(&state.db, &[], &state.reachability) {
         let _ = state.broadcast.send(ph.to_string());
     }
     let cfg = json!({
@@ -259,7 +264,9 @@ fn get_dashboard(state: tauri::State<'_, Arc<AppState>>) -> Result<serde_json::V
     let printers = platform::list_system_printers().map_err(|e| e.to_string())?;
     let mappings = state.db.get_mappings().map_err(|e| e.to_string())?;
     let mapping_lines = state.db.list_mapping_lines().map_err(|e| e.to_string())?;
-    let ph = events::printer_health_event_json(&state.db, &printers, &[]);
+    crate::reachability::refresh_all_lines(&state.db, &printers, &state.reachability, true)
+        .map_err(|e| e.to_string())?;
+    let ph = events::printer_health_event_json(&state.db, &printers, &[], &state.reachability);
     let jobs = state.db.list_jobs_queue(40).map_err(|e| e.to_string())?;
     let wss_on = state
         .db
@@ -521,8 +528,38 @@ fn set_service_settings(
 }
 
 #[tauri::command]
-fn probe_ticket_network_printer(ticket_network_host: String) -> Result<String, String> {
-    crate::platform::probe_network_printer(&ticket_network_host).map_err(|e| e.to_string())?;
+fn probe_ticket_network_printer(
+    state: tauri::State<'_, Arc<AppState>>,
+    ticket_network_host: String,
+) -> Result<String, String> {
+    let host = ticket_network_host.trim().to_string();
+    if host.is_empty() {
+        return Err("Indicá la dirección IP de la impresora.".into());
+    }
+    let entry = crate::reachability::evaluate_network_host(&host);
+    let rows = state.db.list_mapping_lines().map_err(|e| e.to_string())?;
+    for row in &rows {
+        if row
+            .get("ticketNetworkHost")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            != Some(host.as_str())
+        {
+            continue;
+        }
+        if let Some(id) = row.get("id").and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty()) {
+            state.reachability.set(id, entry.clone());
+        }
+    }
+    if entry.status != crate::reachability::LINE_STATUS_ONLINE {
+        notify_printer_health_and_config(&state);
+        return Err(
+            entry
+                .reason
+                .unwrap_or_else(|| "No se pudo conectar por TCP (puerto 9100).".into()),
+        );
+    }
+    notify_printer_health_and_config(&state);
     Ok("Conexión TCP correcta.".into())
 }
 

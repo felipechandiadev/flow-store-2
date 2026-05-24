@@ -15,7 +15,9 @@ import {
   writePrintServiceConfigToStorage,
 } from "@flowstore/print-service-client";
 import { Button, Select, Switch, TextField } from "@/shared/admin-shared";
+import { printPosDocumentTest } from "@/features/pos-print/lib/print-pos-document-test";
 import { DocumentPrintModeToggle } from "@/features/pos-print/ui/DocumentPrintModeToggle";
+import { DocumentPrintTestButton } from "@/features/pos-print/ui/DocumentPrintTestButton";
 
 type Props = {
   className?: string;
@@ -32,6 +34,8 @@ const INITIAL_DOC_PRINT_MODES: Record<PosDocumentPrintKind, PosDocumentPrintMode
   backorder: "ticket",
   customerCreditNote: "ticket",
   cashClosing: "ticket",
+  cashCountSheet: "document",
+  cashSessionOpening: "ticket",
 };
 
 function aliasSelectOptions(aliases: string[], current: string) {
@@ -63,6 +67,7 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
   const [docPrintModes, setDocPrintModes] =
     useState<Record<PosDocumentPrintKind, PosDocumentPrintMode>>(INITIAL_DOC_PRINT_MODES);
   const [storageHydrated, setStorageHydrated] = useState(false);
+  const [testPrintBusyKind, setTestPrintBusyKind] = useState<PosDocumentPrintKind | null>(null);
 
   useEffect(() => {
     const c = readPrintServiceConfigFromStorage();
@@ -138,6 +143,26 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
   const setDocMode = useCallback((kind: PosDocumentPrintKind, mode: PosDocumentPrintMode) => {
     setDocPrintModes((prev) => ({ ...prev, [kind]: mode }));
   }, []);
+
+  const runTestPrint = useCallback(
+    async (kind: PosDocumentPrintKind) => {
+      if (testPrintBusyKind) return;
+      setTestPrintBusyKind(kind);
+      try {
+        await printPosDocumentTest(kind, docPrintModes[kind]);
+      } catch (e) {
+        console.warn("[pos-print-test]", e);
+        window.alert(
+          e instanceof Error
+            ? e.message
+            : "No se pudo enviar la impresión de prueba. Revisá KaiPrinters o el diálogo del navegador.",
+        );
+      } finally {
+        setTestPrintBusyKind(null);
+      }
+    },
+    [docPrintModes, testPrintBusyKind],
+  );
 
   const ticketOptions = useMemo(
     () => aliasSelectOptions(ticketAliases, ticketsAlias),
@@ -237,8 +262,10 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
         <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">Impresión según documento</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Formato por defecto al imprimir desde el POS (ventas, cotizaciones, cierre de caja, etc.).
+            Formato por defecto al imprimir desde el POS (ventas, cotizaciones, cierre de caja, planilla de conteo, etc.).
             En cotizaciones, el diálogo de emisión precargará esta opción (puedes cambiarla antes de imprimir).
+            Usá el icono de impresión para enviar un documento de prueba con datos ficticios a KaiPrinters; si el
+            agente no está disponible, se abrirá el diálogo de impresión del navegador.
           </p>
           <div className="mt-4 grid gap-4">
             {(
@@ -252,23 +279,41 @@ export function PosLocalPrintPreferencesForm({ className = "" }: Props) {
                   "pos-print-prefs-customer-credit-note-mode",
                 ] as const,
                 ["cashClosing", "Arqueo de caja", "pos-print-prefs-cash-closing-mode"] as const,
+                [
+                  "cashCountSheet",
+                  "Planilla de conteo",
+                  "pos-print-prefs-cash-count-sheet-mode",
+                ] as const,
+                [
+                  "cashSessionOpening",
+                  "Apertura de caja",
+                  "pos-print-prefs-cash-session-opening-mode",
+                ] as const,
               ] as const
             ).map(([kind, label, testId]) => (
-              <div key={kind}>
-                <p className="mb-2 text-sm font-medium text-foreground">{label}</p>
-                {storageHydrated ? (
-                  <DocumentPrintModeToggle
-                    value={docPrintModes[kind]}
-                    onChange={(mode) => setDocMode(kind, mode)}
-                    data-test-id={testId}
-                  />
-                ) : (
-                  <div
-                    className="h-[52px] rounded-lg border border-border bg-muted/20"
-                    aria-hidden
-                    data-test-id={`${testId}-skeleton`}
-                  />
-                )}
+              <div key={kind} className="flex items-start gap-2">
+                <DocumentPrintTestButton
+                  busy={testPrintBusyKind === kind}
+                  disabled={!storageHydrated || testPrintBusyKind !== null}
+                  data-test-id={`${testId}-test-print`}
+                  onPrint={() => runTestPrint(kind)}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="mb-2 text-sm font-medium text-foreground">{label}</p>
+                  {storageHydrated ? (
+                    <DocumentPrintModeToggle
+                      value={docPrintModes[kind]}
+                      onChange={(mode) => setDocMode(kind, mode)}
+                      data-test-id={testId}
+                    />
+                  ) : (
+                    <div
+                      className="h-[52px] rounded-lg border border-border bg-muted/20"
+                      aria-hidden
+                      data-test-id={`${testId}-skeleton`}
+                    />
+                  )}
+                </div>
               </div>
             ))}
           </div>

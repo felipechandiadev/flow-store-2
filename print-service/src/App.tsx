@@ -85,6 +85,7 @@ type DashboardPayload = {
     overall?: string;
     message?: string;
     purposes?: Record<string, { status?: string; printerName?: string; printerNames?: unknown }>;
+    lines?: Array<{ id?: string; status?: string; reason?: string }>;
   };
   jobs?: JobRow[];
   serviceStatus?: {
@@ -279,6 +280,7 @@ export default function App() {
   }, [fetchDashboard]);
 
   const printers = dashboard?.printers ?? [];
+  const mappingLineHealth = dashboard?.printerHealth?.lines ?? [];
   const jobs = dashboard?.jobs ?? [];
   const sessions = dashboard?.serviceStatus?.sessions ?? [];
   const isWindows = dashboard?.hostPlatform === "windows";
@@ -385,7 +387,7 @@ export default function App() {
       setDashboard((prev) => ({
         ...(prev ?? {}),
         printers: d.printers,
-        printerHealth: d.printerHealth ?? prev?.printerHealth,
+        printerHealth: d.printerHealth,
         hostPlatform: d.hostPlatform ?? prev?.hostPlatform,
         ghostscript: d.ghostscript ?? prev?.ghostscript,
       }));
@@ -409,6 +411,7 @@ export default function App() {
         ticketNetworkHost: networkHost,
       })) as string;
       window.alert(msg);
+      await fetchDashboard("live");
     } catch (e: unknown) {
       const msg =
         typeof e === "string"
@@ -417,6 +420,7 @@ export default function App() {
             ? (e as Error).message
             : "No se pudo conectar a la impresora en red.";
       window.alert(msg);
+      await fetchDashboard("live");
     } finally {
       setNetworkProbeBusyId(null);
     }
@@ -903,6 +907,7 @@ export default function App() {
                   line={line}
                   savedLines={savedLines}
                   printers={printers}
+                  healthLines={mappingLineHealth}
                   expanded={expandedLineId === line.id}
                   sortOrder={idx}
                   saveBusy={lineSaveBusyId === line.id}

@@ -8,10 +8,11 @@ import type { CustomerCreditNotePrintData } from "@/features/customer-credit-not
 import { fetchReceiptLogoBase64 } from "@/features/pos-print/lib/pos-sale-ticket-agent";
 import {
   enqueueVectorTicketWithMappingFallback,
-  printTicketHtmlInBrowser,
+  posTicketMetaToDocumentMeta,
+  printPosTicketFailureDocumentFallback,
   withPrintAgentConnection,
 } from "@/features/pos-print/lib/pos-agent-print";
-import { buildCustomerCreditNoteReceiptHtml } from "@/features/customer-credit-notes/lib/customer-credit-note-receipt-print";
+import { buildCustomerCreditNoteDocumentHtml } from "@/features/customer-credit-notes/lib/customer-credit-note-document-print";
 
 function creditNoteToTicketPayload(
   data: CustomerCreditNotePrintData,
@@ -66,11 +67,17 @@ export async function printCustomerCreditNoteReceiptAgentOrBrowser(
     internalFolio: folio,
     iframeTitle: "Impresión nota de crédito",
   };
-  const html = buildCustomerCreditNoteReceiptHtml(data, window.location.origin);
+  const documentHtml = buildCustomerCreditNoteDocumentHtml(data);
+  const ticketMeta = {
+    filename: meta.filename,
+    iframeTitle: meta.iframeTitle,
+    documentType: meta.documentType,
+    internalFolio: meta.internalFolio,
+  };
+  const documentFallbackMeta = posTicketMetaToDocumentMeta(ticketMeta);
 
   if (!isPosAgentPrintConfiguredForPurpose("tickets")) {
-    printTicketHtmlInBrowser(html, meta.iframeTitle);
-    return "browser";
+    return printPosTicketFailureDocumentFallback(documentHtml, ticketMeta);
   }
 
   const logoBase64 = await fetchReceiptLogoBase64(
@@ -94,6 +101,7 @@ export async function printCustomerCreditNoteReceiptAgentOrBrowser(
           if (res && res.queued === false && !res.jobId) {
             throw new Error("enqueue_rejected");
           }
+          return res;
         },
         async () => {
           const res = (await conn.enqueuePosCustomerCreditNoteTicket(
@@ -104,6 +112,12 @@ export async function printCustomerCreditNoteReceiptAgentOrBrowser(
           if (res && res.queued === false && !res.jobId) {
             throw new Error("enqueue_rejected");
           }
+          return res;
+        },
+        {
+          html: documentHtml,
+          iframeTitle: documentFallbackMeta.iframeTitle,
+          kind: "document",
         },
       );
     });
@@ -113,8 +127,7 @@ export async function printCustomerCreditNoteReceiptAgentOrBrowser(
 
   if (enqueued) return "agent";
 
-  printTicketHtmlInBrowser(html, meta.iframeTitle);
-  return "browser";
+  return printPosTicketFailureDocumentFallback(documentHtml, ticketMeta);
 }
 
 export function printCustomerCreditNoteReceiptAgentOrBrowserFireAndForget(

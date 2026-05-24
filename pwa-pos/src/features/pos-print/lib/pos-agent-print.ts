@@ -8,6 +8,10 @@ import {
   type PosPrintAgentPurpose,
 } from "@flowstore/print-service-client";
 import { htmlToPdfBase64 } from "@/features/pos-print/lib/html-to-pdf-base64";
+import {
+  registerPosPrintJobBrowserFallbackFromEnqueue,
+  type PosPrintJobBrowserFallback,
+} from "@/features/pos-print/lib/pos-print-job-browser-fallback";
 import { printHtmlInHiddenIframe } from "@/features/pos-print/lib/print-html-in-hidden-iframe";
 
 export type PosAgentPrintMeta = {
@@ -23,12 +27,16 @@ export function isUnknownPrinterLabelError(e: unknown): boolean {
 
 /** Tickets: primero mapeo por propósito (sin alias), luego con alias del POS. */
 export async function enqueueVectorTicketWithMappingFallback(
-  withAlias: () => Promise<void>,
-  withoutAlias: () => Promise<void>,
+  withAlias: () => Promise<unknown>,
+  withoutAlias: () => Promise<unknown>,
+  browserFallback?: PosPrintJobBrowserFallback,
 ): Promise<boolean> {
   for (const attempt of [withoutAlias, withAlias]) {
     try {
-      await attempt();
+      const res = await attempt();
+      if (browserFallback) {
+        registerPosPrintJobBrowserFallbackFromEnqueue(res, browserFallback);
+      }
       return true;
     } catch (e) {
       if (!isUnknownPrinterLabelError(e)) {
@@ -40,8 +48,38 @@ export async function enqueueVectorTicketWithMappingFallback(
   return false;
 }
 
-export function printTicketHtmlInBrowser(html: string, title: string): void {
-  printHtmlInHiddenIframe(html, title);
+/** Convierte metadatos de encolado ticket (.escpos) a documento (.pdf). */
+export function posTicketMetaToDocumentMeta(meta: PosAgentPrintMeta): PosAgentPrintMeta {
+  const stem = meta.filename.replace(/\.(escpos|html)$/i, "") || "documento";
+  return {
+    ...meta,
+    filename: `${stem}.pdf`,
+    iframeTitle: meta.iframeTitle.endsWith("(documento)")
+      ? meta.iframeTitle
+      : `${meta.iframeTitle} (documento)`,
+  };
+}
+
+/**
+ * Si el ticket ESC/POS no pudo imprimirse, respaldo solo en formato documento (hoja):
+ * agente `documents` o diálogo del navegador — nunca ticket 80 mm en el browser.
+ */
+export async function printPosTicketFailureDocumentFallback(
+  documentHtml: string,
+  ticketMeta: PosAgentPrintMeta,
+): Promise<"agent" | "browser"> {
+  return printPosHtmlViaAgentOrBrowser(
+    documentHtml,
+    "documents",
+    posTicketMetaToDocumentMeta(ticketMeta),
+  );
+}
+
+export function printPosTicketFailureDocumentFallbackFireAndForget(
+  documentHtml: string,
+  ticketMeta: PosAgentPrintMeta,
+): void {
+  void printPosTicketFailureDocumentFallback(documentHtml, ticketMeta);
 }
 
 export function buildAgentWebSocketUrl(): string {
@@ -115,11 +153,17 @@ async function tryEnqueueDocumentPdfOnAgent(
     if (res && res.queued === false && !res.jobId) {
       throw new Error("enqueue_rejected");
     }
+    registerPosPrintJobBrowserFallbackFromEnqueue(res, {
+      html,
+      iframeTitle: meta.iframeTitle,
+      kind: "document",
+    });
   });
 }
 
 /**
- * Documentos: PDF al agente si hay alias; tickets: solo diálogo del navegador (HTML).
+ * Documentos: PDF al agente si hay alias; si falla, diálogo del navegador (HTML hoja).
+ * No usar con `purpose: "tickets"` — los tickets solo van por ESC/POS o fallback documento.
  */
 export async function printPosHtmlViaAgentOrBrowser(
   html: string,
@@ -129,7 +173,7 @@ export async function printPosHtmlViaAgentOrBrowser(
   if (typeof window === "undefined") return "browser";
 
   if (purpose === "tickets") {
-    printTicketHtmlInBrowser(html, meta.iframeTitle);
+    console.warn("[pos-agent-print] tickets: use vector ESC/POS o printPosTicketFailureDocumentFallback");
     return "browser";
   }
 

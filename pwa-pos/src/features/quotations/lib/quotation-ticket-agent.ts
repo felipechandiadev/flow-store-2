@@ -7,13 +7,12 @@ import type { CompanyDetails } from "@/features/company/infrastructure/company.r
 import { fetchReceiptLogoBase64 } from "@/features/pos-print/lib/pos-sale-ticket-agent";
 import {
   enqueueVectorTicketWithMappingFallback,
-  printTicketHtmlInBrowser,
+  posTicketMetaToDocumentMeta,
+  printPosTicketFailureDocumentFallback,
   withPrintAgentConnection,
 } from "@/features/pos-print/lib/pos-agent-print";
-import {
-  buildQuotationReceiptHtml,
-  type QuotationReceiptPrintInput,
-} from "@/features/quotations/lib/quotation-receipt-print";
+import type { QuotationReceiptPrintInput } from "@/features/quotations/lib/quotation-receipt-print";
+import { buildQuotationDocumentHtml } from "@/features/quotations/lib/quotation-document-print";
 
 function quotationToTicketPayload(
   input: QuotationReceiptPrintInput,
@@ -71,12 +70,17 @@ export async function printPosQuotationReceiptAgentOrBrowser(
     documentType: "QUOTATION",
     internalFolio: folio,
   };
-  const html = buildQuotationReceiptHtml(input, window.location.origin);
-  const iframeTitle = "Impresión cotización";
+  const documentHtml = buildQuotationDocumentHtml(input);
+  const ticketMeta = {
+    filename: meta.filename,
+    iframeTitle: "Impresión cotización",
+    documentType: meta.documentType,
+    internalFolio: meta.internalFolio,
+  };
+  const documentFallbackMeta = posTicketMetaToDocumentMeta(ticketMeta);
 
   if (!isPosAgentPrintConfiguredForPurpose("tickets")) {
-    printTicketHtmlInBrowser(html, iframeTitle);
-    return "browser";
+    return printPosTicketFailureDocumentFallback(documentHtml, ticketMeta);
   }
 
   const logoBase64 = await fetchReceiptLogoBase64(
@@ -100,6 +104,7 @@ export async function printPosQuotationReceiptAgentOrBrowser(
           if (res && res.queued === false && !res.jobId) {
             throw new Error("enqueue_rejected");
           }
+          return res;
         },
         async () => {
           const res = (await conn.enqueuePosQuotationTicket(
@@ -110,6 +115,12 @@ export async function printPosQuotationReceiptAgentOrBrowser(
           if (res && res.queued === false && !res.jobId) {
             throw new Error("enqueue_rejected");
           }
+          return res;
+        },
+        {
+          html: documentHtml,
+          iframeTitle: documentFallbackMeta.iframeTitle,
+          kind: "document",
         },
       );
     });
@@ -119,8 +130,7 @@ export async function printPosQuotationReceiptAgentOrBrowser(
 
   if (enqueued) return "agent";
 
-  printTicketHtmlInBrowser(html, iframeTitle);
-  return "browser";
+  return printPosTicketFailureDocumentFallback(documentHtml, ticketMeta);
 }
 
 export function printPosQuotationReceiptAgentOrBrowserFireAndForget(

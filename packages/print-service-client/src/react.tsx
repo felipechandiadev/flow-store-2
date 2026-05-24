@@ -56,6 +56,12 @@ export type UsePrintServiceConnectionOptions = {
    * No registra el valor del token.
    */
   debug?: boolean;
+  /**
+   * Trabajo fallido en el agente. Si devuelve `true`, no se añade la notificación in-app por defecto.
+   */
+  onPrintJobFailed?: (jobId: string, error: string) => boolean | void;
+  /** Trabajo completado en el agente (p. ej. limpiar fallback de impresión en navegador). */
+  onPrintJobDone?: (jobId: string) => void;
 };
 
 function newNotificationId(): string {
@@ -482,11 +488,15 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
       onConfigChanged: () => {
         /* sin notificación: solo desconexión y fallo de impresión */
       },
-      onPrintJobDone: () => {
-        /* sin notificación de éxito */
+      onPrintJobDone: (jobId) => {
+        if (!cancelled) opts.onPrintJobDone?.(jobId);
       },
       onPrintJobFailed: (jobId, error) => {
-        if (!cancelled) notifyJobFailed(jobId, error);
+        if (cancelled) return;
+        const handled = opts.onPrintJobFailed?.(jobId, error);
+        if (handled !== true && opts.enableInAppNotifications !== false) {
+          notifyJobFailed(jobId, error);
+        }
       },
     });
     connRef.current = c;
@@ -519,6 +529,8 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
     notifyDisconnected,
     notifyJobFailed,
     applyPrinterHealth,
+    opts.onPrintJobDone,
+    opts.onPrintJobFailed,
   ]);
 
   const reconnect = useCallback(() => {

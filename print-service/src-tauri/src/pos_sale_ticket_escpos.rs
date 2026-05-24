@@ -15,7 +15,6 @@ use std::path::PathBuf;
 pub(crate) const WIDTH: usize = 48;
 /// Font B (más pequeña) en la misma bobina (~64 columnas).
 pub(crate) const WIDTH_FONT_B: usize = 64;
-const LINE_SPACING_PRODUCT_NAME: u8 = 18;
 /// Columna derecha reservada a montos en CLP (`$12.345.678`).
 const MONEY_COL: usize = 15;
 const LINE_SPACING_HEADER: u8 = 26;
@@ -83,6 +82,12 @@ pub(crate) fn escpos_dense_body(buf: &mut Vec<u8>) {
 
 /// Separación breve tras un título de sección (p. ej. DETALLE).
 pub(crate) fn append_section_gap(buf: &mut Vec<u8>) {
+    append_line(buf, "");
+}
+
+/// Margen superior antes del código de barras (tickets con folio).
+pub(crate) fn append_barcode_section_gap(buf: &mut Vec<u8>) {
+    append_line(buf, "");
     append_line(buf, "");
 }
 
@@ -308,22 +313,19 @@ fn chars_take(s: &str, max: usize) -> String {
     s.chars().take(max).collect()
 }
 
-/// Nombre del producto a ancho completo; el total va en la línea `cantidad × precio`.
+/// Nombre del producto (Font A); en la línea siguiente cantidad × precio y subtotal alineados.
 pub(crate) fn append_product_line_block(
     buf: &mut Vec<u8>,
     name: &str,
     qty_unit_label: &str,
     line_total: &str,
 ) {
-    escpos_font_b(buf);
-    escpos_char_size_normal(buf);
-    escpos_line_spacing(buf, LINE_SPACING_PRODUCT_NAME);
-    for line in wrap_lines(name, WIDTH_FONT_B) {
-        append_line(buf, &line);
-    }
     escpos_font_a(buf);
     escpos_char_size_normal(buf);
     escpos_line_spacing(buf, LINE_SPACING_DENSE);
+    for line in wrap_lines(name, WIDTH) {
+        append_line(buf, &line);
+    }
     append_line(buf, &pad_left(qty_unit_label, line_total));
 }
 
@@ -420,6 +422,7 @@ pub(crate) fn append_barcode_centered(buf: &mut Vec<u8>, payload: &str) {
         return;
     }
 
+    append_barcode_section_gap(buf);
     escpos_reset_for_barcode(buf);
     buf.extend_from_slice(&[0x1B, 0x74, 0x00]);
 

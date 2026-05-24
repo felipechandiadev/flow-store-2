@@ -42,6 +42,8 @@ fn is_vector_pos_ticket_type(print_type: &str) -> bool {
             | "pos-quotation-ticket"
             | "pos-customer-credit-note-ticket"
             | "pos-cash-closing-ticket"
+            | "pos-cash-count-sheet-ticket"
+            | "pos-cash-session-opening-ticket"
     )
 }
 
@@ -57,7 +59,9 @@ fn vector_ticket_folio(print_type: &str, ticket: &serde_json::Value) -> String {
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),
-        "pos-cash-closing-ticket" => {
+        "pos-cash-closing-ticket"
+        | "pos-cash-count-sheet-ticket"
+        | "pos-cash-session-opening-ticket" => {
             let sid = ticket
                 .get("cashSessionId")
                 .and_then(|v| v.as_str())
@@ -86,6 +90,10 @@ fn vector_ticket_escpos_writer(print_type: &str) -> WriteVectorTicketFn {
             jobs::write_pos_customer_credit_note_ticket_escpos_from_value
         }
         "pos-cash-closing-ticket" => jobs::write_pos_cash_closing_ticket_escpos_from_value,
+        "pos-cash-count-sheet-ticket" => jobs::write_pos_cash_count_sheet_ticket_escpos_from_value,
+        "pos-cash-session-opening-ticket" => {
+            jobs::write_pos_cash_session_opening_ticket_escpos_from_value
+        }
         _ => jobs::write_pos_sale_ticket_escpos_from_value,
     }
 }
@@ -311,7 +319,7 @@ where
                                 },
                             );
                             hello_ok = true;
-                            let ph = events::emit_printer_health_json(&state.db, &required)?;
+                            let ph = events::emit_printer_health_json(&state.db, &required, &state.reachability)?;
                             let ticket_escpos = true;
                             ws.send(json_line(&OutResponse::ok(env.request_id.clone(), json!({
                                 "serviceStatus": events::service_status_payload(state.connected(), state.connected_sessions_json()),
@@ -322,6 +330,8 @@ where
                                     "pos-quotation-ticket",
                                     "pos-customer-credit-note-ticket",
                                     "pos-cash-closing-ticket",
+                                    "pos-cash-count-sheet-ticket",
+                                    "pos-cash-session-opening-ticket",
                                 ],
                                 "ticketEscposEnabled": ticket_escpos,
                             })))).await.ok();
@@ -344,7 +354,7 @@ where
                             action.as_str(),
                             "set_printer_mapping" | "set_mapping_lines" | "set_config"
                         ) {
-                            if let Ok(ph) = events::emit_printer_health_json(&state.db, &[]) {
+                            if let Ok(ph) = events::emit_printer_health_json(&state.db, &[], &state.reachability) {
                                 let _ = state.broadcast.send(ph.to_string());
                             }
                             let cfg = json!({

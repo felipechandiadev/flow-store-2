@@ -11,6 +11,14 @@ import type {
   PosCashClosingTicketPayload,
   PosCashClosingTicketPrintExtras,
 } from "./pos-cash-closing-ticket";
+import type {
+  PosCashCountSheetTicketPayload,
+  PosCashCountSheetTicketPrintExtras,
+} from "./pos-cash-count-sheet-ticket";
+import type {
+  PosCashSessionOpeningTicketPayload,
+  PosCashSessionOpeningTicketPrintExtras,
+} from "./pos-cash-session-opening-ticket";
 
 /** Protocol version sent to the local print agent (see docs/print_service_app_developer_guide_v2.md). */
 export const PRINT_PROTOCOL_VERSION = "2.1";
@@ -69,6 +77,9 @@ export const AGENT_CAPABILITY_POS_QUOTATION_TICKET = "pos-quotation-ticket";
 export const AGENT_CAPABILITY_POS_CUSTOMER_CREDIT_NOTE_TICKET =
   "pos-customer-credit-note-ticket";
 export const AGENT_CAPABILITY_POS_CASH_CLOSING_TICKET = "pos-cash-closing-ticket";
+export const AGENT_CAPABILITY_POS_CASH_COUNT_SHEET_TICKET = "pos-cash-count-sheet-ticket";
+export const AGENT_CAPABILITY_POS_CASH_SESSION_OPENING_TICKET =
+  "pos-cash-session-opening-ticket";
 export const AGENT_CAPABILITY_PDF_BASE64 = "pdf-base64";
 
 export type AgentMappingLineConfig = {
@@ -522,6 +533,56 @@ export class PrintServiceConnection {
     return this.enqueuePosPrint(body);
   }
 
+  /**
+   * Planilla de conteo POS: el agente genera ESC/POS desde JSON (`type: "pos-cash-count-sheet-ticket"`).
+   */
+  enqueuePosCashCountSheetTicket(
+    ticket: PosCashCountSheetTicketPayload,
+    extras: PosCashCountSheetTicketPrintExtras & { purpose?: string },
+    omitPrinterDisplayLabel = false,
+  ): Promise<unknown> {
+    const purpose = extras.purpose ?? "tickets";
+    const body: Record<string, unknown> = {
+      purpose,
+      type: "pos-cash-count-sheet-ticket",
+      ticket,
+      filename: extras.filename,
+      copies: 1,
+      sourceApp: extras.sourceApp ?? "pwa-pos",
+      documentType: extras.documentType,
+      internalFolio: extras.internalFolio,
+    };
+    if (omitPrinterDisplayLabel) {
+      return this.enqueuePrint(body);
+    }
+    return this.enqueuePosPrint(body);
+  }
+
+  /**
+   * Apertura de caja POS: el agente genera ESC/POS desde JSON (`type: "pos-cash-session-opening-ticket"`).
+   */
+  enqueuePosCashSessionOpeningTicket(
+    ticket: PosCashSessionOpeningTicketPayload,
+    extras: PosCashSessionOpeningTicketPrintExtras & { purpose?: string },
+    omitPrinterDisplayLabel = false,
+  ): Promise<unknown> {
+    const purpose = extras.purpose ?? "tickets";
+    const body: Record<string, unknown> = {
+      purpose,
+      type: "pos-cash-session-opening-ticket",
+      ticket,
+      filename: extras.filename,
+      copies: 1,
+      sourceApp: extras.sourceApp ?? "pwa-pos",
+      documentType: extras.documentType,
+      internalFolio: extras.internalFolio,
+    };
+    if (omitPrinterDisplayLabel) {
+      return this.enqueuePrint(body);
+    }
+    return this.enqueuePosPrint(body);
+  }
+
   private sendHello(): void {
     const rid = randomId();
     const body: Record<string, unknown> = {
@@ -758,6 +819,26 @@ export function agentSupportsPosCashClosingTicket(
   return Boolean(hello?.serviceStatus);
 }
 
+export function agentSupportsPosCashCountSheetTicket(
+  hello: HelloResponseData | null | undefined,
+): boolean {
+  const caps = hello?.agentCapabilities;
+  if (Array.isArray(caps) && caps.length > 0) {
+    return caps.includes(AGENT_CAPABILITY_POS_CASH_COUNT_SHEET_TICKET);
+  }
+  return Boolean(hello?.serviceStatus);
+}
+
+export function agentSupportsPosCashSessionOpeningTicket(
+  hello: HelloResponseData | null | undefined,
+): boolean {
+  const caps = hello?.agentCapabilities;
+  if (Array.isArray(caps) && caps.length > 0) {
+    return caps.includes(AGENT_CAPABILITY_POS_CASH_SESSION_OPENING_TICKET);
+  }
+  return Boolean(hello?.serviceStatus);
+}
+
 /**
  * Si KaiPrinters imprimirá tickets en ESC/POS (misma resolución que el agente al encolar).
  * Usa alias de Tickets del POS si está configurado; si no, la primera línea del propósito.
@@ -969,7 +1050,11 @@ export type PosDocumentPrintKind =
   | "quotation"
   | "backorder"
   | "customerCreditNote"
-  | "cashClosing";
+  | "cashClosing"
+  /** Hoja en blanco para anotar montos contados por medio de pago (cierre de caja). */
+  | "cashCountSheet"
+  /** Comprobante al abrir sesión de caja. */
+  | "cashSessionOpening";
 
 export const POS_DOCUMENT_PRINT_MODES_CHANGED_EVENT = "flowstore:pos-document-print-modes-changed";
 
@@ -978,6 +1063,8 @@ const LS_POS_DOC_PRINT_QUOTATION = "printPosDocPrintQuotation";
 const LS_POS_DOC_PRINT_BACKORDER = "printPosDocPrintBackorder";
 const LS_POS_DOC_PRINT_CUSTOMER_CREDIT_NOTE = "printPosDocPrintCustomerCreditNote";
 const LS_POS_DOC_PRINT_CASH_CLOSING = "printPosDocPrintCashClosing";
+const LS_POS_DOC_PRINT_CASH_COUNT_SHEET = "printPosDocPrintCashCountSheet";
+const LS_POS_DOC_PRINT_CASH_SESSION_OPENING = "printPosDocPrintCashSessionOpening";
 
 const DEFAULT_POS_DOCUMENT_PRINT_MODES: Record<PosDocumentPrintKind, PosDocumentPrintMode> = {
   sale: "ticket",
@@ -985,6 +1072,8 @@ const DEFAULT_POS_DOCUMENT_PRINT_MODES: Record<PosDocumentPrintKind, PosDocument
   backorder: "ticket",
   customerCreditNote: "ticket",
   cashClosing: "ticket",
+  cashCountSheet: "document",
+  cashSessionOpening: "ticket",
 };
 
 function parsePosDocumentPrintMode(raw: string | null): PosDocumentPrintMode | null {
@@ -1013,11 +1102,22 @@ export function readPosDocumentPrintModesFromStorage(): Record<PosDocumentPrintK
     cashClosing:
       parsePosDocumentPrintMode(localStorage.getItem(LS_POS_DOC_PRINT_CASH_CLOSING)) ??
       DEFAULT_POS_DOCUMENT_PRINT_MODES.cashClosing,
+    cashCountSheet:
+      parsePosDocumentPrintMode(localStorage.getItem(LS_POS_DOC_PRINT_CASH_COUNT_SHEET)) ??
+      DEFAULT_POS_DOCUMENT_PRINT_MODES.cashCountSheet,
+    cashSessionOpening:
+      parsePosDocumentPrintMode(localStorage.getItem(LS_POS_DOC_PRINT_CASH_SESSION_OPENING)) ??
+      DEFAULT_POS_DOCUMENT_PRINT_MODES.cashSessionOpening,
   };
 }
 
 export function getPosDocumentPrintMode(kind: PosDocumentPrintKind): PosDocumentPrintMode {
   return readPosDocumentPrintModesFromStorage()[kind];
+}
+
+/** Etiqueta legible del modo ticket / documento (alertas del POS). */
+export function describePosDocumentPrintMode(mode: PosDocumentPrintMode): string {
+  return mode === "document" ? "documento (hoja)" : "ticket (80 mm)";
 }
 
 export function writePosDocumentPrintModesToStorage(
@@ -1030,6 +1130,8 @@ export function writePosDocumentPrintModesToStorage(
     backorder: LS_POS_DOC_PRINT_BACKORDER,
     customerCreditNote: LS_POS_DOC_PRINT_CUSTOMER_CREDIT_NOTE,
     cashClosing: LS_POS_DOC_PRINT_CASH_CLOSING,
+    cashCountSheet: LS_POS_DOC_PRINT_CASH_COUNT_SHEET,
+    cashSessionOpening: LS_POS_DOC_PRINT_CASH_SESSION_OPENING,
   };
   let changed = false;
   for (const kind of Object.keys(keyByKind) as PosDocumentPrintKind[]) {

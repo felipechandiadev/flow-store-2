@@ -3,6 +3,7 @@
 
 use crate::ticket_barcode::{
     draw_code128_bars_centered, ticket_footer_tail_height_mm, BARCODE_FOLIO_FONT_PT,
+    BARCODE_SECTION_TOP_GAP_MM,
 };
 use anyhow::{Context, Result};
 use printpdf::{BuiltinFont, Color, Line, Mm, PdfDocument, Point, Rgb};
@@ -404,7 +405,6 @@ fn write_product_line(
     line: &TicketLine,
 ) {
     let name = format_product_line_name(line);
-    let row_start = layout.y;
     let name_max_w = (MONEY_RIGHT_EDGE_MM - LINE_TOTAL_COL_MM - MARGIN_L_MM - 0.5).max(30.0);
     let name_wrap_chars = ((name_max_w / (FONT_DETAIL * 0.35)).floor() as usize)
         .max(WRAP_NAME_CHARS)
@@ -413,7 +413,6 @@ fn write_product_line(
         write_line(page_h, layer, font, FONT_DETAIL, MARGIN_L_MM, layout.y, &wl);
         layout.advance(LINE_MM);
     }
-    write_line_right_edge(page_h, layer, font, FONT_DETAIL, row_start, &money(line.line_gross));
     let unit_suffix = line
         .unit_symbol
         .as_deref()
@@ -427,7 +426,9 @@ fn write_product_line(
         money(line.unit_price_with_tax),
         unit_suffix
     );
+    let qty_y = layout.y;
     write_line(page_h, layer, font, FONT_DETAIL, MARGIN_L_MM, layout.y, &qty_line);
+    write_line_right_edge(page_h, layer, font, FONT_DETAIL, qty_y, &money(line.line_gross));
     layout.advance(LINE_MM);
     if line.discount_amount.unwrap_or(0.0) > 0.01 {
         let lbl = line
@@ -826,6 +827,7 @@ fn plan_ticket(
         if let Some((page_h, layer, font, _)) = draw {
             let folio = ticket.folio.trim();
             if !folio.is_empty() {
+                layout.advance(BARCODE_SECTION_TOP_GAP_MM);
                 if let Ok(bar_h) = draw_code128_bars_centered(*page_h, layer, layout.y, folio) {
                     if bar_h > 0.0 {
                         layout.advance(bar_h + 2.0);

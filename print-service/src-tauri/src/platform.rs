@@ -481,11 +481,16 @@ fn socket_addrs_ipv4_first(
 
 /// Prueba TCP al puerto RAW (sin enviar datos de impresión).
 pub fn probe_network_printer(host: &str) -> Result<()> {
+    probe_network_printer_with_timeout(host, NETWORK_CONNECT_TIMEOUT)
+}
+
+/// Igual que `probe_network_printer` con timeout de conexión configurable (health checks).
+pub fn probe_network_printer_with_timeout(host: &str, connect_timeout: Duration) -> Result<()> {
     let (host, port) = parse_network_printer_target(host)?;
     let addr = format!("{host}:{port}");
     let mut last_err: Option<String> = None;
     for sa in socket_addrs_ipv4_first(&host, port)? {
-        match TcpStream::connect_timeout(&sa, NETWORK_CONNECT_TIMEOUT) {
+        match TcpStream::connect_timeout(&sa, connect_timeout) {
             Ok(_) => {
                 print_diag::info(format!("Red OK: conexión TCP a {sa}"));
                 return Ok(());
@@ -494,7 +499,7 @@ pub fn probe_network_printer(host: &str) -> Result<()> {
         }
     }
     anyhow::bail!(
-        "No hay conexión TCP a {addr} ({NETWORK_CONNECT_TIMEOUT:?}). \
+        "No hay conexión TCP a {addr} ({connect_timeout:?}). \
          Verificá IP, que la impresora esté encendida, en la misma red y que el puerto {port} (RAW) esté abierto. \
          Detalle: {}",
         last_err.unwrap_or_else(|| "sin rutas".into())

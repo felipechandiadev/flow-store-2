@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { PrintServiceNotification, PrintAgentVisualStatus, PrinterHealthPayload } from "./core";
+import { TopBarNotificationCountBadge } from "./top-bar-notification-badge";
 
 /** Misma capa que alertas de stock (`StockAlertsDropdown`) para apilar sobre la top bar. */
 const PANEL_Z = 200;
@@ -16,16 +17,6 @@ function httpsPageForLocalTlsCert(wssUrl: string): string | null {
   } catch {
     return null;
   }
-}
-
-/** Mismo estilo que la campana de alertas de stock en Admin (`StockAlertsDropdown`). */
-function PrintServiceUnreadBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <span className="pointer-events-none absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground">
-      {count > 99 ? "99+" : count}
-    </span>
-  );
 }
 
 export type PrintServiceDropdownProps = {
@@ -364,7 +355,7 @@ export function PrintServiceTopBarDropdown({
     ) : null;
 
   return (
-    <div className="relative shrink-0 overflow-visible" data-test-id="pos-print-service-dropdown-root">
+    <div className="relative z-[100] shrink-0 overflow-visible" data-test-id="pos-print-service-dropdown-root">
       <div ref={triggerWrapRef} className="relative inline-flex shrink-0 overflow-visible">
         <button
           type="button"
@@ -396,7 +387,7 @@ export function PrintServiceTopBarDropdown({
             ) : null}
           </span>
         </button>
-        <PrintServiceUnreadBadge count={unreadCount} />
+        <TopBarNotificationCountBadge count={unreadCount} />
       </div>
       {typeof document !== "undefined" && panel ? createPortal(panel, document.body) : null}
     </div>

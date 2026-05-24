@@ -2,12 +2,16 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BadgeCheck, Building2, ImageOff, Image as ImageIcon, Store, User, Wifi, WifiOff } from "lucide-react";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import { StockAlertsDropdown } from "@/features/inventory-stock/ui/StockAlertsDropdown";
 import { PrintServiceTopBarDropdown, usePrintServiceConnection } from "@flowstore/print-service-client";
+import {
+  clearPosPrintJobBrowserFallback,
+  tryPosPrintJobBrowserFallback,
+} from "@/features/pos-print/lib/pos-print-job-browser-fallback";
 
 export type PosTopBarProps = {
   pointOfSaleName?: string | null;
@@ -70,6 +74,14 @@ export default function PosTopBar({
   const printServiceDebug =
     process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_PRINT_SERVICE_DEBUG === "1";
 
+  const onPrintJobFailed = useCallback((jobId: string, error: string) => {
+    return tryPosPrintJobBrowserFallback(jobId, error);
+  }, []);
+
+  const onPrintJobDone = useCallback((jobId: string) => {
+    clearPosPrintJobBrowserFallback(jobId);
+  }, []);
+
   const printService = usePrintServiceConnection({
     clientId: "pwa-pos",
     requiredPurposes: ["tickets", "documents"],
@@ -80,6 +92,8 @@ export default function PosTopBar({
     debug: printServiceDebug,
     enableInAppNotifications: true,
     briefWsErrorMessages: true,
+    onPrintJobFailed,
+    onPrintJobDone,
   });
 
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -343,7 +357,7 @@ export default function PosTopBar({
               onClick={() => router.push("/cash/closing")}
               data-test-id="pos-topbar-cash-closing"
             />
-            <div className="relative flex shrink-0 items-center gap-2 overflow-visible pt-px" data-test-id="pos-topbar-session-print">
+            <div className="relative z-[100] shrink-0" data-test-id="pos-topbar-session-print">
               <PrintServiceTopBarDropdown
                 panelVariant="pos"
                 connected={printService.connected}

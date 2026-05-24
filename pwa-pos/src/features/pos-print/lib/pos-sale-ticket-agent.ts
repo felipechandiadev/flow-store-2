@@ -8,10 +8,11 @@ import {
   type PosSaleTicketPayload,
   type PosSaleTicketPrintExtras,
 } from "@flowstore/print-service-client";
-import { buildPosSaleReceiptHtml } from "@/app/(pos)/pos/payment/ui/PosSaleReceiptDialog";
+import { buildPosSaleDocumentHtml } from "@/features/pos-print/lib/pos-sale-document-print";
 import {
   enqueueVectorTicketWithMappingFallback,
-  printTicketHtmlInBrowser,
+  posTicketMetaToDocumentMeta,
+  printPosTicketFailureDocumentFallback,
   withPrintAgentConnection,
 } from "@/features/pos-print/lib/pos-agent-print";
 
@@ -124,9 +125,10 @@ async function enqueueSaleTicketOnAgent(
   ticket: PosSaleTicketPayload,
   meta: PosSaleTicketPrintExtras,
   omitDisplayLabel: boolean,
-): Promise<void> {
+): Promise<unknown> {
   const res = await conn.enqueuePosSaleTicket(ticket, meta, omitDisplayLabel);
   await assertQueued(res);
+  return res;
 }
 
 /** Ticket de venta: agente ESC/POS (`pos-sale-ticket`) o diálogo del navegador. */
@@ -138,13 +140,18 @@ export async function printPosSaleTicketAgentOrBrowser(
 ): Promise<PosSaleTicketPrintChannel> {
   if (typeof window === "undefined") return "browser";
 
-  const html = buildPosSaleReceiptHtml(data, window.location.origin);
-  const iframeTitle = "Impresión ticket";
+  const documentHtml = buildPosSaleDocumentHtml(data);
+  const ticketMeta = {
+    filename: meta.filename,
+    iframeTitle: "Impresión ticket",
+    documentType: meta.documentType,
+    internalFolio: meta.internalFolio,
+  };
+  const documentFallbackMeta = posTicketMetaToDocumentMeta(ticketMeta);
 
   if (!isPosAgentPrintConfiguredForPurpose("tickets")) {
-    console.warn(`${LOG} sin alias Tickets → navegador`);
-    printTicketHtmlInBrowser(html, iframeTitle);
-    return "browser";
+    console.warn(`${LOG} sin alias Tickets → documento (hoja)`);
+    return printPosTicketFailureDocumentFallback(documentHtml, ticketMeta);
   }
 
   const logoBase64 = await fetchReceiptLogoBase64(
@@ -162,6 +169,11 @@ export async function printPosSaleTicketAgentOrBrowser(
       enqueued = await enqueueVectorTicketWithMappingFallback(
         () => enqueueSaleTicketOnAgent(conn, ticketVector, meta, false),
         () => enqueueSaleTicketOnAgent(conn, ticketVector, meta, true),
+        {
+          html: documentHtml,
+          iframeTitle: documentFallbackMeta.iframeTitle,
+          kind: "document",
+        },
       );
     });
   } catch (e) {
@@ -173,9 +185,8 @@ export async function printPosSaleTicketAgentOrBrowser(
     return "agent";
   }
 
-  console.warn(`${LOG} ticket → navegador`);
-  printTicketHtmlInBrowser(html, iframeTitle);
-  return "browser";
+  console.warn(`${LOG} ticket falló → documento (hoja)`);
+  return printPosTicketFailureDocumentFallback(documentHtml, ticketMeta);
 }
 
 export function printPosSaleTicketAgentOrBrowserFireAndForget(

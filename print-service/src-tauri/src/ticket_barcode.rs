@@ -18,6 +18,8 @@ pub const BAR_HEIGHT_MM: f32 = 11.0;
 pub const BARCODE_FOLIO_FONT_PT: f32 = 7.0;
 const BAR_WIDTH_MM: f32 = 0.34;
 pub const TEXT_GAP_MM: f32 = 2.0;
+/// Margen superior antes del bloque de código de barras (separación de la sección anterior).
+pub const BARCODE_SECTION_TOP_GAP_MM: f32 = 3.5;
 
 /// Altura del pie: barras + línea «folio · fecha hora».
 pub fn ticket_footer_tail_height_mm() -> f32 {

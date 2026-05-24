@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import type { PointOfSaleListItem, PosPriceList } from "@/features/session/types/point-of-sale.types";
 import type { CashSessionListItem } from "@/features/session/types/cash-session.types";
 import { openCashSessionAction } from "@/features/session/actions/session-setup.action";
@@ -11,6 +12,7 @@ import type { CashHubDepositCandidate } from "@/features/session/types/cash-hub-
 import { Alert, Button, Dialog, Select, TextField } from "@/shared/admin-shared";
 import { fetchPointOfSalePriceListsAction } from "@/features/session/actions/point-of-sale-pos.action";
 import { savePosContextClient, type PosPriceListSnapshot } from "@/features/session/lib/pos-context-storage";
+import { queueCashSessionOpeningPrint } from "@/features/cash-session-opening/lib/pending-cash-session-opening-print";
 
 export type MyOpenSession = {
   cashSessionId: string;
@@ -193,6 +195,7 @@ function NewSessionForm({
   initialError: string;
 }) {
   const router = useRouter();
+  const { data: authSession } = useSession();
   const [isPending, startTransition] = useTransition();
 
   const branches: BranchOption[] = useMemo(() => {
@@ -333,6 +336,17 @@ function NewSessionForm({
           cashSessionId: result.cashSessionId,
         });
       }
+
+      queueCashSessionOpeningPrint({
+        cashSessionId: result.cashSessionId,
+        openedAt: new Date().toISOString(),
+        openingAmount: openingAmountNum,
+        branchName: selectedPos?.branch?.name ?? selectedPos?.branchName ?? null,
+        pointOfSaleName: selectedPos?.name ?? null,
+        operatorName:
+          authSession?.user?.name?.trim() || authSession?.user?.email?.trim() || null,
+        cashHubName: selectedCashHub?.name ?? null,
+      });
 
       setIsOpenAmountDialog(false);
       router.push("/pos");

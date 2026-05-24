@@ -50,10 +50,13 @@ export function buildCustomerCreditNoteReceiptHtml(data: CustomerCreditNotePrint
           : "";
       const name = escapeHtml(l.productName);
       return `<tr>
-        <td class="name">${name}${attr}
-          <div class="muted">${l.quantity} × ${formatMoney(l.unitPriceWithTax)}</div>
+        <td class="line-block">
+          <div class="line-name">${name}${attr}</div>
+          <div class="line-detail">
+            <span class="line-qty">${l.quantity} × ${formatMoney(l.unitPriceWithTax)}</span>
+            <span class="line-total">${formatMoney(l.lineGross - l.discountAmount)}</span>
+          </div>
         </td>
-        <td class="tright">${formatMoney(l.lineGross - l.discountAmount)}</td>
       </tr>`;
     })
     .join("");
@@ -86,7 +89,7 @@ export function buildCustomerCreditNoteReceiptHtml(data: CustomerCreditNotePrint
 <h1>NOTA DE CRÉDITO</h1>
 <div class="muted" style="text-align:center">${escapeHtml(displayName)}</div>
 ${data.company.rut ? `<div class="muted" style="text-align:center">RUT ${escapeHtml(data.company.rut)}</div>` : ""}
-<div class="barcode">${receiptBarcodeSvgString(folio)}</div>
+<div class="barcode-section"><div class="barcode">${receiptBarcodeSvgString(folio)}</div></div>
 <div class="row"><span>Folio NC</span><span class="tright">${escapeHtml(folio)}</span></div>
 <div class="row"><span>Fecha</span><span>${escapeHtml(formatDateTime(data.issuedAtIso))}</span></div>
 <div class="sep"></div>

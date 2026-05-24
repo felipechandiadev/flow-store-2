@@ -1,7 +1,7 @@
 //! Cotización POS 80 mm — PDF vectorial (mismo JSON que ESC/POS).
 
 use crate::pos_quotation_ticket::{parse_pos_quotation_ticket_from_value, PosQuotationTicket, QuotationLine};
-use crate::ticket_barcode::draw_code128_bars_centered;
+use crate::ticket_barcode::{draw_code128_bars_centered, BARCODE_SECTION_TOP_GAP_MM};
 use anyhow::Result;
 use printpdf::{BuiltinFont, Mm, PdfDocument};
 use std::fs::File;
@@ -206,16 +206,22 @@ pub fn write_pos_quotation_ticket_pdf(path: &Path, q: &PosQuotationTicket) -> Re
     for line in &q.lines {
         let name = line_display_name(line);
         write_line(page_h, &layer, &font, FONT_BODY, MARGIN_L_MM, layout.y, &name);
-        write_line(page_h, &layer, &font, FONT_BODY, CONTENT_R_MM - 22.0, layout.y, &money(line.total));
         layout.advance(LINE_MM);
+        let qty_y = layout.y;
+        let qty_line = format!(
+            "{} × {}",
+            line.quantity,
+            money(line_unit_price_with_tax(line))
+        );
+        write_line(page_h, &layer, &font, FONT_BODY, MARGIN_L_MM, layout.y, &qty_line);
         write_line(
             page_h,
             &layer,
             &font,
-            FONT_SMALL,
-            MARGIN_L_MM,
-            layout.y,
-            &format!("{} × {}", line.quantity, money(line_unit_price_with_tax(line))),
+            FONT_BODY,
+            CONTENT_R_MM - 22.0,
+            qty_y,
+            &money(line.total),
         );
         layout.advance(LINE_MM);
     }
@@ -245,7 +251,7 @@ pub fn write_pos_quotation_ticket_pdf(path: &Path, q: &PosQuotationTicket) -> Re
     }
 
     if !folio.is_empty() {
-        layout.advance(3.0);
+        layout.advance(BARCODE_SECTION_TOP_GAP_MM);
         let _ = draw_code128_bars_centered(page_h, &layer, layout.y, folio);
         layout.advance(14.0);
         write_line_centered(

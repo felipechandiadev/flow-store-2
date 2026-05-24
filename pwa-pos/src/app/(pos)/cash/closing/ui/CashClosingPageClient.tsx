@@ -20,6 +20,14 @@ import {
 } from "@/features/session/lib/close-counted-buckets";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { saveCashClosingResultSnapshot } from "@/features/cash-closing/lib/cash-closing-result-storage";
+import { getCompanyDetailsAction } from "@/features/company/actions/company.action";
+import type { CompanyDetails } from "@/features/company/infrastructure/company.request";
+import {
+  describePosDocumentPrintMode,
+  getPosDocumentPrintMode,
+} from "@flowstore/print-service-client";
+import type { CashCountSheetPrintInput } from "@/features/cash-closing/lib/cash-count-sheet-print.types";
+import { printCashCountSheetAwait } from "@/features/cash-closing/lib/cash-count-sheet-print";
 
 /** Si el POS no devuelve catálogo, permitimos arqueo con los medios estándar. */
 function fallbackCloseMethods(): EffectivePaymentMethod[] {
@@ -91,6 +99,8 @@ export default function CashClosingPageClient() {
   const [notes, setNotes] = useState("");
 
   const [formError, setFormError] = useState<string | null>(null);
+  const [countSheetPrintStatus, setCountSheetPrintStatus] = useState<string | null>(null);
+  const [countSheetPrintBusy, setCountSheetPrintBusy] = useState(false);
 
   const [isPending, startTransition] = useTransition();
 
@@ -234,6 +244,60 @@ export default function CashClosingPageClient() {
       hubReady,
   );
 
+  const onPrintCountSheet = useCallback(async () => {
+    if (!cashSessionId) {
+      setCountSheetPrintStatus("No hay sesión de caja activa.");
+      return;
+    }
+    if (inputMethods.length === 0) {
+      setCountSheetPrintStatus("No hay medios de pago para listar en la planilla.");
+      return;
+    }
+    setCountSheetPrintBusy(true);
+    setCountSheetPrintStatus(null);
+    try {
+      let company: CompanyDetails | null = null;
+      try {
+        company = (await getCompanyDetailsAction()) ?? null;
+      } catch {
+        company = null;
+      }
+      const input: CashCountSheetPrintInput = {
+        cashSessionId,
+        sessionOpenedAt,
+        company,
+        branchName: posCtx?.branchName ?? null,
+        pointOfSaleName: posCtx?.pointOfSaleName ?? null,
+        operatorName: operatorName || null,
+        paymentLines: inputMethods.map((m) => ({
+          label: m.label?.trim() || String(m.method),
+        })),
+      };
+      const formatLabel = describePosDocumentPrintMode(
+        getPosDocumentPrintMode("cashCountSheet"),
+      );
+      const channel = await printCashCountSheetAwait(input);
+      setCountSheetPrintStatus(
+        channel === "agent"
+          ? `Planilla de conteo enviada a KaiPrinters. Formato: ${formatLabel}.`
+          : `Planilla de conteo abierta en el diálogo de impresión del navegador. Formato: ${formatLabel}.`,
+      );
+    } catch (e) {
+      setCountSheetPrintStatus(
+        e instanceof Error ? e.message : "No se pudo imprimir la planilla de conteo.",
+      );
+    } finally {
+      setCountSheetPrintBusy(false);
+    }
+  }, [
+    cashSessionId,
+    inputMethods,
+    operatorName,
+    posCtx?.branchName,
+    posCtx?.pointOfSaleName,
+    sessionOpenedAt,
+  ]);
+
   const onSubmitBlind = () => {
     setFormError(null);
     if (!cashSessionId) {
@@ -328,8 +392,39 @@ export default function CashClosingPageClient() {
         </Alert>
       ) : null}
 
+      {countSheetPrintStatus ? (
+        <Alert variant="info" className="text-sm">
+          {countSheetPrintStatus}{" "}
+          <span className="text-muted-foreground">
+            Para cambiar el formato:{" "}
+            <span className="font-medium text-foreground">
+              Ajustes → Impresión local → Planilla de conteo
+            </span>
+            .
+          </span>
+        </Alert>
+      ) : null}
+
       <section className="rounded-xl border border-border bg-background p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-foreground">Conteo por medio</h2>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Conteo por medio</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Puedes imprimir una planilla en blanco para anotar los montos antes de cargarlos aquí.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outlined"
+            size="sm"
+            disabled={!cashSessionId || inputMethods.length === 0 || countSheetPrintBusy || !effectiveLoaded}
+            loading={countSheetPrintBusy}
+            onClick={() => void onPrintCountSheet()}
+            data-test-id="cash-closing-print-count-sheet"
+          >
+            Imprimir planilla
+          </Button>
+        </div>
 
         {!effectiveLoaded ? (
           <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground" role="status">

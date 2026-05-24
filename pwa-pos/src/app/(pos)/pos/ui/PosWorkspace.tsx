@@ -17,6 +17,7 @@ import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { LoadQuotationDialog } from "./LoadQuotationDialog";
 import { LoadReturnSaleDialog } from "./LoadReturnSaleDialog";
 import { LoadBackorderDialog } from "./LoadBackorderDialog";
+import { runPendingCashSessionOpeningPrintIfAny } from "@/features/cash-session-opening/lib/run-pending-cash-session-opening-print";
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(
     Math.round(n),
@@ -67,6 +68,7 @@ export default function PosWorkspace() {
       return;
     }
     setCtx(c);
+    runPendingCashSessionOpeningPrintIfAny();
     const listId = String(c.priceListId);
     setPriceListId(listId);
     if (c.priceLists?.length) {

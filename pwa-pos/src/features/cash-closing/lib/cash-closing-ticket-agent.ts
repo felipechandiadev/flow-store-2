@@ -7,13 +7,13 @@ import {
 } from "@flowstore/print-service-client";
 import type { CashClosingPrintInput } from "@/features/cash-closing/lib/cash-closing-print.types";
 import { buildCashClosingDocumentHtml } from "@/features/cash-closing/lib/cash-closing-document-print";
-import { buildCashClosingReceiptHtml } from "@/features/cash-closing/lib/cash-closing-receipt-print";
 import { fetchReceiptLogoBase64 } from "@/features/pos-print/lib/pos-sale-ticket-agent";
 import {
   printPosHtmlViaAgentOrBrowser,
   printPosHtmlViaAgentOrBrowserFireAndForget,
   enqueueVectorTicketWithMappingFallback,
-  printTicketHtmlInBrowser,
+  posTicketMetaToDocumentMeta,
+  printPosTicketFailureDocumentFallback,
   withPrintAgentConnection,
 } from "@/features/pos-print/lib/pos-agent-print";
 
@@ -72,11 +72,11 @@ async function printCashClosingTicketVector(
   if (typeof window === "undefined") return "browser";
 
   const meta = arqueoPrintMeta(input);
-  const html = buildCashClosingReceiptHtml(input, window.location.origin);
+  const documentHtml = buildCashClosingDocumentHtml(input);
+  const documentFallbackMeta = posTicketMetaToDocumentMeta(meta);
 
   if (!isPosAgentPrintConfiguredForPurpose("tickets")) {
-    printTicketHtmlInBrowser(html, meta.iframeTitle);
-    return "browser";
+    return printPosTicketFailureDocumentFallback(documentHtml, meta);
   }
 
   const logoBase64 = await fetchReceiptLogoBase64(
@@ -100,6 +100,7 @@ async function printCashClosingTicketVector(
           if (res && res.queued === false && !res.jobId) {
             throw new Error("enqueue_rejected");
           }
+          return res;
         },
         async () => {
           const res = (await conn.enqueuePosCashClosingTicket(
@@ -110,6 +111,12 @@ async function printCashClosingTicketVector(
           if (res && res.queued === false && !res.jobId) {
             throw new Error("enqueue_rejected");
           }
+          return res;
+        },
+        {
+          html: documentHtml,
+          iframeTitle: documentFallbackMeta.iframeTitle,
+          kind: "document",
         },
       );
     });
@@ -119,8 +126,7 @@ async function printCashClosingTicketVector(
 
   if (enqueued) return "agent";
 
-  printTicketHtmlInBrowser(html, meta.iframeTitle);
-  return "browser";
+  return printPosTicketFailureDocumentFallback(documentHtml, meta);
 }
 
 export function printCashClosingArqueo(input: CashClosingPrintInput): void {

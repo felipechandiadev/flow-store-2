@@ -2,6 +2,7 @@
 
 use crate::db::Db;
 use crate::platform::{self, PrinterInfo};
+use crate::reachability::{self, LineReachEntry, ReachabilityCache, LINE_STATUS_OFFLINE};
 use anyhow::Result;
 use serde_json::{json, Value};
 
@@ -15,46 +16,84 @@ pub fn service_status_payload(connected_clients: usize, sessions: Vec<Value>) ->
     })
 }
 
-fn printer_online(system: &[PrinterInfo], name: &str) -> Option<bool> {
-    system.iter().find(|x| x.name == name).map(|x| x.online)
+fn line_entry_status(cache: &ReachabilityCache, line_id: &str, row: &Value, system: &[PrinterInfo]) -> LineReachEntry {
+    if let Some(e) = cache.get(line_id) {
+        return e;
+    }
+    reachability::evaluate_mapping_line(row, system)
 }
 
-/// Failover: al menos una línea con impresora del sistema online => ok; si hay líneas pero ninguna resolvible => offline/unmapped.
-pub fn printer_health(db: &Db, system: &[PrinterInfo], required: &[String]) -> Value {
-    let names: std::collections::HashSet<String> =
-        system.iter().map(|p| p.name.clone()).collect();
+fn purpose_has_online_line(
+    cache: &ReachabilityCache,
+    rows: &[Value],
+    purpose: &str,
+    system: &[PrinterInfo],
+) -> bool {
+    for row in rows {
+        if row.get("purpose").and_then(|v| v.as_str()) != Some(purpose) {
+            continue;
+        }
+        let id = row.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        if id.is_empty() {
+            continue;
+        }
+        if reachability::is_online(&line_entry_status(cache, id, row, system)) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Failover: al menos una línea online (probe) => ok.
+pub fn printer_health(
+    db: &Db,
+    system: &[PrinterInfo],
+    required: &[String],
+    cache: &ReachabilityCache,
+) -> Value {
+    let rows = db.list_mapping_lines().unwrap_or_default();
     let mut purposes_obj = serde_json::Map::new();
     let mut overall = "ok";
 
     for p in PURPOSES {
         let purpose = *p;
-        let printers = db
-            .printers_for_purpose_ordered(purpose)
-            .unwrap_or_default();
-        let network_hosts: Vec<String> = if purpose == "tickets" {
-            db.list_mapping_lines()
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|row| {
-                    row.get("purpose").and_then(|v| v.as_str()) == Some("tickets")
-                        && row
-                            .get("ticketPrinterType")
-                            .and_then(|v| v.as_str())
-                            .map(|t| t.eq_ignore_ascii_case("network"))
-                            .unwrap_or(false)
-                })
-                .filter_map(|row| {
-                    row.get("ticketNetworkHost")
-                        .and_then(|v| v.as_str())
-                        .map(str::trim)
-                        .filter(|s| !s.is_empty())
-                        .map(String::from)
-                })
-                .collect()
-        } else {
-            vec![]
-        };
-        let (status, printer_name, reason, names_json) = if printers.is_empty() && network_hosts.is_empty() {
+        let purpose_rows: Vec<&Value> = rows
+            .iter()
+            .filter(|r| r.get("purpose").and_then(|v| v.as_str()) == Some(purpose))
+            .collect();
+
+        let printer_names: Vec<String> = purpose_rows
+            .iter()
+            .filter_map(|r| {
+                r.get("systemPrinterName")
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(String::from)
+            })
+            .collect();
+
+        let network_hosts: Vec<String> = purpose_rows
+            .iter()
+            .filter(|r| {
+                r.get("ticketPrinterType")
+                    .and_then(|v| v.as_str())
+                    .map(|t| t.eq_ignore_ascii_case("network"))
+                    .unwrap_or(false)
+            })
+            .filter_map(|r| {
+                r.get("ticketNetworkHost")
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(String::from)
+            })
+            .collect();
+
+        let any_online = purpose_has_online_line(cache, &rows, purpose, system);
+        let has_mapping = !printer_names.is_empty() || !network_hosts.is_empty();
+
+        let (status, printer_name, reason, names_json) = if !has_mapping {
             if required.iter().any(|r| r == purpose) {
                 overall = "degraded";
             }
@@ -64,63 +103,50 @@ pub fn printer_health(db: &Db, system: &[PrinterInfo], required: &[String]) -> V
                 Value::Null,
                 Value::Array(vec![]),
             )
-        } else if printers.is_empty() && !network_hosts.is_empty() {
-            let names_arr: Vec<Value> = network_hosts
-                .iter()
-                .map(|h| Value::String(format!("red:{h}")))
-                .collect();
+        } else if any_online {
+            let primary = network_hosts
+                .first()
+                .cloned()
+                .or_else(|| printer_names.first().cloned());
+            let mut names_arr: Vec<Value> = printer_names.iter().map(|s| json!(s)).collect();
+            for h in &network_hosts {
+                names_arr.push(json!(format!("red:{h}")));
+            }
             (
                 "ok",
-                json!(network_hosts.first().cloned()),
+                json!(primary),
                 Value::Null,
                 Value::Array(names_arr),
             )
         } else {
-            let mut any_ok = false;
-            let mut found_in_system = false;
-            for nm in &printers {
-                if names.contains(nm) {
-                    found_in_system = true;
-                    let online = printer_online(system, nm).unwrap_or(true);
-                    if online {
-                        any_ok = true;
-                        break;
-                    }
-                }
+            if required.iter().any(|r| r == purpose) {
+                overall = "degraded";
             }
-            let names_arr: Vec<Value> = printers
+            let primary = network_hosts
+                .first()
+                .cloned()
+                .or_else(|| printer_names.first().cloned());
+            let offline_reason = purpose_rows
                 .iter()
-                .map(|s| Value::String(s.clone()))
-                .collect();
-            if any_ok {
-                (
-                    "ok",
-                    json!(printers.first().cloned()),
-                    Value::Null,
-                    Value::Array(names_arr),
-                )
-            } else if !found_in_system {
-                if required.iter().any(|r| r == purpose) {
-                    overall = "degraded";
-                }
-                (
-                    "offline",
-                    json!(printers.first().cloned()),
-                    json!("DEVICE_NOT_FOUND"),
-                    Value::Array(printers.iter().map(|s| Value::String(s.clone())).collect()),
-                )
-            } else {
-                if required.iter().any(|r| r == purpose) {
-                    overall = "degraded";
-                }
-                (
-                    "offline",
-                    json!(printers.first().cloned()),
-                    json!("OFFLINE"),
-                    Value::Array(printers.iter().map(|s| Value::String(s.clone())).collect()),
-                )
+                .filter_map(|r| {
+                    let id = r.get("id").and_then(|v| v.as_str())?;
+                    let e = line_entry_status(cache, id, r, system);
+                    e.reason.clone()
+                })
+                .next()
+                .unwrap_or_else(|| "OFFLINE".into());
+            let mut names_arr: Vec<Value> = printer_names.iter().map(|s| json!(s)).collect();
+            for h in &network_hosts {
+                names_arr.push(json!(format!("red:{h}")));
             }
+            (
+                "offline",
+                json!(primary),
+                json!(offline_reason),
+                Value::Array(names_arr),
+            )
         };
+
         let mut o = serde_json::Map::new();
         o.insert("status".into(), json!(status));
         if !printer_name.is_null() {
@@ -139,7 +165,7 @@ pub fn printer_health(db: &Db, system: &[PrinterInfo], required: &[String]) -> V
         "Impresoras operativas."
     };
 
-    let lines = mapping_lines_health(db, system);
+    let lines = mapping_lines_health(&rows, system, cache);
 
     json!({
         "overall": overall,
@@ -149,54 +175,38 @@ pub fn printer_health(db: &Db, system: &[PrinterInfo], required: &[String]) -> V
     })
 }
 
-fn line_printer_status(system: &[PrinterInfo], system_printer_name: &str) -> &'static str {
-    let name = system_printer_name.trim();
-    if name.is_empty() {
-        return "unknown";
-    }
-    match printer_online(system, name) {
-        None => "offline",
-        Some(true) => "online",
-        Some(false) => "offline",
-    }
-}
-
-/// Estado por línea de mapeo (alias + impresora del SO).
-pub fn mapping_lines_health(db: &Db, system: &[PrinterInfo]) -> Vec<Value> {
-    let Ok(rows) = db.list_mapping_lines() else {
-        return vec![];
-    };
-    rows.into_iter()
+/// Estado por línea de mapeo (resultado de reachability).
+pub fn mapping_lines_health(
+    rows: &[Value],
+    system: &[PrinterInfo],
+    cache: &ReachabilityCache,
+) -> Vec<Value> {
+    rows.iter()
         .map(|row| {
-            let purpose = row
-                .get("purpose")
+            let id = row
+                .get("id")
                 .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let ticket_type = row
-                .get("ticketPrinterType")
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            let entry = if id.is_empty() {
+                reachability::evaluate_mapping_line(row, system)
+            } else {
+                line_entry_status(cache, &id, row, system)
+            };
+            let status = reachability::line_status_string(&entry);
+            let system_printer_name = row
+                .get("systemPrinterName")
                 .and_then(|v| v.as_str())
-                .unwrap_or("system");
+                .unwrap_or("")
+                .to_string();
             let network_host = row
                 .get("ticketNetworkHost")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .trim()
                 .to_string();
-            let system_printer_name = row
-                .get("systemPrinterName")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let status = if purpose == "tickets" && ticket_type.eq_ignore_ascii_case("network") {
-                if network_host.is_empty() {
-                    "unknown"
-                } else {
-                    "online"
-                }
-            } else {
-                line_printer_status(system, &system_printer_name)
-            };
-            json!({
+            let mut o = serde_json::json!({
                 "id": row.get("id").cloned().unwrap_or(Value::Null),
                 "displayLabel": row.get("displayLabel").cloned().unwrap_or(Value::Null),
                 "purpose": row.get("purpose").cloned().unwrap_or(Value::Null),
@@ -204,21 +214,39 @@ pub fn mapping_lines_health(db: &Db, system: &[PrinterInfo]) -> Vec<Value> {
                 "ticketPrinterType": row.get("ticketPrinterType").cloned().unwrap_or(Value::Null),
                 "ticketNetworkHost": if network_host.is_empty() { Value::Null } else { json!(network_host) },
                 "status": status,
-            })
+            });
+            if status == LINE_STATUS_OFFLINE {
+                if let Some(r) = entry.reason {
+                    if let Some(obj) = o.as_object_mut() {
+                        obj.insert("reason".into(), json!(r));
+                    }
+                }
+            }
+            o
         })
         .collect()
 }
 
-/// Evento `printer_health` reutilizando la lista de impresoras ya obtenida (evita un segundo PowerShell en Windows).
-pub fn printer_health_event_json(db: &Db, system: &[PrinterInfo], required: &[String]) -> Value {
+/// Evento `printer_health` reutilizando la lista de impresoras ya obtenida.
+pub fn printer_health_event_json(
+    db: &Db,
+    system: &[PrinterInfo],
+    required: &[String],
+    cache: &ReachabilityCache,
+) -> Value {
     json!({
         "version": crate::protocol::PROTOCOL_VERSION,
         "event": "printer_health",
-        "payload": printer_health(db, system, required),
+        "payload": printer_health(db, system, required, cache),
     })
 }
 
-pub fn emit_printer_health_json(db: &Db, required: &[String]) -> Result<Value> {
+pub fn emit_printer_health_json(
+    db: &Db,
+    required: &[String],
+    cache: &ReachabilityCache,
+) -> Result<Value> {
     let sys = platform::list_system_printers().unwrap_or_default();
-    Ok(printer_health_event_json(db, &sys, required))
+    reachability::refresh_all_lines(db, &sys, cache, true)?;
+    Ok(printer_health_event_json(db, &sys, required, cache))
 }

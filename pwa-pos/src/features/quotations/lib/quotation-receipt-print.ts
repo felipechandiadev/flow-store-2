@@ -64,10 +64,13 @@ export function buildQuotationReceiptHtml(
       const name = nameBits.join(" · ");
       const sku = l.productSku?.trim() ? `<div class="muted">${escapeHtml(l.productSku.trim())}</div>` : "";
       return `<tr>
-        <td class="name">${escapeHtml(name)}${sku}
-          <div class="muted">${l.quantity} × ${formatMoney(unitWithTax)}</div>
+        <td class="line-block">
+          <div class="line-name">${escapeHtml(name)}${sku}</div>
+          <div class="line-detail">
+            <span class="line-qty">${l.quantity} × ${formatMoney(unitWithTax)}</span>
+            <span class="line-total">${formatMoney(l.total)}</span>
+          </div>
         </td>
-        <td class="tright qty">${formatMoney(l.total)}</td>
       </tr>`;
     })
     .join("");
@@ -121,7 +124,7 @@ export function buildQuotationReceiptHtml(
   <div class="row tot"><span>TOTAL</span><span>${formatMoney(q.total)}</span></div>
   ${notesBlock}
   <div class="sep"></div>
-  <div class="barcode-wrap">${barcode}</div>
+  <div class="barcode-section"><div class="barcode-wrap">${barcode}</div></div>
 </div>
 </body></html>`;
 }

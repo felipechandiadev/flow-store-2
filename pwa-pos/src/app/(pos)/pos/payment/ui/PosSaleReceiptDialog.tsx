@@ -312,8 +312,14 @@ export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string
           ? `<div class="muted" style="margin-top:1px;">Desc.: ${escapeHtml(l.discountLabel || "Promo")} · −${formatMoney(l.discountAmount)}</div>`
           : "";
       return `<tr>
-        <td class="name">${escapeHtml(name)}<div class="muted">${escapeHtml(qtyLine)}</div>${disc}</td>
-        <td class="tright qty">${formatMoney(l.lineGross)}</td>
+        <td class="line-block">
+          <div class="line-name">${escapeHtml(name)}</div>
+          <div class="line-detail">
+            <span class="line-qty">${escapeHtml(qtyLine)}</span>
+            <span class="line-total">${formatMoney(l.lineGross)}</span>
+          </div>
+          ${disc}
+        </td>
       </tr>`;
     })
     .join("");
@@ -404,7 +410,7 @@ export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string
   <div class="sep"></div>
   <p class="center muted" style="margin-top:10px;">${isBackorder ? "Comprobante de abono de encargo" : "Gracias por su compra"}</p>
   <div class="sep"></div>
-  <div class="barcode-wrap">${receiptBarcodeSvgString(data.folio)}</div>
+  <div class="barcode-section"><div class="barcode-wrap">${receiptBarcodeSvgString(data.folio)}</div></div>
 </div>
 </body></html>`;
 }

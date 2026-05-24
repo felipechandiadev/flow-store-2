@@ -1,7 +1,9 @@
 //! Background worker: drain pending print_jobs (priority M4), retries.
 
 use crate::db::{Db, PendingJob};
+use crate::events;
 use crate::pos_sale_ticket_pdf;
+use crate::reachability;
 use crate::cut_test_pdf;
 use crate::ticket_test_pdf;
 use crate::ticket_test_escpos;
@@ -217,6 +219,25 @@ fn process_one(state: &Arc<AppState>, job: &PendingJob) -> Result<()> {
             "no printer mapped for {purpose} (configure «Tickets» in KaiPrinters or map «Documentos»)"
         );
     }
+    let system = platform::list_system_printers().unwrap_or_default();
+    let line_id = reachability::refresh_for_print_target(
+        db,
+        &system,
+        &state.reachability,
+        purpose,
+        printers.first().map(|s| s.as_str()),
+        network_host.as_deref(),
+    )?;
+    if let Some(ref id) = line_id {
+        if let Some(entry) = reachability::status_for_line(&state.reachability, id) {
+            if !reachability::is_online(&entry) {
+                let reason = entry
+                    .reason
+                    .unwrap_or_else(|| "impresora no disponible".into());
+                anyhow::bail!("{reason}");
+            }
+        }
+    }
     let payload_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
     if let Some(host) = network_host {
         let thermal = ticket_thermal_options_for_job(
@@ -252,7 +273,17 @@ fn process_one(state: &Arc<AppState>, job: &PendingJob) -> Result<()> {
                 let _ = notify.send(ev.to_string());
                 return Ok(());
             }
-            Err(e) => return Err(e),
+            Err(e) => {
+                if let Some(ref id) = line_id {
+                    state
+                        .reachability
+                        .mark_offline(id, format!("{e:#}"));
+                }
+                if let Ok(ph) = events::emit_printer_health_json(db, &[], &state.reachability) {
+                    let _ = notify.send(ph.to_string());
+                }
+                return Err(e);
+            }
         }
     }
     let mut last_err: Option<anyhow::Error> = None;
@@ -312,6 +343,16 @@ fn process_one(state: &Arc<AppState>, job: &PendingJob) -> Result<()> {
                 tracing::warn!(job_id = %job.id, printer = %printer, "intento en impresora: {e:#}");
                 last_err = Some(e);
             }
+        }
+    }
+    if let Some(ref id) = line_id {
+        if let Some(e) = &last_err {
+            state.reachability.mark_offline(id, format!("{e:#}"));
+        }
+    }
+    if last_err.is_some() {
+        if let Ok(ph) = events::emit_printer_health_json(db, &[], &state.reachability) {
+            let _ = notify.send(ph.to_string());
         }
     }
     Err(last_err.unwrap_or_else(|| anyhow::anyhow!("print failed")))
@@ -462,4 +503,22 @@ pub fn write_pos_cash_closing_ticket_escpos_from_value(
     value: &serde_json::Value,
 ) -> Result<PathBuf> {
     crate::pos_cash_closing_ticket::write_pos_cash_closing_ticket_escpos_from_value(dir, value)
+}
+
+pub fn write_pos_cash_count_sheet_ticket_escpos_from_value(
+    dir: &PathBuf,
+    value: &serde_json::Value,
+) -> Result<PathBuf> {
+    crate::pos_cash_count_sheet_ticket::write_pos_cash_count_sheet_ticket_escpos_from_value(
+        dir, value,
+    )
+}
+
+pub fn write_pos_cash_session_opening_ticket_escpos_from_value(
+    dir: &PathBuf,
+    value: &serde_json::Value,
+) -> Result<PathBuf> {
+    crate::pos_cash_session_opening_ticket::write_pos_cash_session_opening_ticket_escpos_from_value(
+        dir, value,
+    )
 }

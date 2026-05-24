@@ -1,5 +1,6 @@
 use crate::agent_log::AgentLog;
 use crate::db::Db;
+use crate::reachability::ReachabilityCache;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -39,6 +40,7 @@ pub struct AppState {
     pub ws_listener: Mutex<Option<ListenerControl>>,
     pub wss_listener: Mutex<Option<ListenerControl>>,
     pub agent_log: Arc<AgentLog>,
+    pub reachability: Arc<ReachabilityCache>,
 }
 
 impl AppState {
@@ -57,6 +59,7 @@ impl AppState {
             ws_listener: Mutex::new(None),
             wss_listener: Mutex::new(None),
             agent_log,
+            reachability: Arc::new(ReachabilityCache::new()),
         })
     }
 
