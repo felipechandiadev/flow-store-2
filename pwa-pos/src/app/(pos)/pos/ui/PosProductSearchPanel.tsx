@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, Tags } from "lucide-react";
 import { searchPosProductsAction } from "@/features/pos-products/actions/pos-products.action";
 import type { PosProductSearchItem } from "@/features/pos-products/types/pos-product.types";
 import {
@@ -15,7 +15,13 @@ import {
   readPosProductSearchPageSize,
   writePosProductSearchPageSize,
 } from "@/features/pos-products/lib/posProductSearchStorage";
-import { InlineSepDot, formatMoney, PosProductNameWithAttributes } from "@/features/pos-products/ui/posProductPreview";
+import {
+  InlineSepDot,
+  formatMoney,
+  PosProductNameWithAttributes,
+  posDisplaySaleUnitSymbol,
+  posFormatStockForCard,
+} from "@/features/pos-products/ui/posProductPreview";
 import { patchPosContextClient, type PosPriceListSnapshot } from "@/features/session/lib/pos-context-storage";
 import { redirectToLoginIfUnauthorized } from "@/lib/auth/pos-api-failure";
 import {
@@ -41,6 +47,8 @@ type Props = {
   branchId: string | null;
   pointOfSaleId: string;
   onPriceListChange: (id: string) => void;
+  /** Recarga listas de precios del POS desde el backend (configuración del buscador). */
+  onRefreshPriceListOptions?: () => void | Promise<void>;
   onPickProduct?: (item: PosProductSearchItem) => void;
   disabled?: boolean;
   disabledHint?: string;
@@ -52,6 +60,7 @@ export default function PosProductSearchPanel({
   branchId,
   pointOfSaleId,
   onPriceListChange,
+  onRefreshPriceListOptions,
   onPickProduct,
   disabled = false,
   disabledHint,
@@ -229,11 +238,17 @@ export default function PosProductSearchPanel({
     return "committed";
   }, [draftSearch]);
 
+  useEffect(() => {
+    if (!settingsOpen) return;
+    setDraftPriceListId(priceListId);
+  }, [settingsOpen, priceListId, priceListOptions]);
+
   const openSettings = useCallback(() => {
     setDraftPageSize(pageSize);
     setDraftPriceListId(priceListId);
+    void onRefreshPriceListOptions?.();
     setSettingsOpen(true);
-  }, [pageSize, priceListId]);
+  }, [pageSize, priceListId, onRefreshPriceListOptions]);
 
   const applySettings = useCallback(() => {
     const nextSize = clampPosProductSearchPageSize(draftPageSize);
@@ -276,11 +291,11 @@ export default function PosProductSearchPanel({
           >
             {selectedPriceListName}
           </p>
-          <IconButton
-            icon="Tags"
-            variant="basicSecondary"
-            size="sm"
-            ariaLabel="Lista de precios"
+          <Tags
+            size={18}
+            strokeWidth={2}
+            className="shrink-0 text-primary"
+            aria-hidden
             data-test-id="pos-product-price-list-icon"
           />
         </div>
@@ -337,58 +352,55 @@ export default function PosProductSearchPanel({
         ) : items.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sin resultados.</p>
         ) : (
-          items.map((item) => (
-            <article
-              key={item.variantId}
-              className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
-              data-test-id={`pos-product-variant-card-${item.variantId}`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <PosProductNameWithAttributes
-                    name={item.productName}
-                    attributes={item.attributes}
-                    className="text-sm font-medium text-foreground"
-                  />
-                  <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 font-mono text-[11px] text-muted-foreground">
-                    <span>SKU {item.sku ?? "—"}</span>
-                    {item.barcode?.trim() ? (
-                      <>
-                        <InlineSepDot />
-                        <span>{item.barcode.trim()}</span>
-                      </>
-                    ) : null}
-                  </p>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs tabular-nums text-foreground">
-                    <span>{formatMoney(item.unitPriceWithTax)}</span>
-                    {item.unitSymbol ? (
-                      <>
-                        <InlineSepDot />
-                        <span className="text-muted-foreground">{item.unitSymbol}</span>
-                      </>
-                    ) : null}
-                    <InlineSepDot />
-                    <span className="font-mono text-[11px] text-muted-foreground">
-                      Stock:{" "}
-                      <span className="font-semibold text-foreground">
-                        {item.availableStock == null ? "—" : String(item.availableStock)}
-                      </span>
-                    </span>
-                  </p>
-                </div>
-                <IconButton
-                  icon="Plus"
-                  variant="basicSecondary"
-                  size="sm"
-                  title="Agregar al carrito"
-                  ariaLabel="Agregar producto al carrito"
-                  disabled={disabled || !onPickProduct}
-                  onClick={() => onPickProduct?.(item)}
-                  data-test-id={`pos-product-add-${item.variantId}`}
+          items.map((item) => {
+            const saleUnitLabel = posDisplaySaleUnitSymbol(item);
+            const stockLabel = posFormatStockForCard(item);
+            const canPick = !disabled && !!onPickProduct;
+            return (
+              <button
+                key={item.variantId}
+                type="button"
+                disabled={!canPick}
+                onClick={() => onPickProduct?.(item)}
+                title={canPick ? "Agregar al carrito" : undefined}
+                className={`block w-full touch-manipulation rounded-xl border bg-white p-3 text-left shadow-sm transition-colors dark:bg-zinc-950 ${
+                  canPick
+                    ? "cursor-pointer border-zinc-200 hover:border-secondary focus:border-secondary focus:outline-none active:border-secondary/40 active:bg-secondary/10 dark:border-zinc-800 dark:active:bg-secondary/10"
+                    : "cursor-not-allowed border-zinc-200 opacity-60 dark:border-zinc-800"
+                }`}
+                data-test-id={`pos-product-variant-card-${item.variantId}`}
+              >
+                <PosProductNameWithAttributes
+                  name={item.productName}
+                  attributes={item.attributes}
+                  className="text-sm font-medium text-foreground"
                 />
-              </div>
-            </article>
-          ))
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 font-mono text-[11px] text-muted-foreground">
+                  <span>SKU {item.sku ?? "—"}</span>
+                  {item.barcode?.trim() ? (
+                    <>
+                      <InlineSepDot />
+                      <span>{item.barcode.trim()}</span>
+                    </>
+                  ) : null}
+                </p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs tabular-nums text-foreground">
+                  <span>{formatMoney(item.unitPriceWithTax)}</span>
+                  {saleUnitLabel ? (
+                    <>
+                      <InlineSepDot />
+                      <span className="text-muted-foreground">{saleUnitLabel}</span>
+                    </>
+                  ) : null}
+                  <InlineSepDot />
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    Stock:{" "}
+                    <span className="font-semibold text-foreground">{stockLabel}</span>
+                  </span>
+                </p>
+              </button>
+            );
+          })
         )}
       </div>
 
@@ -452,12 +464,22 @@ export default function PosProductSearchPanel({
           <Select
             label="Lista de precios"
             placeholder="Lista de precios"
+            density="compact"
+            labelLayout="stack"
             value={draftPriceListId || null}
             onChange={(id) => setDraftPriceListId(id ? String(id) : "")}
             options={priceListOptions.map((p) => ({ id: p.id, label: p.name }))}
             disabled={priceListOptions.length === 0}
             alwaysShowLabel
+            data-test-id="pos-product-search-price-list"
           />
+          {priceListOptions.length < 2 ? (
+            <p className="text-xs text-muted-foreground">
+              {priceListOptions.length === 0
+                ? "Este punto de venta no tiene listas de precios activas."
+                : "Solo hay una lista de precios asociada a este punto de venta."}
+            </p>
+          ) : null}
         <NumberStepper
           label="Resultados por página"
           value={draftPageSize}

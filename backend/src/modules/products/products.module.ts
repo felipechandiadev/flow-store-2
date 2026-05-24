@@ -8,6 +8,7 @@ import { Attribute } from '@modules/attributes/domain/attribute.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
+import { Unit } from '@modules/units/domain/unit.entity';
 import { ProductsController } from './presentation/products.controller';
 import { ProductsService } from './application/products.service';
 import { ProductsPosService } from './application/products-pos.service';
@@ -37,6 +38,7 @@ import { SearchProductsQueryHandler } from './application/handlers/queries/searc
       PriceListItem,
       StockLevel,
       PointOfSale,
+      Unit,
     ]),
     CqrsModule,
     MultimediaModule,

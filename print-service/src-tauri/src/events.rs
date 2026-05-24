@@ -105,11 +105,50 @@ pub fn printer_health(db: &Db, system: &[PrinterInfo], required: &[String]) -> V
         "Impresoras operativas."
     };
 
+    let lines = mapping_lines_health(db, system);
+
     json!({
         "overall": overall,
         "purposes": Value::Object(purposes_obj),
+        "lines": lines,
         "message": message,
     })
+}
+
+fn line_printer_status(system: &[PrinterInfo], system_printer_name: &str) -> &'static str {
+    let name = system_printer_name.trim();
+    if name.is_empty() {
+        return "unknown";
+    }
+    match printer_online(system, name) {
+        None => "offline",
+        Some(true) => "online",
+        Some(false) => "offline",
+    }
+}
+
+/// Estado por línea de mapeo (alias + impresora del SO).
+pub fn mapping_lines_health(db: &Db, system: &[PrinterInfo]) -> Vec<Value> {
+    let Ok(rows) = db.list_mapping_lines() else {
+        return vec![];
+    };
+    rows.into_iter()
+        .map(|row| {
+            let system_printer_name = row
+                .get("systemPrinterName")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let status = line_printer_status(system, &system_printer_name);
+            json!({
+                "id": row.get("id").cloned().unwrap_or(Value::Null),
+                "displayLabel": row.get("displayLabel").cloned().unwrap_or(Value::Null),
+                "purpose": row.get("purpose").cloned().unwrap_or(Value::Null),
+                "systemPrinterName": system_printer_name,
+                "status": status,
+            })
+        })
+        .collect()
 }
 
 /// Evento `printer_health` reutilizando la lista de impresoras ya obtenida (evita un segundo PowerShell en Windows).

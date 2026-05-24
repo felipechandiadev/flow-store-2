@@ -20,12 +20,24 @@ export type EditVariantStockConfigDialogProps = {
   onSaved: () => void | Promise<void>;
 };
 
+type VariantThresholdDraft = {
+  enabled: boolean;
+  value: string;
+};
+
+type StorageThresholdFieldDraft = {
+  /** true = umbral propio del almacén; false = heredar variante */
+  override: boolean;
+  enabled: boolean;
+  value: string;
+};
+
 type StorageThresholdDraft = {
   storageId: string;
   storageName: string;
-  minimum: string;
-  maximum: string;
-  reorder: string;
+  minimum: StorageThresholdFieldDraft;
+  maximum: StorageThresholdFieldDraft;
+  reorder: StorageThresholdFieldDraft;
 };
 
 function mergeStoragesForThresholds(
@@ -83,6 +95,147 @@ function parseThresholdInput(raw: string): number | null {
   return n;
 }
 
+function storageFieldFromBreakdown(
+  valueOverride: number | null | undefined,
+  enabledOverride: boolean | null | undefined,
+): StorageThresholdFieldDraft {
+  const hasValueOverride = valueOverride !== null && valueOverride !== undefined;
+  const hasEnabledOverride = enabledOverride !== null && enabledOverride !== undefined;
+  const override = hasValueOverride || hasEnabledOverride;
+  return {
+    override,
+    enabled: hasEnabledOverride ? Boolean(enabledOverride) : false,
+    value: hasValueOverride ? numToInput(valueOverride) : "",
+  };
+}
+
+function inheritedThresholdDisplay(variant: VariantThresholdDraft): string {
+  if (!variant.enabled) {
+    return "—";
+  }
+  return variant.value.trim() !== "" ? variant.value : "0";
+}
+
+function VariantThresholdField({
+  label,
+  name,
+  draft,
+  onChange,
+  disabled,
+  dataTestId,
+}: {
+  label: string;
+  name: string;
+  draft: VariantThresholdDraft;
+  onChange: (next: VariantThresholdDraft) => void;
+  disabled?: boolean;
+  dataTestId?: string;
+}) {
+  return (
+    <TextField
+      label={label}
+      name={name}
+      type="number"
+      min={0}
+      density="compact"
+      labelLayout="inline"
+      selectOnFocus
+      disabled={disabled || !draft.enabled}
+      value={draft.value}
+      onChange={(e) => onChange({ ...draft, value: e.target.value })}
+      data-test-id={dataTestId}
+      inlineLeadingAdornment={
+        <Switch
+          density="compact"
+          checked={draft.enabled}
+          onChange={(enabled) => onChange({ ...draft, enabled })}
+          disabled={disabled}
+          data-test-id={`${dataTestId}-enabled`}
+        />
+      }
+    />
+  );
+}
+
+function StorageThresholdField({
+  label,
+  name,
+  draft,
+  variantDraft,
+  onChange,
+  disabled,
+  dataTestId,
+}: {
+  label: string;
+  name: string;
+  draft: StorageThresholdFieldDraft;
+  variantDraft: VariantThresholdDraft;
+  onChange: (next: StorageThresholdFieldDraft) => void;
+  disabled?: boolean;
+  dataTestId?: string;
+}) {
+  const inherited = inheritedThresholdDisplay(variantDraft);
+  const inheriting = !draft.override;
+  const switchChecked = inheriting ? false : draft.enabled;
+  const fieldValue = inheriting ? inherited : draft.value;
+  const fieldReadOnly = inheriting || !draft.enabled;
+
+  const handleSwitchChange = (on: boolean) => {
+    if (inheriting && on) {
+      onChange({
+        override: true,
+        enabled: true,
+        value: variantDraft.enabled ? variantDraft.value || "0" : "0",
+      });
+      return;
+    }
+    if (!inheriting && !on) {
+      onChange({ override: false, enabled: false, value: "" });
+      return;
+    }
+    onChange({ ...draft, enabled: on });
+  };
+
+  return (
+    <TextField
+      label={label}
+      name={name}
+      type={fieldReadOnly ? "text" : "number"}
+      min={fieldReadOnly ? undefined : 0}
+      density="compact"
+      labelLayout="inline"
+      selectOnFocus={!fieldReadOnly}
+      readOnly={inheriting}
+      disabled={disabled || (!inheriting && !draft.enabled)}
+      value={fieldValue}
+      onChange={(e) => onChange({ ...draft, value: e.target.value })}
+      data-test-id={dataTestId}
+      title={inheriting ? `Heredado de variante: ${inherited}` : undefined}
+      inlineLeadingAdornment={
+        <Switch
+          density="compact"
+          checked={switchChecked}
+          onChange={handleSwitchChange}
+          disabled={disabled}
+          data-test-id={`${dataTestId}-enabled`}
+        />
+      }
+    />
+  );
+}
+
+function storageFieldForSave(
+  draft: StorageThresholdFieldDraft,
+): { value: number | null; enabled: boolean | null } {
+  if (!draft.override) {
+    return { value: null, enabled: null };
+  }
+  return {
+    enabled: draft.enabled,
+    value: parseThresholdInput(draft.value),
+  };
+}
+
 export function EditVariantStockConfigDialog({
   open,
   row,
@@ -99,9 +252,18 @@ export function EditVariantStockConfigDialog({
   const [productType, setProductType] = useState<string | null>(null);
   const [trackInventory, setTrackInventory] = useState(true);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
-  const [minimumStock, setMinimumStock] = useState("0");
-  const [maximumStock, setMaximumStock] = useState("0");
-  const [reorderPoint, setReorderPoint] = useState("0");
+  const [minimumDraft, setMinimumDraft] = useState<VariantThresholdDraft>({
+    enabled: false,
+    value: "0",
+  });
+  const [maximumDraft, setMaximumDraft] = useState<VariantThresholdDraft>({
+    enabled: false,
+    value: "0",
+  });
+  const [reorderDraft, setReorderDraft] = useState<VariantThresholdDraft>({
+    enabled: false,
+    value: "0",
+  });
   const [storageDrafts, setStorageDrafts] = useState<StorageThresholdDraft[]>([]);
 
   const subtitle = useMemo(() => {
@@ -136,18 +298,36 @@ export function EditVariantStockConfigDialog({
       const isService = String(pt || "").toUpperCase() === "SERVICE";
       setTrackInventory(typeof v.trackInventory === "boolean" ? v.trackInventory : !isService);
       setAllowNegativeStock(v.allowNegativeStock === true);
-      setMinimumStock(numToInput(v.minimumStock) || "0");
-      setMaximumStock(numToInput(v.maximumStock) || "0");
-      setReorderPoint(numToInput(v.reorderPoint) || "0");
+      setMinimumDraft({
+        enabled: v.minimumStockEnabled === true,
+        value: numToInput(v.minimumStock) || "0",
+      });
+      setMaximumDraft({
+        enabled: v.maximumStockEnabled === true,
+        value: numToInput(v.maximumStock) || "0",
+      });
+      setReorderDraft({
+        enabled: v.reorderPointEnabled === true,
+        value: numToInput(v.reorderPoint) || "0",
+      });
 
       const merged = mergeStoragesForThresholds(storages, row.storageBreakdown ?? [], branchId);
       setStorageDrafts(
         merged.map((b) => ({
           storageId: b.storageId,
           storageName: b.branchName ? `${b.storageName} (${b.branchName})` : b.storageName,
-          minimum: numToInput(b.minimumStockOverride),
-          maximum: numToInput(b.maximumStockOverride),
-          reorder: numToInput(b.reorderPointOverride),
+          minimum: storageFieldFromBreakdown(
+            b.minimumStockOverride,
+            b.minimumStockEnabledOverride,
+          ),
+          maximum: storageFieldFromBreakdown(
+            b.maximumStockOverride,
+            b.maximumStockEnabledOverride,
+          ),
+          reorder: storageFieldFromBreakdown(
+            b.reorderPointOverride,
+            b.reorderPointEnabledOverride,
+          ),
         })),
       );
       setLoading(false);
@@ -170,9 +350,9 @@ export function EditVariantStockConfigDialog({
       return;
     }
     setSaveError(null);
-    const min = Math.max(0, Math.round(Number(minimumStock) || 0));
-    const max = Math.max(0, Math.round(Number(maximumStock) || 0));
-    const reorder = Math.max(0, Math.round(Number(reorderPoint) || 0));
+    const minVal = Math.max(0, Math.round(Number(minimumDraft.value) || 0));
+    const maxVal = Math.max(0, Math.round(Number(maximumDraft.value) || 0));
+    const reorderVal = Math.max(0, Math.round(Number(reorderDraft.value) || 0));
 
     startTransition(() => {
       void (async () => {
@@ -180,15 +360,26 @@ export function EditVariantStockConfigDialog({
           variantId: row.variantId,
           trackInventory,
           allowNegativeStock,
-          minimumStock: min,
-          maximumStock: max,
-          reorderPoint: reorder,
-          storageThresholds: storageDrafts.map((s) => ({
-            storageId: s.storageId,
-            minimumStock: parseThresholdInput(s.minimum),
-            maximumStock: parseThresholdInput(s.maximum),
-            reorderPoint: parseThresholdInput(s.reorder),
-          })),
+          minimumStock: minVal,
+          minimumStockEnabled: minimumDraft.enabled,
+          maximumStock: maxVal,
+          maximumStockEnabled: maximumDraft.enabled,
+          reorderPoint: reorderVal,
+          reorderPointEnabled: reorderDraft.enabled,
+          storageThresholds: storageDrafts.map((s) => {
+            const min = storageFieldForSave(s.minimum);
+            const max = storageFieldForSave(s.maximum);
+            const rep = storageFieldForSave(s.reorder);
+            return {
+              storageId: s.storageId,
+              minimumStock: min.value,
+              minimumStockEnabled: min.enabled,
+              maximumStock: max.value,
+              maximumStockEnabled: max.enabled,
+              reorderPoint: rep.value,
+              reorderPointEnabled: rep.enabled,
+            };
+          }),
         });
         if (r.success) {
           await onSaved();
@@ -259,34 +450,30 @@ export function EditVariantStockConfigDialog({
                 labelPosition="right"
                 data-test-id="stock-config-negative"
               />
-              <TextField
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Active cada umbral con el interruptor; el valor solo aplica si está habilitado.
+            </p>
+            <div className="grid gap-3">
+              <VariantThresholdField
                 label="Stock mínimo"
                 name="stock-config-min"
-                type="number"
-                min={0}
-                selectOnFocus
-                value={minimumStock}
-                onChange={(e) => setMinimumStock(e.target.value)}
+                draft={minimumDraft}
+                onChange={setMinimumDraft}
                 data-test-id="stock-config-min"
               />
-              <TextField
+              <VariantThresholdField
                 label="Stock máximo"
                 name="stock-config-max"
-                type="number"
-                min={0}
-                selectOnFocus
-                value={maximumStock}
-                onChange={(e) => setMaximumStock(e.target.value)}
+                draft={maximumDraft}
+                onChange={setMaximumDraft}
                 data-test-id="stock-config-max"
               />
-              <TextField
+              <VariantThresholdField
                 label="Punto de reposición"
                 name="stock-config-reorder"
-                type="number"
-                min={0}
-                selectOnFocus
-                value={reorderPoint}
-                onChange={(e) => setReorderPoint(e.target.value)}
+                draft={reorderDraft}
+                onChange={setReorderDraft}
                 data-test-id="stock-config-reorder"
               />
             </div>
@@ -294,14 +481,9 @@ export function EditVariantStockConfigDialog({
 
           {storageDrafts.length > 0 ? (
             <div className="flex flex-col gap-3 border-t border-border pt-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Por almacén (opcional)
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Deje vacío un campo para heredar el valor de la variante en ese almacén.
-                </p>
-              </div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Por almacén (opcional)
+              </p>
               <div className="max-h-56 space-y-3 overflow-y-auto pr-1">
                 {storageDrafts.map((s, idx) => (
                   <div
@@ -310,48 +492,42 @@ export function EditVariantStockConfigDialog({
                     data-test-id={`stock-config-storage-${s.storageId}`}
                   >
                     <p className="mb-2 text-sm font-medium text-foreground">{s.storageName}</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      <TextField
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <StorageThresholdField
                         label="Mín."
                         name={`st-min-${s.storageId}`}
-                        type="number"
-                        min={0}
-                        selectOnFocus
-                        value={s.minimum}
-                        onChange={(e) => {
-                          const v = e.target.value;
+                        draft={s.minimum}
+                        variantDraft={minimumDraft}
+                        onChange={(next) => {
                           setStorageDrafts((prev) =>
-                            prev.map((x, i) => (i === idx ? { ...x, minimum: v } : x)),
+                            prev.map((x, i) => (i === idx ? { ...x, minimum: next } : x)),
                           );
                         }}
+                        dataTestId={`st-min-${s.storageId}`}
                       />
-                      <TextField
+                      <StorageThresholdField
                         label="Máx."
                         name={`st-max-${s.storageId}`}
-                        type="number"
-                        min={0}
-                        selectOnFocus
-                        value={s.maximum}
-                        onChange={(e) => {
-                          const v = e.target.value;
+                        draft={s.maximum}
+                        variantDraft={maximumDraft}
+                        onChange={(next) => {
                           setStorageDrafts((prev) =>
-                            prev.map((x, i) => (i === idx ? { ...x, maximum: v } : x)),
+                            prev.map((x, i) => (i === idx ? { ...x, maximum: next } : x)),
                           );
                         }}
+                        dataTestId={`st-max-${s.storageId}`}
                       />
-                      <TextField
+                      <StorageThresholdField
                         label="Repos."
                         name={`st-reorder-${s.storageId}`}
-                        type="number"
-                        min={0}
-                        selectOnFocus
-                        value={s.reorder}
-                        onChange={(e) => {
-                          const v = e.target.value;
+                        draft={s.reorder}
+                        variantDraft={reorderDraft}
+                        onChange={(next) => {
                           setStorageDrafts((prev) =>
-                            prev.map((x, i) => (i === idx ? { ...x, reorder: v } : x)),
+                            prev.map((x, i) => (i === idx ? { ...x, reorder: next } : x)),
                           );
                         }}
+                        dataTestId={`st-reorder-${s.storageId}`}
                       />
                     </div>
                   </div>

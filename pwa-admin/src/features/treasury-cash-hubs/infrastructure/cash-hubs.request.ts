@@ -70,7 +70,6 @@ export class CashHubsRequest {
   static async create(body: {
     companyId: string;
     name: string;
-    code?: string;
     notes?: string;
     isActive?: boolean;
     branchIds?: string[];
@@ -102,7 +101,6 @@ export class CashHubsRequest {
     companyId: string,
     body: {
       name?: string;
-      code?: string | null;
       notes?: string | null;
       isActive?: boolean;
       branchIds?: string[];

@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsUUID, Min, ValidateIf } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsUUID,
+  Min,
+  ValidateIf,
+} from 'class-validator';
 
 /**
  * Umbrales opcionales por almacén (`stock_levels`). `null` borra el override y hereda la variante.
@@ -31,4 +38,22 @@ export class UpdateStockLevelThresholdsDto {
   @IsInt()
   @Min(0)
   reorderPoint?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Boolean)
+  @IsBoolean()
+  minimumStockEnabled?: boolean | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Boolean)
+  @IsBoolean()
+  maximumStockEnabled?: boolean | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Boolean)
+  @IsBoolean()
+  reorderPointEnabled?: boolean | null;
 }

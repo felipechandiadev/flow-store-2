@@ -186,6 +186,16 @@ fn json_ticket_escpos_enabled(row: &serde_json::Value) -> bool {
         .unwrap_or(false)
 }
 
+fn json_ticket_logo_enabled(row: &serde_json::Value) -> bool {
+    row.get("ticketLogoEnabled")
+        .and_then(|v| {
+            v.as_bool()
+                .or_else(|| v.as_i64().map(|n| n != 0))
+                .or_else(|| v.as_u64().map(|n| n != 0))
+        })
+        .unwrap_or(false)
+}
+
 /// Tickets térmicos: ESC/POS RAW en lugar de PDF (Ghostscript en Windows).
 fn migrate_v5(conn: &Connection) -> Result<()> {
     let cols: Vec<String> = conn
@@ -218,6 +228,27 @@ fn migrate_v6(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// Activar logo de ticket por línea (independiente de si hay archivo guardado).
+fn migrate_v7(conn: &Connection) -> Result<()> {
+    let cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(printer_mapping_lines)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if cols.iter().any(|c| c == "ticket_logo_enabled") {
+        return Ok(());
+    }
+    conn.execute(
+        "ALTER TABLE printer_mapping_lines ADD COLUMN ticket_logo_enabled INTEGER NOT NULL DEFAULT 0",
+        [],
+    )?;
+    conn.execute(
+        "UPDATE printer_mapping_lines SET ticket_logo_enabled = 1
+         WHERE ticket_logo_path IS NOT NULL AND trim(ticket_logo_path) != ''",
+        [],
+    )?;
+    Ok(())
+}
+
 fn non_empty_logo_path(raw: Option<String>) -> Option<String> {
     raw.map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
@@ -231,6 +262,7 @@ fn query_ticket_logo_path_by_label(
     let mut stmt = conn.prepare(
         "SELECT ticket_logo_path FROM printer_mapping_lines
          WHERE purpose = ?1 AND lower(trim(display_label)) = lower(trim(?2))
+           AND ticket_logo_enabled != 0
          ORDER BY sort_order ASC, id ASC LIMIT 1",
     )?;
     let mut rows = stmt.query(params![purpose, display_label])?;
@@ -248,6 +280,7 @@ fn query_ticket_logo_path_by_printer(
     let mut stmt = conn.prepare(
         "SELECT ticket_logo_path FROM printer_mapping_lines
          WHERE purpose = ?1 AND trim(system_printer_name) = trim(?2)
+           AND ticket_logo_enabled != 0
          ORDER BY sort_order ASC, id ASC LIMIT 1",
     )?;
     let mut rows = stmt.query(params![purpose, system_printer])?;
@@ -302,6 +335,7 @@ impl Db {
         migrate_v4(&conn).context("migrate_v4")?;
         migrate_v5(&conn).context("migrate_v5")?;
         migrate_v6(&conn).context("migrate_v6")?;
+        migrate_v7(&conn).context("migrate_v7")?;
         Ok(Self {
             inner: Arc::new(Mutex::new(conn)),
         })
@@ -580,13 +614,14 @@ impl Db {
     pub fn list_mapping_lines(&self) -> Result<Vec<serde_json::Value>> {
         let c = self.inner.lock();
         let mut stmt = c.prepare(
-            "SELECT id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path
+            "SELECT id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path, ticket_logo_enabled
              FROM printer_mapping_lines ORDER BY purpose, sort_order ASC, id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
             let auto_cut: i32 = r.get(5)?;
             let ticket_escpos: i32 = r.get(6)?;
             let ticket_logo_path: Option<String> = r.get(7)?;
+            let ticket_logo_enabled: i32 = r.get(8)?;
             Ok(serde_json::json!({
                 "id": r.get::<_, String>(0)?,
                 "purpose": r.get::<_, String>(1)?,
@@ -596,6 +631,7 @@ impl Db {
                 "autoCutEnabled": auto_cut != 0,
                 "ticketEscposEnabled": ticket_escpos != 0,
                 "ticketLogoPath": ticket_logo_path.filter(|s| !s.trim().is_empty()),
+                "ticketLogoEnabled": ticket_logo_enabled != 0,
             }))
         })?;
         let mut out = Vec::new();
@@ -659,6 +695,106 @@ impl Db {
         Ok(serde_json::Value::Object(root))
     }
 
+    /// Alias único (case-insensitive), excluyendo la línea que se está guardando.
+    pub fn validate_display_label_unique(&self, label: &str, exclude_id: Option<&str>) -> Result<()> {
+        let t = label.trim();
+        if t.is_empty() {
+            return Ok(());
+        }
+        let exclude = exclude_id.unwrap_or("");
+        let c = self.inner.lock();
+        let mut stmt = c.prepare(
+            "SELECT id FROM printer_mapping_lines
+             WHERE lower(trim(display_label)) = lower(trim(?1))
+               AND (trim(?2) = '' OR id != ?2)
+             LIMIT 1",
+        )?;
+        let mut rows = stmt.query(params![t, exclude])?;
+        if rows.next()?.is_some() {
+            anyhow::bail!("display_label_alias_duplicate:{t}");
+        }
+        Ok(())
+    }
+
+    pub fn upsert_mapping_line(&self, row: &serde_json::Value) -> Result<()> {
+        let id = row
+            .get("id")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| anyhow::anyhow!("line missing id"))?;
+        let purpose = row
+            .get("purpose")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("line missing purpose"))?;
+        let system_printer_name = row
+            .get("systemPrinterName")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("line missing systemPrinterName"))?;
+        let sort_order = row
+            .get("sortOrder")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0) as i32;
+        let display_label = row.get("displayLabel").and_then(|v| v.as_str());
+        if let Some(lbl) = display_label {
+            self.validate_display_label_unique(lbl, Some(id))?;
+        }
+        let auto_cut: i32 = if json_auto_cut_enabled(row) { 1 } else { 0 };
+        let ticket_escpos: i32 = if json_ticket_escpos_enabled(row) { 1 } else { 0 };
+        let ticket_logo_path = if purpose == "tickets" {
+            row.get("ticketLogoPath")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+        } else {
+            None
+        };
+        let ticket_logo_enabled: i32 = if purpose == "tickets" && json_ticket_logo_enabled(row) {
+            1
+        } else {
+            0
+        };
+        let c = self.inner.lock();
+        c.execute(
+            "INSERT INTO printer_mapping_lines(id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path, ticket_logo_enabled)
+             VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(id) DO UPDATE SET
+               purpose = excluded.purpose,
+               system_printer_name = excluded.system_printer_name,
+               sort_order = excluded.sort_order,
+               display_label = excluded.display_label,
+               auto_cut_enabled = excluded.auto_cut_enabled,
+               ticket_escpos_enabled = excluded.ticket_escpos_enabled,
+               ticket_logo_path = excluded.ticket_logo_path,
+               ticket_logo_enabled = excluded.ticket_logo_enabled",
+            params![
+                id,
+                purpose,
+                system_printer_name,
+                sort_order,
+                display_label,
+                auto_cut,
+                ticket_escpos,
+                ticket_logo_path,
+                ticket_logo_enabled,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_mapping_line(&self, line_id: &str) -> Result<bool> {
+        let id = line_id.trim();
+        if id.is_empty() {
+            return Ok(false);
+        }
+        let c = self.inner.lock();
+        let n = c.execute(
+            "DELETE FROM printer_mapping_lines WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(n > 0)
+    }
+
     pub fn replace_all_mapping_lines(&self, lines: &[serde_json::Value]) -> Result<()> {
         validate_unique_trimmed_display_labels(lines)?;
         let mut c = self.inner.lock();
@@ -695,9 +831,14 @@ impl Db {
             } else {
                 None
             };
+            let ticket_logo_enabled: i32 = if purpose == "tickets" && json_ticket_logo_enabled(row) {
+                1
+            } else {
+                0
+            };
             tx.execute(
-                "INSERT INTO printer_mapping_lines(id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO printer_mapping_lines(id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path, ticket_logo_enabled)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     id,
                     purpose,
@@ -707,6 +848,7 @@ impl Db {
                     auto_cut,
                     ticket_escpos,
                     ticket_logo_path,
+                    ticket_logo_enabled,
                 ],
             )?;
         }

@@ -7,6 +7,7 @@ import {
   healthToVisual,
   printServicePageRequiresTls,
   readPrintServiceConfigFromStorage,
+  readConfiguredPurposePrinterAliasMap,
   PRINT_SERVICE_CONFIG_CHANGED_EVENT,
   PRINT_WS_CLOSE_REASON_SERVICE_STOPPED,
   type HelloResponseData,
@@ -37,8 +38,9 @@ export type UsePrintServiceConnectionOptions = {
   companyName?: string;
   /** Punto de venta (POS) — visible en KaiPrinters. */
   pointOfSaleName?: string;
+  /** Aliases por propósito que usa esta app (p. ej. tickets/documents). Si no se pasa, se leen de localStorage POS/admin. */
+  purposePrinterAliases?: Partial<Record<string, string>>;
   /**
-   * Si es false, no se apilan notificaciones en el dropdown (desconexión / fallo de impresión).
    * El estado sigue en `visual`, `connected`, `lastError`.
    * @default true
    */
@@ -145,6 +147,7 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
   const lastWsErrorRef = useRef<{ msg: string; at: number }>({ msg: "", at: 0 });
   /** Evita repetir la notificación de desconexión hasta volver a conectar. */
   const disconnectNotifiedRef = useRef(false);
+  const lineStatusByIdRef = useRef<Map<string, string>>(new Map());
   const debugRef = useRef(false);
   debugRef.current = Boolean(opts.debug);
 
@@ -204,6 +207,49 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
       });
     },
     [opts.enableInAppNotifications, persistNotifications],
+  );
+
+  const notifyClientPrinterOffline = useCallback(
+    (p: PrinterHealthPayload) => {
+      const aliasMap =
+        opts.purposePrinterAliases && Object.keys(opts.purposePrinterAliases).length > 0
+          ? opts.purposePrinterAliases
+          : readConfiguredPurposePrinterAliasMap();
+      const lines = p.lines ?? [];
+      for (const [purpose, aliasRaw] of Object.entries(aliasMap)) {
+        const alias = (aliasRaw ?? "").trim();
+        if (!alias) continue;
+        const line = lines.find(
+          (l) =>
+            l.purpose === purpose &&
+            (l.displayLabel ?? "").trim().toLowerCase() === alias.toLowerCase(),
+        );
+        if (!line?.id) continue;
+        const cur = line.status ?? "unknown";
+        const prev = lineStatusByIdRef.current.get(line.id);
+        if (prev === "online" && cur === "offline") {
+          const queue = line.systemPrinterName?.trim() || "?";
+          pushNotification({
+            kind: "printer_offline",
+            message: `Impresora «${alias}» (${queue}) no disponible.`,
+          });
+        }
+        if (cur === "online" || cur === "offline") {
+          lineStatusByIdRef.current.set(line.id, cur);
+        }
+      }
+    },
+    [opts.purposePrinterAliases, pushNotification],
+  );
+
+  const applyPrinterHealth = useCallback(
+    (p: PrinterHealthPayload) => {
+      setHealth(p);
+      const o = p.overall;
+      if (o) healthOverallRef.current = o;
+      notifyClientPrinterOffline(p);
+    },
+    [notifyClientPrinterOffline],
   );
 
   const notifyDisconnected = useCallback(() => {
@@ -326,6 +372,7 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
     setConnected(false);
     setHealth(null);
     healthOverallRef.current = undefined;
+    lineStatusByIdRef.current = new Map();
 
     const c = new PrintServiceConnection({
       url,
@@ -426,16 +473,11 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
           });
         }
         if (d.printerHealth) {
-          const p = d.printerHealth;
-          setHealth(p);
-          const o = p.overall;
-          if (o) healthOverallRef.current = o;
+          applyPrinterHealth(d.printerHealth);
         }
       },
       onPrinterHealth: (p) => {
-        setHealth(p);
-        const o = p.overall;
-        if (o) healthOverallRef.current = o;
+        applyPrinterHealth(p);
       },
       onConfigChanged: () => {
         /* sin notificación: solo desconexión y fallo de impresión */
@@ -476,6 +518,7 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
     opts.pointOfSaleName,
     notifyDisconnected,
     notifyJobFailed,
+    applyPrinterHealth,
   ]);
 
   const reconnect = useCallback(() => {

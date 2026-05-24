@@ -7,6 +7,9 @@ export default function SelectPage() {
   const [selectedValue1, setSelectedValue1] = useState<string | number | null>(null);
   const [selectedValue2, setSelectedValue2] = useState<string | number | null>(null);
   const [selectedValue3, setSelectedValue3] = useState<string | number | null>(null);
+  const [compactStackPurpose, setCompactStackPurpose] = useState<string | number | null>(null);
+  const [compactInsetPurpose, setCompactInsetPurpose] = useState<string | number | null>('tickets');
+  const [compactInsetPrinter, setCompactInsetPrinter] = useState<string | number | null>(null);
 
   const options = [
     { id: 'option1', label: 'Option 1' },
@@ -30,84 +33,122 @@ export default function SelectPage() {
     { id: 'archived', label: 'Archived' },
   ];
 
+  const purposeOptions = [
+    { id: 'tickets', label: 'Tickets' },
+    { id: 'documents', label: 'Documentos' },
+    { id: 'labels', label: 'Etiquetas' },
+    { id: 'reports', label: 'Informes' },
+  ];
+
+  const printerOptions = [
+    { id: 'EPSON-TM-T20', label: 'EPSON TM-T20 ★' },
+    { id: 'HP-LaserJet', label: 'HP LaserJet' },
+    { id: 'PDF-Virtual', label: 'Microsoft Print to PDF' },
+  ];
+
   return (
-    <div className="p-8 space-y-12">
+    <div className="p-8 space-y-12 max-w-3xl">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Select Component Showcase</h1>
-        <p className="text-gray-600">Testing dropdown select functionality</p>
+        <h1 className="text-3xl font-bold mb-2">Select — casos de uso</h1>
+        <p className="text-gray-600">
+          Desplegable con label flotante (default), compact stack e inline{" "}
+          (<strong className="font-medium text-foreground">CompactInsetField</strong> compartido con TextField).
+        </p>
       </div>
 
-      {/* Basic Select */}
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">Basic Select</h2>
-        <div className="max-w-md">
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">Default — label flotante</h2>
+        <Select
+          label="Choose an option"
+          options={options}
+          value={selectedValue1}
+          onChange={setSelectedValue1}
+        />
+        {selectedValue1 != null && selectedValue1 !== '' ? (
+          <p className="text-sm text-gray-600">
+            Selected: <span className="font-semibold">{String(selectedValue1)}</span>
+          </p>
+        ) : null}
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">Compact — label arriba (stack)</h2>
+        <p className="text-sm text-muted-foreground">
+          <code className="rounded bg-muted/50 px-1 text-xs">density=&quot;compact&quot;</code> +{" "}
+          <code className="rounded bg-muted/50 px-1 text-xs">labelLayout=&quot;stack&quot;</code>: etiqueta encima del combo (~2rem).
+        </p>
+        <Select
+          label="Propósito"
+          placeholder="Seleccionar"
+          density="compact"
+          labelLayout="stack"
+          options={purposeOptions}
+          value={compactStackPurpose}
+          onChange={setCompactStackPurpose}
+          name="select-compact-stack"
+        />
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">CompactInsetField — label inline</h2>
+        <p className="text-sm text-muted-foreground">
+          <code className="rounded bg-muted/50 px-1 text-xs">density=&quot;compact&quot;</code> +{" "}
+          <code className="rounded bg-muted/50 px-1 text-xs">labelLayout=&quot;inline&quot;</code>: label dentro del borde,
+          IconButton de despliegue alineado a la derecha (mismo criterio que KaiPrinters).
+        </p>
+        <div className="space-y-3">
           <Select
-            label="Choose an option"
-            options={options}
-            value={selectedValue1}
-            onChange={setSelectedValue1}
+            label="Propósito"
+            placeholder="Seleccionar"
+            density="compact"
+            labelLayout="inline"
+            options={purposeOptions}
+            value={compactInsetPurpose}
+            onChange={setCompactInsetPurpose}
+            name="select-compact-inset-purpose"
           />
-          {selectedValue1 != null && selectedValue1 !== '' && (
-            <p className="mt-2 text-sm text-gray-600">
-              Selected: <span className="font-semibold">{String(selectedValue1)}</span>
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Role Select */}
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">Role Selection</h2>
-        <div className="max-w-md">
           <Select
-            label="Select a role"
-            options={roleOptions}
-            value={selectedValue2}
-            onChange={setSelectedValue2}
+            label="Impresora del SO"
+            placeholder="Seleccionar"
+            density="compact"
+            labelLayout="inline"
+            required
+            options={printerOptions}
+            value={compactInsetPrinter}
+            onChange={setCompactInsetPrinter}
+            name="select-compact-inset-printer"
           />
-          {selectedValue2 != null && selectedValue2 !== '' && (
-            <p className="mt-2 text-sm text-gray-600">
-              Role: <span className="font-semibold capitalize">{String(selectedValue2)}</span>
-            </p>
-          )}
         </div>
-      </div>
+      </section>
 
-      {/* Status Select */}
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">Status Selection</h2>
-        <div className="max-w-md">
-          <Select
-            label="Select status"
-            options={statusOptions}
-            value={selectedValue3}
-            onChange={setSelectedValue3}
-          />
-          {selectedValue3 != null && selectedValue3 !== '' && (
-            <p className="mt-2 text-sm text-gray-600">
-              Status: <span className="font-semibold capitalize">{String(selectedValue3)}</span>
-            </p>
-          )}
-        </div>
-      </div>
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">Role Selection</h2>
+        <Select
+          label="Select a role"
+          options={roleOptions}
+          value={selectedValue2}
+          onChange={setSelectedValue2}
+        />
+        {selectedValue2 != null && selectedValue2 !== '' ? (
+          <p className="text-sm text-gray-600">
+            Role: <span className="font-semibold capitalize">{String(selectedValue2)}</span>
+          </p>
+        ) : null}
+      </section>
 
-      {/* Features */}
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">Features</h2>
-        <ul className="list-disc list-inside space-y-2 text-gray-700">
-          <li>Dropdown menu with multiple options</li>
-          <li>Keyboard navigation (arrow keys)</li>
-          <li>Mouse click selection</li>
-          <li>Customizable label</li>
-          <li>Selected value display</li>
-          <li>Disabled state support</li>
-        </ul>
-      </div>
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">Status Selection</h2>
+        <Select
+          label="Select status"
+          options={statusOptions}
+          value={selectedValue3}
+          onChange={setSelectedValue3}
+        />
+      </section>
 
-      {/* Form Group Example */}
-      <div className="border rounded-lg p-6 bg-gray-50">
-        <h2 className="text-2xl font-semibold mb-6">Form Group Example</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+      <section className="border rounded-lg p-6 bg-gray-50 space-y-6">
+        <h2 className="text-2xl font-semibold">Form group — default</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Select
             label="Role"
             options={roleOptions}
@@ -121,7 +162,7 @@ export default function SelectPage() {
             onChange={setSelectedValue3}
           />
         </div>
-      </div>
+      </section>
     </div>
   );
 }

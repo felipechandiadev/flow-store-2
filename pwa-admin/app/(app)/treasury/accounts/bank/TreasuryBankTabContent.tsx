@@ -138,7 +138,7 @@ export default function TreasuryBankTabContent({
     () =>
       cashHubs.map((h) => ({
         id: h.id,
-        label: `${h.name}${h.code ? ` · ${h.code}` : ""} · ${fmtMoney(h.currentBalance ?? 0)}`,
+        label: `${h.name} · ${fmtMoney(h.currentBalance ?? 0)}`,
       })),
     [cashHubs],
   );

@@ -55,8 +55,11 @@ export type ProductVariantGridRow = {
   trackInventory?: boolean;
   allowNegativeStock?: boolean;
   minimumStock?: number;
+  minimumStockEnabled?: boolean;
   maximumStock?: number;
+  maximumStockEnabled?: boolean;
   reorderPoint?: number;
+  reorderPointEnabled?: boolean;
   weight?: number | null;
   weightUnit?: string | null;
   /** Peso neto producto (kg), sin embalaje. */

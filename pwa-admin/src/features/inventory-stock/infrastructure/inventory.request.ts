@@ -119,12 +119,42 @@ function normalizeStorageBreakdown(raw: unknown): StockGridRow["storageBreakdown
             : o.reorderPointOverride === null
               ? null
               : Number(o.reorderPointOverride),
+        minimumStockEnabledOverride:
+          o.minimumStockEnabledOverride === undefined
+            ? undefined
+            : o.minimumStockEnabledOverride === null
+              ? null
+              : Boolean(o.minimumStockEnabledOverride),
+        maximumStockEnabledOverride:
+          o.maximumStockEnabledOverride === undefined
+            ? undefined
+            : o.maximumStockEnabledOverride === null
+              ? null
+              : Boolean(o.maximumStockEnabledOverride),
+        reorderPointEnabledOverride:
+          o.reorderPointEnabledOverride === undefined
+            ? undefined
+            : o.reorderPointEnabledOverride === null
+              ? null
+              : Boolean(o.reorderPointEnabledOverride),
         effectiveMinimumStock:
           o.effectiveMinimumStock != null ? Number(o.effectiveMinimumStock) : undefined,
+        effectiveMinimumStockEnabled:
+          o.effectiveMinimumStockEnabled === undefined
+            ? undefined
+            : Boolean(o.effectiveMinimumStockEnabled),
         effectiveMaximumStock:
           o.effectiveMaximumStock != null ? Number(o.effectiveMaximumStock) : undefined,
+        effectiveMaximumStockEnabled:
+          o.effectiveMaximumStockEnabled === undefined
+            ? undefined
+            : Boolean(o.effectiveMaximumStockEnabled),
         effectiveReorderPoint:
           o.effectiveReorderPoint != null ? Number(o.effectiveReorderPoint) : undefined,
+        effectiveReorderPointEnabled:
+          o.effectiveReorderPointEnabled === undefined
+            ? undefined
+            : Boolean(o.effectiveReorderPointEnabled),
       };
     })
     .filter((x): x is NonNullable<typeof x> => x != null);
@@ -352,6 +382,9 @@ export class InventoryRequest {
     minimumStock?: number | null;
     maximumStock?: number | null;
     reorderPoint?: number | null;
+    minimumStockEnabled?: boolean | null;
+    maximumStockEnabled?: boolean | null;
+    reorderPointEnabled?: boolean | null;
   }): Promise<{ success: true } | { success: false; error: string }> {
     const headers = await authHeaders();
     try {

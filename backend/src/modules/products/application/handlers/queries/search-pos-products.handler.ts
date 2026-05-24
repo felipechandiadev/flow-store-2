@@ -2,9 +2,10 @@ import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { Logger, NotFoundException } from '@nestjs/common';
 import { SearchPosProductsQuery } from '../../queries/search-pos-products.query';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
+import { Unit } from '@modules/units/domain/unit.entity';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 import { posDisplayStockInSaleUnits } from '@modules/product-variants/application/variant-count-bridge.util';
 
@@ -17,10 +18,12 @@ export type PosProductSearchResult = {
   sku: string | null;
   barcode: string | null;
   unitSymbol: string | null;
+  saleUnitSymbol: string | null;
   unitId: string | null;
   stockBaseUnitId: string | null;
   stockBaseUnitSymbol: string | null;
   saleUnitId: string | null;
+  unitAllowDecimals: boolean;
   purchaseUnitId: string | null;
   unitPrice: number;
   unitTaxRate: number;
@@ -29,6 +32,7 @@ export type PosProductSearchResult = {
   trackInventory: boolean;
   availableStock: number | null;
   availableStockBase: number | null;
+  stockBaseQtyPerCountSaleUnit: number | null;
   attributes: Array<{
     attributeId: string;
     attributeName: string;
@@ -62,6 +66,8 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
     private readonly variantRepository: Repository<ProductVariant>,
     @InjectRepository(StockLevel)
     private readonly stockLevelRepository: Repository<StockLevel>,
+    @InjectRepository(Unit)
+    private readonly unitRepository: Repository<Unit>,
     private readonly multimediaService: MultimediaServiceAdapter,
   ) {}
 
@@ -127,6 +133,7 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
       'v.stockBaseQtyPerCountSaleUnit',
       'v.attributeValues',
       'product.id',
+      'product.companyId',
       'product.name',
       'product.description',
       'unit.id',
@@ -134,6 +141,7 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
       'saleUnit.id',
       'saleUnit.symbol',
       'saleUnit.dimension',
+      'saleUnit.allowDecimals',
       'stockBaseUnit.id',
       'stockBaseUnit.symbol',
       'stockBaseUnit.dimension',
@@ -202,6 +210,15 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
       }),
     );
 
+    const companyId = variants.find((v) => v.product?.companyId)?.product?.companyId;
+    let unitsById: Map<string, Unit> | undefined;
+    if (companyId) {
+      const unitRows = await this.unitRepository.find({
+        where: { companyId, deletedAt: IsNull() },
+      });
+      unitsById = new Map(unitRows.map((u) => [u.id, u]));
+    }
+
     // Mapear resultados al formato esperado por el POS
     const products: PosProductSearchResult[] = variants
       .filter((variant) => variant.productId) // Filtrar variantes sin productId
@@ -265,9 +282,12 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
         const availableStock = track
           ? posDisplayStockInSaleUnits({
               physicalStockInBase: stockBaseQty,
+              stockBaseUnitId: variant.stockBaseUnitId,
+              saleUnitId: variant.saleUnitId,
               stockBaseDimension: (variant as any).stockBaseUnit?.dimension ?? null,
               saleDimension: (variant as any).saleUnit?.dimension ?? null,
               stockBaseQtyPerCountSaleUnit: (variant as any).stockBaseQtyPerCountSaleUnit,
+              unitsById,
             })
           : null;
 
@@ -279,8 +299,10 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
           variantId: variant.id,
           sku: variant.sku || null,
           barcode: variant.barcode || null,
-          unitSymbol: (variant as any).saleUnit?.symbol ?? variant.unit?.symbol ?? null,
-          unitId: (variant as any).saleUnitId ?? variant.unitId ?? null,
+          saleUnitSymbol: (variant as any).saleUnit?.symbol ?? null,
+          unitSymbol: (variant as any).saleUnit?.symbol ?? null,
+          unitId: (variant as any).saleUnitId ?? null,
+          unitAllowDecimals: (variant as any).saleUnit?.allowDecimals === true,
           stockBaseUnitId: (variant as any).stockBaseUnitId ?? null,
           stockBaseUnitSymbol: (variant as any).stockBaseUnit?.symbol ?? null,
           saleUnitId: (variant as any).saleUnitId ?? null,
@@ -292,6 +314,12 @@ export class SearchPosProductsQueryHandler implements IQueryHandler<
           trackInventory: track,
           availableStock,
           availableStockBase,
+          stockBaseQtyPerCountSaleUnit: (() => {
+            const raw = (variant as any).stockBaseQtyPerCountSaleUnit;
+            if (raw == null || raw === '') return null;
+            const n = Number(raw);
+            return Number.isFinite(n) && n > 0 ? n : null;
+          })(),
           attributes,
           metadata: null,
         };

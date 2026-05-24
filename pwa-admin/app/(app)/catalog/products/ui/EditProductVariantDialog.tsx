@@ -8,6 +8,7 @@ import { Button } from "@/shared/components/Button";
 import { TextField } from "@/shared/components/TextField/TextField";
 import { Select, type Option } from "@/shared/components/Select";
 import Switch from "@/shared/components/Switch/Switch";
+import { StockThresholdField } from "@/shared/components/StockThresholdField/StockThresholdField";
 import { updateProductVariantAction } from "@/features/inventory-products/actions/product.action";
 import { listUnitsForPage } from "@/features/inventory-units/actions/unit.action";
 import type { UnitListItem } from "@/features/inventory-units/types/unit.types";
@@ -74,8 +75,11 @@ export function EditProductVariantDialog({
   const [trackInventory, setTrackInventory] = useState(true);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [minimumStock, setMinimumStock] = useState("0");
+  const [minimumStockEnabled, setMinimumStockEnabled] = useState(false);
   const [maximumStock, setMaximumStock] = useState("0");
+  const [maximumStockEnabled, setMaximumStockEnabled] = useState(false);
   const [reorderPoint, setReorderPoint] = useState("0");
+  const [reorderPointEnabled, setReorderPointEnabled] = useState(false);
   const [weight, setWeight] = useState("");
   const [weightUnit, setWeightUnit] = useState("kg");
   const [netWeightKg, setNetWeightKg] = useState("");
@@ -217,16 +221,19 @@ export function EditProductVariantDialog({
           typeof variant.trackInventory === "boolean" ? variant.trackInventory : !isService,
         );
         setAllowNegativeStock(variant.allowNegativeStock === true);
+        setMinimumStockEnabled(variant.minimumStockEnabled === true);
         setMinimumStock(
           variant.minimumStock != null && Number.isFinite(Number(variant.minimumStock))
             ? String(Math.max(0, Math.round(Number(variant.minimumStock))))
             : "0",
         );
+        setMaximumStockEnabled(variant.maximumStockEnabled === true);
         setMaximumStock(
           variant.maximumStock != null && Number.isFinite(Number(variant.maximumStock))
             ? String(Math.max(0, Math.round(Number(variant.maximumStock))))
             : "0",
         );
+        setReorderPointEnabled(variant.reorderPointEnabled === true);
         setReorderPoint(
           variant.reorderPoint != null && Number.isFinite(Number(variant.reorderPoint))
             ? String(Math.max(0, Math.round(Number(variant.reorderPoint))))
@@ -302,8 +309,11 @@ export function EditProductVariantDialog({
     variant.stockBaseQtyPerCountSaleUnit,
     variant.stockBaseQtyPerCountPurchaseUnit,
     variant.minimumStock,
+    variant.minimumStockEnabled,
     variant.maximumStock,
+    variant.maximumStockEnabled,
     variant.reorderPoint,
+    variant.reorderPointEnabled,
     variant.weight,
     variant.weightUnit,
     variant.netWeightKg,
@@ -445,8 +455,11 @@ export function EditProductVariantDialog({
           trackInventory,
           allowNegativeStock,
           minimumStock: Math.max(0, Math.round(Number(minimumStock) || 0)),
+          minimumStockEnabled,
           maximumStock: Math.max(0, Math.round(Number(maximumStock) || 0)),
+          maximumStockEnabled,
           reorderPoint: Math.max(0, Math.round(Number(reorderPoint) || 0)),
+          reorderPointEnabled,
           stockBaseQtyPerCountSaleUnit: stockBaseQtyPerCountSaleUnitOut,
           stockBaseQtyPerCountPurchaseUnit: stockBaseQtyPerCountPurchaseUnitOut,
           weight: parseOptDecimal(weight),
@@ -690,29 +703,32 @@ export function EditProductVariantDialog({
               labelPosition="right"
               data-test-id="product-variant-edit-allow-negative"
             />
-            <TextField
+            <StockThresholdField
               label="Stock mínimo"
               name="pv-edit-minimum-stock"
+              enabled={minimumStockEnabled}
+              onEnabledChange={setMinimumStockEnabled}
               value={minimumStock}
-              onChange={(e) => setMinimumStock(e.target.value)}
-              placeholder="0"
-              data-test-id="product-variant-edit-minimum-stock"
+              onValueChange={setMinimumStock}
+              dataTestId="product-variant-edit-minimum-stock"
             />
-            <TextField
+            <StockThresholdField
               label="Stock máximo"
               name="pv-edit-maximum-stock"
+              enabled={maximumStockEnabled}
+              onEnabledChange={setMaximumStockEnabled}
               value={maximumStock}
-              onChange={(e) => setMaximumStock(e.target.value)}
-              placeholder="0"
-              data-test-id="product-variant-edit-maximum-stock"
+              onValueChange={setMaximumStock}
+              dataTestId="product-variant-edit-maximum-stock"
             />
-            <TextField
+            <StockThresholdField
               label="Punto de reposición"
               name="pv-edit-reorder-point"
+              enabled={reorderPointEnabled}
+              onEnabledChange={setReorderPointEnabled}
               value={reorderPoint}
-              onChange={(e) => setReorderPoint(e.target.value)}
-              placeholder="0"
-              data-test-id="product-variant-edit-reorder-point"
+              onValueChange={setReorderPoint}
+              dataTestId="product-variant-edit-reorder-point"
             />
           </div>
           <div className="pt-1">

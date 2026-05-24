@@ -147,7 +147,10 @@ export class StockLevelsRepository implements StockLevelsRepositoryPort {
       row.storageName = entity.storage?.name || '';
       row.branchName = entity.storage?.branch?.name || '';
 
-      if (qty < (variant?.minimumStock || 0)) {
+      if (
+        variant?.minimumStockEnabled &&
+        qty < Number(variant?.minimumStock || 0)
+      ) {
         row.isBelowMinimum = true;
       }
     }

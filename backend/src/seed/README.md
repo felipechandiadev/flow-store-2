@@ -15,7 +15,7 @@ Tareas del seed mínimo:
 7. **Lista de precios** — **UNICA** (`RETAIL`, `CLP`, default). Desactiva listas legacy MINORISTA/MAYORISTA si existían.
 8. **Punto de venta** — **CAJA LOCAL** en sucursal seed, almacén **Sala de venta**, lista **UNICA**, medios POS (efectivo/tarjetas/transfer/NC/abono encargo).
 9. **Cuenta bancaria empresa** — Banco Falabella cuenta corriente `19994412711` (primaria).
-10. **Centro de efectivo** — nombre **Principal**, código `CENTRAL`.
+10. **Centro de efectivo** — nombre **Principal**, código `CEV-00001` (generado por el sistema en altas nuevas).
 11. **Usuarios** — `superadmin` (sin empresa), `admin` y `operador` (empresa seed; password `SEED_ADMIN_PASSWORD`, default `098098`).
 12. **Contabilidad (mínimo)** — por empresa:
    - **Plan de cuentas mínimo** (`accounting_accounts`): asegura un set base (Activos/Pasivos/Patrimonio/Ingresos/Gastos) con subcuentas (Caja, Banco, Clientes, Proveedores, Ventas, Costos, Gastos operativos).

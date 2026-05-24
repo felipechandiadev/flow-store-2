@@ -141,3 +141,145 @@
 .fs-form-group {
   margin-bottom: 1rem;
 }
+
+/**
+ * Compact inline: label + input dentro del mismo borde, ancho completo.
+ * (prueba KaiPrinters — sección Impresoras)
+ */
+.fs-text-field.fs-text-field--inline {
+  width: 100%;
+  min-width: 0;
+}
+
+.fs-text-field__inline-shell {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 2rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-border, #c1c1c2);
+  background-color: var(--color-background, #fff);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.fs-text-field__inline-shell:focus-within {
+  outline: none;
+  border-color: var(--color-primary, #002b59);
+  box-shadow: none;
+}
+
+/** Un solo marco de foco en el contenedor; el input interno no duplica anillo. */
+.fs-text-field__inline-shell .fs-text-field__input:focus,
+.fs-text-field__inline-shell .fs-text-field__input:focus-visible {
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.fs-text-field__inline-shell.fs-text-field__inline-shell--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fs-text-field__inline-leading {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 0 0.375rem 0 0.5rem;
+}
+
+.fs-text-field__inline-body {
+  display: flex;
+  flex: 1 1 0%;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.fs-text-field__inline-body--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/** Misma tipografía en label y valor; el label se distingue por peso y color. */
+.fs-text-field__inline-label {
+  flex: 0 0 auto;
+  align-self: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  letter-spacing: 0.01em;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--color-muted-foreground, #6b7280);
+  border-right: 1px solid var(--color-border, #c1c1c2);
+}
+
+.fs-text-field--inline .fs-text-field__control {
+  flex: 1 1 0%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.fs-text-field--inline .fs-text-field__input.fs-text-field__input--inline-inset,
+:has(> .fs-text-field__inline-label) .fs-text-field__input.fs-text-field__input--compact {
+  border: none;
+  box-shadow: none;
+  background-color: transparent;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+  color: var(--color-foreground, #131615);
+}
+
+.fs-text-field--inline .fs-text-field__input.fs-text-field__input--inline-inset::placeholder,
+:has(> .fs-text-field__inline-label) .fs-text-field__input.fs-text-field__input--compact::placeholder {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-muted-foreground, #9ca3af);
+}
+
+/* readOnly inline (logo): mismos colores que Alias/Select; evita gris del UA con `disabled`. */
+.fs-text-field--inline .fs-text-field__input.fs-text-field__input--inline-inset:read-only:not(:disabled) {
+  color: var(--color-foreground, #131615);
+  -webkit-text-fill-color: var(--color-foreground, #131615);
+  opacity: 1;
+}
+
+.fs-text-field--inline .fs-text-field__input.fs-text-field__input--inline-inset:focus,
+.fs-text-field--inline .fs-text-field__input.fs-text-field__input--inline-inset:focus-visible {
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+/** Acciones al final (misma posición que IconButton en Select compact: `right-1.5`). */
+.fs-text-field--inline .fs-text-field__end-adornment {
+  right: 0.375rem;
+  z-index: 20;
+  gap: 0;
+}
+
+/** Select compact con label inset (mismo criterio de foco que TextField inline). */
+.fs-inline-combo-shell:focus-within {
+  outline: none;
+  border-color: var(--color-primary, #002b59);
+  box-shadow: none;
+}
+
+.fs-inline-combo-shell .fs-text-field__input:focus,
+.fs-inline-combo-shell .fs-text-field__input:focus-visible {
+  border: none;
+  box-shadow: none;
+  outline: none;
+}

@@ -55,13 +55,23 @@ export class StockLevel {
   @Column({ name: 'minimum_stock', type: 'int', nullable: true })
   minimumStock?: number | null;
 
+  /** null = hereda habilitación de variante; false = desactivado en este almacén. */
+  @Column({ name: 'minimum_stock_enabled', type: 'boolean', nullable: true })
+  minimumStockEnabled?: boolean | null;
+
   /** Si es null, se hereda `ProductVariant.maximumStock`. */
   @Column({ name: 'maximum_stock', type: 'int', nullable: true })
   maximumStock?: number | null;
 
+  @Column({ name: 'maximum_stock_enabled', type: 'boolean', nullable: true })
+  maximumStockEnabled?: boolean | null;
+
   /** Si es null, se hereda `ProductVariant.reorderPoint`. */
   @Column({ name: 'reorder_point', type: 'int', nullable: true })
   reorderPoint?: number | null;
+
+  @Column({ name: 'reorder_point_enabled', type: 'boolean', nullable: true })
+  reorderPointEnabled?: boolean | null;
 
   // Referencia a la última transacción que afectó este saldo
   @Column({ type: 'uuid', nullable: true })

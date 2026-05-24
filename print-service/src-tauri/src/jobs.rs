@@ -33,7 +33,8 @@ pub fn spawn_worker(state: Arc<AppState>) {
             if let Err(e) = process_one(&state, &job) {
                 tracing::error!(job_id = %job.id, "print job: {e:#}");
                 let retries = db.retry_count(&job.id).unwrap_or(0);
-                if retries < 3 {
+                let allow_retry = !is_local_test_job(&job) && retries < 3;
+                if allow_retry {
                     let _ = db.bump_retry(&job.id);
                     let _ = db.update_job_status(&job.id, "pending", None);
                 } else {
@@ -63,6 +64,13 @@ pub fn spawn_worker(state: Arc<AppState>) {
             }
         }
     });
+}
+
+fn is_local_test_job(job: &PendingJob) -> bool {
+    matches!(
+        job.document_type.as_deref(),
+        Some("test_escpos_qa") | Some("test_escpos_qa_nocut") | Some("test_cut") | Some("test_print")
+    )
 }
 
 /// Resuelve impresoras del SO para un propósito. Si `tickets` no tiene mapeo, usa `documents`
@@ -117,12 +125,14 @@ fn process_one(state: &Arc<AppState>, job: &PendingJob) -> Result<()> {
     let mut last_err: Option<anyhow::Error> = None;
     for printer in &printers {
         let thermal_80 = purpose == "tickets";
-        let force_cut_test = matches!(
-            job.document_type.as_deref(),
-            Some("test_cut") | Some("test_escpos_qa")
-        );
-        let auto_cut =
-            thermal_80 && (force_cut_test || db.auto_cut_enabled_for_printer(printer, purpose));
+        let doc_type = job.document_type.as_deref();
+        let force_cut_test = matches!(doc_type, Some("test_cut"));
+        let qa_with_cut = doc_type == Some("test_escpos_qa");
+        let qa_no_cut = doc_type == Some("test_escpos_qa_nocut");
+        let auto_cut = thermal_80
+            && (force_cut_test
+                || qa_with_cut
+                || (!qa_no_cut && db.auto_cut_enabled_for_printer(printer, purpose)));
         let thermal = platform::ThermalPrintOptions {
             thermal_80mm: thermal_80,
             auto_cut,
@@ -238,16 +248,18 @@ pub fn write_test_print_pdf(dir: &PathBuf, purpose: &str, agent_label: &str) -> 
     write_test_print_path(dir, purpose, agent_label, false)
 }
 
-/// Hoja QA ESC/POS (siempre RAW; no depende del switch «ESC/POS directo»).
+/// Hoja QA ESC/POS (RAW). Logo y corte según flags de la línea al encolar.
 pub fn write_escpos_qa_path(
     dir: &PathBuf,
     agent_label: &str,
     system_printer: &str,
+    logo_base64: Option<&str>,
+    include_cut: bool,
 ) -> Result<(PathBuf, usize)> {
     std::fs::create_dir_all(dir)?;
     let id = uuid::Uuid::new_v4().to_string();
     let p = dir.join(format!("escpos_qa_{id}.escpos"));
-    let bytes = escpos_qa::write_escpos_qa_file(&p, agent_label, system_printer)?;
+    let bytes = escpos_qa::write_escpos_qa_file(&p, agent_label, system_printer, logo_base64, include_cut)?;
     Ok((p, bytes))
 }
 

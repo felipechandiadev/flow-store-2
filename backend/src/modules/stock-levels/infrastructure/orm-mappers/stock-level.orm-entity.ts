@@ -39,11 +39,20 @@ export class StockLevelOrmEntity {
   @Column({ name: 'minimum_stock', type: 'int', nullable: true })
   minimumStock?: number | null;
 
+  @Column({ name: 'minimum_stock_enabled', type: 'boolean', nullable: true })
+  minimumStockEnabled?: boolean | null;
+
   @Column({ name: 'maximum_stock', type: 'int', nullable: true })
   maximumStock?: number | null;
 
+  @Column({ name: 'maximum_stock_enabled', type: 'boolean', nullable: true })
+  maximumStockEnabled?: boolean | null;
+
   @Column({ name: 'reorder_point', type: 'int', nullable: true })
   reorderPoint?: number | null;
+
+  @Column({ name: 'reorder_point_enabled', type: 'boolean', nullable: true })
+  reorderPointEnabled?: boolean | null;
 
   @Column({ type: 'uuid', nullable: true })
   lastTransactionId?: string | null;

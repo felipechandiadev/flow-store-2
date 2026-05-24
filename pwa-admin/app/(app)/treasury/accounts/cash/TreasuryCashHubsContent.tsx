@@ -24,7 +24,6 @@ export default function TreasuryCashHubsContent({
   pointsOfSale,
 }: Props) {
   const [name, setName] = useState("");
-  const [code, setCode] = useState("");
   const [selectedBranches, setSelectedBranches] = useState<Record<string, boolean>>({});
   const [selectedPos, setSelectedPos] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +70,6 @@ export default function TreasuryCashHubsContent({
       const r = await createCashHubAction({
         companyId,
         name: name.trim(),
-        code: code.trim() || undefined,
         branchIds: bIds,
         pointOfSaleIds: pIds,
       });
@@ -81,7 +79,6 @@ export default function TreasuryCashHubsContent({
       }
       setInfo("Centro de acopio creado.");
       setName("");
-      setCode("");
       setSelectedBranches({});
       setSelectedPos({});
       window.location.reload();
@@ -106,15 +103,7 @@ export default function TreasuryCashHubsContent({
         title="Nuevo centro de acopio"
         content={
           <div className="flex flex-col gap-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <TextField label="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
-              <TextField
-                label="Código (opcional)"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="p. ej. CENTRAL"
-              />
-            </div>
+            <TextField label="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Sucursales vinculadas (opcional)</p>
               <div className="flex max-h-36 flex-col gap-1 overflow-y-auto rounded border border-border p-2">
@@ -174,10 +163,7 @@ export default function TreasuryCashHubsContent({
                   key={h.id}
                   className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground"
                 >
-                  <div className="font-medium">
-                    {h.name}
-                    {h.code ? <span className="text-muted-foreground"> ({h.code})</span> : null}
-                  </div>
+                  <div className="font-medium">{h.name}</div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     Sucursales: {(h.branches ?? []).map((b) => b.name ?? b.id).join(", ") || "—"}
                   </div>

@@ -139,3 +139,29 @@
   font-size: 0.6875rem;
   line-height: 0.875rem;
 }
+
+/**
+ * Tarjeta de centro de efectivo (tesorería).
+ * Selección: fondo celeste claro vía color-mix (Tailwind bg-secondary/10 no aplica sobre var CSS).
+ */
+.fs-cash-hub-card {
+  border: 1px solid color-mix(in srgb, var(--color-border, #c1c1c2) 70%, transparent);
+  background-color: var(--color-background, #fff);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.fs-cash-hub-card:not(.fs-cash-hub-card--selected):hover {
+  border-color: color-mix(in srgb, var(--color-secondary, #04c9e6) 60%, var(--color-border, #c1c1c2));
+}
+
+.fs-cash-hub-card--selected {
+  border-color: color-mix(in srgb, var(--color-secondary, #04c9e6) 40%, var(--color-border, #c1c1c2));
+  background-color: color-mix(
+    in srgb,
+    var(--color-secondary, #04c9e6) 10%,
+    var(--color-background, #fff)
+  );
+}

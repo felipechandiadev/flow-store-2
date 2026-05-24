@@ -157,9 +157,8 @@ export function StockAlertsDropdown() {
       <div ref={triggerWrapRef} className="relative inline-flex shrink-0">
         <IconButton
           icon="Bell"
-          variant="basic"
+          variant="text"
           size="md"
-          strokeWidth={2.5}
           ariaLabel={`Alertas de stock${stockAlertCount > 0 ? `: ${stockAlertCount} nuevas` : ""}`}
           title="Alertas de stock"
           aria-expanded={open}

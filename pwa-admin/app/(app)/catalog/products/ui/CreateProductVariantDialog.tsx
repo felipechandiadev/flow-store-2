@@ -8,6 +8,7 @@ import { Button } from "@/shared/components/Button";
 import { TextField } from "@/shared/components/TextField/TextField";
 import { Select, type Option } from "@/shared/components/Select";
 import Switch from "@/shared/components/Switch/Switch";
+import { StockThresholdField } from "@/shared/components/StockThresholdField/StockThresholdField";
 import { createProductVariantAction } from "@/features/inventory-products/actions/product.action";
 import { listUnitsForPage } from "@/features/inventory-units/actions/unit.action";
 import type { UnitListItem } from "@/features/inventory-units/types/unit.types";
@@ -104,8 +105,11 @@ export function CreateProductVariantDialog({
   const [trackInventory, setTrackInventory] = useState(true);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [minimumStock, setMinimumStock] = useState("0");
+  const [minimumStockEnabled, setMinimumStockEnabled] = useState(false);
   const [maximumStock, setMaximumStock] = useState("0");
+  const [maximumStockEnabled, setMaximumStockEnabled] = useState(false);
   const [reorderPoint, setReorderPoint] = useState("0");
+  const [reorderPointEnabled, setReorderPointEnabled] = useState(false);
   const [units, setUnits] = useState<UnitListItem[]>([]);
   const [priceLists, setPriceLists] = useState<PriceListListItem[]>([]);
   const [taxes, setTaxes] = useState<TaxListItem[]>([]);
@@ -372,8 +376,11 @@ export function CreateProductVariantDialog({
           trackInventory,
           allowNegativeStock,
           minimumStock: Math.max(0, Math.round(Number(minimumStock) || 0)),
+          minimumStockEnabled,
           maximumStock: Math.max(0, Math.round(Number(maximumStock) || 0)),
+          maximumStockEnabled,
           reorderPoint: Math.max(0, Math.round(Number(reorderPoint) || 0)),
+          reorderPointEnabled,
           stockBaseQtyPerCountSaleUnit: stockBaseQtyPerCountSaleUnitOut,
           stockBaseQtyPerCountPurchaseUnit: stockBaseQtyPerCountPurchaseUnitOut,
         });
@@ -673,29 +680,32 @@ export function CreateProductVariantDialog({
               labelPosition="right"
               data-test-id="product-variant-create-allow-negative"
             />
-            <TextField
+            <StockThresholdField
               label="Stock mínimo"
               name="pv-create-minimum-stock"
+              enabled={minimumStockEnabled}
+              onEnabledChange={setMinimumStockEnabled}
               value={minimumStock}
-              onChange={(e) => setMinimumStock(e.target.value)}
-              placeholder="0"
-              data-test-id="product-variant-create-minimum-stock"
+              onValueChange={setMinimumStock}
+              dataTestId="product-variant-create-minimum-stock"
             />
-            <TextField
+            <StockThresholdField
               label="Stock máximo"
               name="pv-create-maximum-stock"
+              enabled={maximumStockEnabled}
+              onEnabledChange={setMaximumStockEnabled}
               value={maximumStock}
-              onChange={(e) => setMaximumStock(e.target.value)}
-              placeholder="0"
-              data-test-id="product-variant-create-maximum-stock"
+              onValueChange={setMaximumStock}
+              dataTestId="product-variant-create-maximum-stock"
             />
-            <TextField
+            <StockThresholdField
               label="Punto de reposición"
               name="pv-create-reorder-point"
+              enabled={reorderPointEnabled}
+              onEnabledChange={setReorderPointEnabled}
               value={reorderPoint}
-              onChange={(e) => setReorderPoint(e.target.value)}
-              placeholder="0"
-              data-test-id="product-variant-create-reorder-point"
+              onValueChange={setReorderPoint}
+              dataTestId="product-variant-create-reorder-point"
             />
           </div>
 

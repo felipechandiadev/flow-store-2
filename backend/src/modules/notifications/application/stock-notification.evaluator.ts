@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { buildStockUpdatedPayload } from '@modules/stock-realtime/stock-threshold-alert-payload.util';
 import {
+  resolveStockThresholds,
   stockAlertGroupKey,
   type ThresholdScope,
 } from '@modules/stock-realtime/stock-threshold-resolution.util';
@@ -22,8 +23,11 @@ type VariantRow = {
   id?: string;
   sku?: string;
   minimumStock?: number;
+  minimumStockEnabled?: boolean;
   maximumStock?: number;
+  maximumStockEnabled?: boolean;
   reorderPoint?: number;
+  reorderPointEnabled?: boolean;
   attributeValues?: Record<string, string> | null;
   product?: { name?: string | null };
 };
@@ -34,8 +38,11 @@ type StockLevelRow = {
   physicalStock: unknown;
   availableStock: unknown;
   minimumStock?: number | null;
+  minimumStockEnabled?: boolean | null;
   maximumStock?: number | null;
+  maximumStockEnabled?: boolean | null;
   reorderPoint?: number | null;
+  reorderPointEnabled?: boolean | null;
 };
 
 const KIND_MAP: Record<StockAlertKind, { kind: string; severity: NotificationSeverity }> = {
@@ -87,20 +94,14 @@ export class StockNotificationEvaluator {
     const totalPhysical = Number(
       stockPayload.totalPhysicalStock ?? stockPayload.physicalStock,
     );
-    const effMin =
-      scope === 'storage' && params.stockLevel.minimumStock != null
-        ? Number(params.stockLevel.minimumStock)
-        : Number(params.variant?.minimumStock ?? 0);
-    const effMax =
-      params.stockLevel.maximumStock != null &&
-      Number(params.stockLevel.maximumStock) > 0
-        ? Number(params.stockLevel.maximumStock)
-        : Number(params.variant?.maximumStock ?? 0);
-    const effReorder =
-      params.stockLevel.reorderPoint != null &&
-      Number(params.stockLevel.reorderPoint) > 0
-        ? Number(params.stockLevel.reorderPoint)
-        : Number(params.variant?.reorderPoint ?? 0);
+    const resolved = resolveStockThresholds(
+      params.variant,
+      params.stockLevel,
+      { totalPhysicalStock: totalPhysical },
+    );
+    const effMin = resolved.min;
+    const effMax = resolved.max;
+    const effReorder = resolved.reorder;
 
     const commands: PublishNotificationCommand[] = [];
 

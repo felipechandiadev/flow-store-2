@@ -37,6 +37,18 @@ export default function SwitchPage() {
         </section>
 
         <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground">Compact (TextField inline)</h2>
+          <p className="text-sm text-muted-foreground">
+            <code className="rounded bg-muted px-1">density=&quot;compact&quot;</code> — mismo tamaño que KaiPrinters /
+            CompactInsetField (~2rem de fila).
+          </p>
+          <div className="flex items-center gap-4 rounded-lg border border-border p-4">
+            <Switch density="compact" checked={a} onChange={setA} />
+            <Switch density="compact" checked={b} onChange={setB} disabled />
+          </div>
+        </section>
+
+        <section className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground">Etiqueta simple</h2>
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Label a la izquierda (default)</p>

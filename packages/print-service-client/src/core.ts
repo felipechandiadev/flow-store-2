@@ -41,9 +41,18 @@ export function buildWebSocketUrl(host: string, port: number, useTls: boolean): 
   return `${scheme}://${h}:${port}`;
 }
 
+export type PrinterHealthLine = {
+  id?: string;
+  displayLabel?: string | null;
+  purpose?: string;
+  systemPrinterName?: string;
+  status?: "online" | "offline" | "unknown";
+};
+
 export type PrinterHealthPayload = {
   overall?: string;
   message?: string;
+  lines?: PrinterHealthLine[];
   purposes?: Record<
     string,
     {
@@ -644,7 +653,7 @@ export function healthToVisual(
   return "error";
 }
 
-export type PrintServiceNotificationKind = "disconnected" | "job_failed";
+export type PrintServiceNotificationKind = "disconnected" | "job_failed" | "printer_offline";
 
 export type PrintServiceNotification = {
   id: string;
@@ -792,6 +801,15 @@ export function readPosPurposePrinterAliasesFromStorage(): {
   return {
     ticketsAlias: (localStorage.getItem(LS_POS_TICKETS_ALIAS) || "").trim(),
     documentsAlias: (localStorage.getItem(LS_POS_DOCUMENTS_ALIAS) || "").trim(),
+  };
+}
+
+export function readConfiguredPurposePrinterAliasMap(): Record<string, string> {
+  const pos = readPosPurposePrinterAliasesFromStorage();
+  const admin = readAdminPurposePrinterAliasFromStorage();
+  return {
+    tickets: pos.ticketsAlias || admin.ticketsAlias,
+    documents: pos.documentsAlias || admin.documentsAlias,
   };
 }
 

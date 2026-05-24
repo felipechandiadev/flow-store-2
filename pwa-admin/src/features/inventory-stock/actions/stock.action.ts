@@ -77,13 +77,19 @@ export async function saveVariantStockConfigAction(input: {
   trackInventory: boolean;
   allowNegativeStock: boolean;
   minimumStock: number;
+  minimumStockEnabled: boolean;
   maximumStock: number;
+  maximumStockEnabled: boolean;
   reorderPoint: number;
+  reorderPointEnabled: boolean;
   storageThresholds: Array<{
     storageId: string;
     minimumStock: number | null;
+    minimumStockEnabled: boolean | null;
     maximumStock: number | null;
+    maximumStockEnabled: boolean | null;
     reorderPoint: number | null;
+    reorderPointEnabled: boolean | null;
   }>;
 }): Promise<{ success: true } | { success: false; error: string }> {
   const variantId = input.variantId.trim();
@@ -95,8 +101,11 @@ export async function saveVariantStockConfigAction(input: {
     trackInventory: input.trackInventory,
     allowNegativeStock: input.allowNegativeStock,
     minimumStock: input.minimumStock,
+    minimumStockEnabled: input.minimumStockEnabled,
     maximumStock: input.maximumStock,
+    maximumStockEnabled: input.maximumStockEnabled,
     reorderPoint: input.reorderPoint,
+    reorderPointEnabled: input.reorderPointEnabled,
   });
   if (!inv.success) {
     return inv;
@@ -107,8 +116,11 @@ export async function saveVariantStockConfigAction(input: {
       productVariantId: variantId,
       storageId: st.storageId.trim(),
       minimumStock: st.minimumStock,
+      minimumStockEnabled: st.minimumStockEnabled,
       maximumStock: st.maximumStock,
+      maximumStockEnabled: st.maximumStockEnabled,
       reorderPoint: st.reorderPoint,
+      reorderPointEnabled: st.reorderPointEnabled,
     });
     if (!r.success) {
       return r;

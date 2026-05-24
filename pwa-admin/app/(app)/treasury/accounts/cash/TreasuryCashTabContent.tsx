@@ -12,7 +12,8 @@ import {
   postCapitalContributionAction,
   postCashDepositAction,
 } from "@/features/treasury-bank-operations/actions/treasury-bank-operations.action";
-import { Card, StatisticsCard } from "@/shared/components/Cards";
+import { StatisticsCard } from "@/shared/components/Cards";
+import "@/shared/components/Cards/cards.css";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import Dialog from "@/shared/components/Dialog/Dialog";
 import Alert from "@/shared/components/Alert/Alert";
@@ -22,6 +23,7 @@ import Select from "@/shared/components/Select/Select";
 import type { Option } from "@/shared/components/Select";
 import TreasuryCashMovementsGrid from "./TreasuryCashMovementsGrid";
 import type { TreasuryCashMovementGridRow } from "./treasury-cash-hub-movements-mapper";
+import { UpdateCashHubDialog } from "./UpdateCashHubDialog";
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat("es-CL", {
@@ -62,7 +64,7 @@ type Props = {
   shareholders: ShareholderRow[];
 };
 
-type DialogKind = "none" | "createHub" | "depositToBank" | "capitalContribution";
+type DialogKind = "none" | "createHub" | "editHub" | "depositToBank" | "capitalContribution";
 
 const TREASURY_CARD_PAD = "[&_.fs-card__content]:p-2 [&_.fs-card__content]:pb-2";
 
@@ -86,6 +88,7 @@ export default function TreasuryCashTabContent({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [capitalHubId, setCapitalHubId] = useState<string | null>(null);
+  const [editingHub, setEditingHub] = useState<CashHubRow | null>(null);
 
   const selectedHub = useMemo(
     () => hubs.find((h) => String(h.id) === String(selectedCashHubId ?? "")) ?? null,
@@ -114,7 +117,6 @@ export default function TreasuryCashTabContent({
 
   // --- Create hub dialog state ---
   const [hubName, setHubName] = useState("");
-  const [hubCode, setHubCode] = useState("");
   const [branchId, setBranchId] = useState<string | null>(null);
   const [posIds, setPosIds] = useState<string[]>([]);
 
@@ -158,7 +160,6 @@ export default function TreasuryCashTabContent({
   const resetForms = () => {
     setError(null);
     setHubName("");
-    setHubCode("");
     setBranchId(null);
     setPosIds([]);
     setBankOpt(bankOptions[0] != null ? String(bankOptions[0].id) : null);
@@ -178,10 +179,17 @@ export default function TreasuryCashTabContent({
     setDialog(k);
   };
 
+  const openEditHub = (hub: CashHubRow) => {
+    if (pending) return;
+    setEditingHub(hub);
+    setDialog("editHub");
+  };
+
   const closeDialog = () => {
     if (pending) return;
     setDialog("none");
     setCapitalHubId(null);
+    setEditingHub(null);
   };
 
   const submitCreateHub = () => {
@@ -204,7 +212,6 @@ export default function TreasuryCashTabContent({
         const r = await createCashHubAction({
           companyId,
           name: hubName.trim(),
-          code: hubCode.trim() || undefined,
           branchIds: branchId ? [branchId] : [],
           pointOfSaleIds: posIds,
         });
@@ -213,7 +220,7 @@ export default function TreasuryCashTabContent({
           return;
         }
         closeDialog();
-        window.location.reload();
+        router.refresh();
       })();
     });
   };
@@ -279,7 +286,7 @@ export default function TreasuryCashTabContent({
   return (
     <div className="flex flex-col gap-4">
       {/* Header Row */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(260px,420px)_1px_minmax(0,1fr)] md:items-stretch">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(260px,420px)_minmax(0,1fr)] lg:items-start">
         <StatisticsCard
           label="Total en Efectivo"
           value={fmtMoney(totalCash)}
@@ -296,97 +303,122 @@ export default function TreasuryCashTabContent({
           data-test-id="treasury-cash-total-card"
         />
 
-        <div className="hidden h-full bg-border md:block" aria-hidden />
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <IconButton
+              icon="Plus"
+              variant="basicSecondary"
+              size="sm"
+              ariaLabel="Crear centro de efectivo"
+              onClick={() => openDialog("createHub")}
+              disabled={pending}
+              data-test-id="cash-hubs-create-open"
+            />
+            <h2 className="text-sm font-semibold text-foreground">Centros de Efectivo</h2>
+          </div>
 
-        <Card
-          className={TREASURY_CARD_PAD}
-          content={
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <IconButton
-                    icon="Plus"
-                    variant="basicSecondary"
-                    size="sm"
-                    ariaLabel="Crear centro de efectivo"
-                    onClick={() => openDialog("createHub")}
-                    disabled={pending}
-                    data-test-id="cash-hubs-create-open"
-                  />
-                  <h2 className="text-sm font-semibold text-foreground">Centros de Efectivo</h2>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {selectedHub ? `Seleccionado: ${selectedHub.name}` : "—"}
-                </div>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {hubCards.map((h) => {
-                  const active = String(h.id) === String(selectedCashHubId ?? "");
-                  const balance = typeof h.currentBalance === "number" ? h.currentBalance : 0;
-                  return (
-                    <Card
-                      key={h.id}
-                      className={active ? "fs-card--border-secondary" : undefined}
-                      onClick={pending ? undefined : () => selectHub(h.id)}
-                      title={
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate">{h.name}</span>
-                          <span className="text-xs text-muted-foreground">{fmtMoney(balance)}</span>
-                        </div>
-                      }
-                      subtitle={h.code ? <span className="text-xs text-muted-foreground">{h.code}</span> : undefined}
-                      headerEnd={
-                        <div
-                          className="flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                          role="presentation"
-                        >
-                          <IconButton
-                            icon="TrendingUp"
-                            variant="basicSecondary"
-                            size="sm"
-                            ariaLabel="Aporte de capital en efectivo desde un socio"
-                            onClick={() => {
-                              setCapitalHubId(h.id);
-                              if (String(h.id) !== String(selectedCashHubId ?? "")) {
-                                selectHub(h.id);
-                              }
-                              openDialog("capitalContribution");
-                            }}
-                            disabled={pending || partnerOptions.length === 0}
-                            data-test-id={`cash-hub-capital-${h.id}`}
-                          />
-                          <IconButton
-                            icon="Landmark"
-                            variant="basicSecondary"
-                            size="sm"
-                            ariaLabel="Depositar a banco desde este centro"
-                            onClick={() => {
-                              if (String(h.id) !== String(selectedCashHubId ?? "")) {
-                                selectHub(h.id);
-                              }
-                              openDialog("depositToBank");
-                            }}
-                            disabled={pending}
-                            data-test-id={`cash-hub-deposit-${h.id}`}
-                          />
-                        </div>
-                      }
-                      data-test-id={`cash-hub-card-${h.id}`}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          }
-        />
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {hubCards.map((h) => {
+              const active = String(h.id) === String(selectedCashHubId ?? "");
+              const balance = typeof h.currentBalance === "number" ? h.currentBalance : 0;
+              return (
+                <article
+                  key={h.id}
+                  role="button"
+                  tabIndex={pending ? -1 : 0}
+                  className={[
+                    "fs-cash-hub-card rounded-xl p-3 text-left",
+                    active ? "fs-cash-hub-card--selected" : "",
+                    pending ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={pending ? undefined : () => selectHub(h.id)}
+                  onKeyDown={(e) => {
+                    if (pending) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      selectHub(h.id);
+                    }
+                  }}
+                  data-test-id={`cash-hub-card-${h.id}`}
+                  data-selected={active || undefined}
+                >
+                  <div className="flex items-center gap-1">
+                    <span
+                      className="shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      role="presentation"
+                    >
+                      <IconButton
+                        icon="Pencil"
+                        variant="basicSecondary"
+                        size="sm"
+                        ariaLabel="Editar centro de efectivo"
+                        onClick={() => openEditHub(h)}
+                        disabled={pending}
+                        data-test-id={`cash-hub-edit-${h.id}`}
+                      />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                      {h.name}
+                    </span>
+                    <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+                      {fmtMoney(balance)}
+                    </span>
+                    <div
+                      className="flex shrink-0 items-center gap-0.5"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      role="presentation"
+                    >
+                      <IconButton
+                        icon="TrendingUp"
+                        variant="basicSecondary"
+                        size="sm"
+                        ariaLabel="Aporte de capital en efectivo desde un socio"
+                        onClick={() => {
+                          setCapitalHubId(h.id);
+                          if (String(h.id) !== String(selectedCashHubId ?? "")) {
+                            selectHub(h.id);
+                          }
+                          openDialog("capitalContribution");
+                        }}
+                        disabled={pending || partnerOptions.length === 0}
+                        data-test-id={`cash-hub-capital-${h.id}`}
+                      />
+                      <IconButton
+                        icon="Landmark"
+                        variant="basicSecondary"
+                        size="sm"
+                        ariaLabel="Depositar a banco desde este centro"
+                        onClick={() => {
+                          if (String(h.id) !== String(selectedCashHubId ?? "")) {
+                            selectHub(h.id);
+                          }
+                          openDialog("depositToBank");
+                        }}
+                        disabled={pending}
+                        data-test-id={`cash-hub-deposit-${h.id}`}
+                      />
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {error ? <Alert variant="error">{error}</Alert> : null}
 
       {/* Transaction History */}
-      <TreasuryCashMovementsGrid rows={movementRows} total={movementsTotal} />
+      <TreasuryCashMovementsGrid
+        rows={movementRows}
+        total={movementsTotal}
+        cashHubName={selectedHub?.name}
+      />
 
       {/* Dialog: Create hub */}
       <Dialog
@@ -412,12 +444,6 @@ export default function TreasuryCashTabContent({
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-3">
             <TextField label="Nombre" value={hubName} onChange={(e) => setHubName(e.target.value)} />
-            <TextField
-              label="Código (opcional)"
-              value={hubCode}
-              onChange={(e) => setHubCode(e.target.value)}
-              placeholder="p. ej. CENTRAL"
-            />
             <Select
               label="Sucursales (opcional)"
               options={branchOptions}
@@ -457,6 +483,16 @@ export default function TreasuryCashTabContent({
           </div>
         </div>
       </Dialog>
+
+      <UpdateCashHubDialog
+        open={dialog === "editHub"}
+        hub={editingHub}
+        companyId={company?.id?.trim() ?? ""}
+        branches={branches}
+        pointsOfSale={pointsOfSale}
+        onClose={closeDialog}
+        onSaved={() => router.refresh()}
+      />
 
       {/* Dialog: Capital contribution (cash hub) */}
       <Dialog

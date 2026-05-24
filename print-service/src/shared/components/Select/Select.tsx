@@ -20,6 +20,8 @@ interface SelectProps {
   variant?: "default" | "minimal";
   /** Misma altura que `TextField` con `density="compact"` (~2rem). */
   density?: "default" | "compact";
+  /** `inline`: label y control en la misma fila (solo `density="compact"`). */
+  labelLayout?: "stack" | "inline";
   ["data-test-id"]?: string;
   allowClear?: boolean;
   disabled?: boolean;
@@ -38,6 +40,7 @@ const Select: React.FC<SelectProps> = ({
   name,
   variant = "default",
   density = "default",
+  labelLayout = "stack",
   allowClear = false,
   disabled = false,
   className = "",
@@ -132,17 +135,24 @@ const Select: React.FC<SelectProps> = ({
   const chevronRight = hasClear ? (isCompact ? "right-3" : "right-3.5") : isCompact ? "right-2" : "right-3";
 
   /** Etiqueta arriba + disparador bordeado (no mete el label dentro del `h-8`). */
-  const stackedCompactLabel = variant === "default" && isCompact && Boolean(label?.trim());
+  const stackedCompactLabel =
+    labelLayout === "stack" && variant === "default" && isCompact && Boolean(label?.trim());
+  const inlineCompactLabel =
+    labelLayout === "inline" && variant === "default" && isCompact && Boolean(label?.trim());
 
   const defaultComboShellClass =
     `relative w-full rounded-md border border-border focus-within:border-primary ${
       isCompact ? "flex h-8 min-h-8 w-full min-w-0 items-stretch box-border" : ""
     } ${disabled ? "cursor-not-allowed opacity-50" : ""}`.trim();
 
-  function renderDefaultCombo(textFieldLabel: string, textFieldWrapClassName: string) {
+  function renderDefaultCombo(
+    textFieldLabel: string,
+    textFieldWrapClassName: string,
+    insetLabel?: { text: string; required?: boolean },
+  ) {
     return (
       <div
-        className={defaultComboShellClass}
+        className={`${defaultComboShellClass}${insetLabel ? " fs-inline-combo-shell flex-row" : ""}`}
         onFocus={() => !disabled && setFocused(true)}
         onBlur={() => {
           if (!isSelecting) {
@@ -171,6 +181,19 @@ const Select: React.FC<SelectProps> = ({
           aria-hidden="true"
         />
 
+        {insetLabel ? (
+          <label
+            className="fs-text-field__inline-label"
+            {...(name?.trim() ? { htmlFor: name } : {})}
+          >
+            {insetLabel.text}
+            {insetLabel.required ? <span className="ml-0.5 text-red-500">*</span> : null}
+          </label>
+        ) : null}
+
+        <div
+          className={`relative flex min-h-0 min-w-0 flex-1 items-center${insetLabel ? "" : " w-full"}`}
+        >
         <TextField
           label={textFieldLabel}
           value={selected ? selected.label : ""}
@@ -215,6 +238,7 @@ const Select: React.FC<SelectProps> = ({
           data-test-id="select-dropdown-icon"
           disabled={disabled}
         />
+        </div>
 
         <DropdownList
           open={open}
@@ -265,7 +289,10 @@ const Select: React.FC<SelectProps> = ({
   }
 
   return (
-    <div className={`fs-dropdown-container ${className}`.trim()} ref={containerRef}>
+    <div
+      className={`fs-dropdown-container w-full min-w-0 ${className}`.trim()}
+      ref={containerRef}
+    >
       {variant === "minimal" ? (
         <>
           <div
@@ -399,7 +426,12 @@ const Select: React.FC<SelectProps> = ({
         </>
       ) : (
         <>
-          {stackedCompactLabel ? (
+          {inlineCompactLabel ? (
+            renderDefaultCombo("", "min-h-0 min-w-0 flex-1 pr-16", {
+              text: label ?? "",
+              required,
+            })
+          ) : stackedCompactLabel ? (
             <div className="flex min-w-0 flex-col gap-1">
               <label
                 className="text-[11px] font-medium leading-tight text-foreground"

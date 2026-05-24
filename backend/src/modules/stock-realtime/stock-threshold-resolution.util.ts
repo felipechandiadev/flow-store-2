@@ -1,12 +1,19 @@
 import type { StockAlertKind } from './stock-realtime.types';
 import { computeStockAlertsFromThresholds } from './stock-alert.util';
+import {
+  hasStorageSpecificThresholdConfig,
+  resolveThresholdField,
+} from './stock-threshold-field.util';
 
 export type ThresholdScope = 'storage' | 'variant_total';
 
 export type VariantThresholds = {
   minimumStock?: number;
+  minimumStockEnabled?: boolean;
   maximumStock?: number;
+  maximumStockEnabled?: boolean;
   reorderPoint?: number;
+  reorderPointEnabled?: boolean;
 } | null;
 
 export type StockLevelThresholdSlice = {
@@ -15,8 +22,11 @@ export type StockLevelThresholdSlice = {
   physicalStock: unknown;
   availableStock?: unknown;
   minimumStock?: number | null;
+  minimumStockEnabled?: boolean | null;
   maximumStock?: number | null;
+  maximumStockEnabled?: boolean | null;
   reorderPoint?: number | null;
+  reorderPointEnabled?: boolean | null;
 };
 
 export type ResolvedStockThresholds = {
@@ -24,45 +34,14 @@ export type ResolvedStockThresholds = {
   min: number;
   max: number;
   reorder: number;
-  /** Cantidad comparada contra umbrales */
+  minEnabled: boolean;
+  maxEnabled: boolean;
+  reorderEnabled: boolean;
   comparePhysical: number;
-  /** Físico en el almacén del movimiento */
   storagePhysical: number;
-  /** Total en todos los almacenes (solo scope variant_total) */
   totalPhysical?: number;
   alerts: StockAlertKind[];
 };
-
-/** Umbral mínimo explícito en `stock_levels` (> 0). Si no, el mínimo de variante aplica al total. */
-export function hasStorageSpecificMinimum(
-  stockLevel: { minimumStock?: number | null } | null | undefined,
-): boolean {
-  if (stockLevel?.minimumStock == null) {
-    return false;
-  }
-  const n = Number(stockLevel.minimumStock);
-  return Number.isFinite(n) && n > 0;
-}
-
-export function hasStorageSpecificMaximum(
-  stockLevel: { maximumStock?: number | null } | null | undefined,
-): boolean {
-  if (stockLevel?.maximumStock == null) {
-    return false;
-  }
-  const n = Number(stockLevel.maximumStock);
-  return Number.isFinite(n) && n > 0;
-}
-
-export function hasStorageSpecificReorder(
-  stockLevel: { reorderPoint?: number | null } | null | undefined,
-): boolean {
-  if (stockLevel?.reorderPoint == null) {
-    return false;
-  }
-  const n = Number(stockLevel.reorderPoint);
-  return Number.isFinite(n) && n > 0;
-}
 
 export function sumVariantPhysicalStock(
   levels: Array<{ storageId: string; physicalStock: unknown }>,
@@ -86,6 +65,28 @@ export function sumVariantPhysicalStock(
   return sum;
 }
 
+function variantField(
+  variantRow: VariantThresholds,
+  key: 'minimum' | 'maximum' | 'reorder',
+): { value: number; enabled: boolean } {
+  if (key === 'minimum') {
+    return {
+      value: Number(variantRow?.minimumStock ?? 0) || 0,
+      enabled: Boolean(variantRow?.minimumStockEnabled),
+    };
+  }
+  if (key === 'maximum') {
+    return {
+      value: Number(variantRow?.maximumStock ?? 0) || 0,
+      enabled: Boolean(variantRow?.maximumStockEnabled),
+    };
+  }
+  return {
+    value: Number(variantRow?.reorderPoint ?? 0) || 0,
+    enabled: Boolean(variantRow?.reorderPointEnabled),
+  };
+}
+
 export function resolveStockThresholds(
   variantRow: VariantThresholds,
   stockEntry: StockLevelThresholdSlice,
@@ -96,33 +97,53 @@ export function resolveStockThresholds(
     0,
     options?.totalPhysicalStock ?? storagePhysical,
   );
-  const storageScope = hasStorageSpecificMinimum(stockEntry);
+  const storageScopeMin = hasStorageSpecificThresholdConfig(
+    stockEntry.minimumStockEnabled,
+  );
 
-  const min = storageScope
-    ? Number(stockEntry.minimumStock)
-    : Number(variantRow?.minimumStock ?? 0);
-  const max = hasStorageSpecificMaximum(stockEntry)
-    ? Number(stockEntry.maximumStock)
-    : Number(variantRow?.maximumStock ?? 0);
-  const reorder = hasStorageSpecificReorder(stockEntry)
-    ? Number(stockEntry.reorderPoint)
-    : Number(variantRow?.reorderPoint ?? 0);
+  const minResolved = resolveThresholdField(
+    {
+      value: stockEntry.minimumStock,
+      enabled: stockEntry.minimumStockEnabled,
+    },
+    variantField(variantRow, 'minimum'),
+  );
+  const maxResolved = resolveThresholdField(
+    {
+      value: stockEntry.maximumStock,
+      enabled: stockEntry.maximumStockEnabled,
+    },
+    variantField(variantRow, 'maximum'),
+  );
+  const reorderResolved = resolveThresholdField(
+    {
+      value: stockEntry.reorderPoint,
+      enabled: stockEntry.reorderPointEnabled,
+    },
+    variantField(variantRow, 'reorder'),
+  );
 
-  const comparePhysical = storageScope ? storagePhysical : totalPhysical;
+  const comparePhysical = storageScopeMin ? storagePhysical : totalPhysical;
   const alerts = computeStockAlertsFromThresholds(comparePhysical, {
-    min,
-    max,
-    reorder,
+    min: minResolved.value,
+    max: maxResolved.value,
+    reorder: reorderResolved.value,
+    minEnabled: minResolved.enabled,
+    maxEnabled: maxResolved.enabled,
+    reorderEnabled: reorderResolved.enabled,
   });
 
   return {
-    scope: storageScope ? 'storage' : 'variant_total',
-    min,
-    max,
-    reorder,
+    scope: storageScopeMin ? 'storage' : 'variant_total',
+    min: minResolved.value,
+    max: maxResolved.value,
+    reorder: reorderResolved.value,
+    minEnabled: minResolved.enabled,
+    maxEnabled: maxResolved.enabled,
+    reorderEnabled: reorderResolved.enabled,
     comparePhysical,
     storagePhysical,
-    totalPhysical: storageScope ? undefined : totalPhysical,
+    totalPhysical: storageScopeMin ? undefined : totalPhysical,
     alerts,
   };
 }
@@ -138,4 +159,23 @@ export function stockAlertGroupKey(
     return `stock:${companyId}:variant:${variantId}:${kind}`;
   }
   return `stock:${companyId}:${storageId}:${variantId}:${kind}`;
+}
+
+/** Compatibilidad: antes se infería por valor > 0. */
+export function hasStorageSpecificMinimum(
+  stockLevel: StockLevelThresholdSlice | null | undefined,
+): boolean {
+  return hasStorageSpecificThresholdConfig(stockLevel?.minimumStockEnabled);
+}
+
+export function hasStorageSpecificMaximum(
+  stockLevel: StockLevelThresholdSlice | null | undefined,
+): boolean {
+  return hasStorageSpecificThresholdConfig(stockLevel?.maximumStockEnabled);
+}
+
+export function hasStorageSpecificReorder(
+  stockLevel: StockLevelThresholdSlice | null | undefined,
+): boolean {
+  return hasStorageSpecificThresholdConfig(stockLevel?.reorderPointEnabled);
 }

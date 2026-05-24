@@ -4,7 +4,14 @@ import {
 } from '../../stock-threshold-resolution.util';
 
 describe('resolveStockThresholds', () => {
-  const variant = { minimumStock: 80, maximumStock: 0, reorderPoint: 0 };
+  const variant = {
+    minimumStock: 80,
+    minimumStockEnabled: true,
+    maximumStock: 0,
+    maximumStockEnabled: false,
+    reorderPoint: 0,
+    reorderPointEnabled: false,
+  };
 
   it('does not alert when only one storage is 0 but total meets variant minimum', () => {
     const resolved = resolveStockThresholds(variant, {
@@ -12,6 +19,7 @@ describe('resolveStockThresholds', () => {
       productVariantId: 'v1',
       physicalStock: 0,
       minimumStock: null,
+      minimumStockEnabled: null,
     }, { totalPhysicalStock: 120 });
 
     expect(resolved.scope).toBe('variant_total');
@@ -24,21 +32,36 @@ describe('resolveStockThresholds', () => {
       productVariantId: 'v1',
       physicalStock: 0,
       minimumStock: null,
+      minimumStockEnabled: null,
     }, { totalPhysicalStock: 50 });
 
     expect(resolved.alerts).toEqual(['below_minimum']);
   });
 
-  it('alerts per storage when storage has its own minimum override', () => {
+  it('alerts per storage when storage has its own minimum enabled', () => {
     const resolved = resolveStockThresholds(variant, {
       storageId: 'deposito',
       productVariantId: 'v1',
       physicalStock: 50,
       minimumStock: 80,
+      minimumStockEnabled: true,
     }, { totalPhysicalStock: 500 });
 
     expect(resolved.scope).toBe('storage');
     expect(resolved.alerts).toEqual(['below_minimum']);
+  });
+
+  it('does not alert when storage explicitly disables minimum', () => {
+    const resolved = resolveStockThresholds(variant, {
+      storageId: 'deposito',
+      productVariantId: 'v1',
+      physicalStock: 10,
+      minimumStock: null,
+      minimumStockEnabled: false,
+    }, { totalPhysicalStock: 10 });
+
+    expect(resolved.minEnabled).toBe(false);
+    expect(resolved.alerts).toEqual([]);
   });
 });
 

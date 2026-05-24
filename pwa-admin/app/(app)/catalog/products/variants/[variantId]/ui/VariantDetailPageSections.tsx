@@ -7,6 +7,10 @@ import Badge from "@/shared/components/Badge/Badge";
 import { TextField } from "@/shared/components/TextField/TextField";
 import { Select, type Option } from "@/shared/components/Select";
 import Switch from "@/shared/components/Switch/Switch";
+import {
+  StockThresholdField,
+  formatThresholdReadOnly,
+} from "@/shared/components/StockThresholdField/StockThresholdField";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import {
   updateProductVariantIdentityPartialAction,
@@ -847,8 +851,11 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
   const [trackInventory, setTrackInventory] = useState(true);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [minimumStock, setMinimumStock] = useState("0");
+  const [minimumStockEnabled, setMinimumStockEnabled] = useState(false);
   const [maximumStock, setMaximumStock] = useState("0");
+  const [maximumStockEnabled, setMaximumStockEnabled] = useState(false);
   const [reorderPoint, setReorderPoint] = useState("0");
+  const [reorderPointEnabled, setReorderPointEnabled] = useState(false);
   const [weight, setWeight] = useState("");
   const [weightUnit, setWeightUnit] = useState("kg");
 
@@ -859,16 +866,19 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
     const isService = String(productType || "").toUpperCase() === "SERVICE";
     setTrackInventory(typeof variant.trackInventory === "boolean" ? variant.trackInventory : !isService);
     setAllowNegativeStock(variant.allowNegativeStock === true);
+    setMinimumStockEnabled(variant.minimumStockEnabled === true);
     setMinimumStock(
       variant.minimumStock != null && Number.isFinite(Number(variant.minimumStock))
         ? String(Math.max(0, Math.round(Number(variant.minimumStock))))
         : "0",
     );
+    setMaximumStockEnabled(variant.maximumStockEnabled === true);
     setMaximumStock(
       variant.maximumStock != null && Number.isFinite(Number(variant.maximumStock))
         ? String(Math.max(0, Math.round(Number(variant.maximumStock))))
         : "0",
     );
+    setReorderPointEnabled(variant.reorderPointEnabled === true);
     setReorderPoint(
       variant.reorderPoint != null && Number.isFinite(Number(variant.reorderPoint))
         ? String(Math.max(0, Math.round(Number(variant.reorderPoint))))
@@ -911,8 +921,11 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
           trackInventory,
           allowNegativeStock,
           minimumStock: Math.max(0, Math.round(Number(minimumStock) || 0)),
+          minimumStockEnabled,
           maximumStock: Math.max(0, Math.round(Number(maximumStock) || 0)),
+          maximumStockEnabled,
           reorderPoint: Math.max(0, Math.round(Number(reorderPoint) || 0)),
+          reorderPointEnabled,
           weight: parseOptDecimal(weight),
           weightUnit: weightUnit.trim() || "kg",
         });
@@ -938,21 +951,21 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
           <TextField
             label="Stock mínimo"
             name="pv-inv-min-ro"
-            value={variant.minimumStock != null ? String(variant.minimumStock) : "—"}
+            value={formatThresholdReadOnly(variant.minimumStockEnabled, variant.minimumStock)}
             onChange={noop}
             readOnly
           />
           <TextField
             label="Stock máximo"
             name="pv-inv-max-ro"
-            value={variant.maximumStock != null ? String(variant.maximumStock) : "—"}
+            value={formatThresholdReadOnly(variant.maximumStockEnabled, variant.maximumStock)}
             onChange={noop}
             readOnly
           />
           <TextField
             label="Punto de reposición"
             name="pv-inv-reorder-ro"
-            value={variant.reorderPoint != null ? String(variant.reorderPoint) : "—"}
+            value={formatThresholdReadOnly(variant.reorderPointEnabled, variant.reorderPoint)}
             onChange={noop}
             readOnly
           />
@@ -984,23 +997,32 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
             labelPosition="right"
             data-test-id="pv-inv-neg"
           />
-          <TextField
+          <StockThresholdField
             label="Stock mínimo"
             name="pv-inv-min"
+            enabled={minimumStockEnabled}
+            onEnabledChange={setMinimumStockEnabled}
             value={minimumStock}
-            onChange={(e) => setMinimumStock(e.target.value)}
+            onValueChange={setMinimumStock}
+            dataTestId="pv-inv-min"
           />
-          <TextField
+          <StockThresholdField
             label="Stock máximo"
             name="pv-inv-max"
+            enabled={maximumStockEnabled}
+            onEnabledChange={setMaximumStockEnabled}
             value={maximumStock}
-            onChange={(e) => setMaximumStock(e.target.value)}
+            onValueChange={setMaximumStock}
+            dataTestId="pv-inv-max"
           />
-          <TextField
+          <StockThresholdField
             label="Punto de reposición"
             name="pv-inv-reorder"
+            enabled={reorderPointEnabled}
+            onEnabledChange={setReorderPointEnabled}
             value={reorderPoint}
-            onChange={(e) => setReorderPoint(e.target.value)}
+            onValueChange={setReorderPoint}
+            dataTestId="pv-inv-reorder"
           />
           <TextField label="Peso referencia" name="pv-inv-weight" value={weight} onChange={(e) => setWeight(e.target.value)} />
           <TextField

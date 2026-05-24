@@ -219,18 +219,24 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
         : o.minimumStock != null
           ? Math.max(0, Math.round(Number(o.minimumStock)))
           : undefined,
+    minimumStockEnabled:
+      typeof o.minimumStockEnabled === "boolean" ? o.minimumStockEnabled : undefined,
     maximumStock:
       typeof o.maximumStock === "number"
         ? o.maximumStock
         : o.maximumStock != null
           ? Math.max(0, Math.round(Number(o.maximumStock)))
           : undefined,
+    maximumStockEnabled:
+      typeof o.maximumStockEnabled === "boolean" ? o.maximumStockEnabled : undefined,
     reorderPoint:
       typeof o.reorderPoint === "number"
         ? o.reorderPoint
         : o.reorderPoint != null
           ? Math.max(0, Math.round(Number(o.reorderPoint)))
           : undefined,
+    reorderPointEnabled:
+      typeof o.reorderPointEnabled === "boolean" ? o.reorderPointEnabled : undefined,
     weight: weightNum,
     weightUnit: o.weightUnit != null ? String(o.weightUnit) : undefined,
     netWeightKg: parseNullableDecimal(o.netWeightKg),
@@ -499,8 +505,11 @@ export class ProductRequest {
     trackInventory?: boolean;
     allowNegativeStock?: boolean;
     minimumStock?: number;
+    minimumStockEnabled?: boolean;
     maximumStock?: number;
+    maximumStockEnabled?: boolean;
     reorderPoint?: number;
+    reorderPointEnabled?: boolean;
   }): Promise<{ success: true; id: string } | { success: false; error: string }> {
     const headers = await authHeaders();
     const payload: Record<string, unknown> = {
@@ -534,11 +543,20 @@ export class ProductRequest {
     if (body.minimumStock != null) {
       payload.minimumStock = Math.max(0, Math.round(Number(body.minimumStock) || 0));
     }
+    if (typeof body.minimumStockEnabled === "boolean") {
+      payload.minimumStockEnabled = body.minimumStockEnabled;
+    }
     if (body.maximumStock != null) {
       payload.maximumStock = Math.max(0, Math.round(Number(body.maximumStock) || 0));
     }
+    if (typeof body.maximumStockEnabled === "boolean") {
+      payload.maximumStockEnabled = body.maximumStockEnabled;
+    }
     if (body.reorderPoint != null) {
       payload.reorderPoint = Math.max(0, Math.round(Number(body.reorderPoint) || 0));
+    }
+    if (typeof body.reorderPointEnabled === "boolean") {
+      payload.reorderPointEnabled = body.reorderPointEnabled;
     }
     if (body.stockBaseQtyPerCountSaleUnit != null) {
       payload.stockBaseQtyPerCountSaleUnit = body.stockBaseQtyPerCountSaleUnit;
@@ -607,8 +625,11 @@ export class ProductRequest {
       trackInventory?: boolean;
       allowNegativeStock?: boolean;
       minimumStock?: number;
+      minimumStockEnabled?: boolean;
       maximumStock?: number;
+      maximumStockEnabled?: boolean;
       reorderPoint?: number;
+      reorderPointEnabled?: boolean;
       weight?: number | null;
       weightUnit?: string | null;
       netWeightKg?: number | null;
@@ -655,11 +676,20 @@ export class ProductRequest {
     if (body.minimumStock != null) {
       payload.minimumStock = Math.max(0, Math.round(Number(body.minimumStock) || 0));
     }
+    if (typeof body.minimumStockEnabled === "boolean") {
+      payload.minimumStockEnabled = body.minimumStockEnabled;
+    }
     if (body.maximumStock != null) {
       payload.maximumStock = Math.max(0, Math.round(Number(body.maximumStock) || 0));
     }
+    if (typeof body.maximumStockEnabled === "boolean") {
+      payload.maximumStockEnabled = body.maximumStockEnabled;
+    }
     if (body.reorderPoint != null) {
       payload.reorderPoint = Math.max(0, Math.round(Number(body.reorderPoint) || 0));
+    }
+    if (typeof body.reorderPointEnabled === "boolean") {
+      payload.reorderPointEnabled = body.reorderPointEnabled;
     }
     if (body.stockBaseQtyPerCountSaleUnit != null) {
       payload.stockBaseQtyPerCountSaleUnit = body.stockBaseQtyPerCountSaleUnit;

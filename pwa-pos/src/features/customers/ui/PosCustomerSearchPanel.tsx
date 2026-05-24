@@ -251,18 +251,6 @@ export default function PosCustomerSearchPanel({
             onClick={onClearSelected}
             data-test-id="pos-customer-search-detail-back"
           />
-          {showAddCustomer && onAddCustomerClick ? (
-            <IconButton
-              icon="Plus"
-              variant="basicSecondary"
-              size="sm"
-              className="shrink-0"
-              ariaLabel="Crear cliente"
-              title="Crear cliente"
-              onClick={onAddCustomerClick}
-              data-test-id="pos-customer-search-add-customer"
-            />
-          ) : null}
           <h2 className="min-w-0 flex-1 text-sm font-semibold text-foreground">Cliente</h2>
         </div>
 

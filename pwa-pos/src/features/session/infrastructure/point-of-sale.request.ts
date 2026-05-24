@@ -19,6 +19,38 @@ async function authHeaders(): Promise<HeadersInit> {
 }
 
 export class PointOfSaleRequest {
+  static async findById(
+    id: string,
+  ): Promise<
+    | { success: true; pointOfSale: Record<string, unknown> }
+    | { success: false; error: string }
+  > {
+    const headers = await authHeaders();
+    const trimmed = id?.trim();
+    if (!trimmed) {
+      return { success: false, error: "Punto de venta no indicado" };
+    }
+    try {
+      const res = await fetch(`${apiUrl(`points-of-sale/${encodeURIComponent(trimmed)}`)}`, {
+        method: "GET",
+        headers,
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        return { success: false, error: t || res.statusText };
+      }
+      const data = (await res.json()) as { success?: boolean; pointOfSale?: Record<string, unknown> };
+      if (data?.success !== true || !data.pointOfSale) {
+        return { success: false, error: "Punto de venta no encontrado" };
+      }
+      return { success: true, pointOfSale: data.pointOfSale };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al cargar el punto de venta";
+      return { success: false, error: err };
+    }
+  }
+
   static async findAll(includeInactive = false): Promise<ListPointsOfSaleResult> {
     const headers = await authHeaders();
     const q = includeInactive ? "?includeInactive=true" : "?includeInactive=false";

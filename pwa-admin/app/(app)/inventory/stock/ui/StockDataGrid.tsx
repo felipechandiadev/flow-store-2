@@ -16,6 +16,16 @@ import IconButton from "@/shared/components/IconButton/IconButton";
 import { adjustStockAction, transferStockAction } from "@/features/inventory-stock/actions/stock.action";
 import { useNotificationsRealtime } from "@/features/notifications/realtime/notifications-realtime-context";
 import { EditVariantStockConfigDialog } from "./EditVariantStockConfigDialog";
+import Switch from "@/shared/components/Switch/Switch";
+import {
+  readStockGridCountUnit,
+  writeStockGridCountUnit,
+} from "@/features/inventory-stock/lib/stock-grid-count-unit-storage";
+import {
+  computeStorageThresholdAlert,
+  labelStorageThresholdAlert,
+  STOCK_THRESHOLD_ALERT_CARD_CLASS,
+} from "@/features/inventory-stock/lib/stock-threshold-alert";
 
 type StockDataGridProps = {
   rows: StockGridRow[];
@@ -93,6 +103,24 @@ function roundCountQty(n: number): number {
   return Math.max(0, Math.round(n * 1000) / 1000);
 }
 
+function effectiveCountInSaleUnits(
+  row: StockGridRow | undefined,
+  preferSaleUnits: boolean,
+): boolean {
+  return preferSaleUnits && usesSaleUnitCount(row);
+}
+
+function applyPhysicalDelta(
+  currentPhysical: number,
+  delta: number,
+  row: StockGridRow | undefined,
+  inSaleUnits: boolean,
+): number {
+  const physicalDelta =
+    inSaleUnits && usesSaleUnitCount(row) ? countQtyToPhysical(delta, row) : delta;
+  return Math.max(0, roundCountQty(currentPhysical + physicalDelta));
+}
+
 function stockUnitDiffersFromSale(row: StockGridRow): boolean {
   if (row.stockBaseUnitId && row.saleUnitId) {
     return row.stockBaseUnitId !== row.saleUnitId;
@@ -154,16 +182,20 @@ function StockThresholdBadge({
   abbr,
   label,
   value,
+  enabled,
   "data-test-id": dataTestId,
 }: {
   abbr: string;
   label: string;
   value: number | null | undefined;
+  enabled?: boolean;
   "data-test-id"?: string;
 }) {
-  const display = formatThreshold(value);
+  const display = enabled === true ? formatThreshold(value) : "—";
+  const title =
+    enabled === true ? `${label}: ${display}` : `${label}: deshabilitado`;
   return (
-    <span data-test-id={dataTestId} title={`${label}: ${display}`}>
+    <span data-test-id={dataTestId} title={title}>
       <Badge
         variant="secondary-outlined"
         className="!inline-flex !items-center !gap-1.5 !px-1.5 !py-0 text-[10px] font-medium leading-5 tabular-nums"
@@ -286,12 +318,17 @@ type TransferState = {
   quantity: string;
   targetStorageId: string | null;
   note: string;
+  countInSaleUnits: boolean;
+  stockUnitSymbol: string;
+  saleUnitSymbol: string;
 };
 
 function StockStorageCard({
   row,
   b,
   busy,
+  countInSaleUnits,
+  onCountInSaleUnitsChange,
   onRecount,
   onQuickDelta,
   onTransfer,
@@ -300,19 +337,37 @@ function StockStorageCard({
   row: StockGridRow;
   b: StockStorageBreakdownRow;
   busy: boolean;
+  countInSaleUnits: boolean;
+  onCountInSaleUnitsChange: (saleUnits: boolean) => void;
   onRecount: (p: { variantId: string; storageId: string; title: string; currentQty: number }) => void;
   onQuickDelta: (p: { variantId: string; storageId: string; currentQty: number; delta: number }) => void;
   onTransfer: (p: { variantId: string; sourceStorageId: string; sourceLabel: string }) => void;
   canTransfer: boolean;
 }) {
   const title = [b.storageName, b.branchName].filter(Boolean).join(" · ");
+  const stockSym = unitLabelSymbol(row, "stock");
+  const saleSym = unitLabelSymbol(row, "sale");
+  const showUnitSwitch = usesSaleUnitCount(row) && stockUnitDiffersFromSale(row);
   const min = b.effectiveMinimumStock;
   const max = b.effectiveMaximumStock;
   const reorder = b.effectiveReorderPoint;
+  const thresholdAlert = computeStorageThresholdAlert({
+    physical: b.quantity,
+    minimum: b.effectiveMinimumStock ?? min,
+    minimumEnabled: b.effectiveMinimumStockEnabled,
+    maximum: b.effectiveMaximumStock ?? max,
+    maximumEnabled: b.effectiveMaximumStockEnabled,
+    reorder: b.effectiveReorderPoint ?? reorder,
+    reorderEnabled: b.effectiveReorderPointEnabled,
+  });
   return (
     <article
-      className="flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-background p-3 shadow-sm"
+      className={`flex min-w-0 flex-col gap-2 rounded-xl border p-3 shadow-sm ${
+        thresholdAlert ? STOCK_THRESHOLD_ALERT_CARD_CLASS : "border-border bg-background"
+      }`}
       data-test-id={`stock-storage-card-${row.variantId}-${b.storageId}`}
+      data-threshold-alert={thresholdAlert ?? undefined}
+      title={thresholdAlert ? labelStorageThresholdAlert(thresholdAlert) : undefined}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -329,18 +384,21 @@ function StockStorageCard({
             abbr="Mín"
             label="Mínimo"
             value={min}
+            enabled={b.effectiveMinimumStockEnabled}
             data-test-id={`stock-threshold-min-${b.storageId}`}
           />
           <StockThresholdBadge
             abbr="Máx"
             label="Máximo"
             value={max}
+            enabled={b.effectiveMaximumStockEnabled}
             data-test-id={`stock-threshold-max-${b.storageId}`}
           />
           <StockThresholdBadge
             abbr="Rep"
             label="Punto de reposición"
             value={reorder}
+            enabled={b.effectiveReorderPointEnabled}
             data-test-id={`stock-threshold-rep-${b.storageId}`}
           />
         </div>
@@ -375,7 +433,23 @@ function StockStorageCard({
           {formatStockSlashPair(b.availableStock, row)}
         </dd>
       </dl>
-      <div className="mt-1 flex flex-wrap items-center justify-end gap-0.5 border-t border-border pt-2">
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
+        {showUnitSwitch ? (
+          <Switch
+            density="compact"
+            checked={countInSaleUnits}
+            onChange={onCountInSaleUnitsChange}
+            disabled={busy}
+            optionLabels={{
+              off: stockSym || "Stock",
+              on: saleSym || "Venta",
+            }}
+            data-test-id={`stock-unit-switch-${b.storageId}`}
+          />
+        ) : (
+          <span className="min-w-0 flex-1" aria-hidden />
+        )}
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-0.5">
         <IconButton
           icon="RefreshCcw"
           variant="basicSecondary"
@@ -439,6 +513,7 @@ function StockStorageCard({
           }
           data-test-id={`stock-transfer-open-${b.storageId}`}
         />
+        </div>
       </div>
     </article>
   );
@@ -450,6 +525,8 @@ function StockExpandPanel({
   branchId,
   busy,
   canTransfer,
+  countInSaleUnits,
+  onCountInSaleUnitsChange,
   onRecount,
   onQuickDelta,
   onTransfer,
@@ -459,6 +536,8 @@ function StockExpandPanel({
   branchId?: string;
   busy: boolean;
   canTransfer: boolean;
+  countInSaleUnits: boolean;
+  onCountInSaleUnitsChange: (saleUnits: boolean) => void;
   onRecount: (p: { variantId: string; storageId: string; title: string; currentQty: number }) => void;
   onQuickDelta: (p: { variantId: string; storageId: string; currentQty: number; delta: number }) => void;
   onTransfer: (p: { variantId: string; sourceStorageId: string; sourceLabel: string }) => void;
@@ -497,6 +576,8 @@ function StockExpandPanel({
               row={row}
               b={b}
               busy={busy}
+              countInSaleUnits={countInSaleUnits}
+              onCountInSaleUnitsChange={onCountInSaleUnitsChange}
               canTransfer={canTransfer}
               onRecount={onRecount}
               onQuickDelta={onQuickDelta}
@@ -531,6 +612,14 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
   const [error, setError] = useState<string | null>(null);
   /** No usar `startTransition` para el action + refresh: retrasa el RSC y la grilla puede quedar con datos viejos. */
   const [isSaving, setIsSaving] = useState(false);
+  const [countInSaleUnits, setCountInSaleUnits] = useState(
+    () => (typeof window !== "undefined" ? readStockGridCountUnit() === "sale" : true),
+  );
+
+  const handleCountUnitChange = useCallback((saleUnits: boolean) => {
+    setCountInSaleUnits(saleUnits);
+    writeStockGridCountUnit(saleUnits ? "sale" : "stock");
+  }, []);
 
   const canTransferStock = useMemo(
     () => storages.filter((s) => s.isActive !== false).length > 1,
@@ -543,8 +632,10 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
       const fromGrid = findStorageQuantity(rows, p.variantId, p.storageId);
       const physicalCurrentQty =
         fromGrid !== undefined ? fromGrid : Math.max(0, Number(p.currentQty) || 0);
-      const countInSaleUnits = usesSaleUnitCount(row);
-      const displayQty = roundCountQty(physicalToCountQty(physicalCurrentQty, row));
+      const countInSale = effectiveCountInSaleUnits(row, countInSaleUnits);
+      const displayQty = countInSale
+        ? roundCountQty(physicalToCountQty(physicalCurrentQty, row))
+        : roundCountQty(physicalCurrentQty);
       setError(null);
       setAdjust({
         open: true,
@@ -554,20 +645,22 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         physicalCurrentQty,
         targetQty: String(displayQty),
         note: "",
-        countInSaleUnits,
+        countInSaleUnits: countInSale,
         stockUnitSymbol: row?.stockUnitSymbol?.trim() || row?.unitOfMeasure?.trim() || "",
         saleUnitSymbol: row?.saleUnitSymbol?.trim() || "",
       });
     },
-    [rows],
+    [rows, countInSaleUnits],
   );
 
   const submitQuickDelta = useCallback(
     (p: { variantId: string; storageId: string; currentQty: number; delta: number }) => {
+      const row = rows.find((r) => r.variantId === p.variantId);
       const fromGrid = findStorageQuantity(rows, p.variantId, p.storageId);
       const currentQty =
         fromGrid !== undefined ? fromGrid : Math.max(0, Number(p.currentQty) || 0);
-      const target = Math.max(0, Math.round((currentQty + p.delta) * 1000) / 1000);
+      const inSale = effectiveCountInSaleUnits(row, countInSaleUnits);
+      const target = applyPhysicalDelta(currentQty, p.delta, row, inSale);
       setError(null);
       void (async () => {
         setIsSaving(true);
@@ -588,7 +681,7 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         }
       })();
     },
-    [router, rows],
+    [router, rows, countInSaleUnits],
   );
 
   useEffect(() => {
@@ -600,31 +693,43 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
     if (fromGrid === undefined || fromGrid === adjust.physicalCurrentQty) {
       return;
     }
-    const displayQty = roundCountQty(physicalToCountQty(fromGrid, row));
+    const inSale = effectiveCountInSaleUnits(row, countInSaleUnits);
+    const displayQty = inSale
+      ? roundCountQty(physicalToCountQty(fromGrid, row))
+      : roundCountQty(fromGrid);
     setAdjust((prev) =>
       prev
         ? {
             ...prev,
             physicalCurrentQty: fromGrid,
             targetQty: String(displayQty),
+            countInSaleUnits: inSale,
           }
         : null,
     );
-  }, [rows, adjust?.open, adjust?.variantId, adjust?.storageId, adjust?.physicalCurrentQty]);
+  }, [rows, adjust?.open, adjust?.variantId, adjust?.storageId, adjust?.physicalCurrentQty, countInSaleUnits]);
 
-  const openTransfer = useCallback((p: { variantId: string; sourceStorageId: string; sourceLabel: string }) => {
-    setError(null);
-    const others = storages.filter((s) => s.id !== p.sourceStorageId && s.isActive !== false);
-    setTransfer({
-      open: true,
-      variantId: p.variantId,
-      sourceStorageId: p.sourceStorageId,
-      sourceLabel: p.sourceLabel,
-      quantity: "1",
-      targetStorageId: others[0]?.id ?? null,
-      note: "",
-    });
-  }, [storages]);
+  const openTransfer = useCallback(
+    (p: { variantId: string; sourceStorageId: string; sourceLabel: string }) => {
+      setError(null);
+      const row = rows.find((r) => r.variantId === p.variantId);
+      const inSale = effectiveCountInSaleUnits(row, countInSaleUnits);
+      const others = storages.filter((s) => s.id !== p.sourceStorageId && s.isActive !== false);
+      setTransfer({
+        open: true,
+        variantId: p.variantId,
+        sourceStorageId: p.sourceStorageId,
+        sourceLabel: p.sourceLabel,
+        quantity: "1",
+        targetStorageId: others[0]?.id ?? null,
+        note: "",
+        countInSaleUnits: inSale,
+        stockUnitSymbol: row?.stockUnitSymbol?.trim() || row?.unitOfMeasure?.trim() || "",
+        saleUnitSymbol: row?.saleUnitSymbol?.trim() || "",
+      });
+    },
+    [storages, rows, countInSaleUnits],
+  );
 
   const transferTargetOptions: Option[] = useMemo(() => {
     if (!transfer) {
@@ -789,12 +894,24 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         branchId={branchId}
         busy={isSaving}
         canTransfer={canTransferStock}
+        countInSaleUnits={countInSaleUnits}
+        onCountInSaleUnitsChange={handleCountUnitChange}
         onRecount={openRecount}
         onQuickDelta={submitQuickDelta}
         onTransfer={openTransfer}
       />
     ),
-    [storages, branchId, isSaving, canTransferStock, openRecount, submitQuickDelta, openTransfer],
+    [
+      storages,
+      branchId,
+      isSaving,
+      canTransferStock,
+      countInSaleUnits,
+      handleCountUnitChange,
+      openRecount,
+      submitQuickDelta,
+      openTransfer,
+    ],
   );
 
   const submitAdjust = () => {
@@ -854,6 +971,14 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
     const variantId = transfer.variantId;
     const sourceStorageId = transfer.sourceStorageId;
     const note = transfer.note.trim() || undefined;
+    const row = rows.find((r) => r.variantId === variantId);
+    const physicalQty = transfer.countInSaleUnits
+      ? roundCountQty(countQtyToPhysical(qty, row))
+      : roundCountQty(qty);
+    if (physicalQty <= 0) {
+      setError("Cantidad no válida.");
+      return;
+    }
     void (async () => {
       setIsSaving(true);
       try {
@@ -861,7 +986,7 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
           variantId,
           sourceStorageId,
           targetStorageId,
-          quantity: qty,
+          quantity: physicalQty,
           note,
         });
         if (r.success) {
@@ -1017,7 +1142,11 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
           <div className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">Desde: {transfer.sourceLabel}</p>
             <TextField
-              label="Cantidad"
+              label={
+                transfer.countInSaleUnits && transfer.saleUnitSymbol
+                  ? `Cantidad (${transfer.saleUnitSymbol})`
+                  : `Cantidad${transfer.stockUnitSymbol ? ` (${transfer.stockUnitSymbol})` : ""}`
+              }
               name="stock-transfer-qty"
               type="number"
               min={0.001}

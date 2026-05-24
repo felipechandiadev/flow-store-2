@@ -20,11 +20,17 @@ export type StockStorageBreakdownRow = {
   committedStock: number;
   stockLevelId?: string | null;
   minimumStockOverride?: number | null;
+  minimumStockEnabledOverride?: boolean | null;
   maximumStockOverride?: number | null;
+  maximumStockEnabledOverride?: boolean | null;
   reorderPointOverride?: number | null;
+  reorderPointEnabledOverride?: boolean | null;
   effectiveMinimumStock?: number;
+  effectiveMinimumStockEnabled?: boolean;
   effectiveMaximumStock?: number;
+  effectiveMaximumStockEnabled?: boolean;
   effectiveReorderPoint?: number;
+  effectiveReorderPointEnabled?: boolean;
 };
 
 export type StockGridRow = {

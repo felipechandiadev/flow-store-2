@@ -17,14 +17,18 @@ const columns: DataGridColumn[] = [
 export default function TreasuryCashMovementsGrid({
   rows,
   total,
+  cashHubName,
 }: {
   rows: TreasuryCashMovementGridRow[];
   total: number;
+  cashHubName?: string | null;
 }) {
   const safeRows = useMemo(() => rows.map((r) => ({ ...r })), [rows]);
+  const hubLabel = cashHubName?.trim();
+  const title = hubLabel ? `Movimientos del centro · ${hubLabel}` : "Movimientos del centro";
   return (
     <DataGrid
-      title="Movimientos del centro"
+      title={title}
       columns={columns}
       rows={safeRows}
       height="min(420px, 55vh)"

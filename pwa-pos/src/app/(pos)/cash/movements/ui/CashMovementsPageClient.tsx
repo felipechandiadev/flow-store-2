@@ -322,9 +322,6 @@ export default function CashMovementsPageClient() {
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--color-foreground)" }}>
             Movimientos de caja
           </h1>
-          <p className="mt-1 text-xs sm:text-sm" style={{ color: "var(--color-muted-foreground)" }}>
-            Movimientos de la sesión de caja abierta en este dispositivo. El más reciente aparece primero.
-          </p>
         </div>
         <IconButton
           icon="ArrowLeft"

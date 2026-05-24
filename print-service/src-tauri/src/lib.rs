@@ -565,20 +565,9 @@ fn queue_test_cut_print(
                 .to_string()
         })?;
 
-    let use_escpos = state
-        .db
-        .ticket_escpos_enabled_for_printer(&target_sp, "tickets");
-    let path = jobs::write_cut_test_path(&state.temp_dir, use_escpos).map_err(|e| e.to_string())?;
-    let filename = if use_escpos {
-        "cut_test.escpos"
-    } else {
-        "cut_test.pdf"
-    };
-    let format_label = if use_escpos {
-        "ESC/POS RAW"
-    } else {
-        "PDF"
-    };
+    let path = jobs::write_cut_test_path(&state.temp_dir, true).map_err(|e| e.to_string())?;
+    let filename = "cut_test.escpos";
+    let format_label = "ESC/POS RAW";
     state.agent_log.push_info(format!(
         "Prueba de corte encolada ({format_label}) → «{target_sp}»"
     ));
@@ -608,6 +597,9 @@ fn queue_escpos_qa_print(
     state: tauri::State<'_, Arc<AppState>>,
     system_printer_name: Option<String>,
     purpose: Option<String>,
+    include_logo: Option<bool>,
+    include_cut: Option<bool>,
+    ticket_logo_path: Option<String>,
 ) -> Result<String, String> {
     let purpose = purpose
         .as_deref()
@@ -625,15 +617,40 @@ fn queue_escpos_qa_print(
         .filter(|s| !s.is_empty())
         .map(String::from)
         .ok_or_else(|| "Seleccioná una impresora del sistema en la línea.".to_string())?;
+    let include_logo = include_logo.unwrap_or(false);
+    let include_cut = include_cut.unwrap_or(true);
+    let logo_b64 = if include_logo {
+        ticket_logo_path
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .and_then(|rel| {
+                ticket_logos::read_logo_as_base64(&state.data_dir, rel)
+                    .ok()
+                    .flatten()
+            })
+    } else {
+        None
+    };
     let agent_label = state.db.agent_display_name();
-    let (path, bytes) = jobs::write_escpos_qa_path(&state.temp_dir, &agent_label, &target_sp)
-        .map_err(|e| e.to_string())?;
-    let escpos_on = state.db.ticket_escpos_enabled_for_printer(&target_sp, purpose);
-    let auto_cut = state.db.auto_cut_enabled_for_printer(&target_sp, purpose);
+    let (path, bytes) = jobs::write_escpos_qa_path(
+        &state.temp_dir,
+        &agent_label,
+        &target_sp,
+        logo_b64.as_deref(),
+        include_cut,
+    )
+    .map_err(|e| e.to_string())?;
     state.agent_log.push_info(format!(
-        "QA ESC/POS encolada: {bytes} bytes → «{target_sp}» (switch producción ESC/POS={}, corte={auto_cut})",
-        escpos_on = escpos_on
+        "QA ESC/POS encolada: {bytes} bytes → «{target_sp}» (logo={}, corte={})",
+        include_logo && logo_b64.is_some(),
+        include_cut
     ));
+    let document_type = if include_cut {
+        "test_escpos_qa"
+    } else {
+        "test_escpos_qa_nocut"
+    };
     let id = uuid::Uuid::new_v4().to_string();
     state
         .db
@@ -645,7 +662,7 @@ fn queue_escpos_qa_print(
             1,
             Some("local_ui"),
             0,
-            Some("test_escpos_qa"),
+            Some(document_type),
             None,
             None,
             None,
@@ -810,6 +827,50 @@ fn set_mapping_lines(
     Ok(())
 }
 
+#[tauri::command]
+fn upsert_mapping_line(
+    state: tauri::State<'_, Arc<AppState>>,
+    line: serde_json::Value,
+) -> Result<(), String> {
+    state
+        .db
+        .upsert_mapping_line(&line)
+        .map_err(|e| e.to_string())?;
+    notify_printer_health_and_config(&state);
+    Ok(())
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn delete_mapping_line(
+    state: tauri::State<'_, Arc<AppState>>,
+    line_id: String,
+) -> Result<bool, String> {
+    let id = line_id.trim();
+    if id.is_empty() {
+        return Err("line_id_required".into());
+    }
+    let old_lines = state.db.list_mapping_lines().unwrap_or_default();
+    let removed = state
+        .db
+        .delete_mapping_line(id)
+        .map_err(|e| e.to_string())?;
+    if removed {
+        let old_lines_copy = old_lines.clone();
+        let new_lines: Vec<serde_json::Value> = old_lines
+            .into_iter()
+            .filter(|l| l.get("id").and_then(|v| v.as_str()) != Some(id))
+            .collect();
+        if let Err(e) =
+            ticket_logos::cleanup_orphaned_after_save(&state.data_dir, &old_lines_copy, &new_lines)
+        {
+            tracing::warn!(err = %e, "ticket logo cleanup");
+        }
+        ticket_logos::delete_logos_for_line(&state.data_dir, id);
+        notify_printer_health_and_config(&state);
+    }
+    Ok(removed)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     install_rustls_crypto_provider();
@@ -954,6 +1015,8 @@ pub fn run() {
             pick_and_store_ticket_logo,
             clear_ticket_logo,
             set_mapping_lines,
+            upsert_mapping_line,
+            delete_mapping_line,
             set_service_settings,
             queue_test_print,
             queue_escpos_qa_print,

@@ -20,6 +20,8 @@ interface TextFieldProps {
   endSymbol?: string;
   /** Contenido React al final (p. ej. iconos); el input gana `padding-right` automático según el ancho medido. */
   endAdornment?: React.ReactNode;
+  /** Solo `labelLayout="inline"`: contenido a la izquierda del label (p. ej. switch). */
+  inlineLeadingAdornment?: React.ReactNode;
   className?: string;
   variante?: "normal" | "contrast" | "autocomplete";
   rows?: number;
@@ -48,6 +50,8 @@ interface TextFieldProps {
    * Si `label` está vacío, solo reduce la altura del control (útil en tablas con encabezado de columna).
    */
   density?: "default" | "compact";
+  /** `inline`: label dentro del borde, a la izquierda del input (solo `density="compact"`). */
+  labelLayout?: "stack" | "inline";
   ["data-test-id"]?: string;
 }
 
@@ -63,6 +67,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   startAdornment,
   endSymbol,
   endAdornment,
+  inlineLeadingAdornment,
   className = "",
   variante = "normal",
   rows,
@@ -81,10 +86,12 @@ export const TextField: React.FC<TextFieldProps> = ({
   autoComplete,
   alwaysShowLabel = false,
   density = "default",
+  labelLayout = "stack",
   style,
   ...props
 }) => {
   const isCompact = density === "compact";
+  const isInlineLabel = isCompact && labelLayout === "inline" && Boolean(label?.trim());
   /** Select / combos: mismo control compact sin etiqueta dentro del disparador bordeado. */
   const autocompleteCompact = variante === "autocomplete" && isCompact && !Boolean(label?.trim());
   const stableFieldId = useId();
@@ -110,7 +117,10 @@ export const TextField: React.FC<TextFieldProps> = ({
    * Apariencia “deshabilitada” (opacidad, cursor prohibido). No aplica a autocomplete+readOnly
    * (p. ej. Select): el input es solo lectura pero el combo debe verse activo y con cursor adecuado.
    */
-  const showDisabledChrome = disabled || (readOnly && variante !== "autocomplete");
+  const showDisabledChrome =
+    disabled || (readOnly && variante !== "autocomplete" && !isInlineLabel);
+  /** Inline + readOnly (p. ej. logo): sin `disabled` nativo para no alterar colores del navegador. */
+  const inputNativeDisabled = disabled && !(isInlineLabel && readOnly);
 
   // Controlador de cambios que respeta el estado disabled
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -444,36 +454,41 @@ export const TextField: React.FC<TextFieldProps> = ({
     variante === "autocomplete" ? "fs-text-field__input--borderless" : "";
 
   const disabledStyles = showDisabledChrome
-    ? "opacity-50 cursor-not-allowed bg-muted"
+    ? isInlineLabel
+      ? "cursor-not-allowed"
+      : "opacity-50 cursor-not-allowed bg-muted"
     : "";
+  const inlineBodyDisabledClass =
+    isInlineLabel && showDisabledChrome ? " fs-text-field__inline-body--disabled" : "";
+  const inlineShellDisabledClass =
+    isInlineLabel && showDisabledChrome && !inlineLeadingAdornment
+      ? " fs-text-field__inline-shell--disabled"
+      : "";
 
   const comboReadOnlyCursor =
     readOnly && variante === "autocomplete" && !disabled ? "cursor-pointer" : "";
 
   const isTextArea = type === "textarea" || typeof rows === "number";
-  const showStaticLabel = isCompact && Boolean(label?.trim());
+  const showStaticLabel = isCompact && Boolean(label?.trim()) && !isInlineLabel;
   const compactInputClass = isCompact ? "fs-text-field__input--compact" : "";
+  const inlineInsetInputClass = isInlineLabel ? "fs-text-field__input--inline-inset" : "";
+  const inputBorderlessClass =
+    borderlessInputClass || (isInlineLabel ? "fs-text-field__input--borderless" : "");
 
-  return (
-    <div
-      className={`${
-        variante === "autocomplete"
-          ? `relative w-full min-w-0 ${autocompleteCompact ? "flex h-full min-h-0 flex-1 flex-col" : ""}`
-          : "fs-text-field"
-      } ${showStaticLabel ? "flex min-w-0 flex-col gap-1" : ""}`.trim()}
+  const inlineLabelEl = isInlineLabel ? (
+    <label
+      className="fs-text-field__inline-label"
+      htmlFor={inputDomId}
+      data-test-id="text-field-static-label"
     >
-      {showStaticLabel ? (
-        <label
-          className="text-[11px] font-medium leading-tight text-foreground"
-          htmlFor={inputDomId}
-          data-test-id="text-field-static-label"
-        >
-          {label}
-          {required ? <span className="ml-1 text-red-500">*</span> : null}
-        </label>
-      ) : null}
+      {label}
+      {required ? <span className="ml-0.5 text-red-500">*</span> : null}
+    </label>
+  ) : null;
+
+  const controlEl = (
       <div
-        className={`relative ${autocompleteCompact ? "flex min-h-0 min-w-0 flex-1 items-center" : ""} ${className}`.trim()}
+        className={`fs-text-field__control relative ${autocompleteCompact ? "flex min-h-0 min-w-0 flex-1 items-center" : ""} ${className}`.trim()}
         data-test-id="text-field-root"
       >
       {hasStartSymbol && (
@@ -518,14 +533,15 @@ export const TextField: React.FC<TextFieldProps> = ({
           onBlur={() => setFocused(false)}
           onChange={handleChange}
           onKeyDown={onKeyDown}
-          className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${compactInputClass} ${borderlessInputClass} block ${isCompact ? "min-w-0" : "min-w-[180px]"} pr-4 ${startPaddingClass} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
+          className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${compactInputClass} ${inputBorderlessClass} ${inlineInsetInputClass} block ${isCompact ? "min-w-0" : "min-w-[180px]"} pr-4 ${startPaddingClass} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
           placeholder={
             type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
             (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))
           }
           required={required}
           readOnly={readOnly}
-          disabled={disabled}
+          disabled={inputNativeDisabled}
+          aria-disabled={isInlineLabel && disabled ? true : undefined}
           autoComplete={autoComplete || "off"}
           style={{
             resize: 'none',
@@ -537,7 +553,9 @@ export const TextField: React.FC<TextFieldProps> = ({
           {...props}
         />
       ) : (
-        <div className={`relative ${autocompleteCompact ? "flex min-h-0 w-full flex-1 items-center" : ""}`}>
+        <div
+          className={`relative ${isInlineLabel ? "w-full min-w-0" : ""} ${autocompleteCompact ? "flex min-h-0 w-full flex-1 items-center" : ""}`.trim()}
+        >
           <input
             id={inputDomId}
             ref={inputRef}
@@ -552,14 +570,15 @@ export const TextField: React.FC<TextFieldProps> = ({
             onBlur={() => setFocused(false)}
             onChange={type === "dni" ? handleDNIChange : type === "currency" ? handleCurrencyChange : handleChange}
             onKeyDown={onKeyDown}
-            className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${compactInputClass} ${borderlessInputClass} ${autocompleteCompact ? "fs-text-field__input--autocomplete-trigger" : ""} block ${isCompact ? "min-w-0" : "min-w-[180px]"} w-full ${startPaddingClass} ${hasEndAdornment ? " pr-3" : (hasEndSymbol || hasPasswordToggle) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
+            className={`${placeholderClassRef.current ?? ""} fs-text-field__input ${compactInputClass} ${inputBorderlessClass} ${inlineInsetInputClass} ${autocompleteCompact ? "fs-text-field__input--autocomplete-trigger" : ""} block ${isCompact ? "min-w-0" : "min-w-[180px]"} w-full ${startPaddingClass} ${hasEndAdornment ? " pr-3" : (hasEndSymbol || hasPasswordToggle) ? " pr-10" : " pr-3"} ${variantInput} ${disabledStyles} ${comboReadOnlyCursor} z-0`}
             placeholder={
               type === "datePicker" ? `Ej: ${new Date().getFullYear()}` :
               (required ? "" : (shrink || !showPlaceholder ? "" : (placeholder ?? label)))
             }
             required={required}
             readOnly={readOnly}
-            disabled={disabled}
+            disabled={inputNativeDisabled}
+            aria-disabled={isInlineLabel && disabled ? true : undefined}
             autoComplete={autoComplete || "off"}
             min={type === "datePicker" ? "1800" : undefined}
             max={type === "datePicker" ? new Date().getFullYear().toString() : undefined}
@@ -663,6 +682,39 @@ export const TextField: React.FC<TextFieldProps> = ({
         </span>
       )}
     </div>
+  );
+
+  return (
+    <div
+      className={`${
+        variante === "autocomplete"
+          ? `relative w-full min-w-0 ${autocompleteCompact ? "flex h-full min-h-0 flex-1 flex-col" : ""}`
+          : "fs-text-field"
+      } ${showStaticLabel ? "flex min-w-0 flex-col gap-1" : ""} ${isInlineLabel ? "fs-text-field--inline" : ""}`.trim()}
+    >
+      {showStaticLabel ? (
+        <label
+          className="text-[11px] font-medium leading-tight text-foreground"
+          htmlFor={inputDomId}
+          data-test-id="text-field-static-label"
+        >
+          {label}
+          {required ? <span className="ml-1 text-red-500">*</span> : null}
+        </label>
+      ) : null}
+      {isInlineLabel ? (
+        <div className={`fs-text-field__inline-shell${inlineShellDisabledClass}`}>
+          {inlineLeadingAdornment ? (
+            <div className="fs-text-field__inline-leading">{inlineLeadingAdornment}</div>
+          ) : null}
+          <div className={`fs-text-field__inline-body${inlineBodyDisabledClass}`}>
+            {inlineLabelEl}
+            {controlEl}
+          </div>
+        </div>
+      ) : (
+        controlEl
+      )}
     </div>
   );
 };

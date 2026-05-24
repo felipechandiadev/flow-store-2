@@ -464,8 +464,11 @@ export class ProductVariantsService {
           : true,
       allowNegativeStock: Boolean(sanitizedData.allowNegativeStock),
       minimumStock: sanitizedData.minimumStock ?? 0,
+      minimumStockEnabled: Boolean(sanitizedData.minimumStockEnabled),
       maximumStock: sanitizedData.maximumStock ?? 0,
+      maximumStockEnabled: Boolean(sanitizedData.maximumStockEnabled),
       reorderPoint: sanitizedData.reorderPoint ?? 0,
+      reorderPointEnabled: Boolean(sanitizedData.reorderPointEnabled),
       isActive:
         typeof sanitizedData.isActive === 'boolean'
           ? sanitizedData.isActive

@@ -39,7 +39,7 @@ export function CategoriesCollection({ initialCategories }: CategoriesCollection
       showSearch
       searchParamName="search"
       searchLabel="Buscar"
-      searchPlaceholder="Buscar por nombre o categoría padre"
+      searchPlaceholder="Buscar..."
       contentEmptyMessage="No hay categorías que mostrar"
       contentItems={
         filtered.length > 0

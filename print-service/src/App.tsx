@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronDown, FolderOpen, X } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import IconButton from "./shared/components/IconButton/IconButton";
-import Switch from "./shared/components/Switch";
-import { Select } from "./shared/components/Select";
+import InlineSwitchField from "./shared/components/InlineSwitchField";
 import SharedTextField from "./shared/components/TextField/TextField";
 import { AgentLogPanel } from "./features/agent-log/AgentLogPanel";
+import { PrinterMappingLineCard } from "./features/printer-mapping/PrinterMappingLineCard";
+import { isLineDirty, lineToSavePayload } from "./features/printer-mapping/mapping-line-utils";
+import type { MappingLineRow } from "./features/printer-mapping/types";
 
 const APP_NAME = "KaiPrinters";
 const DEFAULT_AGENT_DISPLAY_NAME = APP_NAME;
@@ -18,18 +20,12 @@ function normalizeAgentDisplayName(raw: string | undefined): string {
   return t || DEFAULT_AGENT_DISPLAY_NAME;
 }
 
-const PURPOSES = [
-  { id: "tickets", label: "Tickets" },
-  { id: "documents", label: "Documentos" },
-  { id: "labels", label: "Etiquetas" },
-  { id: "reports", label: "Informes" },
-] as const;
-
-const DEFAULT_PURPOSE = PURPOSES[0].id;
+const VALID_PURPOSES = ["tickets", "documents", "labels", "reports"] as const;
+const DEFAULT_PURPOSE = "tickets";
 
 function normalizeMappingPurpose(purpose: string | undefined): string {
   const p = (purpose?.trim() || DEFAULT_PURPOSE).toLowerCase();
-  return PURPOSES.some(({ id }) => id === p) ? p : DEFAULT_PURPOSE;
+  return (VALID_PURPOSES as readonly string[]).includes(p) ? p : DEFAULT_PURPOSE;
 }
 
 type PrinterRow = {
@@ -48,21 +44,6 @@ type ConnectedSession = {
   companyName?: string;
   pointOfSaleName?: string;
   requiredPurposes?: string[];
-};
-
-type MappingLineRow = {
-  id: string;
-  purpose: string;
-  systemPrinterName: string;
-  sortOrder: number;
-  displayLabel?: string;
-  autoCutEnabled?: boolean;
-  /** Solo aplica con propósito `tickets`: bytes ESC/POS RAW en lugar de PDF. */
-  ticketEscposEnabled?: boolean;
-  /** Ruta relativa del logo copiado en KaiPrinters (p. ej. ticket_logos/{id}.png). */
-  ticketLogoPath?: string;
-  /** Nombre del archivo original al seleccionarlo. */
-  ticketLogoDisplayName?: string;
 };
 
 type JobRow = {
@@ -130,6 +111,20 @@ function newLineId() {
   return `l-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function mapDashboardLines(rows: DashboardPayload["mappingLines"]): MappingLineRow[] {
+  return (rows ?? []).map((row) => ({
+    id: String(row?.id ?? newLineId()),
+    purpose: normalizeMappingPurpose(row?.purpose),
+    systemPrinterName: String(row?.systemPrinterName ?? ""),
+    sortOrder: typeof row?.sortOrder === "number" ? row.sortOrder : 0,
+    displayLabel: row?.displayLabel ? String(row.displayLabel) : undefined,
+    autoCutEnabled: row?.autoCutEnabled !== false,
+    ticketLogoPath: row?.ticketLogoPath ? String(row.ticketLogoPath) : undefined,
+    ticketLogoDisplayName: row?.ticketLogoPath ? logoBasename(String(row.ticketLogoPath)) : undefined,
+    ticketLogoEnabled: row?.ticketLogoEnabled === true,
+  }));
+}
+
 function ConnectedSessionCard({ session }: { session: ConnectedSession }) {
   const app = session.appLabel?.trim() || "App";
   const person = session.userDisplayName?.trim() || "—";
@@ -157,6 +152,8 @@ export default function App() {
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [localLines, setLocalLines] = useState<MappingLineRow[]>([]);
+  const [savedLines, setSavedLines] = useState<MappingLineRow[]>([]);
+  const [expandedLineId, setExpandedLineId] = useState<string | null>(null);
   const [settings, setSettings] = useState({
     listenPort: "",
     wssListenPort: "",
@@ -167,7 +164,7 @@ export default function App() {
   const [configEdit, setConfigEdit] = useState(false);
   const [settingsSaveBusy, setSettingsSaveBusy] = useState(false);
   const [networkBusy, setNetworkBusy] = useState(false);
-  const [lineTestBusyId, setLineTestBusyId] = useState<string | null>(null);
+  const [lineSaveBusyId, setLineSaveBusyId] = useState<string | null>(null);
   const [escposQaBusyId, setEscposQaBusyId] = useState<string | null>(null);
   const [cutTestBusyId, setCutTestBusyId] = useState<string | null>(null);
   const [printersRefreshBusy, setPrintersRefreshBusy] = useState(false);
@@ -178,18 +175,9 @@ export default function App() {
 
   const applyDashboardFull = useCallback((d: DashboardPayload) => {
     setDashboard(d);
-    const lines = (d.mappingLines ?? []).map((row) => ({
-      id: String(row.id ?? newLineId()),
-      purpose: normalizeMappingPurpose(row.purpose),
-      systemPrinterName: String(row.systemPrinterName ?? ""),
-      sortOrder: typeof row.sortOrder === "number" ? row.sortOrder : 0,
-      displayLabel: row.displayLabel ? String(row.displayLabel) : undefined,
-      autoCutEnabled: row.autoCutEnabled !== false,
-      ticketEscposEnabled: row.ticketEscposEnabled === true,
-      ticketLogoPath: row.ticketLogoPath ? String(row.ticketLogoPath) : undefined,
-      ticketLogoDisplayName: row.ticketLogoPath ? logoBasename(String(row.ticketLogoPath)) : undefined,
-    }));
+    const lines = mapDashboardLines(d.mappingLines);
     setLocalLines(lines);
+    setSavedLines(lines.map((l) => ({ ...l })));
     setSettings({
       listenPort: d.listenPort != null ? String(d.listenPort) : "",
       wssListenPort: d.wssListenPort != null ? String(d.wssListenPort) : "",
@@ -277,29 +265,48 @@ export default function App() {
   /** WS activo; si WSS está habilitado en config, exige también WSS a la escucha. */
   const serviceOperational = wsListening && (!wssEnabledCfg || wssListening);
 
-  async function handleSaveLines() {
-    const withPrinter = localLines.filter((l) => l.systemPrinterName.trim().length > 0);
-    const missingAlias = withPrinter.some((l) => !l.displayLabel?.trim());
-    if (missingAlias) {
-      window.alert("Cada línea con impresora asignada necesita un alias.");
+  useEffect(() => {
+    if (!printersDetailsOpen) return;
+    const id = window.setInterval(() => {
+      void fetchDashboard("live");
+    }, 20_000);
+    return () => window.clearInterval(id);
+  }, [printersDetailsOpen, fetchDashboard]);
+
+  function requireLineSaved(line: MappingLineRow): boolean {
+    if (!isLineDirty(line, savedLines)) return true;
+    window.alert("Guardá los cambios de esta línea antes de imprimir.");
+    return false;
+  }
+
+  async function handleSaveLine(lineId: string) {
+    const idx = localLines.findIndex((l) => l.id === lineId);
+    const line = localLines[idx];
+    if (!line) return;
+    if (!line.systemPrinterName.trim()) {
+      window.alert("Seleccioná una impresora del SO en esta línea.");
       return;
     }
-    const payload = withPrinter.map((l, idx) => ({
-      id: l.id,
-      purpose: l.purpose,
-      systemPrinterName: l.systemPrinterName.trim(),
-      sortOrder: idx,
-      displayLabel: l.displayLabel!.trim(),
-      autoCutEnabled: l.autoCutEnabled !== false,
-      ticketEscposEnabled: l.ticketEscposEnabled === true,
-      ...(l.purpose === "tickets" && l.ticketLogoPath?.trim()
-        ? { ticketLogoPath: l.ticketLogoPath.trim() }
-        : {}),
-    }));
+    if (!line.displayLabel?.trim()) {
+      window.alert("Completá el alias de la línea.");
+      return;
+    }
+    setLineSaveBusyId(lineId);
     try {
-      await invoke("set_mapping_lines", { lines: payload });
+      await invoke("upsert_mapping_line", {
+        line: lineToSavePayload(line, idx >= 0 ? idx : line.sortOrder),
+      });
       await fetchDashboard("full");
-    } catch {}
+    } catch (e: unknown) {
+      const msg = typeof e === "string" ? e : String(e);
+      if (msg.includes("display_label_alias_duplicate")) {
+        window.alert("Ese alias ya está en uso en otra línea.");
+      } else {
+        window.alert("No se pudo guardar la línea.");
+      }
+    } finally {
+      setLineSaveBusyId(null);
+    }
   }
 
   async function handleSaveSettings(): Promise<boolean> {
@@ -357,6 +364,8 @@ export default function App() {
   }
 
   async function handleLineTestCut(line: MappingLineRow) {
+    if (line.purpose !== "tickets") return;
+    if (!requireLineSaved(line)) return;
     const printer = line.systemPrinterName.trim();
     if (!printer) {
       window.alert("Seleccioná una impresora del sistema para probar el corte.");
@@ -380,6 +389,7 @@ export default function App() {
   }
 
   async function handleLineEscposQa(line: MappingLineRow) {
+    if (!requireLineSaved(line)) return;
     const printer = line.systemPrinterName.trim();
     if (!printer) {
       window.alert("Seleccioná una impresora del sistema para la prueba ESC/POS.");
@@ -391,9 +401,14 @@ export default function App() {
     }
     setEscposQaBusyId(line.id);
     try {
+      const includeLogo =
+        line.ticketLogoEnabled === true && Boolean(line.ticketLogoPath?.trim());
       await invoke("queue_escpos_qa_print", {
         systemPrinterName: printer,
         purpose: line.purpose,
+        includeLogo,
+        includeCut: line.autoCutEnabled !== false,
+        ticketLogoPath: includeLogo ? line.ticketLogoPath : null,
       });
       await fetchDashboard("live");
     } catch (e: unknown) {
@@ -410,6 +425,7 @@ export default function App() {
   }
 
   async function handlePickTicketLogo(line: MappingLineRow) {
+    if (line.ticketLogoEnabled !== true) return;
     try {
       const result = (await invoke("pick_and_store_ticket_logo", { lineId: line.id })) as {
         ticketLogoPath: string;
@@ -434,6 +450,7 @@ export default function App() {
   }
 
   async function handleClearTicketLogo(line: MappingLineRow) {
+    if (line.ticketLogoEnabled !== true) return;
     try {
       await invoke("clear_ticket_logo", {
         lineId: line.id,
@@ -451,29 +468,47 @@ export default function App() {
     }
   }
 
-  async function handleLineTestPrint(line: MappingLineRow) {
-    const printer = line.systemPrinterName.trim();
-    if (!printer) {
-      window.alert("Seleccioná una impresora del sistema para esta línea antes de imprimir una prueba.");
-      return;
+  async function handleRemoveLine(lineId: string) {
+    const wasSaved = savedLines.some((l) => l.id === lineId);
+    if (wasSaved && !window.confirm("¿Eliminar esta línea de impresora?")) return;
+    if (wasSaved) {
+      try {
+        await invoke("delete_mapping_line", { lineId });
+      } catch {
+        window.alert("No se pudo eliminar la línea.");
+        return;
+      }
     }
-    const aliasOk = Boolean(line.displayLabel?.trim());
-    if (!aliasOk) {
-      window.alert("Completá el alias de la línea.");
-      return;
-    }
-    setLineTestBusyId(line.id);
-    try {
-      await invoke("queue_test_print", {
-        purpose: line.purpose,
-        systemPrinterName: printer,
-      });
-      await fetchDashboard("live");
-    } catch {
-      window.alert("No se pudo encolar la prueba de impresión.");
-    } finally {
-      setLineTestBusyId(null);
-    }
+    setLocalLines((prev) => prev.filter((l) => l.id !== lineId));
+    setSavedLines((prev) => prev.filter((l) => l.id !== lineId));
+    if (expandedLineId === lineId) setExpandedLineId(null);
+    if (wasSaved) await fetchDashboard("full");
+  }
+
+  function addMappingLine() {
+    const id = newLineId();
+    setLocalLines((prev) => [
+      ...prev,
+      {
+        id,
+        purpose: DEFAULT_PURPOSE,
+        systemPrinterName: "",
+        sortOrder: prev.length,
+        autoCutEnabled: true,
+        ticketLogoEnabled: false,
+      },
+    ]);
+    setExpandedLineId(id);
+  }
+
+  function updateLine(lineId: string, patch: Partial<MappingLineRow>) {
+    setLocalLines((rows) =>
+      rows.map((r) => (r.id === lineId ? { ...r, ...patch } : r)),
+    );
+  }
+
+  function toggleLineExpanded(lineId: string) {
+    setExpandedLineId((current) => (current === lineId ? null : lineId));
   }
 
   async function handleCancelJob(jobId: string | undefined) {
@@ -517,24 +552,6 @@ export default function App() {
     } finally {
       setNetworkBusy(false);
     }
-  }
-
-  function addMappingLine() {
-    setLocalLines((prev) => [
-      ...prev,
-      {
-        id: newLineId(),
-        purpose: DEFAULT_PURPOSE,
-        systemPrinterName: "",
-        sortOrder: prev.length,
-        autoCutEnabled: true,
-        ticketEscposEnabled: false,
-      },
-    ]);
-  }
-
-  function removeLine(id: string) {
-    setLocalLines((prev) => prev.filter((l) => l.id !== id));
   }
 
   return (
@@ -615,6 +632,7 @@ export default function App() {
             name="agent-display-name"
             type="text"
             density="compact"
+            labelLayout="inline"
             required
             readOnly={!configEdit}
             disabled={!configEdit}
@@ -626,6 +644,7 @@ export default function App() {
             name="in-ws-port"
             type="number"
             density="compact"
+            labelLayout="inline"
             min={1}
             max={65535}
             readOnly={!configEdit}
@@ -638,6 +657,7 @@ export default function App() {
             name="in-wss-port"
             type="number"
             density="compact"
+            labelLayout="inline"
             min={1}
             max={65535}
             readOnly={!configEdit}
@@ -645,9 +665,8 @@ export default function App() {
             value={settings.wssListenPort}
             onChange={(e) => setSettings((s) => ({ ...s, wssListenPort: e.target.value }))}
           />
-          <Switch
+          <InlineSwitchField
             label="WSS habilitado"
-            labelPosition="right"
             disabled={!configEdit}
             checked={settings.wssEnabled}
             onChange={(wssEnabled) => setSettings((s) => ({ ...s, wssEnabled }))}
@@ -718,18 +737,6 @@ export default function App() {
                   addMappingLine();
                 }}
               />
-              <IconButton
-                type="button"
-                icon="Save"
-                variant="basicSecondary"
-                size="xs"
-                className="shrink-0"
-                ariaLabel="Guardar impresoras"
-                onClick={(e) => {
-                  e.preventDefault();
-                  void handleSaveLines();
-                }}
-              />
             </>
           ) : null}
         </summary>
@@ -777,178 +784,28 @@ export default function App() {
           ) : null}
           {localLines.length > 0 ? (
             <div className="divide-y divide-border">
-              {localLines.map((line) => {
-              const purposeOpts = PURPOSES.map(({ id, label }) => ({ id, label }));
-              const printerOpts: { id: string; label: string }[] = [];
-              for (const p of printers) {
-                const def = p.default ? " ★" : "";
-                const off = p.online === false ? " [off]" : "";
-                printerOpts.push({ id: p.name, label: `${p.name}${def}${off}` });
-              }
-              if (line.systemPrinterName && !printers.some((x) => x.name === line.systemPrinterName)) {
-                printerOpts.push({ id: line.systemPrinterName, label: `${line.systemPrinterName} (no listada)` });
-              }
-              return (
-                <div key={line.id} className="flex flex-col gap-3 py-3">
-                  <SharedTextField
-                    label="Alias"
-                    name={`alias-${line.id}`}
-                    type="text"
-                    density="compact"
-                    placeholder="Ej. Tickets caja 1"
-                    required
-                    value={line.displayLabel ?? ""}
-                    onChange={(e) =>
-                      setLocalLines((rows) =>
-                        rows.map((r) => (r.id === line.id ? { ...r, displayLabel: e.target.value } : r)),
-                      )
-                    }
-                  />
-                  <Select
-                    label="Propósito"
-                    placeholder="Seleccionar"
-                    density="compact"
-                    value={line.purpose}
-                    onChange={(id) =>
-                      setLocalLines((rows) =>
-                        rows.map((r) => (r.id === line.id ? { ...r, purpose: String(id ?? DEFAULT_PURPOSE) } : r)),
-                      )
-                    }
-                    options={purposeOpts}
-                    name={`purpose-${line.id}`}
-                  />
-                  {line.purpose === "tickets" ? (
-                    <SharedTextField
-                      label="Logo"
-                      name={`logo-${line.id}`}
-                      type="text"
-                      density="compact"
-                      readOnly
-                      placeholder="Sin logo (PNG/JPG)"
-                      value={line.ticketLogoDisplayName ?? logoBasename(line.ticketLogoPath) ?? ""}
-                      onChange={() => {}}
-                      endAdornment={
-                        <div className="flex shrink-0 items-center gap-0.5 pr-0.5">
-                          {line.ticketLogoPath ? (
-                            <button
-                              type="button"
-                              className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                              aria-label="Quitar logo"
-                              title="Quitar logo"
-                              onClick={() => void handleClearTicketLogo(line)}
-                            >
-                              <X className="h-4 w-4" strokeWidth={2} aria-hidden />
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                            aria-label="Seleccionar imagen de logo"
-                            title="Seleccionar PNG o JPG"
-                            onClick={() => void handlePickTicketLogo(line)}
-                          >
-                            <FolderOpen className="h-4 w-4" strokeWidth={2} aria-hidden />
-                          </button>
-                        </div>
-                      }
-                    />
-                  ) : null}
-                  <Select
-                    label="Impresora del sistema"
-                    placeholder="Seleccionar"
-                    density="compact"
-                    value={line.systemPrinterName || null}
-                    onChange={(pid) =>
-                      setLocalLines((rows) =>
-                        rows.map((r) => (r.id === line.id ? { ...r, systemPrinterName: pid == null ? "" : String(pid) } : r)),
-                      )
-                    }
-                    options={printerOpts}
-                    name={`printer-${line.id}`}
-                  />
-                  <div className="flex items-center justify-between gap-2">
-                    <Switch
-                      label="Corte automático"
-                      labelPosition="right"
-                      disabled={!line.systemPrinterName.trim()}
-                      checked={line.autoCutEnabled !== false}
-                      onChange={(enabled) =>
-                        setLocalLines((rows) =>
-                          rows.map((r) => (r.id === line.id ? { ...r, autoCutEnabled: enabled } : r)),
-                        )
-                      }
-                      data-test-id={`line-auto-cut-${line.id}`}
-                    />
-                    <IconButton
-                      type="button"
-                      icon="Scissors"
-                      variant="basicSecondary"
-                      size="xs"
-                      className="shrink-0"
-                      disabled={!line.systemPrinterName.trim() || cutTestBusyId === line.id}
-                      isLoading={cutTestBusyId === line.id}
-                      ariaLabel="Probar corte automático en esta impresora"
-                      title="Imprime una línea y corta el papel"
-                      onClick={() => void handleLineTestCut(line)}
-                    />
-                  </div>
-                  {line.purpose === "tickets" ? (
-                    <>
-                      <Switch
-                        label="ESC/POS directo (sin PDF)"
-                        labelPosition="right"
-                        disabled={!line.systemPrinterName.trim()}
-                        checked={line.ticketEscposEnabled === true}
-                        onChange={(enabled) =>
-                          setLocalLines((rows) =>
-                            rows.map((r) =>
-                              r.id === line.id ? { ...r, ticketEscposEnabled: enabled } : r,
-                            ),
-                          )
-                        }
-                        data-test-id={`line-ticket-escpos-${line.id}`}
-                      />
-                      <button
-                        type="button"
-                        className="mt-2 w-full rounded-md border border-sky-600/40 bg-sky-50 px-3 py-2 text-left text-xs font-medium text-sky-900 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-100 dark:hover:bg-sky-900/50"
-                        disabled={!line.systemPrinterName.trim() || escposQaBusyId === line.id}
-                        title="Envía bytes RAW de prueba (tipografía, montos, código de barras). No requiere activar el switch de producción."
-                        data-test-id={`line-escpos-qa-${line.id}`}
-                        onClick={() => void handleLineEscposQa(line)}
-                      >
-                        {escposQaBusyId === line.id
-                          ? "Enviando prueba ESC/POS…"
-                          : "Prueba ESC/POS (QA RAW)"}
-                      </button>
-                      <p className="mt-1 text-[0.65rem] leading-snug text-muted-foreground">
-                        Usá esta prueba para validar RAW en Windows. Revisá el registro con
-                        «Diagnóstico ESC/POS» activo.
-                      </p>
-                    </>
-                  ) : null}
-                  <div className="mt-2 flex shrink-0 justify-end gap-1">
-                    <IconButton
-                      type="button"
-                      icon="Trash2"
-                      variant="basicSecondary"
-                      size="xs"
-                      ariaLabel="Eliminar línea"
-                      onClick={() => removeLine(line.id)}
-                    />
-                    <IconButton
-                      type="button"
-                      icon="Printer"
-                      variant="basicSecondary"
-                      size="xs"
-                      disabled={!line.systemPrinterName.trim() || !line.displayLabel?.trim() || lineTestBusyId === line.id}
-                      isLoading={lineTestBusyId === line.id}
-                      ariaLabel={`Prueba de impresión en ${line.systemPrinterName.trim() || "esta línea"}`}
-                      onClick={() => void handleLineTestPrint(line)}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+              {localLines.map((line, idx) => (
+                <PrinterMappingLineCard
+                  key={line.id}
+                  line={line}
+                  savedLines={savedLines}
+                  printers={printers}
+                  expanded={expandedLineId === line.id}
+                  sortOrder={idx}
+                  saveBusy={lineSaveBusyId === line.id}
+                  printBusy={escposQaBusyId === line.id}
+                  cutBusy={cutTestBusyId === line.id}
+                  onToggleExpand={() => toggleLineExpanded(line.id)}
+                  onChange={(patch) => updateLine(line.id, patch)}
+                  onSave={() => void handleSaveLine(line.id)}
+                  onDelete={() => void handleRemoveLine(line.id)}
+                  onPrintTest={() => void handleLineEscposQa(line)}
+                  onCutTest={() => void handleLineTestCut(line)}
+                  onPickLogo={() => void handlePickTicketLogo(line)}
+                  onClearLogo={() => void handleClearTicketLogo(line)}
+                  logoBasename={logoBasename}
+                />
+              ))}
             </div>
           ) : null}
         </div>

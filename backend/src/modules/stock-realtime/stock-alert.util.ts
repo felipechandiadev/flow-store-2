@@ -1,21 +1,30 @@
 import type { StockAlertKind } from './stock-realtime.types';
 
+export type StockThresholdEvaluation = {
+  min: number;
+  max: number;
+  reorder: number;
+  minEnabled: boolean;
+  maxEnabled: boolean;
+  reorderEnabled: boolean;
+};
+
 /**
  * Una sola alerta por variante+almacén por evaluación (prioridad: bajo mínimo > sobre máximo > reposición).
- * Evita dos notificaciones cuando el stock está bajo el mínimo y también bajo el punto de reposición.
  */
 export function computeStockAlertsFromThresholds(
   physical: number,
-  thresholds: { min: number; max: number; reorder: number },
+  thresholds: StockThresholdEvaluation,
 ): StockAlertKind[] {
-  const { min, max, reorder } = thresholds;
-  if (min > 0 && physical < min) {
+  const { min, max, reorder, minEnabled, maxEnabled, reorderEnabled } =
+    thresholds;
+  if (minEnabled && physical < min) {
     return ['below_minimum'];
   }
-  if (max > 0 && physical > max) {
+  if (maxEnabled && physical > max) {
     return ['above_maximum'];
   }
-  if (reorder > 0 && physical <= reorder) {
+  if (reorderEnabled && physical <= reorder) {
     return ['reorder'];
   }
   return [];

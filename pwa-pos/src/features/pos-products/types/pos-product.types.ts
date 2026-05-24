@@ -13,6 +13,8 @@ export type PosProductSearchItem = {
   sku: string | null;
   barcode: string | null;
   unitSymbol: string | null;
+  /** Símbolo de la unidad de venta (preferir sobre `unitSymbol` en UI). */
+  saleUnitSymbol?: string | null;
   unitId: string | null;
   stockBaseUnitId?: string | null;
   stockBaseUnitSymbol?: string | null;
@@ -26,6 +28,8 @@ export type PosProductSearchItem = {
   trackInventory: boolean;
   availableStock: number | null;
   availableStockBase: number | null;
+  /** Base de stock por 1 unidad de venta (conteo); para recalcular stock en UI. */
+  stockBaseQtyPerCountSaleUnit?: number | null;
   attributes: PosProductAttribute[];
   metadata: Record<string, unknown> | null;
 };

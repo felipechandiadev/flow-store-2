@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Mail, Search } from 'lucide-react';
 import TextField from '@/shared/components/TextField/TextField';
+import IconButton from '@/shared/components/IconButton';
+import Switch from '@/shared/components/Switch';
 import { Card } from '@/shared/components/Cards';
 
 export default function TextFieldPage() {
@@ -27,6 +29,10 @@ export default function TextFieldPage() {
   const [codigo, setCodigo] = useState('');
   const [adornmentSearchDemo, setAdornmentSearchDemo] = useState('');
   const [adornmentEmailDemo, setAdornmentEmailDemo] = useState('');
+  const [compactStackAlias, setCompactStackAlias] = useState('Tickets caja 1');
+  const [compactInsetAlias, setCompactInsetAlias] = useState('Tickets caja 1');
+  const [compactInsetLogoEnabled, setCompactInsetLogoEnabled] = useState(true);
+  const [compactInsetLogoFile, setCompactInsetLogoFile] = useState('logo-tickets.png');
 
   return (
     <div className="p-8 space-y-12 max-w-3xl">
@@ -35,8 +41,10 @@ export default function TextFieldPage() {
         <p className="text-gray-600">
           Ejemplos interactivos del input con etiqueta flotante, formatos (RUT, moneda, teléfono),
           <code className="mx-1 rounded bg-muted/50 px-1 text-xs">startSymbol</code>/
-          <code className="rounded bg-muted/50 px-1 text-xs">endSymbol</code> (cadenas) y{" "}
-          <code className="rounded bg-muted/50 px-1 text-xs">startAdornment</code> (React), y variantes.
+          <code className="rounded bg-muted/50 px-1 text-xs">endSymbol</code> (cadenas),{" "}
+          <code className="rounded bg-muted/50 px-1 text-xs">startAdornment</code> /{" "}
+          <code className="rounded bg-muted/50 px-1 text-xs">endAdornment</code>, variantes y patrón{" "}
+          <strong className="font-medium text-foreground">CompactInsetField</strong>.
         </p>
       </div>
 
@@ -311,6 +319,99 @@ export default function TextFieldPage() {
             startAdornment={<Search className="h-4 w-4" aria-hidden />}
           />
         </Card>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">Compact — label arriba (stack)</h2>
+        <p className="text-sm text-muted-foreground">
+          <code className="rounded bg-muted/50 px-1 text-xs">density=&quot;compact&quot;</code> con{" "}
+          <code className="rounded bg-muted/50 px-1 text-xs">labelLayout=&quot;stack&quot;</code> (valor por defecto):
+          altura ~2rem y etiqueta encima del control.
+        </p>
+        <TextField
+          label="Alias"
+          name="compact-stack-alias"
+          density="compact"
+          labelLayout="stack"
+          placeholder="Ej. Tickets caja 1"
+          required
+          value={compactStackAlias}
+          onChange={(e) => setCompactStackAlias(e.target.value)}
+        />
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">CompactInsetField — label inline</h2>
+        <p className="text-sm text-muted-foreground">
+          Patrón <strong className="font-medium text-foreground">CompactInsetField</strong>:{" "}
+          <code className="rounded bg-muted/50 px-1 text-xs">density=&quot;compact&quot;</code> +{" "}
+          <code className="rounded bg-muted/50 px-1 text-xs">labelLayout=&quot;inline&quot;</code>.
+          Label y valor comparten un único borde.
+        </p>
+        <TextField
+          label="Alias"
+          name="compact-inset-alias"
+          density="compact"
+          labelLayout="inline"
+          placeholder="Ej. Tickets caja 1"
+          required
+          value={compactInsetAlias}
+          onChange={(e) => setCompactInsetAlias(e.target.value)}
+        />
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">CompactInsetField — leading + trailing</h2>
+        <p className="text-sm text-muted-foreground">
+          <code className="rounded bg-muted/50 px-1 text-xs">inlineLeadingAdornment</code> +{" "}
+          <code className="rounded bg-muted/50 px-1 text-xs">endAdornment</code> (caso logo en KaiPrinters). Use{" "}
+          <code className="rounded bg-muted/50 px-1 text-xs">Switch density=&quot;compact&quot;</code>.
+        </p>
+        <TextField
+          label="Logo"
+          name="compact-inset-logo"
+          density="compact"
+          labelLayout="inline"
+          readOnly
+          disabled={!compactInsetLogoEnabled}
+          placeholder={compactInsetLogoEnabled ? 'Sin logo (PNG/JPG)' : 'Desactivado'}
+          value={compactInsetLogoEnabled ? compactInsetLogoFile : ''}
+          onChange={() => {}}
+          inlineLeadingAdornment={
+            <Switch
+              density="compact"
+              checked={compactInsetLogoEnabled}
+              onChange={setCompactInsetLogoEnabled}
+              data-test-id="inset-logo-enabled"
+            />
+          }
+          endAdornment={
+            <>
+              {compactInsetLogoFile ? (
+                <IconButton
+                  icon="X"
+                  variant="basicSecondary"
+                  size="xs"
+                  className="min-h-5 min-w-5 p-0"
+                  ariaLabel="Quitar logo"
+                  tabIndex={-1}
+                  disabled={!compactInsetLogoEnabled}
+                  onClick={() => setCompactInsetLogoFile('')}
+                />
+              ) : null}
+              <IconButton
+                icon="FolderOpen"
+                variant="basicSecondary"
+                size="xs"
+                className="min-h-5 min-w-5 p-0"
+                ariaLabel="Seleccionar imagen"
+                tabIndex={-1}
+                disabled={!compactInsetLogoEnabled}
+                onClick={() => setCompactInsetLogoFile('logo-demo.png')}
+              />
+            </>
+          }
+        />
       </section>
     </div>
   );

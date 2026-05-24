@@ -1,6 +1,8 @@
 'use client';
 
-import React, { type KeyboardEvent } from 'react';
+import React, { type CSSProperties, type KeyboardEvent } from 'react';
+
+import './switch.css';
 
 export type SwitchOptionLabels = {
   /** Opción cuando `checked` es false */
@@ -8,6 +10,8 @@ export type SwitchOptionLabels = {
   /** Opción cuando `checked` es true */
   on: string;
 };
+
+export type SwitchDensity = 'default' | 'compact';
 
 interface SwitchProps {
   checked?: boolean;
@@ -18,6 +22,8 @@ interface SwitchProps {
   /** Dos etiquetas (off | switch | on); la activa resalta según `checked` */
   optionLabels?: SwitchOptionLabels;
   disabled?: boolean;
+  /** `compact`: track más pequeño, sin margen superior (p. ej. dentro de TextField inline). */
+  density?: SwitchDensity;
   className?: string;
   ['data-test-id']?: string;
 }
@@ -29,9 +35,12 @@ const Switch: React.FC<SwitchProps> = ({
   labelPosition = 'left',
   optionLabels,
   disabled = false,
+  density = 'default',
   className = '',
   ...props
 }) => {
+  const isCompact = density === 'compact';
+
   const setChecked = (next: boolean) => {
     if (disabled || next === checked) {
       return;
@@ -51,62 +60,82 @@ const Switch: React.FC<SwitchProps> = ({
     }
   };
 
-  const labelBase = 'text-sm font-medium leading-normal';
-  /** Gris medio (--color-muted), más suave que foreground */
-  const labelMuted = 'text-muted';
-  const optionClass = (active: boolean) =>
-    `${labelBase} transition-colors ${disabled ? 'opacity-50' : ''} ${
-      active ? 'text-foreground' : labelMuted
-    } ${disabled ? '' : 'cursor-pointer'}`;
+  const labelBase = isCompact
+    ? 'fs-switch__label text-foreground'
+    : 'text-sm font-medium leading-normal';
+  const labelMuted = isCompact ? 'fs-switch__label' : 'text-muted';
+  const optionClass = (active: boolean) => {
+    const tone = active ? (isCompact ? 'text-foreground' : 'text-foreground') : labelMuted;
+    return [
+      'fs-switch__dual-option',
+      'transition-colors',
+      'border-0',
+      'bg-transparent',
+      'p-0',
+      isCompact ? '' : labelBase,
+      disabled ? 'opacity-50' : '',
+      tone,
+      disabled ? '' : 'cursor-pointer',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  };
 
   const thumbPrimary = Boolean(optionLabels);
-  const thumbStyle: React.CSSProperties = disabled
+  const thumbStyle: CSSProperties = disabled
     ? {
         borderColor: 'var(--color-border)',
-        borderWidth: '1px',
         backgroundColor: 'var(--color-neutral)',
       }
-    : thumbPrimary
+    : thumbPrimary || checked
       ? {
           borderColor: 'var(--color-primary)',
-          borderWidth: '1px',
           backgroundColor: 'var(--color-primary)',
         }
-      : checked
-        ? {
-            borderColor: 'var(--color-primary)',
-            borderWidth: '1px',
-            backgroundColor: 'var(--color-primary)',
-          }
-        : { borderColor: 'var(--color-secondary)', borderWidth: '1px' };
+      : {
+          borderColor: 'var(--color-secondary)',
+          backgroundColor: 'var(--color-background, #fff)',
+        };
+
+  const trackClass = [
+    'fs-switch__track',
+    isCompact ? 'fs-switch__track--compact' : '',
+    checked ? 'fs-switch__track--checked' : '',
+    disabled ? 'fs-switch__track--disabled' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const track = (
     <span
-      className={`relative flex h-6 w-10 shrink-0 items-center rounded-full transition-colors duration-200 group ${disabled ? 'pointer-events-none' : ''}`}
-      style={{
-        boxShadow: 'inset 0 0 0 4px color-mix(in srgb, var(--color-border) 70%, transparent)',
-        background: 'var(--color-background)',
+      className={trackClass}
+      onClick={(e) => {
+        e.stopPropagation();
+        toggle();
       }}
-      onClick={toggle}
       role="switch"
       aria-checked={checked}
       aria-disabled={disabled}
       tabIndex={disabled ? -1 : 0}
       onKeyDown={handleKeyDown}
     >
-      <span
-        className={`absolute left-1 top-1 h-4 w-4 rounded-full border transition-transform duration-200 ${
-          disabled ? 'bg-neutral' : thumbPrimary ? '' : 'bg-background group-hover:bg-accent/60'
-        }${checked ? ' translate-x-4' : ''}`}
-        style={thumbStyle}
-      />
+      <span className="fs-switch__thumb" style={thumbStyle} />
     </span>
   );
 
   if (optionLabels) {
+    const dualClass = [
+      'fs-switch__dual',
+      isCompact ? 'fs-switch__dual--compact' : '',
+      disabled ? 'cursor-not-allowed' : '',
+      className,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
     return (
       <div
-        className={`flex items-center justify-between gap-3 ${disabled ? 'cursor-not-allowed' : ''} ${className}`.trim()}
+        className={dualClass}
         data-test-id={props['data-test-id'] || 'switch-dual-root'}
         role="group"
         aria-label={`${optionLabels.off} o ${optionLabels.on}`}
@@ -114,7 +143,7 @@ const Switch: React.FC<SwitchProps> = ({
         <button
           type="button"
           disabled={disabled}
-          className={`border-0 bg-transparent p-0 ${optionClass(!checked)}`}
+          className={optionClass(!checked)}
           onClick={() => setChecked(false)}
           aria-pressed={!checked}
         >
@@ -124,7 +153,7 @@ const Switch: React.FC<SwitchProps> = ({
         <button
           type="button"
           disabled={disabled}
-          className={`border-0 bg-transparent p-0 ${optionClass(checked)}`}
+          className={optionClass(checked)}
           onClick={() => setChecked(true)}
           aria-pressed={checked}
         >
@@ -134,17 +163,23 @@ const Switch: React.FC<SwitchProps> = ({
     );
   }
 
+  const rootClass = [
+    'fs-switch__root',
+    isCompact ? 'fs-switch__root--compact' : '',
+    disabled ? 'fs-switch__root--disabled' : '',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <label
-      className={`mt-1 flex select-none items-center gap-2 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ${className}`.trim()}
-      data-test-id={props['data-test-id'] || 'switch-root'}
-    >
+    <label className={rootClass} data-test-id={props['data-test-id'] || 'switch-root'}>
       {labelPosition === 'left' && label ? (
-        <span className={`${labelBase} ${labelMuted} ${disabled ? 'opacity-50' : ''}`}>{label}</span>
+        <span className={`${labelBase} ${disabled ? 'opacity-50' : ''}`}>{label}</span>
       ) : null}
       {track}
       {labelPosition === 'right' && label ? (
-        <span className={`${labelBase} ${labelMuted} ${disabled ? 'opacity-50' : ''}`}>{label}</span>
+        <span className={`${labelBase} ${disabled ? 'opacity-50' : ''}`}>{label}</span>
       ) : null}
     </label>
   );

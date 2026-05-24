@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ChevronDown, Pencil, Plus, Power, Printer, RefreshCw, Save, Scissors, Trash2, X } from "lucide-react";
+import { ChevronDown, FolderOpen, Pencil, Plus, Power, Printer, RefreshCw, Save, Scissors, Trash2, X } from "lucide-react";
 import type { ButtonHTMLAttributes, MouseEventHandler } from "react";
 
 import "./icon-button.css";
@@ -9,6 +9,7 @@ import "./icon-button.css";
  */
 const ICONS = {
   ChevronDown,
+  FolderOpen,
   Pencil,
   Plus,
   Power,

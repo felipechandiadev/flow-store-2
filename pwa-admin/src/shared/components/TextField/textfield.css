@@ -68,6 +68,19 @@
   outline: none;
 }
 
+/**
+ * Trigger de Select compact: el borde del contenedor padre (`h-8`).
+ * Quita altura fija 2rem del input compact para que no rompa border-box ni el centrado vertical.
+ */
+.fs-text-field__input.fs-text-field__input--compact.fs-text-field__input--borderless.fs-text-field__input--autocomplete-trigger {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1.25rem;
+}
+
 /* Mismo aspecto de placeholder en input y textarea (incl. Firefox opacity). */
 .fs-text-field__input::placeholder {
   color: var(--color-muted, #6b7280);
@@ -111,7 +124,157 @@
   transform: translateY(-50%);
 }
 
+/** Contenedor de acciones al final del input (p. ej. limpiar monto); `pointer-events: auto` para poder clicar. */
+.fs-text-field__end-adornment {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  pointer-events: auto;
+}
+
 /* Campo o grupo con margen inferior (formularios base) */
 .fs-form-group {
   margin-bottom: 1rem;
+}
+
+/**
+ * CompactInsetField (`density="compact"` + `labelLayout="inline"`):
+ * label + input dentro del mismo borde, ancho completo.
+ */
+.fs-text-field.fs-text-field--inline {
+  width: 100%;
+  min-width: 0;
+}
+
+.fs-text-field__inline-shell {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 2rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-border, #c1c1c2);
+  background-color: var(--color-background, #fff);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.fs-text-field__inline-shell:focus-within {
+  outline: none;
+  border-color: var(--color-primary, #002b59);
+  box-shadow: none;
+}
+
+.fs-text-field__inline-shell .fs-text-field__input:focus,
+.fs-text-field__inline-shell .fs-text-field__input:focus-visible {
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.fs-text-field__inline-shell.fs-text-field__inline-shell--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fs-text-field__inline-leading {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 0 0.375rem 0 0.5rem;
+}
+
+.fs-text-field__inline-body {
+  display: flex;
+  flex: 1 1 0%;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.fs-text-field__inline-body--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.fs-text-field__inline-label {
+  flex: 0 0 auto;
+  align-self: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  letter-spacing: 0.01em;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--color-muted-foreground, #6b7280);
+  border-right: 1px solid var(--color-border, #c1c1c2);
+}
+
+.fs-text-field--inline .fs-text-field__control {
+  flex: 1 1 0%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.fs-text-field--inline .fs-text-field__input.fs-text-field__input--inline-inset,
+:has(> .fs-text-field__inline-label) .fs-text-field__input.fs-text-field__input--compact {
+  border: none;
+  box-shadow: none;
+  background-color: transparent;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+  color: var(--color-foreground, #131615);
+}
+
+.fs-text-field--inline .fs-text-field__input.fs-text-field__input--inline-inset::placeholder,
+:has(> .fs-text-field__inline-label) .fs-text-field__input.fs-text-field__input--compact::placeholder {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-muted-foreground, #9ca3af);
+}
+
+.fs-text-field--inline .fs-text-field__input.fs-text-field__input--inline-inset:read-only:not(:disabled) {
+  color: var(--color-foreground, #131615);
+  -webkit-text-fill-color: var(--color-foreground, #131615);
+  opacity: 1;
+}
+
+.fs-text-field--inline .fs-text-field__input.fs-text-field__input--inline-inset:focus,
+.fs-text-field--inline .fs-text-field__input.fs-text-field__input--inline-inset:focus-visible {
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.fs-text-field--inline .fs-text-field__end-adornment {
+  right: 0.375rem;
+  z-index: 20;
+  gap: 0;
+}
+
+.fs-inline-combo-shell:focus-within {
+  outline: none;
+  border-color: var(--color-primary, #002b59);
+  box-shadow: none;
+}
+
+.fs-inline-combo-shell .fs-text-field__input:focus,
+.fs-inline-combo-shell .fs-text-field__input:focus-visible {
+  border: none;
+  box-shadow: none;
+  outline: none;
 }

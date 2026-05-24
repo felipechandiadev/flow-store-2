@@ -9,6 +9,7 @@ import { listOpenCashSessionsAction } from "@/features/session/actions/cash-sess
 import { listCashHubsForPosAction } from "@/features/session/actions/cash-hub-pos.action";
 import type { CashHubDepositCandidate } from "@/features/session/types/cash-hub-deposit.types";
 import { Alert, Button, Dialog, Select, TextField } from "@/shared/admin-shared";
+import { fetchPointOfSalePriceListsAction } from "@/features/session/actions/point-of-sale-pos.action";
 import { savePosContextClient, type PosPriceListSnapshot } from "@/features/session/lib/pos-context-storage";
 
 export type MyOpenSession = {
@@ -110,18 +111,30 @@ function MyOpenSessionPanel({
   const router = useRouter();
   const myPos = pointsOfSale.find((p) => p.id === myOpenSession.pointOfSaleId) ?? null;
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (myPos) {
       savePosContext({
         ...buildPosContextFromPos(myPos),
         cashSessionId: myOpenSession.cashSessionId,
       });
     } else {
+      const fetched = await fetchPointOfSalePriceListsAction(myOpenSession.pointOfSaleId);
+      const priceLists =
+        fetched.success && fetched.priceLists.length > 0 ? fetched.priceLists : [];
+      const priceListId =
+        (fetched.success &&
+          fetched.defaultPriceListId &&
+          priceLists.some((p) => p.id === fetched.defaultPriceListId) &&
+          fetched.defaultPriceListId) ||
+        priceLists[0]?.id ||
+        null;
       savePosContext({
         pointOfSaleId: myOpenSession.pointOfSaleId,
         cashSessionId: myOpenSession.cashSessionId,
         pointOfSaleName: myOpenSession.pointOfSaleName,
         branchName: myOpenSession.branchName,
+        priceListId,
+        priceLists,
       });
     }
     router.push("/pos");

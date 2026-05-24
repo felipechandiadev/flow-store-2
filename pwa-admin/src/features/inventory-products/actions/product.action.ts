@@ -62,8 +62,11 @@ export type CreateProductVariantFormInput = {
   trackInventory?: boolean;
   allowNegativeStock?: boolean;
   minimumStock?: number;
+  minimumStockEnabled?: boolean;
   maximumStock?: number;
+  maximumStockEnabled?: boolean;
   reorderPoint?: number;
+  reorderPointEnabled?: boolean;
   /** Cantidad en unidad base de stock por 1 unidad de venta (conteo), si aplica. */
   stockBaseQtyPerCountSaleUnit?: number;
   /** Cantidad en unidad base de stock por 1 unidad de compra (conteo), si aplica. */
@@ -300,8 +303,11 @@ export async function createProductVariantAction(
     trackInventory: input.trackInventory,
     allowNegativeStock: input.allowNegativeStock,
     minimumStock: input.minimumStock,
+    minimumStockEnabled: input.minimumStockEnabled,
     maximumStock: input.maximumStock,
+    maximumStockEnabled: input.maximumStockEnabled,
     reorderPoint: input.reorderPoint,
+    reorderPointEnabled: input.reorderPointEnabled,
   });
   if (r.success) {
     revalidatePath(PRODUCTS_PATH, "page");
@@ -406,8 +412,11 @@ export async function updateProductVariantAction(
     trackInventory: input.trackInventory,
     allowNegativeStock: input.allowNegativeStock,
     minimumStock: input.minimumStock,
+    minimumStockEnabled: input.minimumStockEnabled,
     maximumStock: input.maximumStock,
+    maximumStockEnabled: input.maximumStockEnabled,
     reorderPoint: input.reorderPoint,
+    reorderPointEnabled: input.reorderPointEnabled,
     weight: input.weight,
     weightUnit: input.weightUnit ?? undefined,
     netWeightKg: input.netWeightKg,
@@ -611,8 +620,11 @@ export type UpdateProductVariantInventoryPartialInput = {
   trackInventory: boolean;
   allowNegativeStock: boolean;
   minimumStock: number;
+  minimumStockEnabled: boolean;
   maximumStock: number;
+  maximumStockEnabled: boolean;
   reorderPoint: number;
+  reorderPointEnabled: boolean;
   weight?: number | null;
   weightUnit?: string | null;
 };
@@ -630,8 +642,11 @@ export async function updateProductVariantInventoryPartialAction(
     trackInventory: input.trackInventory,
     allowNegativeStock: input.allowNegativeStock,
     minimumStock: Math.max(0, Math.round(Number(input.minimumStock) || 0)),
+    minimumStockEnabled: Boolean(input.minimumStockEnabled),
     maximumStock: Math.max(0, Math.round(Number(input.maximumStock) || 0)),
+    maximumStockEnabled: Boolean(input.maximumStockEnabled),
     reorderPoint: Math.max(0, Math.round(Number(input.reorderPoint) || 0)),
+    reorderPointEnabled: Boolean(input.reorderPointEnabled),
   };
   if (input.weight !== undefined) {
     body.weight = input.weight;

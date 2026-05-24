@@ -20,11 +20,6 @@ export class CreateCashHubBodyDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(60)
-  code?: string;
-
-  @IsOptional()
-  @IsString()
   @MaxLength(5000)
   notes?: string;
 
@@ -49,11 +44,6 @@ export class UpdateCashHubBodyDto {
   @MinLength(2)
   @MaxLength(200)
   name?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(60)
-  code?: string | null;
 
   @IsOptional()
   @IsString()

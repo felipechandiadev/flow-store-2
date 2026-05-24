@@ -11,6 +11,7 @@ import {
   PriceListItemsRepositoryPort,
 } from '@modules/price-list-items/application/ports/price-list-items.repository.port';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
+import { Unit } from '@modules/units/domain/unit.entity';
 import { SearchPosProductsDto } from './dto/search-pos-products.dto';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 import { AttributeOrmEntity } from '@modules/attributes/infrastructure/orm-mappers/attribute.orm-entity';
@@ -53,6 +54,8 @@ export class ProductsPosService {
     private readonly priceListItemRepository: PriceListItemsRepositoryPort,
     @InjectRepository(StockLevel)
     private readonly stockLevelRepository: Repository<StockLevel>,
+    @InjectRepository(Unit)
+    private readonly unitRepository: Repository<Unit>,
     private readonly multimediaService: MultimediaServiceAdapter,
     private readonly dataSource: DataSource,
   ) {}
@@ -141,6 +144,7 @@ export class ProductsPosService {
       'v.stockBaseQtyPerCountSaleUnit',
       'v.attributeValues',
       'product.id',
+      'product.companyId',
       'product.name',
       'product.description',
       'unit.id',
@@ -261,6 +265,15 @@ export class ProductsPosService {
       }
     }
 
+    const companyId = variants.find((v) => v.product?.companyId)?.product?.companyId;
+    let unitsById: Map<string, Unit> | undefined;
+    if (companyId) {
+      const unitRows = await this.unitRepository.find({
+        where: { companyId, deletedAt: IsNull() },
+      });
+      unitsById = new Map(unitRows.map((u) => [u.id, u]));
+    }
+
     // Mapear resultados al formato esperado por el POS
     const products: PosProductSearchResult[] = variants
       .filter((variant) => variant.productId) // Filtrar variantes sin productId
@@ -326,9 +339,12 @@ export class ProductsPosService {
         const availableStock = track
           ? posDisplayStockInSaleUnits({
               physicalStockInBase: stockBaseQty,
+              stockBaseUnitId: variant.stockBaseUnitId,
+              saleUnitId: variant.saleUnitId,
               stockBaseDimension: (variant as any).stockBaseUnit?.dimension ?? null,
               saleDimension: (variant as any).saleUnit?.dimension ?? null,
               stockBaseQtyPerCountSaleUnit: (variant as any).stockBaseQtyPerCountSaleUnit,
+              unitsById,
             })
           : null;
 
@@ -340,10 +356,9 @@ export class ProductsPosService {
           variantId: variant.id,
           sku: variant.sku || null,
           barcode: variant.barcode || null,
-          unitSymbol: (variant as any).saleUnit?.symbol ?? (variant as any).unit?.symbol ?? null,
-          unitId: (variant as any).saleUnitId ?? (variant as any).unit?.id ?? null,
-          unitAllowDecimals:
-            (variant as any).saleUnit?.allowDecimals === true || variant.unit?.allowDecimals === true,
+          unitSymbol: (variant as any).saleUnit?.symbol ?? null,
+          unitId: (variant as any).saleUnitId ?? null,
+          unitAllowDecimals: (variant as any).saleUnit?.allowDecimals === true,
           unitPrice: netPrice,
           unitTaxRate: taxRate,
           unitTaxAmount: taxAmount,
@@ -423,12 +438,24 @@ export class ProductsPosService {
     const stockBaseQty = Number(sl?.availableStock ?? 0);
     const track = variant.trackInventory ?? false;
     const availableStockBase = track ? stockBaseQty : null;
+    let unitsById: Map<string, Unit> | undefined;
+    const companyId = variant.product?.companyId;
+    if (companyId) {
+      const unitRows = await this.unitRepository.find({
+        where: { companyId, deletedAt: IsNull() },
+      });
+      unitsById = new Map(unitRows.map((u) => [u.id, u]));
+    }
+
     const availableStock = track
       ? posDisplayStockInSaleUnits({
           physicalStockInBase: stockBaseQty,
+          stockBaseUnitId: variant.stockBaseUnitId,
+          saleUnitId: variant.saleUnitId,
           stockBaseDimension: (variant as any).stockBaseUnit?.dimension ?? null,
           saleDimension: (variant as any).saleUnit?.dimension ?? null,
           stockBaseQtyPerCountSaleUnit: (variant as any).stockBaseQtyPerCountSaleUnit,
+          unitsById,
         })
       : null;
 

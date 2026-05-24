@@ -5,7 +5,14 @@ import { getPosVariantStockAction } from "@/features/pos-products/actions/pos-pr
 import type { PosProductSearchItem } from "@/features/pos-products/types/pos-product.types";
 import { redirectToLoginIfUnauthorized } from "@/lib/auth/pos-api-failure";
 import type { ResolvedLineDiscount } from "@/features/promotions/lib/discount-engine.types";
-import { InlineSepDot, PosProductNameWithAttributes } from "@/features/pos-products/ui/posProductPreview";
+import {
+  InlineSepDot,
+  PosProductNameWithAttributes,
+  posCartQuantityExceedsAvailableStock,
+  posDisplaySaleUnitSymbol,
+  posFormatStockForCard,
+  posFormatStockQuantity,
+} from "@/features/pos-products/ui/posProductPreview";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { Alert, Button, Dialog, TextField } from "@/shared/admin-shared";
 
@@ -43,8 +50,8 @@ export default function PosCartLineCard({
   maxQuantity?: number;
 }) {
   const code = line.barcode?.trim() || line.sku?.trim() || "—";
-  const stockLabel =
-    line.trackInventory && line.availableStock != null ? String(line.availableStock) : "—";
+  const saleUnitLabel = posDisplaySaleUnitSymbol(line);
+  const stockLabel = posFormatStockForCard(line);
   const allowDecimals = line.unitAllowDecimals === true;
   const [qtyDialogOpen, setQtyDialogOpen] = useState(false);
   const [qtyDraft, setQtyDraft] = useState("");
@@ -131,19 +138,39 @@ export default function PosCartLineCard({
   const lineGross = (Number(line.unitPriceWithTax) || 0) * (Number(line.quantity) || 0);
   const lineDiscount = line.discount?.discountAmount ?? 0;
   const lineSubtotal = Math.max(0, lineGross - lineDiscount);
+  const exceedsAvailableStock = posCartQuantityExceedsAvailableStock(line);
 
   return (
     <article
-      className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+      className={`rounded-xl border p-4 shadow-sm ${
+        exceedsAvailableStock
+          ? "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/35"
+          : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+      }`}
       data-test-id="pos-cart-line"
+      data-stock-exceeded={exceedsAvailableStock ? "true" : undefined}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 text-sm">
-          <PosProductNameWithAttributes
-            name={line.productName}
-            attributes={line.attributes}
-            className="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
-          />
+          <div className="flex items-start gap-1">
+            {line.trackInventory ? (
+              <IconButton
+                icon="Info"
+                variant="ghost"
+                size="xs"
+                className="shrink-0"
+                ariaLabel="Ver stock en sala de venta"
+                title="Stock en sala de venta"
+                onClick={() => setStockDialogOpen(true)}
+                data-test-id="pos-cart-line-stock-info"
+              />
+            ) : null}
+            <PosProductNameWithAttributes
+              name={line.productName}
+              attributes={line.attributes}
+              className="min-w-0 flex-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+            />
+          </div>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 font-mono text-[11px] text-muted-foreground">
             <span>SKU {line.sku ?? "—"}</span>
             {code && code !== "—" ? (
@@ -157,29 +184,16 @@ export default function PosCartLineCard({
             <span className="font-medium text-foreground">
               {formatMoney(line.unitPriceWithTax)}
             </span>
-            {line.unitSymbol ? (
+            {saleUnitLabel ? (
               <>
                 <InlineSepDot />
-                <span className="text-xs text-muted-foreground">{line.unitSymbol}</span>
+                <span className="text-xs text-muted-foreground">{saleUnitLabel}</span>
               </>
             ) : null}
             <InlineSepDot />
-            <span className="inline-flex items-center gap-0.5 font-mono text-[11px] text-muted-foreground">
-              <span>
-                Stock:{" "}
-                <span className="font-semibold text-foreground">{stockLabel}</span>
-              </span>
-              {line.trackInventory ? (
-                <IconButton
-                  icon="Info"
-                  variant="ghost"
-                  size="xs"
-                  ariaLabel="Ver stock en sala de venta"
-                  title="Stock en sala de venta"
-                  onClick={() => setStockDialogOpen(true)}
-                  data-test-id="pos-cart-line-stock-info"
-                />
-              ) : null}
+            <span className="font-mono text-[11px] text-muted-foreground">
+              Stock:{" "}
+              <span className="font-semibold text-foreground">{stockLabel}</span>
             </span>
           </div>
           {line.discount ? (
@@ -234,19 +248,19 @@ export default function PosCartLineCard({
                   onClick={() => setQtyDialogOpen(true)}
                   data-test-id="pos-cart-line-edit-qty"
                 />
+                {onRemove ? (
+                  <IconButton
+                    icon="Trash2"
+                    variant="basicSecondary"
+                    size="xs"
+                    ariaLabel="Eliminar producto del carrito"
+                    title="Eliminar"
+                    onClick={onRemove}
+                    data-test-id="pos-cart-line-remove"
+                  />
+                ) : null}
               </div>
             </div>
-            {onRemove ? (
-              <IconButton
-                icon="Trash2"
-                variant="basicSecondary"
-                size="sm"
-                ariaLabel="Eliminar producto del carrito"
-                title="Eliminar"
-                onClick={onRemove}
-                data-test-id="pos-cart-line-remove"
-              />
-            ) : null}
           </div>
         </div>
       </div>
@@ -279,7 +293,17 @@ export default function PosCartLineCard({
               <p>
                 <span className="text-muted-foreground">Disponible (venta): </span>
                 <span className="font-mono font-semibold">
-                  {stockDetail.availableStock == null ? "—" : String(stockDetail.availableStock)}
+                  {(() => {
+                    const qty = posFormatStockQuantity({
+                      trackInventory: true,
+                      availableStock: stockDetail.availableStock,
+                      availableStockBase: stockDetail.availableStockBase,
+                      stockBaseQtyPerCountSaleUnit: line.stockBaseQtyPerCountSaleUnit,
+                      unitAllowDecimals: line.unitAllowDecimals,
+                    });
+                    if (!qty) return "—";
+                    return saleUnitLabel ? `${qty} ${saleUnitLabel}` : qty;
+                  })()}
                 </span>
               </p>
               <p>

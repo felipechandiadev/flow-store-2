@@ -2,15 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { readPosContextClient, type PosContextV1 } from "@/features/session/lib/pos-context-storage";
+import { fetchPointOfSalePriceListsAction } from "@/features/session/actions/point-of-sale-pos.action";
+import {
+  patchPosContextClient,
+  readPosContextClient,
+  type PosContextV1,
+  type PosPriceListSnapshot,
+} from "@/features/session/lib/pos-context-storage";
 import { Button, IconButton } from "@/shared/admin-shared";
-import { ArrowUpFromLine, Package, RotateCcw } from "lucide-react";
+import { ArrowUpFromLine, Package, RotateCcw, ShoppingCart } from "lucide-react";
 import PosProductSearchPanel, { POS_PRODUCT_SEARCH_PANEL_HEIGHT_VH } from "./PosProductSearchPanel";
 import PosCartLineCard from "./PosCartLineCard";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { LoadQuotationDialog } from "./LoadQuotationDialog";
 import { LoadReturnSaleDialog } from "./LoadReturnSaleDialog";
 import { LoadBackorderDialog } from "./LoadBackorderDialog";
+import { posCartQuantityExceedsAvailableStock } from "@/features/pos-products/ui/posProductPreview";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(
@@ -22,6 +29,7 @@ export default function PosWorkspace() {
   const router = useRouter();
   const [ctx, setCtx] = useState<PosContextV1 | null>(null);
   const [priceListId, setPriceListId] = useState("");
+  const [priceListOptions, setPriceListOptions] = useState<PosPriceListSnapshot[]>([]);
   const cart = usePosCart();
   const [loadQuotationOpen, setLoadQuotationOpen] = useState(false);
   const [loadReturnOpen, setLoadReturnOpen] = useState(false);
@@ -30,6 +38,30 @@ export default function PosWorkspace() {
   const isFulfillBackorderMode = cart.isFulfillBackorderMode;
   const cartLocked = isReturnMode || isFulfillBackorderMode;
 
+  const refreshPriceListOptions = useCallback(async (posId: string, currentListId?: string) => {
+    const res = await fetchPointOfSalePriceListsAction(posId);
+    if (!res.success || res.priceLists.length === 0) {
+      return;
+    }
+    setPriceListOptions(res.priceLists);
+    patchPosContextClient({ priceLists: res.priceLists });
+
+    const preferred =
+      (currentListId && res.priceLists.some((p) => p.id === currentListId)
+        ? currentListId
+        : null) ??
+      (res.defaultPriceListId && res.priceLists.some((p) => p.id === res.defaultPriceListId)
+        ? res.defaultPriceListId
+        : null) ??
+      res.priceLists[0]?.id ??
+      "";
+
+    if (preferred) {
+      setPriceListId(preferred);
+      patchPosContextClient({ priceListId: preferred });
+    }
+  }, []);
+
   useEffect(() => {
     const c = readPosContextClient();
     if (!c?.pointOfSaleId || !c?.priceListId) {
@@ -37,14 +69,15 @@ export default function PosWorkspace() {
       return;
     }
     setCtx(c);
-    setPriceListId(String(c.priceListId));
-  }, [router]);
-
-  const priceListOptions = useMemo(() => {
-    if (ctx?.priceLists?.length) return ctx.priceLists;
-    if (ctx?.priceListId) return [{ id: ctx.priceListId, name: "Lista de precios" }];
-    return [];
-  }, [ctx]);
+    const listId = String(c.priceListId);
+    setPriceListId(listId);
+    if (c.priceLists?.length) {
+      setPriceListOptions(c.priceLists);
+    } else {
+      setPriceListOptions([{ id: listId, name: "Lista de precios" }]);
+    }
+    void refreshPriceListOptions(c.pointOfSaleId, listId);
+  }, [router, refreshPriceListOptions]);
 
   const branchId = ctx?.branchId?.trim() ? ctx.branchId.trim() : null;
 
@@ -72,6 +105,22 @@ export default function PosWorkspace() {
   );
   const saleTotal = Math.max(0, totals.gross - lineDiscountsTotal - (cart.orderDiscount ?? 0));
 
+  const hasInsufficientStock = useMemo(
+    () => cart.lines.some((line) => posCartQuantityExceedsAvailableStock(line)),
+    [cart.lines],
+  );
+
+  const checkoutDisabled = cart.lines.length === 0 || hasInsufficientStock;
+
+  const checkoutTitle = useMemo(() => {
+    if (hasInsufficientStock) {
+      return "Hay productos sin stock suficiente en el carrito";
+    }
+    if (isReturnMode) return "Ir a devolución";
+    if (isFulfillBackorderMode) return "Liquidar encargo";
+    return "Ir a cobro";
+  }, [hasInsufficientStock, isReturnMode, isFulfillBackorderMode]);
+
   if (!ctx?.priceListId) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-sm text-zinc-500">
@@ -88,6 +137,7 @@ export default function PosWorkspace() {
         branchId={branchId}
         pointOfSaleId={ctx.pointOfSaleId}
         onPriceListChange={setPriceListId}
+        onRefreshPriceListOptions={() => refreshPriceListOptions(ctx.pointOfSaleId, priceListId)}
         onPickProduct={cartLocked ? undefined : addProduct}
         disabled={cartLocked}
         disabledHint={
@@ -154,11 +204,11 @@ export default function PosWorkspace() {
             <p className="text-xs text-zinc-500" data-test-id="pos-cart-items-count">
               {cart.itemsCount} ítems
             </p>
-            <IconButton
-              icon="ShoppingCart"
-              variant="basicSecondary"
-              size="sm"
-              ariaLabel="Carrito"
+            <ShoppingCart
+              size={18}
+              strokeWidth={2}
+              className="shrink-0 text-primary"
+              aria-hidden
               data-test-id="pos-cart-icon"
             />
           </div>
@@ -284,17 +334,9 @@ export default function PosWorkspace() {
               variant="outlined"
               size="lg"
               className="mx-6 shrink-0"
-              ariaLabel={
-                isReturnMode ? "Ir a devolución" : isFulfillBackorderMode ? "Ir a cobro" : "Ir a cobro"
-              }
-              disabled={cart.lines.length === 0}
-              title={
-                isReturnMode
-                  ? "Ir a devolución"
-                  : isFulfillBackorderMode
-                    ? "Liquidar encargo"
-                    : "Ir a cobro"
-              }
+              ariaLabel={checkoutTitle}
+              disabled={checkoutDisabled}
+              title={checkoutTitle}
               onClick={() => router.push("/pos/payment")}
               data-test-id="pos-cart-checkout-icon"
             />

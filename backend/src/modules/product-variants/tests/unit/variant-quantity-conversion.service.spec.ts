@@ -3,7 +3,6 @@ import { VariantQuantityConversionService } from '@modules/product-variants/appl
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
 import { UnitDimension } from '@modules/units/domain/unit-dimension.enum';
-import { posDisplayStockInSaleUnits } from '@modules/product-variants/application/variant-count-bridge.util';
 
 describe('VariantQuantityConversionService', () => {
   const service = new VariantQuantityConversionService({} as any, {} as any);
@@ -124,18 +123,5 @@ describe('VariantQuantityConversionService', () => {
     expect(r.quantityInBase).toBe(500);
     expect(r.unitConversionFactor).toBe(250);
     expect(r.stockBaseUnitId).toBe('u-g');
-  });
-});
-
-describe('posDisplayStockInSaleUnits', () => {
-  it('divide saldo base por factor de conteo', () => {
-    expect(
-      posDisplayStockInSaleUnits({
-        physicalStockInBase: 500,
-        stockBaseDimension: UnitDimension.MASS,
-        saleDimension: UnitDimension.COUNT,
-        stockBaseQtyPerCountSaleUnit: 250,
-      }),
-    ).toBe(2);
   });
 });

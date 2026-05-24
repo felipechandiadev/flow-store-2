@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { BadgeCheck, Building2, ImageOff, Image as ImageIcon, Store, User, Wifi, WifiOff } from "lucide-react";
@@ -25,6 +25,21 @@ function roleLabel(role: string): string {
   return role.trim();
 }
 
+type TopBarNavIconVariant = "text" | "basicSecondary";
+
+/** Primary por defecto; secondary cuando la ruta coincide (sección activa). */
+function topBarNavIconVariant(active: boolean): TopBarNavIconVariant {
+  return active ? "basicSecondary" : "text";
+}
+
+function pathnameMatchesRoute(pathname: string, routePrefix: string): boolean {
+  const p = pathname.trim() || "/";
+  if (routePrefix === "/pos") {
+    return p === "/pos" || p.startsWith("/pos/payment") || p.startsWith("/pos/credit-payment");
+  }
+  return p === routePrefix || p.startsWith(`${routePrefix}/`);
+}
+
 export default function PosTopBar({
   pointOfSaleName = null,
   companyTradeName = null,
@@ -46,6 +61,7 @@ export default function PosTopBar({
   const effectivePerson = personName?.trim() ? personName.trim() : "";
   const effectiveRole = userRole?.trim() ? roleLabel(userRole) : "";
   const router = useRouter();
+  const pathname = usePathname() ?? "";
 
   const title = "KaiStore";
   const subtitle = "POS";
@@ -250,67 +266,80 @@ export default function PosTopBar({
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-2">
-          <StockAlertsDropdown />
           <nav className="flex items-center gap-2">
             <IconButton
-              icon="Users"
-              variant="basic"
-              size="md"
-              ariaLabel="Clientes"
-              onClick={() => router.push("/customers")}
-              data-test-id="pos-topbar-customers"
-            />
-            <IconButton
               icon="ShoppingCart"
-              variant="basic"
+              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/pos"))}
               size="md"
               ariaLabel="Ir al punto de venta"
               title="Punto de venta"
+              aria-current={pathnameMatchesRoute(pathname, "/pos") ? "page" : undefined}
               onClick={() => router.push("/pos")}
               data-test-id="pos-topbar-pos"
             />
             <IconButton
+              icon="Users"
+              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/customers"))}
+              size="md"
+              ariaLabel="Clientes"
+              aria-current={pathnameMatchesRoute(pathname, "/customers") ? "page" : undefined}
+              onClick={() => router.push("/customers")}
+              data-test-id="pos-topbar-customers"
+            />
+            <StockAlertsDropdown />
+            <IconButton
               icon="FileCheck"
-              variant="basic"
+              variant={topBarNavIconVariant(
+                pathnameMatchesRoute(pathname, "/purchasing/receptions"),
+              )}
               size="md"
               ariaLabel="Recepción de compra"
               title="Recepción de compra"
+              aria-current={
+                pathnameMatchesRoute(pathname, "/purchasing/receptions") ? "page" : undefined
+              }
               onClick={() => router.push("/purchasing/receptions/new")}
               data-test-id="pos-topbar-reception"
             />
             <IconButton
               icon="ArrowLeftRight"
-              variant="basic"
+              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/movements"))}
               size="md"
               ariaLabel="Movimientos de caja"
               title="Movimientos de caja"
+              aria-current={pathnameMatchesRoute(pathname, "/cash/movements") ? "page" : undefined}
               onClick={() => router.push("/cash/movements")}
               data-test-id="pos-topbar-cash-movements"
             />
             <IconButton
               icon="BanknoteArrowDown"
-              variant="basic"
+              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/hub-deposit"))}
               size="md"
               ariaLabel="Ingreso de efectivo desde centro de efectivo"
               title="Ingreso desde centro de efectivo"
+              aria-current={pathnameMatchesRoute(pathname, "/cash/hub-deposit") ? "page" : undefined}
               onClick={() => router.push("/cash/hub-deposit")}
               data-test-id="pos-topbar-hub-deposit"
             />
             <IconButton
               icon="BanknoteArrowUp"
-              variant="basic"
+              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/hub-withdrawal"))}
               size="md"
               ariaLabel="Egreso de efectivo a centro de efectivo"
               title="Egreso a centro de efectivo"
+              aria-current={
+                pathnameMatchesRoute(pathname, "/cash/hub-withdrawal") ? "page" : undefined
+              }
               onClick={() => router.push("/cash/hub-withdrawal")}
               data-test-id="pos-topbar-hub-withdrawal"
             />
             <IconButton
               icon="LockKeyhole"
-              variant="basic"
+              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/closing"))}
               size="md"
               ariaLabel="Cerrar caja"
               title="Cerrar caja"
+              aria-current={pathnameMatchesRoute(pathname, "/cash/closing") ? "page" : undefined}
               onClick={() => router.push("/cash/closing")}
               data-test-id="pos-topbar-cash-closing"
             />
@@ -342,14 +371,14 @@ export default function PosTopBar({
                         <Wifi
                           className="shrink-0 text-emerald-600 dark:text-emerald-400"
                           size={24}
-                          strokeWidth={2.25}
+                          strokeWidth={2}
                           aria-hidden
                         />
                       ) : (
                         <WifiOff
                           className="shrink-0 text-red-600 dark:text-red-400"
                           size={24}
-                          strokeWidth={2.25}
+                          strokeWidth={2}
                           aria-hidden
                         />
                       )}
@@ -359,7 +388,7 @@ export default function PosTopBar({
               />
               <IconButton
                 icon="LogOut"
-                variant="basic"
+                variant="text"
                 size="md"
                 ariaLabel="Cerrar sesión"
                 onClick={() => signOut({ callbackUrl: "/" })}

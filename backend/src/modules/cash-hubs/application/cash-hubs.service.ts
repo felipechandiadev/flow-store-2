@@ -12,6 +12,7 @@ import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity
 import { Transaction, TransactionStatus, TransactionType } from '@modules/transactions/domain/transaction.entity';
 import type { CreateCashHubBodyDto } from './dto/cash-hub.dto';
 import type { UpdateCashHubBodyDto } from './dto/cash-hub.dto';
+import { nextCashHubCodeFromExisting } from './cash-hub-code.util';
 
 @Injectable()
 export class CashHubsService {
@@ -128,10 +129,11 @@ export class CashHubsService {
     await this.assertPosExclusive(dto.companyId, null, dto.pointOfSaleIds);
     await this.assertPosBelongsToCompanyBranches(dto.companyId, dto.branchIds ?? [], dto.pointOfSaleIds);
 
+    const code = await this.allocateNextCashHubCode(dto.companyId);
     const hub = this.hubRepo.create({
       companyId: dto.companyId,
       name: dto.name.trim(),
-      code: dto.code?.trim() || null,
+      code,
       notes: dto.notes?.trim() || null,
       isActive: dto.isActive ?? true,
     });
@@ -143,7 +145,6 @@ export class CashHubsService {
   async update(id: string, companyId: string, dto: UpdateCashHubBodyDto): Promise<CashHub> {
     const hub = await this.getOne(id, companyId);
     if (dto.name != null) hub.name = dto.name.trim();
-    if (dto.code !== undefined) hub.code = dto.code?.trim() || null;
     if (dto.notes !== undefined) hub.notes = dto.notes?.trim() || null;
     if (dto.isActive != null) hub.isActive = dto.isActive;
 
@@ -250,6 +251,26 @@ export class CashHubsService {
         );
       }
     }
+  }
+
+  private async allocateNextCashHubCode(companyId: string): Promise<string> {
+    const maxAttempts = 5;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const rows = await this.hubRepo.find({
+        where: { companyId },
+        select: ['code'],
+      });
+      const candidate = nextCashHubCodeFromExisting(rows.map((r) => r.code));
+      const taken = await this.hubRepo.exist({
+        where: { companyId, code: candidate },
+      });
+      if (!taken) {
+        return candidate;
+      }
+    }
+    throw new ConflictException(
+      'No se pudo generar un código único para el centro de efectivo. Intente de nuevo.',
+    );
   }
 
   private async applyRelations(

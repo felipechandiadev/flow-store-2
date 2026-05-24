@@ -421,9 +421,15 @@ pub fn print_escpos_to_printer(
     if thermal.auto_cut {
         data.extend(crate::pos_sale_ticket_escpos::escpos_feed_and_cut_commands());
     }
-    for i in 0..copies.max(1) {
-        print_raw_bytes_to_printer(printer, &data)
-            .with_context(|| format!("copia ESC/POS {} de {}", i + 1, copies.max(1)))?;
+    let copy_count = copies.max(1);
+    for i in 0..copy_count {
+        print_raw_bytes_to_printer(printer, &data).with_context(|| {
+            if copy_count > 1 {
+                format!("copia {} de {copy_count}", i + 1)
+            } else {
+                "envío ESC/POS RAW".into()
+            }
+        })?;
     }
     tracing::info!(
         printer,

@@ -229,11 +229,20 @@ export class ProductVariant {
   @Column({ type: 'int', default: 0 })
   minimumStock!: number;
 
+  @Column({ name: 'minimum_stock_enabled', type: 'boolean', default: false })
+  minimumStockEnabled!: boolean;
+
   @Column({ type: 'int', default: 0 })
   maximumStock!: number;
 
+  @Column({ name: 'maximum_stock_enabled', type: 'boolean', default: false })
+  maximumStockEnabled!: boolean;
+
   @Column({ type: 'int', default: 0 })
   reorderPoint!: number;
+
+  @Column({ name: 'reorder_point_enabled', type: 'boolean', default: false })
+  reorderPointEnabled!: boolean;
 
   primaryImageUrl?: string | null;
 

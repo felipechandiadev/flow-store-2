@@ -25,6 +25,10 @@ import { TransactionLine } from '@modules/transaction-lines/domain/transaction-l
 import { UpdateStockLevelThresholdsDto } from './dto/update-stock-level-thresholds.dto';
 import type { StockUpdatedPayload } from '@modules/stock-realtime/stock-realtime.types';
 import { buildStockUpdatedPayload } from '@modules/stock-realtime/stock-threshold-alert-payload.util';
+import {
+  resolveEffectiveThresholdsForStorage,
+  variantThresholdDefaultsFromRow,
+} from '@modules/stock-realtime/stock-threshold-field.util';
 import { NotificationInboxService } from '@modules/notifications/application/notification-inbox.service';
 import { StockAlertNotificationService } from '@modules/notifications/application/stock-alert-notification.service';
 
@@ -263,6 +267,10 @@ export class InventoryService {
         entries.length === 0 &&
         placeholderStorage
       ) {
+        const placeholderThresholds = resolveEffectiveThresholdsForStorage(
+          variantThresholdDefaultsFromRow(variant),
+          {},
+        );
         row.storageBreakdown.push({
           stockLevelId: null,
           storageId: placeholderStorage.id,
@@ -273,26 +281,29 @@ export class InventoryService {
           reservedStock: 0,
           availableAfterReservation: 0,
           committedStock: 0,
-          minimumStockOverride: null,
-          maximumStockOverride: null,
-          reorderPointOverride: null,
-          effectiveMinimumStock: Number(variant.minimumStock || 0),
-          effectiveMaximumStock: Number(variant.maximumStock || 0),
-          effectiveReorderPoint: Number(variant.reorderPoint || 0),
+          ...placeholderThresholds,
         });
       }
 
+      const variantThresholds = variantThresholdDefaultsFromRow(variant);
       let anyBelowEffective = false;
       for (const sl of entries) {
         const qty = Number(sl.physicalStock || 0);
         const reservedQty = Number(sl.committedStock || 0);
         const availableQty = qty - reservedQty;
         row.reservedStock += reservedQty;
-        const effMin =
-          sl.minimumStock != null
-            ? Number(sl.minimumStock)
-            : Number(variant.minimumStock || 0);
-        if (effMin > 0 && qty < effMin) {
+        const resolved = resolveEffectiveThresholdsForStorage(variantThresholds, {
+          minimumStock: sl.minimumStock ?? null,
+          minimumStockEnabled: sl.minimumStockEnabled ?? null,
+          maximumStock: sl.maximumStock ?? null,
+          maximumStockEnabled: sl.maximumStockEnabled ?? null,
+          reorderPoint: sl.reorderPoint ?? null,
+          reorderPointEnabled: sl.reorderPointEnabled ?? null,
+        });
+        if (
+          resolved.effectiveMinimumStockEnabled &&
+          qty < resolved.effectiveMinimumStock
+        ) {
           anyBelowEffective = true;
         }
         row.storageBreakdown.push({
@@ -305,18 +316,7 @@ export class InventoryService {
           reservedStock: reservedQty,
           availableAfterReservation: availableQty,
           committedStock: reservedQty,
-          minimumStockOverride: sl.minimumStock ?? null,
-          maximumStockOverride: sl.maximumStock ?? null,
-          reorderPointOverride: sl.reorderPoint ?? null,
-          effectiveMinimumStock: effMin,
-          effectiveMaximumStock:
-            sl.maximumStock != null
-              ? Number(sl.maximumStock)
-              : Number(variant.maximumStock || 0),
-          effectiveReorderPoint:
-            sl.reorderPoint != null
-              ? Number(sl.reorderPoint)
-              : Number(variant.reorderPoint || 0),
+          ...resolved,
         });
         row.totalStock += qty;
         row.availableStock += availableQty;
@@ -330,7 +330,8 @@ export class InventoryService {
       row.availableAfterReservation = Number(row.availableStock || 0);
       row.isBelowMinimum =
         anyBelowEffective ||
-        Number(row.totalStock) < Number(variant.minimumStock || 0);
+        (variant.minimumStockEnabled &&
+          Number(row.totalStock) < Number(variant.minimumStock || 0));
     }
 
     const rows = variants.map((v) => grouped[v.id]).filter(Boolean);
@@ -831,11 +832,20 @@ export class InventoryService {
     if (body.minimumStock !== undefined) {
       level.minimumStock = body.minimumStock;
     }
+    if (body.minimumStockEnabled !== undefined) {
+      level.minimumStockEnabled = body.minimumStockEnabled;
+    }
     if (body.maximumStock !== undefined) {
       level.maximumStock = body.maximumStock;
     }
+    if (body.maximumStockEnabled !== undefined) {
+      level.maximumStockEnabled = body.maximumStockEnabled;
+    }
     if (body.reorderPoint !== undefined) {
       level.reorderPoint = body.reorderPoint;
+    }
+    if (body.reorderPointEnabled !== undefined) {
+      level.reorderPointEnabled = body.reorderPointEnabled;
     }
     await this.dataSource.getRepository(StockLevel).save(level);
     return { ok: true, id: level.id };

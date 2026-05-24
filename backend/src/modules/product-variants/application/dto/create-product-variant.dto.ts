@@ -153,16 +153,31 @@ export class CreateProductVariantDto {
   minimumStock?: number;
 
   @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  minimumStockEnabled?: boolean;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   maximumStock?: number;
 
   @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  maximumStockEnabled?: boolean;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   reorderPoint?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  reorderPointEnabled?: boolean;
 
   @IsOptional()
   @Type(() => Boolean)
