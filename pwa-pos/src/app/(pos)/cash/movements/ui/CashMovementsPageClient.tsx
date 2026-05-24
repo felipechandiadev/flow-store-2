@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { DataGrid, type DataGridColumn, Alert, IconButton, DotProgress } from "@/shared/admin-shared";
 import { listCashSessionMovementsAction } from "@/features/session/actions/cash-session-movements.action";
 import type { CashSessionMovementRow } from "@/features/session/types/cash-session-movement.types";
@@ -67,7 +66,6 @@ function movementTransactionId(row: CashSessionMovementRow): string {
 }
 
 export default function CashMovementsPageClient() {
-  const router = useRouter();
   const [cashSessionId, setCashSessionId] = useState<string | null>(null);
   const [rows, setRows] = useState<CashSessionMovementRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -317,22 +315,9 @@ export default function CashMovementsPageClient() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--color-foreground)" }}>
-            Movimientos de caja
-          </h1>
-        </div>
-        <IconButton
-          icon="ArrowLeft"
-          variant="basic"
-          size="md"
-          ariaLabel="Volver al punto de venta"
-          title="Volver al punto de venta"
-          onClick={() => router.push("/pos")}
-          data-test-id="cash-movements-back-pos"
-        />
-      </div>
+      <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--color-foreground)" }}>
+        Movimientos de caja
+      </h1>
 
       {error ? (
         <Alert variant="warning" data-test-id="cash-movements-error">

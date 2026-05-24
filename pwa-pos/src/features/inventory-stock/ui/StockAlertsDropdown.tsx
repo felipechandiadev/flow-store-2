@@ -1,29 +1,32 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle } from "lucide-react";
 import IconButton from "@/shared/components/IconButton/IconButton";
+import { formatReceivedAt } from "../lib/stock-alert-copy";
+import { labelNotificationKind } from "@/features/notifications/lib/notification-labels";
 import { useStockRealtime } from "../realtime/stock-realtime-context";
-import {
-  formatReceivedAt,
-  labelStockAlertKind,
-  shortVariantId,
-} from "../lib/stock-alert-copy";
+import { PosTopBarCountBadge } from "@/shared/components/PosTopBar/PosTopBarCountBadge";
 
 const PANEL_Z = 200;
 
+function formatQty(n: number): string {
+  return new Intl.NumberFormat("es-CL", { maximumFractionDigits: 3 }).format(n);
+}
+
 export function StockAlertsDropdown() {
-  const { stockAlertCount, lastStockEvents, clearStockAlerts } = useStockRealtime();
+  const { stockAlertCount, notificationRows, clearStockAlerts, refreshStockAlerts } =
+    useStockRealtime();
   const [open, setOpen] = useState(false);
   const triggerWrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  const alertRows = useMemo(
-    () => lastStockEvents.filter((e) => Array.isArray(e.alerts) && e.alerts.length > 0),
-    [lastStockEvents],
-  );
+  useEffect(() => {
+    if (!open) return;
+    void refreshStockAlerts();
+  }, [open, refreshStockAlerts]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -92,36 +95,46 @@ export function StockAlertsDropdown() {
           <span className="text-sm font-semibold tracking-tight">Alertas de stock</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {alertRows.length === 0 ? (
-            <p className="px-3 py-8 text-center text-sm" style={{ color: "var(--color-muted-foreground, #737373)" }}>
-              Sin alertas recientes. Aparecerán al cargar la página o cuando el inventario cruce los umbrales (tiempo
-              real).
+          {notificationRows.length === 0 ? (
+            <p
+              className="px-3 py-8 text-center text-sm"
+              style={{ color: "var(--color-muted-foreground, #737373)" }}
+            >
+              Sin alertas recientes. Aparecerán al cargar la página o cuando el inventario cruce los
+              umbrales (tiempo real).
             </p>
           ) : (
             <ul>
-              {alertRows.map((evt, idx) => (
+              {notificationRows.map((evt) => (
                 <li
-                  key={`${evt.productVariantId}-${evt.storageId}-${(evt as { receivedAt?: number }).receivedAt ?? idx}`}
+                  key={evt.deliveryId}
                   className="border-b px-3 py-2.5 last:border-b-0"
                   style={{ borderColor: "var(--color-border)" }}
                 >
                   <p className="text-xs font-medium" style={{ color: "var(--color-muted-foreground, #737373)" }}>
-                    {formatReceivedAt((evt as { receivedAt?: number }).receivedAt)}
+                    {formatReceivedAt(evt.receivedAt)}
                   </p>
-                  <p className="mt-1 text-xs">
-                    Variante{" "}
-                    <span className="font-mono" style={{ color: "var(--color-foreground)" }}>
-                      {shortVariantId(evt.productVariantId)}
-                    </span>
-                    {" · "}
-                    Stock físico{" "}
-                    <strong>{Number(evt.physicalStock).toLocaleString("es-CL", { maximumFractionDigits: 3 })}</strong>
-                  </p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{evt.productName}</p>
+                  {evt.attributesLabel ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground">{evt.attributesLabel}</p>
+                  ) : null}
+                  {evt.storageName ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Almacén: <span className="text-foreground">{evt.storageName}</span>
+                    </p>
+                  ) : null}
+                  {evt.body ? (
+                    <p className="mt-1 text-xs text-foreground/90">{evt.body}</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-foreground/90">
+                      Stock físico <strong>{formatQty(evt.physicalStock)}</strong>
+                    </p>
+                  )}
                   <ul className="mt-1.5 space-y-0.5 text-xs text-amber-800 dark:text-amber-200">
-                    {evt.alerts!.map((a) => (
+                    {evt.alertLabels.map((a) => (
                       <li key={a} className="flex items-center gap-1.5">
                         <AlertTriangle className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
-                        <span>{labelStockAlertKind(a)}</span>
+                        <span>{labelNotificationKind(a)}</span>
                       </li>
                     ))}
                   </ul>
@@ -130,7 +143,7 @@ export function StockAlertsDropdown() {
             </ul>
           )}
         </div>
-        {alertRows.length > 0 ? (
+        {notificationRows.length > 0 ? (
           <div
             className="border-t px-2 py-2"
             style={{ borderColor: "var(--color-border)", backgroundColor: "rgba(0,0,0,0.03)" }}
@@ -140,7 +153,7 @@ export function StockAlertsDropdown() {
               className="w-full rounded-md px-2 py-1.5 text-center text-sm font-medium"
               style={{ color: "var(--color-foreground)" }}
               onClick={() => {
-                clearStockAlerts();
+                void clearStockAlerts();
                 setOpen(false);
               }}
               data-test-id="stock-alerts-clear"
@@ -159,6 +172,7 @@ export function StockAlertsDropdown() {
           icon="Bell"
           variant="text"
           size="md"
+          className="fs-icon-button--no-hover"
           ariaLabel={`Alertas de stock${stockAlertCount > 0 ? `: ${stockAlertCount} nuevas` : ""}`}
           title="Alertas de stock"
           aria-expanded={open}
@@ -166,14 +180,7 @@ export function StockAlertsDropdown() {
           onClick={() => setOpen((v) => !v)}
           data-test-id="stock-alerts-trigger"
         />
-        {stockAlertCount > 0 ? (
-          <span
-            className="pointer-events-none absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none text-white"
-            style={{ backgroundColor: "var(--color-destructive, #dc2626)" }}
-          >
-            {stockAlertCount > 99 ? "99+" : stockAlertCount}
-          </span>
-        ) : null}
+        <PosTopBarCountBadge count={stockAlertCount} />
       </div>
       {typeof document !== "undefined" && panel ? createPortal(panel, document.body) : null}
     </div>

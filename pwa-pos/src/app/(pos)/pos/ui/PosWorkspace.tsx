@@ -17,8 +17,6 @@ import { usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { LoadQuotationDialog } from "./LoadQuotationDialog";
 import { LoadReturnSaleDialog } from "./LoadReturnSaleDialog";
 import { LoadBackorderDialog } from "./LoadBackorderDialog";
-import { posCartQuantityExceedsAvailableStock } from "@/features/pos-products/ui/posProductPreview";
-
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(
     Math.round(n),
@@ -105,21 +103,13 @@ export default function PosWorkspace() {
   );
   const saleTotal = Math.max(0, totals.gross - lineDiscountsTotal - (cart.orderDiscount ?? 0));
 
-  const hasInsufficientStock = useMemo(
-    () => cart.lines.some((line) => posCartQuantityExceedsAvailableStock(line)),
-    [cart.lines],
-  );
-
-  const checkoutDisabled = cart.lines.length === 0 || hasInsufficientStock;
+  const checkoutDisabled = cart.lines.length === 0;
 
   const checkoutTitle = useMemo(() => {
-    if (hasInsufficientStock) {
-      return "Hay productos sin stock suficiente en el carrito";
-    }
     if (isReturnMode) return "Ir a devolución";
     if (isFulfillBackorderMode) return "Liquidar encargo";
     return "Ir a cobro";
-  }, [hasInsufficientStock, isReturnMode, isFulfillBackorderMode]);
+  }, [isReturnMode, isFulfillBackorderMode]);
 
   if (!ctx?.priceListId) {
     return (

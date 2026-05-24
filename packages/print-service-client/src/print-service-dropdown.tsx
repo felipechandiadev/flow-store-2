@@ -18,7 +18,7 @@ function httpsPageForLocalTlsCert(wssUrl: string): string | null {
   }
 }
 
-/** Mismo badge que `NotificationsDropdown` en pwa-admin (campana de stock). */
+/** Mismo estilo que la campana de alertas de stock en Admin (`StockAlertsDropdown`). */
 function PrintServiceUnreadBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (

@@ -311,11 +311,18 @@ export class ProductRequest {
    * `pageSize` alto para armar paginación en el servidor de la página.
    */
   /** pageSize máx. 50 por validación del DTO en `GET /products`. */
-  static async searchProducts(query: string, pageSize = 50): Promise<ProductGridRow[]> {
+  static async searchProducts(
+    query: string,
+    pageSize = 50,
+    productType?: string,
+  ): Promise<ProductGridRow[]> {
     const headers = await authHeaders();
     const q = new URLSearchParams();
     if (query.trim()) {
       q.set("query", query.trim());
+    }
+    if (productType?.trim()) {
+      q.set("productType", productType.trim());
     }
     q.set("pageSize", String(Math.min(50, Math.max(1, pageSize))));
     q.set("page", "1");

@@ -159,7 +159,15 @@ export default function ProductVariantDetailPage({ product, variant: initialVari
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 pb-16" data-test-id="product-variant-detail-root">
       <header className="border-b border-border pb-4" data-test-id="product-variant-detail-header">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2 sm:gap-x-3">
+          <IconButton
+            icon="ArrowLeft"
+            variant="basicSecondary"
+            size="sm"
+            onClick={() => router.back()}
+            ariaLabel="Volver a la página anterior"
+            data-test-id="product-variant-detail-back"
+          />
           <h1
             className="min-w-0 text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
             title={product.name}

@@ -570,6 +570,7 @@ function StockExpandPanel({
   row,
   storages,
   branchId,
+  filterStorageId,
   busy,
   canTransfer,
   countInSaleUnits,
@@ -581,6 +582,8 @@ function StockExpandPanel({
   row: StockGridRow;
   storages: StorageListItem[];
   branchId?: string;
+  /** Si está definido, solo se muestra la card de ese almacén al expandir la fila. */
+  filterStorageId?: string;
   busy: boolean;
   canTransfer: boolean;
   countInSaleUnits: boolean;
@@ -589,10 +592,14 @@ function StockExpandPanel({
   onQuickDelta: (p: { variantId: string; storageId: string; currentQty: number; delta: number }) => void;
   onTransfer: (p: { variantId: string; sourceStorageId: string; sourceLabel: string }) => void;
 }) {
-  const cards = useMemo(
-    () => mergeStoragesWithBreakdown(storages, row.storageBreakdown ?? [], branchId),
-    [storages, row.storageBreakdown, branchId],
-  );
+  const cards = useMemo(() => {
+    const merged = mergeStoragesWithBreakdown(storages, row.storageBreakdown ?? [], branchId);
+    const sid = filterStorageId?.trim();
+    if (!sid) {
+      return merged;
+    }
+    return merged.filter((b) => b.storageId === sid);
+  }, [storages, row.storageBreakdown, branchId, filterStorageId]);
 
   const stockSym = unitLabelSymbol(row, "stock");
   const saleSym = unitLabelSymbol(row, "sale");
@@ -954,6 +961,7 @@ export default function StockDataGrid({
         row={row}
         storages={storages}
         branchId={branchId}
+        filterStorageId={filterStorageId}
         busy={isSaving}
         canTransfer={canTransferStock}
         countInSaleUnits={countInSaleUnits}
@@ -966,6 +974,7 @@ export default function StockDataGrid({
     [
       storages,
       branchId,
+      filterStorageId,
       isSaving,
       canTransferStock,
       countInSaleUnits,

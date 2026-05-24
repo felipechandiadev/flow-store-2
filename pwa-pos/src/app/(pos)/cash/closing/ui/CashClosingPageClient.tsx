@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Alert, Button, DotProgress, IconButton, Select, TextField } from "@/shared/admin-shared";
+import { Alert, Button, DotProgress, Select, TextField } from "@/shared/admin-shared";
 import type { Option } from "@/shared/components/Select/Select";
 import { readPosContextClient, patchPosContextClient } from "@/features/session/lib/pos-context-storage";
 import { listOpenCashSessionsAction } from "@/features/session/actions/cash-session.action";
@@ -61,29 +61,9 @@ function parseAmountCLPInput(raw: string): number {
 
 type CloseOk = Extract<Awaited<ReturnType<typeof closeCashSessionAction>>, { success: true }>;
 
-type CashClosingPageHeaderProps = {
-  title: string;
-  onBack: () => void;
-};
-
-function CashClosingPageHeader({ title, onBack }: CashClosingPageHeaderProps) {
+function CashClosingPageHeader({ title }: { title: string }) {
   return (
-    <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
-      </div>
-      <div className="shrink-0">
-        <IconButton
-          icon="ArrowLeft"
-          variant="ghost"
-          size="md"
-          ariaLabel="Volver al punto de venta"
-          title="Volver al punto de venta"
-          onClick={onBack}
-          data-test-id="cash-closing-back-pos"
-        />
-      </div>
-    </div>
+    <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
   );
 }
 
@@ -213,10 +193,6 @@ export default function CashClosingPageClient() {
     };
   }, [cashSessionId]);
 
-  const goBackToPos = useCallback(() => {
-    router.push("/pos");
-  }, [router]);
-
   const hubOptions: Option[] = useMemo(
     () =>
       hubs.map((h) => ({
@@ -332,7 +308,7 @@ export default function CashClosingPageClient() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-6 py-6">
-      <CashClosingPageHeader title="Cierre de caja (arqueo ciego)" onBack={goBackToPos} />
+      <CashClosingPageHeader title="Cierre de caja (arqueo ciego)" />
 
       {loadError ? (
         <Alert variant="warning" className="text-sm">

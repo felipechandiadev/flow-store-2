@@ -8,7 +8,12 @@ import InlineSwitchField from "./shared/components/InlineSwitchField";
 import SharedTextField from "./shared/components/TextField/TextField";
 import { AgentLogPanel } from "./features/agent-log/AgentLogPanel";
 import { PrinterMappingLineCard } from "./features/printer-mapping/PrinterMappingLineCard";
-import { isLineDirty, lineToSavePayload } from "./features/printer-mapping/mapping-line-utils";
+import {
+  isLineDirty,
+  isTicketNetworkLine,
+  lineToSavePayload,
+} from "./features/printer-mapping/mapping-line-utils";
+import { isPlausibleNetworkHost } from "./features/printer-mapping/ticket-printer-type";
 import type { MappingLineRow } from "./features/printer-mapping/types";
 
 const APP_NAME = "KaiPrinters";
@@ -20,7 +25,7 @@ function normalizeAgentDisplayName(raw: string | undefined): string {
   return t || DEFAULT_AGENT_DISPLAY_NAME;
 }
 
-const VALID_PURPOSES = ["tickets", "documents", "labels", "reports"] as const;
+const VALID_PURPOSES = ["tickets", "documents", "labels"] as const;
 const DEFAULT_PURPOSE = "tickets";
 
 function normalizeMappingPurpose(purpose: string | undefined): string {
@@ -112,17 +117,34 @@ function newLineId() {
 }
 
 function mapDashboardLines(rows: DashboardPayload["mappingLines"]): MappingLineRow[] {
-  return (rows ?? []).map((row) => ({
-    id: String(row?.id ?? newLineId()),
-    purpose: normalizeMappingPurpose(row?.purpose),
-    systemPrinterName: String(row?.systemPrinterName ?? ""),
-    sortOrder: typeof row?.sortOrder === "number" ? row.sortOrder : 0,
-    displayLabel: row?.displayLabel ? String(row.displayLabel) : undefined,
-    autoCutEnabled: row?.autoCutEnabled !== false,
-    ticketLogoPath: row?.ticketLogoPath ? String(row.ticketLogoPath) : undefined,
-    ticketLogoDisplayName: row?.ticketLogoPath ? logoBasename(String(row.ticketLogoPath)) : undefined,
-    ticketLogoEnabled: row?.ticketLogoEnabled === true,
-  }));
+  return (rows ?? []).map((row) => {
+    const purpose = normalizeMappingPurpose(row?.purpose);
+    const ticketPrinterType =
+      purpose === "tickets" && row?.ticketPrinterType != null
+        ? (String(row.ticketPrinterType).trim().toLowerCase() === "network" ? "network" : "system")
+        : undefined;
+    const ticketNetworkHost =
+      row?.ticketNetworkHost != null && String(row.ticketNetworkHost).trim()
+        ? String(row.ticketNetworkHost).trim()
+        : undefined;
+    return {
+      id: String(row?.id ?? newLineId()),
+      purpose,
+      systemPrinterName:
+        row?.systemPrinterName != null && String(row.systemPrinterName).trim()
+          ? String(row.systemPrinterName).trim()
+          : "",
+      sortOrder: typeof row?.sortOrder === "number" ? row.sortOrder : 0,
+      displayLabel: row?.displayLabel ? String(row.displayLabel) : undefined,
+      ticketPrinterType,
+      ticketNetworkHost,
+      autoCutEnabled: row?.autoCutEnabled !== false,
+      drawerOpenEnabled: row?.drawerOpenEnabled === true,
+      ticketLogoPath: row?.ticketLogoPath ? String(row.ticketLogoPath) : undefined,
+      ticketLogoDisplayName: row?.ticketLogoPath ? logoBasename(String(row.ticketLogoPath)) : undefined,
+      ticketLogoEnabled: row?.ticketLogoEnabled === true,
+    };
+  });
 }
 
 function ConnectedSessionCard({ session }: { session: ConnectedSession }) {
@@ -167,6 +189,8 @@ export default function App() {
   const [lineSaveBusyId, setLineSaveBusyId] = useState<string | null>(null);
   const [escposQaBusyId, setEscposQaBusyId] = useState<string | null>(null);
   const [cutTestBusyId, setCutTestBusyId] = useState<string | null>(null);
+  const [drawerTestBusyId, setDrawerTestBusyId] = useState<string | null>(null);
+  const [networkProbeBusyId, setNetworkProbeBusyId] = useState<string | null>(null);
   const [printersRefreshBusy, setPrintersRefreshBusy] = useState(false);
 
   /** Solo mostramos acciones en la fila del summary cuando el `<details>` está expandido */
@@ -283,7 +307,12 @@ export default function App() {
     const idx = localLines.findIndex((l) => l.id === lineId);
     const line = localLines[idx];
     if (!line) return;
-    if (!line.systemPrinterName.trim()) {
+    if (isTicketNetworkLine(line)) {
+      if (!isPlausibleNetworkHost(line.ticketNetworkHost ?? "")) {
+        window.alert("Ingresá una dirección IP válida para la impresora en red.");
+        return;
+      }
+    } else if (!line.systemPrinterName.trim()) {
       window.alert("Seleccioná una impresora del SO en esta línea.");
       return;
     }
@@ -301,6 +330,10 @@ export default function App() {
       const msg = typeof e === "string" ? e : String(e);
       if (msg.includes("display_label_alias_duplicate")) {
         window.alert("Ese alias ya está en uso en otra línea.");
+      } else if (msg.includes("ticket_network_host_required")) {
+        window.alert("Ingresá la dirección IP de la impresora en red.");
+      } else if (msg.includes("systemPrinterName")) {
+        window.alert("Seleccioná una impresora del SO en esta línea.");
       } else {
         window.alert("No se pudo guardar la línea.");
       }
@@ -363,17 +396,53 @@ export default function App() {
     }
   }
 
+  async function handleLineNetworkProbe(line: MappingLineRow) {
+    if (!isTicketNetworkLine(line)) return;
+    const networkHost = line.ticketNetworkHost?.trim() ?? "";
+    if (!isPlausibleNetworkHost(networkHost)) {
+      window.alert("Ingresá una dirección IP válida para probar la conexión.");
+      return;
+    }
+    setNetworkProbeBusyId(line.id);
+    try {
+      const msg = (await invoke("probe_ticket_network_printer", {
+        ticketNetworkHost: networkHost,
+      })) as string;
+      window.alert(msg);
+    } catch (e: unknown) {
+      const msg =
+        typeof e === "string"
+          ? e
+          : e && typeof e === "object" && "message" in e && typeof (e as Error).message === "string"
+            ? (e as Error).message
+            : "No se pudo conectar a la impresora en red.";
+      window.alert(msg);
+    } finally {
+      setNetworkProbeBusyId(null);
+    }
+  }
+
   async function handleLineTestCut(line: MappingLineRow) {
     if (line.purpose !== "tickets") return;
     if (!requireLineSaved(line)) return;
+    const network = isTicketNetworkLine(line);
     const printer = line.systemPrinterName.trim();
-    if (!printer) {
+    const networkHost = line.ticketNetworkHost?.trim() ?? "";
+    if (network) {
+      if (!isPlausibleNetworkHost(networkHost)) {
+        window.alert("Ingresá una dirección IP válida para probar el corte.");
+        return;
+      }
+    } else if (!printer) {
       window.alert("Seleccioná una impresora del sistema para probar el corte.");
       return;
     }
     setCutTestBusyId(line.id);
     try {
-      await invoke("queue_test_cut_print", { systemPrinterName: printer });
+      await invoke("queue_test_cut_print", {
+        systemPrinterName: network ? null : printer,
+        ticketNetworkHost: network ? networkHost : null,
+      });
       await fetchDashboard("live");
     } catch (e: unknown) {
       const msg =
@@ -388,10 +457,52 @@ export default function App() {
     }
   }
 
+  async function handleLineTestDrawer(line: MappingLineRow) {
+    if (line.purpose !== "tickets") return;
+    if (!requireLineSaved(line)) return;
+    const network = isTicketNetworkLine(line);
+    const printer = line.systemPrinterName.trim();
+    const networkHost = line.ticketNetworkHost?.trim() ?? "";
+    if (network) {
+      if (!isPlausibleNetworkHost(networkHost)) {
+        window.alert("Ingresá una dirección IP válida para probar la gaveta.");
+        return;
+      }
+    } else if (!printer) {
+      window.alert("Seleccioná una impresora del sistema para probar la gaveta.");
+      return;
+    }
+    setDrawerTestBusyId(line.id);
+    try {
+      await invoke("queue_test_drawer_print", {
+        systemPrinterName: network ? null : printer,
+        ticketNetworkHost: network ? networkHost : null,
+      });
+      await fetchDashboard("live");
+    } catch (e: unknown) {
+      const msg =
+        typeof e === "string"
+          ? e
+          : e && typeof e === "object" && "message" in e && typeof (e as Error).message === "string"
+            ? (e as Error).message
+            : "No se pudo encolar la prueba de gaveta.";
+      window.alert(msg);
+    } finally {
+      setDrawerTestBusyId(null);
+    }
+  }
+
   async function handleLineEscposQa(line: MappingLineRow) {
     if (!requireLineSaved(line)) return;
+    const network = isTicketNetworkLine(line);
     const printer = line.systemPrinterName.trim();
-    if (!printer) {
+    const networkHost = line.ticketNetworkHost?.trim() ?? "";
+    if (network) {
+      if (!isPlausibleNetworkHost(networkHost)) {
+        window.alert("Ingresá una dirección IP válida para la prueba ESC/POS.");
+        return;
+      }
+    } else if (!printer) {
       window.alert("Seleccioná una impresora del sistema para la prueba ESC/POS.");
       return;
     }
@@ -404,7 +515,8 @@ export default function App() {
       const includeLogo =
         line.ticketLogoEnabled === true && Boolean(line.ticketLogoPath?.trim());
       await invoke("queue_escpos_qa_print", {
-        systemPrinterName: printer,
+        systemPrinterName: network ? null : printer,
+        ticketNetworkHost: network ? networkHost : null,
         purpose: line.purpose,
         includeLogo,
         includeCut: line.autoCutEnabled !== false,
@@ -493,6 +605,7 @@ export default function App() {
         id,
         purpose: DEFAULT_PURPOSE,
         systemPrinterName: "",
+        ticketPrinterType: "system",
         sortOrder: prev.length,
         autoCutEnabled: true,
         ticketLogoEnabled: false,
@@ -795,12 +908,18 @@ export default function App() {
                   saveBusy={lineSaveBusyId === line.id}
                   printBusy={escposQaBusyId === line.id}
                   cutBusy={cutTestBusyId === line.id}
+                  drawerTestBusy={drawerTestBusyId === line.id}
+                  networkProbeBusy={networkProbeBusyId === line.id}
+                  onNetworkProbe={
+                    isTicketNetworkLine(line) ? () => void handleLineNetworkProbe(line) : undefined
+                  }
                   onToggleExpand={() => toggleLineExpanded(line.id)}
                   onChange={(patch) => updateLine(line.id, patch)}
                   onSave={() => void handleSaveLine(line.id)}
                   onDelete={() => void handleRemoveLine(line.id)}
                   onPrintTest={() => void handleLineEscposQa(line)}
                   onCutTest={() => void handleLineTestCut(line)}
+                  onDrawerTest={() => void handleLineTestDrawer(line)}
                   onPickLogo={() => void handlePickTicketLogo(line)}
                   onClearLogo={() => void handleClearTicketLogo(line)}
                   logoBasename={logoBasename}

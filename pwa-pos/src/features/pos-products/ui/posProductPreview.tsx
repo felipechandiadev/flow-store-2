@@ -75,6 +75,13 @@ export function posFormatStockQuantity(item: PosStockFields): string | null {
   return formatStockQuantityNumber(qty, allowDecimals);
 }
 
+/** Superficie visual (card / panel) cuando la línea supera stock disponible. */
+export const POS_INSUFFICIENT_STOCK_SURFACE_CLASS =
+  "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/35";
+
+/** Fondo de alerta en filas de lista (sin borde, para no desalinear el ancho). */
+export const POS_INSUFFICIENT_STOCK_LINE_CLASS = "bg-red-50 dark:bg-red-950/35";
+
 /** True si la cantidad del carrito supera el stock disponible (unidad de venta). */
 export function posCartQuantityExceedsAvailableStock(
   line: PosStockFields & { quantity: number },

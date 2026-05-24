@@ -8,7 +8,10 @@ use std::collections::HashMap;
 use std::path::Path;
 #[cfg(target_os = "windows")]
 use std::path::PathBuf;
+use std::io::Write;
+use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::process::Command;
+use std::time::Duration;
 #[cfg(target_os = "macos")]
 use std::sync::Mutex;
 use std::sync::OnceLock;
@@ -406,6 +409,154 @@ pub fn pdf_page_height_mm(pdf_path: &Path) -> Result<f32> {
 pub struct ThermalPrintOptions {
     pub thermal_80mm: bool,
     pub auto_cut: bool,
+    pub open_drawer: bool,
+}
+
+fn append_escpos_ticket_trailer(data: &mut Vec<u8>, thermal: ThermalPrintOptions) {
+    if !thermal.thermal_80mm {
+        return;
+    }
+    data.extend(crate::pos_sale_ticket_escpos::escpos_post_print_trailer(
+        thermal.auto_cut,
+        thermal.open_drawer,
+    ));
+}
+
+const NETWORK_RAW_PRINT_PORT: u16 = 9100;
+const NETWORK_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+const NETWORK_WRITE_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// `192.168.1.50` o `192.168.1.50:9100` → (host, puerto).
+pub fn parse_network_printer_target(raw: &str) -> Result<(String, u16)> {
+    let t = raw.trim();
+    if t.is_empty() {
+        anyhow::bail!("network host vacío");
+    }
+    if let Some((host, port_str)) = t.rsplit_once(':') {
+        if !host.is_empty() && port_str.chars().all(|c| c.is_ascii_digit()) {
+            if let Ok(p) = port_str.parse::<u16>() {
+                if p > 0 {
+                    return Ok((host.to_string(), p));
+                }
+            }
+        }
+    }
+    if looks_like_ipv4(t) || t.contains('.') || t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Ok((t.to_string(), NETWORK_RAW_PRINT_PORT));
+    }
+    anyhow::bail!("dirección de red inválida: {t}");
+}
+
+fn looks_like_ipv4(host: &str) -> bool {
+    let parts: Vec<&str> = host.split('.').collect();
+    if parts.len() != 4 {
+        return false;
+    }
+    parts.iter().all(|oct| {
+        let Ok(n) = oct.parse::<u16>() else {
+            return false;
+        };
+        n <= 255
+    })
+}
+
+fn socket_addrs_ipv4_first(
+    host: &str,
+    port: u16,
+) -> Result<Vec<SocketAddr>> {
+    let addr = format!("{host}:{port}");
+    let mut addrs: Vec<SocketAddr> = addr
+        .to_socket_addrs()
+        .with_context(|| format!("resolver {addr}"))?
+        .collect();
+    addrs.sort_by_key(|sa| match sa {
+        SocketAddr::V4(_) => 0,
+        SocketAddr::V6(_) => 1,
+    });
+    if addrs.is_empty() {
+        anyhow::bail!("no se pudo resolver {addr}");
+    }
+    Ok(addrs)
+}
+
+/// Prueba TCP al puerto RAW (sin enviar datos de impresión).
+pub fn probe_network_printer(host: &str) -> Result<()> {
+    let (host, port) = parse_network_printer_target(host)?;
+    let addr = format!("{host}:{port}");
+    let mut last_err: Option<String> = None;
+    for sa in socket_addrs_ipv4_first(&host, port)? {
+        match TcpStream::connect_timeout(&sa, NETWORK_CONNECT_TIMEOUT) {
+            Ok(_) => {
+                print_diag::info(format!("Red OK: conexión TCP a {sa}"));
+                return Ok(());
+            }
+            Err(e) => last_err = Some(format!("{sa} → {e}")),
+        }
+    }
+    anyhow::bail!(
+        "No hay conexión TCP a {addr} ({NETWORK_CONNECT_TIMEOUT:?}). \
+         Verificá IP, que la impresora esté encendida, en la misma red y que el puerto {port} (RAW) esté abierto. \
+         Detalle: {}",
+        last_err.unwrap_or_else(|| "sin rutas".into())
+    )
+}
+
+/// Envía bytes ESC/POS por socket TCP (puerto RAW, default 9100) a impresora en red.
+pub fn print_escpos_bytes_to_network(
+    host: &str,
+    data: &[u8],
+    copies: u32,
+    thermal: ThermalPrintOptions,
+) -> Result<()> {
+    let (host, port) = parse_network_printer_target(host)?;
+    let mut payload = data.to_vec();
+    append_escpos_ticket_trailer(&mut payload, thermal);
+    let addr = format!("{host}:{port}");
+    let copy_count = copies.max(1);
+    for i in 0..copy_count {
+        let mut last_connect: Option<String> = None;
+        let mut stream: Option<TcpStream> = None;
+        for sa in socket_addrs_ipv4_first(&host, port)? {
+            match TcpStream::connect_timeout(&sa, NETWORK_CONNECT_TIMEOUT) {
+                Ok(s) => {
+                    stream = Some(s);
+                    break;
+                }
+                Err(e) => last_connect = Some(format!("{sa} → {e}")),
+            }
+        }
+        let mut stream = stream.with_context(|| {
+            format!(
+                "conectar a impresora en red {addr} ({NETWORK_CONNECT_TIMEOUT:?}): {}. \
+                 Comprobá que el Mac/PC y la impresora estén en la misma red, la IP sea correcta y el puerto {port} acepte RAW.",
+                last_connect.unwrap_or_else(|| "sin direcciones".into())
+            )
+        })?;
+        stream
+            .set_write_timeout(Some(NETWORK_WRITE_TIMEOUT))
+            .context("write timeout red")?;
+        stream
+            .write_all(&payload)
+            .with_context(|| format!("enviar ESC/POS a {addr}"))?;
+        stream.flush().ok();
+        print_diag::info(format!(
+            "Red ESC/POS: {addr}, {} bytes{}",
+            payload.len(),
+            if copy_count > 1 {
+                format!(" (copia {} de {copy_count})", i + 1)
+            } else {
+                String::new()
+            }
+        ));
+    }
+    tracing::info!(
+        host,
+        bytes = payload.len(),
+        auto_cut = thermal.auto_cut,
+        open_drawer = thermal.open_drawer,
+        "ESC/POS enviado a impresora en red"
+    );
+    Ok(())
 }
 
 /// Envía bytes ESC/POS a la impresora (RAW). En tickets con `auto_cut` añade feed + corte GS V.
@@ -418,9 +569,7 @@ pub fn print_escpos_to_printer(
     let mut data = std::fs::read(escpos_path).with_context(|| {
         format!("read escpos {}", escpos_path.display())
     })?;
-    if thermal.auto_cut {
-        data.extend(crate::pos_sale_ticket_escpos::escpos_feed_and_cut_commands());
-    }
+    append_escpos_ticket_trailer(&mut data, thermal);
     let copy_count = copies.max(1);
     for i in 0..copy_count {
         print_raw_bytes_to_printer(printer, &data).with_context(|| {
@@ -435,6 +584,7 @@ pub fn print_escpos_to_printer(
         printer,
         bytes = data.len(),
         auto_cut = thermal.auto_cut,
+        open_drawer = thermal.open_drawer,
         "ESC/POS enviado a impresora (RAW)"
     );
     Ok(())

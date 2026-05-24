@@ -37,6 +37,8 @@
   --color-info: #2196f3;
   --color-warning: #ffc107;
   --color-error: #f44336;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
   --color-neutral: #f3f4f6;
   --color-hover: color-mix(in srgb, var(--color-neutral) 65%, var(--color-background));
 }

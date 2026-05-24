@@ -21,12 +21,14 @@ export default async function Page({
   const page = Math.max(1, parseInt(parseSp(sp, "page") || "1", 10) || 1);
   const limit = Math.min(500, Math.max(1, parseInt(parseSp(sp, "limit") || "25", 10) || 25));
   const search = parseSp(sp, "search");
+  const productType = parseSp(sp, "productType").trim() || undefined;
   const sortField = parseSp(sp, "sortField") || "name";
   const sortRaw = parseSp(sp, "sort");
   const sort = sortRaw === "desc" ? "desc" : "asc";
 
   const result = await listProductsForGrid({
     query: search,
+    productType,
     page,
     limit,
     sortField,

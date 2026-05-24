@@ -60,7 +60,6 @@ export default function PosReceptionNewPageClient({
         variantSearch={variantSearch ?? emptyVariantSearch}
         searchQuery={searchQuery}
         searchPage={searchPage}
-        backToListHref="/pos"
         onSaveReception={saveReception}
         fetchPurchaseOrderDetail={getPurchasingTransactionDetailPosAction}
         searchPurchaseOrders={searchPurchaseOrdersForReceptionPosAction}

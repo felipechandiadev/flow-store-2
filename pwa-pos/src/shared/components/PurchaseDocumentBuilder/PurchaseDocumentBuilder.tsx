@@ -935,7 +935,8 @@ export function PurchaseDocumentBuilder({
           );
           return;
         }
-        router.push(backToListHref?.trim() || "/pos");
+        const href = backToListHref?.trim();
+        if (href) router.push(href);
       } else {
         setSaveError(result.error);
       }

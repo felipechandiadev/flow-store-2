@@ -147,3 +147,15 @@
     var(--color-background, #ffffff) 94%
   );
 }
+
+/** Top bar POS (campana alertas): sin resalte hover/active. */
+.fs-icon-button--no-hover:hover:not(:disabled),
+.fs-icon-button--no-hover:active:not(:disabled) {
+  background-color: transparent;
+  filter: none;
+  opacity: 1;
+}
+.fs-icon-button--text.fs-icon-button--no-hover:hover:not(:disabled),
+.fs-icon-button--text.fs-icon-button--no-hover:active:not(:disabled) {
+  color: var(--color-primary, #002b59);
+}

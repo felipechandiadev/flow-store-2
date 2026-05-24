@@ -19,6 +19,7 @@ describe('ProductsController', () => {
   const mockProductsPosService = {
     searchForPos: jest.fn(),
     getVariantStockForPos: jest.fn(),
+    getVariantStockBreakdownForPos: jest.fn(),
   };
 
   beforeEach(async () => {

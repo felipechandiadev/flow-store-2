@@ -5,7 +5,7 @@ use crate::platform::{self, PrinterInfo};
 use anyhow::Result;
 use serde_json::{json, Value};
 
-const PURPOSES: &[&str] = &["documents", "tickets", "labels", "reports"];
+const PURPOSES: &[&str] = &["documents", "tickets", "labels"];
 
 pub fn service_status_payload(connected_clients: usize, sessions: Vec<Value>) -> Value {
     json!({
@@ -31,7 +31,30 @@ pub fn printer_health(db: &Db, system: &[PrinterInfo], required: &[String]) -> V
         let printers = db
             .printers_for_purpose_ordered(purpose)
             .unwrap_or_default();
-        let (status, printer_name, reason, names_json) = if printers.is_empty() {
+        let network_hosts: Vec<String> = if purpose == "tickets" {
+            db.list_mapping_lines()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|row| {
+                    row.get("purpose").and_then(|v| v.as_str()) == Some("tickets")
+                        && row
+                            .get("ticketPrinterType")
+                            .and_then(|v| v.as_str())
+                            .map(|t| t.eq_ignore_ascii_case("network"))
+                            .unwrap_or(false)
+                })
+                .filter_map(|row| {
+                    row.get("ticketNetworkHost")
+                        .and_then(|v| v.as_str())
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(String::from)
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+        let (status, printer_name, reason, names_json) = if printers.is_empty() && network_hosts.is_empty() {
             if required.iter().any(|r| r == purpose) {
                 overall = "degraded";
             }
@@ -40,6 +63,17 @@ pub fn printer_health(db: &Db, system: &[PrinterInfo], required: &[String]) -> V
                 Value::Null,
                 Value::Null,
                 Value::Array(vec![]),
+            )
+        } else if printers.is_empty() && !network_hosts.is_empty() {
+            let names_arr: Vec<Value> = network_hosts
+                .iter()
+                .map(|h| Value::String(format!("red:{h}")))
+                .collect();
+            (
+                "ok",
+                json!(network_hosts.first().cloned()),
+                Value::Null,
+                Value::Array(names_arr),
             )
         } else {
             let mut any_ok = false;
@@ -134,17 +168,41 @@ pub fn mapping_lines_health(db: &Db, system: &[PrinterInfo]) -> Vec<Value> {
     };
     rows.into_iter()
         .map(|row| {
+            let purpose = row
+                .get("purpose")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let ticket_type = row
+                .get("ticketPrinterType")
+                .and_then(|v| v.as_str())
+                .unwrap_or("system");
+            let network_host = row
+                .get("ticketNetworkHost")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
             let system_printer_name = row
                 .get("systemPrinterName")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            let status = line_printer_status(system, &system_printer_name);
+            let status = if purpose == "tickets" && ticket_type.eq_ignore_ascii_case("network") {
+                if network_host.is_empty() {
+                    "unknown"
+                } else {
+                    "online"
+                }
+            } else {
+                line_printer_status(system, &system_printer_name)
+            };
             json!({
                 "id": row.get("id").cloned().unwrap_or(Value::Null),
                 "displayLabel": row.get("displayLabel").cloned().unwrap_or(Value::Null),
                 "purpose": row.get("purpose").cloned().unwrap_or(Value::Null),
-                "systemPrinterName": system_printer_name,
+                "systemPrinterName": if system_printer_name.is_empty() { Value::Null } else { json!(system_printer_name) },
+                "ticketPrinterType": row.get("ticketPrinterType").cloned().unwrap_or(Value::Null),
+                "ticketNetworkHost": if network_host.is_empty() { Value::Null } else { json!(network_host) },
                 "status": status,
             })
         })

@@ -10,6 +10,11 @@ export class SearchProductsDto {
   @IsString()
   priceListId?: string;
 
+  /** Filtra por tipo de producto (`PHYSICAL`, `SERVICE`, etc.). */
+  @IsOptional()
+  @IsString()
+  productType?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

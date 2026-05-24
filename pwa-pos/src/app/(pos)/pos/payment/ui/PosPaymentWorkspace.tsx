@@ -58,6 +58,11 @@ import { buildCustomerCreditNotePrintSnapshot } from "@/features/customer-credit
 import type { CustomerCreditNotePrintData } from "@/features/customer-credit-notes/types/customer-credit-note-print.types";
 import { PosCustomerCreditNoteDialog } from "@/app/(pos)/pos/payment/ui/PosCustomerCreditNoteDialog";
 import Switch from "@/shared/components/Switch/Switch";
+import {
+  POS_INSUFFICIENT_STOCK_LINE_CLASS,
+  POS_INSUFFICIENT_STOCK_SURFACE_CLASS,
+  posCartQuantityExceedsAvailableStock,
+} from "@/features/pos-products/ui/posProductPreview";
 
 /**
  * Alto de los paneles de la pantalla de cobro respecto al viewport (`vh`).
@@ -112,6 +117,7 @@ function parseAmountCLPInput(raw: string): number {
 function PaymentCartReadOnlyRow({ line }: { line: PosCartLine }) {
   const q = Number(line.quantity) || 0;
   const lineGross = (Number(line.unitPriceWithTax) || 0) * q;
+  const exceedsAvailableStock = posCartQuantityExceedsAvailableStock(line);
   const attrBits =
     line.attributes?.map((a: { attributeValue?: string | null }) => String(a.attributeValue ?? "").trim()).filter(Boolean) ?? [];
   const nameWithAttrs = formatReceiptLineDisplayName(line.productName, attrBits);
@@ -119,8 +125,11 @@ function PaymentCartReadOnlyRow({ line }: { line: PosCartLine }) {
   const qtyPrice = `${q} × ${formatMoney(line.unitPriceWithTax)}${unit}`;
   return (
     <li
-      className="flex items-start gap-2 px-3 py-2 text-sm"
+      className={`flex w-full items-start gap-2 px-3 py-2 text-sm ${
+        exceedsAvailableStock ? POS_INSUFFICIENT_STOCK_LINE_CLASS : ""
+      }`}
       data-test-id={`pos-payment-cart-line-${line.variantId}`}
+      data-stock-exceeded={exceedsAvailableStock ? "true" : undefined}
     >
       <p className="min-w-0 flex-1 wrap-break-word text-foreground">
         <span className="font-medium">{nameWithAttrs}</span>
@@ -477,6 +486,15 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const discounts = lineDiscountsTotal + (cart.orderDiscount ?? 0);
   const saleTotal = Math.max(0, totals.gross - discounts);
   const isEncargoMode = !isReturnMode && !isFulfillBackorderMode && encargoModeEnabled;
+  const hasInsufficientStock = useMemo(
+    () => cart.lines.some((line) => posCartQuantityExceedsAvailableStock(line)),
+    [cart.lines],
+  );
+  /** Venta normal: no cobrar si alguna línea supera el stock disponible. */
+  const stockBlocksSalePayment =
+    !isReturnMode && !isFulfillBackorderMode && !isEncargoMode && hasInsufficientStock;
+  const stockInsufficientSaleMessage =
+    "Hay productos sin stock suficiente. Ajusta cantidades en el carrito antes de cobrar.";
   const amountToPay =
     isEncargoMode && backorderDeposit && backorderDeposit.amount >= 1
       ? Math.round(backorderDeposit.amount)
@@ -1030,6 +1048,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     amountToPay > 0 &&
     payments.length > 0 &&
     remaining <= 0.01 &&
+    !stockBlocksSalePayment &&
     ((!isEncargoMode && !isFulfillBackorderMode) || hasSaleCustomer);
 
   const canConfirm =
@@ -1060,6 +1079,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     if (isEncargoMode && !hasSaleCustomer) {
       return "Selecciona un cliente para confirmar el encargo";
     }
+    if (stockBlocksSalePayment) return stockInsufficientSaleMessage;
     return "Confirmar pago";
   })();
 
@@ -1109,6 +1129,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     if (isReturnMode) {
       return "La confirmación de devoluciones se habilitará en una próxima etapa.";
     }
+    if (stockBlocksSalePayment) return stockInsufficientSaleMessage;
     if (isFulfillBackorderMode && !hasSaleCustomer) {
       return "Selecciona el cliente del encargo para liquidarlo.";
     }
@@ -1520,11 +1541,14 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           className={`flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border p-4 shadow-sm ${
             isEncargoMode
               ? "border-secondary/40 bg-secondary/10"
-              : "border-border bg-background"
+              : stockBlocksSalePayment
+                ? POS_INSUFFICIENT_STOCK_SURFACE_CLASS
+                : "border-border bg-background"
           }`}
           style={{ height: `${POS_PAYMENT_PANEL_HEIGHT_VH}vh` }}
           aria-label={summarySectionLabel}
           data-test-id="pos-payment-cart-summary"
+          data-stock-insufficient={stockBlocksSalePayment ? "true" : undefined}
         >
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
             <h2 className="min-w-0 text-sm font-semibold text-foreground">
@@ -1558,22 +1582,24 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               ) : null
             ) : (
               <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outlined"
-                  size="sm"
-                  onClick={openSaveQuotation}
-                  disabled={cart.lines.length === 0}
-                  title={
-                    cart.lines.length === 0
-                      ? "Agregue ítems al carrito"
-                      : "Guardar como cotización"
-                  }
-                  data-test-id="pos-payment-save-quotation-btn"
-                  className="shrink-0"
-                >
-                  <span>Cotización</span>
-                </Button>
+                {!isEncargoMode ? (
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    size="sm"
+                    onClick={openSaveQuotation}
+                    disabled={cart.lines.length === 0}
+                    title={
+                      cart.lines.length === 0
+                        ? "Agregue ítems al carrito"
+                        : "Guardar como cotización"
+                    }
+                    data-test-id="pos-payment-save-quotation-btn"
+                    className="shrink-0"
+                  >
+                    <span>Cotización</span>
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant={encargoModeEnabled ? "outlinedSecondary" : "outlined"}
@@ -1608,13 +1634,13 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               </div>
             )}
           </div>
-          {saleSummaryAlert ? (
+          {saleSummaryAlert || stockBlocksSalePayment ? (
             <Alert variant="error" className="text-xs">
-              {saleSummaryAlert}
+              {saleSummaryAlert || stockInsufficientSaleMessage}
             </Alert>
           ) : null}
           <ul
-            className="min-h-0 flex-1 divide-y divide-border overflow-y-auto rounded-lg border border-border bg-background pr-1"
+            className="min-h-0 flex-1 divide-y divide-border overflow-y-auto rounded-lg border border-border bg-background [scrollbar-gutter:stable]"
             data-test-id="pos-payment-cart-lines-readonly"
           >
             {cart.lines.map((line) => (
@@ -1689,9 +1715,13 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               variant="basicSecondary"
               size="md"
               ariaLabel="Agregar método de pago"
-              title="Agregar método de pago"
               onClick={openAddPayment}
-              disabled={remaining <= 0.01}
+              disabled={remaining <= 0.01 || stockBlocksSalePayment}
+              title={
+                stockBlocksSalePayment
+                  ? stockInsufficientSaleMessage
+                  : "Agregar método de pago"
+              }
               data-test-id="pos-payment-add-method"
             />
             <h2 className="text-sm font-semibold text-foreground">Métodos de pago</h2>

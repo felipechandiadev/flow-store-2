@@ -8,6 +8,17 @@ use std::path::{Path, PathBuf};
 
 pub const LOGOS_SUBDIR: &str = "ticket_logos";
 
+/// Qué hacer con `company.logoBase64` del ticket POS según la línea de mapeo.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MappingLogoAction {
+    /// Usar logo guardado en KaiPrinters para esa línea.
+    Apply(String),
+    /// Logo desactivado en la línea: no imprimir logo del POS.
+    Suppress,
+    /// Sin línea aplicable o sin config de logo: conservar el JSON del POS.
+    LeaveTicketAsIs,
+}
+
 pub fn logos_dir(data_dir: &Path) -> PathBuf {
     data_dir.join(LOGOS_SUBDIR)
 }
@@ -71,15 +82,14 @@ pub fn merge_mapping_logo_into_ticket(
     db: &crate::db::Db,
     purpose: &str,
     display_label: Option<&str>,
-    system_printer: Option<&str>,
     ticket: &mut Value,
 ) {
-    let Ok(Some(rel)) = db.ticket_logo_rel_path_for_enqueue(purpose, display_label, system_printer) else {
-        return;
-    };
-    let Ok(Some(b64)) = read_logo_as_base64(data_dir, &rel) else {
-        tracing::warn!(path = %rel, "logo de línea no legible");
-        return;
+    let action = match db.ticket_logo_action_for_enqueue(purpose, display_label) {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::warn!(err = %e, "ticket: no se pudo resolver logo de línea");
+            return;
+        }
     };
     let Some(obj) = ticket.as_object_mut() else {
         return;
@@ -87,9 +97,23 @@ pub fn merge_mapping_logo_into_ticket(
     let company = obj
         .entry("company")
         .or_insert_with(|| serde_json::json!({}));
-    if let Some(co) = company.as_object_mut() {
-        co.insert("logoBase64".to_string(), Value::String(b64));
-        tracing::debug!(path = %rel, "ticket: logo de línea aplicado");
+    let Some(co) = company.as_object_mut() else {
+        return;
+    };
+    match action {
+        MappingLogoAction::Suppress => {
+            co.remove("logoBase64");
+            tracing::debug!("ticket: logo suprimido (desactivado en línea de mapeo)");
+        }
+        MappingLogoAction::Apply(rel) => {
+            let Ok(Some(b64)) = read_logo_as_base64(data_dir, &rel) else {
+                tracing::warn!(path = %rel, "logo de línea no legible");
+                return;
+            };
+            co.insert("logoBase64".to_string(), Value::String(b64));
+            tracing::debug!(path = %rel, "ticket: logo de línea aplicado");
+        }
+        MappingLogoAction::LeaveTicketAsIs => {}
     }
 }
 

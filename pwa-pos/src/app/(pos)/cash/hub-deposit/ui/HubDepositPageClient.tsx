@@ -1,12 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   Alert,
   Button,
   DotProgress,
-  IconButton,
   Select,
   TextField,
 } from "@/shared/admin-shared";
@@ -32,7 +30,6 @@ function parseAmountCl(raw: string): number {
 }
 
 export default function HubDepositPageClient() {
-  const router = useRouter();
   const [cashSessionId, setCashSessionId] = useState<string | null>(null);
   const [hubs, setHubs] = useState<CashHubDepositCandidate[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -141,25 +138,14 @@ export default function HubDepositPageClient() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-6 py-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--color-foreground)" }}>
-            Ingreso de efectivo desde centro de efectivo
-          </h1>
-          <p className="mt-1 max-w-xl text-xs sm:text-sm" style={{ color: "var(--color-muted-foreground)" }}>
-            Elige el centro de efectivo vinculado a este punto de venta, confirma el saldo disponible e ingresa el monto a
-            sumar en la caja de la sesión actual.
-          </p>
-        </div>
-        <IconButton
-          icon="ArrowLeft"
-          variant="ghost"
-          size="md"
-          ariaLabel="Volver al punto de venta"
-          title="Volver al punto de venta"
-          onClick={() => router.push("/pos")}
-          data-test-id="hub-deposit-back-pos"
-        />
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--color-foreground)" }}>
+          Ingreso de efectivo desde centro de efectivo
+        </h1>
+        <p className="mt-1 max-w-xl text-xs sm:text-sm" style={{ color: "var(--color-muted-foreground)" }}>
+          Elige el centro de efectivo vinculado a este punto de venta, confirma el saldo disponible e ingresa el monto a
+          sumar en la caja de la sesión actual.
+        </p>
       </div>
 
       {loadError ? (

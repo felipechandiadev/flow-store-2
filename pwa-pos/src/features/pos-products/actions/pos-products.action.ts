@@ -16,3 +16,10 @@ export async function searchPosProductsAction(input: {
 export async function getPosVariantStockAction(input: { variantId: string; pointOfSaleId: string }) {
   return ProductsPosRequest.getVariantStock(input);
 }
+
+export async function getPosVariantStockBreakdownAction(input: {
+  variantId: string;
+  pointOfSaleId?: string;
+}) {
+  return ProductsPosRequest.getVariantStockBreakdown(input);
+}

@@ -9,7 +9,7 @@ use crate::escpos_qa;
 use crate::platform;
 use crate::print_diag;
 use crate::state::AppState;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -69,12 +69,111 @@ pub fn spawn_worker(state: Arc<AppState>) {
 fn is_local_test_job(job: &PendingJob) -> bool {
     matches!(
         job.document_type.as_deref(),
-        Some("test_escpos_qa") | Some("test_escpos_qa_nocut") | Some("test_cut") | Some("test_print")
+        Some("test_escpos_qa")
+            | Some("test_escpos_qa_nocut")
+            | Some("test_cut")
+            | Some("test_drawer")
+            | Some("test_print")
     )
+}
+
+fn cut_enabled_for_ticket_line(
+    db: &Db,
+    purpose: &str,
+    system_printer: Option<&str>,
+    network_host: Option<&str>,
+) -> bool {
+    if let Some(h) = network_host.map(str::trim).filter(|s| !s.is_empty()) {
+        return db.auto_cut_enabled_for_ticket_network_host(h, purpose);
+    }
+    if let Some(p) = system_printer.map(str::trim).filter(|s| !s.is_empty()) {
+        return db.auto_cut_enabled_for_printer(p, purpose);
+    }
+    false
+}
+
+fn drawer_enabled_for_ticket_line(
+    db: &Db,
+    purpose: &str,
+    system_printer: Option<&str>,
+    network_host: Option<&str>,
+) -> bool {
+    if let Some(h) = network_host.map(str::trim).filter(|s| !s.is_empty()) {
+        return db.drawer_open_enabled_for_ticket_network_host(h, purpose);
+    }
+    if let Some(p) = system_printer.map(str::trim).filter(|s| !s.is_empty()) {
+        return db.drawer_open_enabled_for_printer(p, purpose);
+    }
+    false
+}
+
+fn ticket_thermal_options_for_job(
+    db: &Db,
+    purpose: &str,
+    system_printer: Option<&str>,
+    network_host: Option<&str>,
+    document_type: Option<&str>,
+) -> platform::ThermalPrintOptions {
+    let thermal_80 = purpose == "tickets";
+    if !thermal_80 {
+        return platform::ThermalPrintOptions {
+            thermal_80mm: false,
+            auto_cut: false,
+            open_drawer: false,
+        };
+    }
+    let doc = document_type.unwrap_or("");
+    let cut_line = || cut_enabled_for_ticket_line(db, purpose, system_printer, network_host);
+    let drawer_line = || drawer_enabled_for_ticket_line(db, purpose, system_printer, network_host);
+    let (auto_cut, open_drawer) = match doc {
+        "test_cut" => (true, false),
+        "test_drawer" => (cut_line(), true),
+        "test_escpos_qa" => (true, drawer_line()),
+        "test_escpos_qa_nocut" => (false, drawer_line()),
+        _ => (cut_line(), drawer_line()),
+    };
+    platform::ThermalPrintOptions {
+        thermal_80mm: true,
+        auto_cut,
+        open_drawer,
+    }
 }
 
 /// Resuelve impresoras del SO para un propósito. Si `tickets` no tiene mapeo, usa `documents`
 /// (misma impresora en cajas con un solo equipo) y deja constancia en el log.
+/// Destino explícito en el job o primera línea de mapeo (incluye impresoras solo en red).
+fn resolve_job_print_targets(
+    db: &Db,
+    job: &PendingJob,
+    purpose: &str,
+) -> Result<(Vec<String>, Option<String>)> {
+    let explicit_net = job
+        .target_network_host
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(String::from);
+    let explicit_sys = job
+        .target_system_printer
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(String::from);
+    if explicit_net.is_some() || explicit_sys.is_some() {
+        let printers = explicit_sys.into_iter().collect();
+        return Ok((printers, explicit_net));
+    }
+    if let Some(t) = db.default_print_target_for_purpose(purpose)? {
+        let printers = t
+            .system_printer
+            .map(|s| vec![s])
+            .unwrap_or_default();
+        return Ok((printers, t.network_host));
+    }
+    let printers = printers_for_purpose_with_fallback(db, purpose)?;
+    Ok((printers, None))
+}
+
 fn printers_for_purpose_with_fallback(db: &Db, purpose: &str) -> Result<Vec<String>> {
     let mut printers = db.printers_for_purpose_ordered(purpose)?;
     if printers.is_empty() && purpose == "tickets" {
@@ -112,31 +211,59 @@ fn process_one(state: &Arc<AppState>, job: &PendingJob) -> Result<()> {
         .purpose
         .as_deref()
         .ok_or_else(|| anyhow::anyhow!("missing purpose"))?;
-    let printers: Vec<String> = match job.target_system_printer.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
-        Some(t) => vec![t.to_string()],
-        None => printers_for_purpose_with_fallback(db, purpose)?,
-    };
-    if printers.is_empty() {
+    let (printers, network_host) = resolve_job_print_targets(db, job, purpose)?;
+    if printers.is_empty() && network_host.is_none() {
         anyhow::bail!(
             "no printer mapped for {purpose} (configure «Tickets» in KaiPrinters or map «Documentos»)"
         );
     }
     let payload_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    if let Some(host) = network_host {
+        let thermal = ticket_thermal_options_for_job(
+            db,
+            purpose,
+            None,
+            Some(&host),
+            job.document_type.as_deref(),
+        );
+        let is_escpos = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("escpos"))
+            .unwrap_or(false);
+        if !is_escpos {
+            anyhow::bail!("impresora en red solo admite tickets ESC/POS");
+        }
+        let data = std::fs::read(&path).context("read escpos for network")?;
+        let copies = job.copies.max(1) as u32;
+        print_diag::info(format!(
+            "Trabajo {}: ESC/POS por red → {host} ({payload_bytes} bytes), corte={}, gaveta={}",
+            job.id, thermal.auto_cut, thermal.open_drawer
+        ));
+        match platform::print_escpos_bytes_to_network(&host, &data, copies, thermal) {
+            Ok(()) => {
+                let _ = std::fs::remove_file(&path);
+                db.delete_job(&job.id)?;
+                let ev = serde_json::json!({
+                    "version": crate::protocol::PROTOCOL_VERSION,
+                    "event": "print_job_done",
+                    "payload": { "jobId": job.id, "purpose": job.purpose }
+                });
+                let _ = notify.send(ev.to_string());
+                return Ok(());
+            }
+            Err(e) => return Err(e),
+        }
+    }
     let mut last_err: Option<anyhow::Error> = None;
     for printer in &printers {
-        let thermal_80 = purpose == "tickets";
-        let doc_type = job.document_type.as_deref();
-        let force_cut_test = matches!(doc_type, Some("test_cut"));
-        let qa_with_cut = doc_type == Some("test_escpos_qa");
-        let qa_no_cut = doc_type == Some("test_escpos_qa_nocut");
-        let auto_cut = thermal_80
-            && (force_cut_test
-                || qa_with_cut
-                || (!qa_no_cut && db.auto_cut_enabled_for_printer(printer, purpose)));
-        let thermal = platform::ThermalPrintOptions {
-            thermal_80mm: thermal_80,
-            auto_cut,
-        };
+        let thermal = ticket_thermal_options_for_job(
+            db,
+            purpose,
+            Some(printer.as_str()),
+            None,
+            job.document_type.as_deref(),
+        );
         let copies = job.copies.max(1) as u32;
         let is_escpos = path
             .extension()
@@ -146,8 +273,10 @@ fn process_one(state: &Arc<AppState>, job: &PendingJob) -> Result<()> {
         if is_escpos {
             let kind = job.document_type.as_deref().unwrap_or("ticket");
             print_diag::info(format!(
-                "Trabajo {} ({kind}): enviando ESC/POS ({payload_bytes} bytes) → «{printer}», corte={}, copias={copies}",
-                job.id, auto_cut = auto_cut
+                "Trabajo {} ({kind}): enviando ESC/POS ({payload_bytes} bytes) → «{printer}», corte={}, gaveta={}, copias={copies}",
+                job.id,
+                thermal.auto_cut,
+                thermal.open_drawer,
             ));
         }
         let print_result = if is_escpos {
@@ -200,7 +329,7 @@ pub fn decode_pdf_base64_to_temp(dir: &PathBuf, b64: &str) -> Result<PathBuf> {
     Ok(p)
 }
 
-/// Prueba de corte: PDF (CUPS/GS) o ESC/POS según `use_escpos`.
+/// Prueba de corte: ESC/POS (RAW tickets).
 pub fn write_cut_test_path(dir: &PathBuf, use_escpos: bool) -> Result<PathBuf> {
     std::fs::create_dir_all(dir)?;
     let id = uuid::Uuid::new_v4().to_string();
@@ -211,6 +340,15 @@ pub fn write_cut_test_path(dir: &PathBuf, use_escpos: bool) -> Result<PathBuf> {
     }
     let p = dir.join(format!("cut_test_{id}.pdf"));
     cut_test_pdf::write_cut_test_pdf(&p)?;
+    Ok(p)
+}
+
+/// Prueba de gaveta: ESC/POS mínimo (corte/gaveta los añade el worker).
+pub fn write_drawer_test_path(dir: &PathBuf) -> Result<PathBuf> {
+    std::fs::create_dir_all(dir)?;
+    let id = uuid::Uuid::new_v4().to_string();
+    let p = dir.join(format!("drawer_test_{id}.escpos"));
+    ticket_test_escpos::write_drawer_test_escpos(&p)?;
     Ok(p)
 }
 

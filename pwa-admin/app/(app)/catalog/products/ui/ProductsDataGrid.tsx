@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Barcode, Check, X } from "lucide-react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
@@ -14,11 +14,60 @@ import { CreateProductDialog } from "./CreateProductDialog";
 import { EditProductDialog } from "./EditProductDialog";
 import { CreateProductVariantDialog } from "./CreateProductVariantDialog";
 import { deleteProductAction, deleteProductVariantAction } from "@/features/inventory-products/actions/product.action";
+import { Select, type Option } from "@/shared/components/Select";
+import {
+  CATALOG_PRODUCT_TYPE_SELECT_OPTIONS,
+  normalizeCatalogProductType,
+} from "./catalog-product-type-options";
 
 type ProductsDataGridProps = {
   rows: ProductGridRow[];
   total: number;
 };
+
+function ProductTypeFilter() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const current = searchParams.get("productType") || "";
+  const options: Option[] = useMemo(
+    () =>
+      CATALOG_PRODUCT_TYPE_SELECT_OPTIONS.map((o) => ({
+        id: o.id,
+        label: o.label,
+      })),
+    [],
+  );
+
+  const apply = (productType: string | null) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (productType) {
+      next.set("productType", normalizeCatalogProductType(productType));
+    } else {
+      next.delete("productType");
+    }
+    next.set("page", "1");
+    const qs = next.toString();
+    router.replace(qs ? `?${qs}` : "?page=1", { scroll: false });
+  };
+
+  return (
+    <div className="min-w-[12rem] max-w-xs" data-test-id="products-grid-type-filter">
+      <Select
+        label="Tipo"
+        name="products-type-filter"
+        placeholder="Todos"
+        options={options}
+        value={current || null}
+        onChange={(id) => apply(id == null ? null : String(id))}
+        allowClear
+        density="compact"
+        labelLayout="inline"
+        alwaysShowLabel
+        data-test-id="products-type-filter-select"
+      />
+    </div>
+  );
+}
 
 function averageReferencePmp(row: ProductGridRow): number {
   const positives = (row.variants ?? [])
@@ -490,6 +539,7 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
         actionsColumnField="actions"
         expandable
         expandableRowContent={(row) => expandableRowContent(row as ProductGridRow)}
+        headerActions={<ProductTypeFilter />}
         onAddClick={() => setCreateOpen(true)}
         data-test-id="products-data-grid"
       />

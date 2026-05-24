@@ -6,6 +6,7 @@ export class SearchProductsQuery extends BaseQuery {
     public readonly page: number = 1,
     public readonly pageSize: number = 10,
     public readonly priceListId?: string,
+    public readonly productType?: string,
   ) {
     super();
   }

@@ -23,6 +23,7 @@ export class ProductsServiceAdapter {
       dto.page || 1,
       dto.pageSize || 10,
       dto.priceListId,
+      dto.productType,
     );
     return this.queryBus.execute(query);
   }

@@ -515,9 +515,10 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                 queue_filename = ticket_queue_filename(filename, &folio, true);
                 let resolved_printer = state
                     .db
-                    .resolve_printer_for_enqueue(purpose, printer_display_label_early)
+                    .resolve_print_target_for_enqueue(purpose, printer_display_label_early)
                     .ok()
-                    .flatten();
+                    .flatten()
+                    .and_then(|t| t.display_string());
                 tracing::info!(folio = %folio, %print_type, printer = ?resolved_printer, "print: vector ticket → ESC/POS RAW");
                 state.agent_log.push_info(format!(
                     "Encolando {print_type} ESC/POS (folio {folio}) → impresora {:?}, alias {:?}",
@@ -530,7 +531,6 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                         &state.db,
                         purpose,
                         printer_display_label_early,
-                        resolved_printer.as_deref(),
                         &mut ticket_value,
                     );
                 }
@@ -573,23 +573,34 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                 .and_then(|v| v.as_str())
                 .map(str::trim)
                 .filter(|s| !s.is_empty());
-            let target_system_printer: Option<String> = if let Some(lbl) = printer_display_label {
-                match state
-                    .db
-                    .system_printer_for_purpose_display_label(purpose, lbl)
-                {
-                    Ok(Some(s)) => Some(s),
-                    Ok(None) => {
-                        return OutResponse::err(
-                            rid,
-                            format!("unknown_printer_display_label:{lbl}"),
-                        );
+            let (target_system_printer, target_network_host): (Option<String>, Option<String>) =
+                if let Some(lbl) = printer_display_label {
+                    match state
+                        .db
+                        .print_target_for_purpose_display_label(purpose, lbl)
+                    {
+                        Ok(Some(t)) if t.is_configured() => (t.system_printer, t.network_host),
+                        Ok(Some(_)) => {
+                            return OutResponse::err(
+                                rid,
+                                format!("printer_line_not_configured:{lbl}"),
+                            );
+                        }
+                        Ok(None) => {
+                            return OutResponse::err(
+                                rid,
+                                format!("unknown_printer_display_label:{lbl}"),
+                            );
+                        }
+                        Err(e) => return OutResponse::err(rid, format!("{e:#}")),
                     }
-                    Err(e) => return OutResponse::err(rid, format!("{e:#}")),
-                }
-            } else {
-                None
-            };
+                } else {
+                    match state.db.default_print_target_for_purpose(purpose) {
+                        Ok(Some(t)) if t.is_configured() => (t.system_printer, t.network_host),
+                        Ok(_) => (None, None),
+                        Err(e) => return OutResponse::err(rid, format!("{e:#}")),
+                    }
+                };
             let id = uuid::Uuid::new_v4().to_string();
             if let Err(e) = state.db.insert_job(
                 &id,
@@ -604,15 +615,17 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                 source_app,
                 requested_by,
                 target_system_printer.as_deref(),
+                target_network_host.as_deref(),
             ) {
                 return OutResponse::err(rid, format!("{e:#}"));
             }
             let escpos_job = queue_filename.ends_with(".escpos");
             state.agent_log.push_info(format!(
-                "POS encoló {print_type} ({}) propósito={purpose} alias={:?} cola={:?}",
+                "POS encoló {print_type} ({}) propósito={purpose} alias={:?} cola={:?} red={:?}",
                 if escpos_job { "ESC/POS" } else { "PDF" },
                 printer_display_label,
-                target_system_printer
+                target_system_printer,
+                target_network_host
             ));
             OutResponse::ok(rid, json!({ "jobId": id, "queued": true }))
         }
@@ -646,6 +659,14 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
             } else {
                 "test_print.pdf"
             };
+            let (target_system_printer, target_network_host) = match state
+                .db
+                .resolve_print_target_for_enqueue(purpose, printer_display_label)
+            {
+                Ok(Some(t)) if t.is_configured() => (t.system_printer, t.network_host),
+                Ok(_) => (None, None),
+                Err(e) => return OutResponse::err(rid, format!("{e:#}")),
+            };
             let id = uuid::Uuid::new_v4().to_string();
             if let Err(e) = state.db.insert_job(
                 &id,
@@ -659,7 +680,8 @@ async fn dispatch(state: &Arc<AppState>, env: &Envelope, action: &str) -> OutRes
                 None,
                 None,
                 None,
-                None,
+                target_system_printer.as_deref(),
+                target_network_host.as_deref(),
             ) {
                 return OutResponse::err(rid, format!("{e:#}"));
             }

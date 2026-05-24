@@ -14,7 +14,47 @@ pub struct PendingJob {
     pub copies: i32,
     /** Si viene informado: imprimir sólo en esta impresora (p. ej. prueba desde una línea de mapeo). */
     pub target_system_printer: Option<String>,
+    /** Impresora térmica en red (IP/host, puerto RAW 9100). */
+    pub target_network_host: Option<String>,
     pub document_type: Option<String>,
+}
+
+/// Destino de impresión resuelto desde una línea de mapeo.
+#[derive(Clone, Debug, Default)]
+pub struct PrintTarget {
+    pub system_printer: Option<String>,
+    pub network_host: Option<String>,
+}
+
+impl PrintTarget {
+    pub fn is_configured(&self) -> bool {
+        self.system_printer
+            .as_ref()
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false)
+            || self
+                .network_host
+                .as_ref()
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false)
+    }
+
+    /** Para logs / resolución POS: nombre SO o `red:host`. */
+    pub fn display_string(&self) -> Option<String> {
+        if let Some(p) = self
+            .system_printer
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
+            return Some(p.to_string());
+        }
+        self.network_host
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|h| format!("red:{h}"))
+    }
 }
 
 const SCHEMA: &str = r#"
@@ -175,6 +215,16 @@ fn json_auto_cut_enabled(row: &serde_json::Value) -> bool {
         .unwrap_or(true)
 }
 
+fn json_drawer_open_enabled(row: &serde_json::Value) -> bool {
+    row.get("drawerOpenEnabled")
+        .and_then(|v| {
+            v.as_bool()
+                .or_else(|| v.as_i64().map(|n| n != 0))
+                .or_else(|| v.as_u64().map(|n| n != 0))
+        })
+        .unwrap_or(false)
+}
+
 /// Motor ESC/POS directo (RAW) para tickets en esta línea de mapeo.
 fn json_ticket_escpos_enabled(row: &serde_json::Value) -> bool {
     row.get("ticketEscposEnabled")
@@ -249,6 +299,117 @@ fn migrate_v7(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// Apertura de gaveta (ESC p) por línea de tickets.
+fn migrate_v10(conn: &Connection) -> Result<()> {
+    let cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(printer_mapping_lines)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if cols.iter().any(|c| c == "drawer_open_enabled") {
+        return Ok(());
+    }
+    conn.execute(
+        "ALTER TABLE printer_mapping_lines ADD COLUMN drawer_open_enabled INTEGER NOT NULL DEFAULT 0",
+        [],
+    )?;
+    Ok(())
+}
+
+fn json_ticket_printer_type(row: &serde_json::Value) -> &str {
+    row.get("ticketPrinterType")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("system")
+}
+
+/// Tickets en red + `system_printer_name` nullable.
+fn migrate_v9(conn: &Connection) -> Result<()> {
+    let cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(printer_mapping_lines)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if !cols.iter().any(|c| c == "ticket_printer_type") {
+        conn.execute(
+            "ALTER TABLE printer_mapping_lines ADD COLUMN ticket_printer_type TEXT NOT NULL DEFAULT 'system'",
+            [],
+        )?;
+    }
+    if !cols.iter().any(|c| c == "ticket_network_host") {
+        conn.execute(
+            "ALTER TABLE printer_mapping_lines ADD COLUMN ticket_network_host TEXT",
+            [],
+        )?;
+    }
+
+    let notnull: i32 = conn
+        .query_row(
+            "SELECT \"notnull\" FROM pragma_table_info('printer_mapping_lines') WHERE name = 'system_printer_name'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(1);
+    if notnull != 0 {
+        conn.execute_batch(
+            r#"
+CREATE TABLE printer_mapping_lines_v9 (
+  id TEXT PRIMARY KEY,
+  purpose TEXT NOT NULL,
+  system_printer_name TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  display_label TEXT,
+  auto_cut_enabled INTEGER NOT NULL DEFAULT 1,
+  ticket_escpos_enabled INTEGER NOT NULL DEFAULT 0,
+  ticket_logo_path TEXT,
+  ticket_logo_enabled INTEGER NOT NULL DEFAULT 0,
+  ticket_printer_type TEXT NOT NULL DEFAULT 'system',
+  ticket_network_host TEXT
+);
+INSERT INTO printer_mapping_lines_v9(
+  id, purpose, system_printer_name, sort_order, display_label,
+  auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path, ticket_logo_enabled,
+  ticket_printer_type, ticket_network_host
+)
+SELECT
+  id, purpose,
+  CASE WHEN trim(COALESCE(system_printer_name, '')) = '' THEN NULL ELSE trim(system_printer_name) END,
+  sort_order, display_label,
+  auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path, ticket_logo_enabled,
+  COALESCE(ticket_printer_type, 'system'), ticket_network_host
+FROM printer_mapping_lines;
+DROP TABLE printer_mapping_lines;
+ALTER TABLE printer_mapping_lines_v9 RENAME TO printer_mapping_lines;
+CREATE INDEX IF NOT EXISTS idx_mapping_lines_purpose_sort ON printer_mapping_lines(purpose, sort_order);
+"#,
+        )?;
+    }
+
+    let job_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(print_jobs)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if !job_cols.iter().any(|c| c == "target_network_host") {
+        conn.execute(
+            "ALTER TABLE print_jobs ADD COLUMN target_network_host TEXT",
+            [],
+        )?;
+    }
+    Ok(())
+}
+
+/// Elimina mapeos del propósito `reports` (ya no soportado).
+fn migrate_v8(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "DELETE FROM printer_mapping_lines WHERE purpose = 'reports'",
+        [],
+    )?;
+    conn.execute(
+        "DELETE FROM printer_mappings WHERE purpose = 'reports'",
+        [],
+    )?;
+    Ok(())
+}
+
 fn non_empty_logo_path(raw: Option<String>) -> Option<String> {
     raw.map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
@@ -272,6 +433,20 @@ fn query_ticket_logo_path_by_label(
     Ok(None)
 }
 
+fn query_ticket_logo_path_first_line(conn: &Connection, purpose: &str) -> Result<Option<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT ticket_logo_path FROM printer_mapping_lines
+         WHERE purpose = ?1 AND ticket_logo_enabled != 0
+           AND ticket_logo_path IS NOT NULL AND trim(ticket_logo_path) != ''
+         ORDER BY sort_order ASC, id ASC LIMIT 1",
+    )?;
+    let mut rows = stmt.query(params![purpose])?;
+    if let Some(r) = rows.next()? {
+        return Ok(non_empty_logo_path(r.get(0)?));
+    }
+    Ok(None)
+}
+
 fn query_ticket_logo_path_by_printer(
     conn: &Connection,
     purpose: &str,
@@ -288,6 +463,87 @@ fn query_ticket_logo_path_by_printer(
         return Ok(non_empty_logo_path(r.get(0)?));
     }
     Ok(None)
+}
+
+fn query_ticket_logo_path_by_network_host(
+    conn: &Connection,
+    purpose: &str,
+    network_host: &str,
+) -> Result<Option<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT ticket_logo_path FROM printer_mapping_lines
+         WHERE purpose = ?1 AND trim(ticket_network_host) = trim(?2)
+           AND lower(trim(ticket_printer_type)) = 'network'
+           AND ticket_logo_enabled != 0
+         ORDER BY sort_order ASC, id ASC LIMIT 1",
+    )?;
+    let mut rows = stmt.query(params![purpose, network_host])?;
+    if let Some(r) = rows.next()? {
+        return Ok(non_empty_logo_path(r.get(0)?));
+    }
+    Ok(None)
+}
+
+fn query_ticket_logo_config_by_network_host(
+    conn: &Connection,
+    purpose: &str,
+    network_host: &str,
+) -> Result<Option<(i32, Option<String>)>> {
+    let mut stmt = conn.prepare(
+        "SELECT ticket_logo_enabled, ticket_logo_path FROM printer_mapping_lines
+         WHERE purpose = ?1 AND trim(ticket_network_host) = trim(?2)
+           AND lower(trim(ticket_printer_type)) = 'network'
+         ORDER BY sort_order ASC, id ASC LIMIT 1",
+    )?;
+    let mut rows = stmt.query(params![purpose, network_host])?;
+    if let Some(r) = rows.next()? {
+        return Ok(Some((r.get(0)?, r.get(1)?)));
+    }
+    Ok(None)
+}
+
+fn query_ticket_logo_config_by_system_printer(
+    conn: &Connection,
+    purpose: &str,
+    system_printer: &str,
+) -> Result<Option<(i32, Option<String>)>> {
+    let mut stmt = conn.prepare(
+        "SELECT ticket_logo_enabled, ticket_logo_path FROM printer_mapping_lines
+         WHERE purpose = ?1 AND trim(system_printer_name) = trim(?2)
+         ORDER BY sort_order ASC, id ASC LIMIT 1",
+    )?;
+    let mut rows = stmt.query(params![purpose, system_printer])?;
+    if let Some(r) = rows.next()? {
+        return Ok(Some((r.get(0)?, r.get(1)?)));
+    }
+    Ok(None)
+}
+
+fn query_ticket_logo_config_by_label(
+    conn: &Connection,
+    purpose: &str,
+    display_label: &str,
+) -> Result<Option<(i32, Option<String>)>> {
+    let mut stmt = conn.prepare(
+        "SELECT ticket_logo_enabled, ticket_logo_path FROM printer_mapping_lines
+         WHERE purpose = ?1 AND lower(trim(display_label)) = lower(trim(?2))
+         ORDER BY sort_order ASC, id ASC LIMIT 1",
+    )?;
+    let mut rows = stmt.query(params![purpose, display_label])?;
+    if let Some(r) = rows.next()? {
+        return Ok(Some((r.get(0)?, r.get(1)?)));
+    }
+    Ok(None)
+}
+
+fn logo_action_from_row(enabled: i32, path: Option<String>) -> crate::ticket_logos::MappingLogoAction {
+    if enabled == 0 {
+        return crate::ticket_logos::MappingLogoAction::Suppress;
+    }
+    if let Some(rel) = non_empty_logo_path(path) {
+        return crate::ticket_logos::MappingLogoAction::Apply(rel);
+    }
+    crate::ticket_logos::MappingLogoAction::LeaveTicketAsIs
 }
 
 fn migrate_v2(conn: &Connection) -> Result<()> {
@@ -336,6 +592,9 @@ impl Db {
         migrate_v5(&conn).context("migrate_v5")?;
         migrate_v6(&conn).context("migrate_v6")?;
         migrate_v7(&conn).context("migrate_v7")?;
+        migrate_v8(&conn).context("migrate_v8")?;
+        migrate_v9(&conn).context("migrate_v9")?;
+        migrate_v10(&conn).context("migrate_v10")?;
         Ok(Self {
             inner: Arc::new(Mutex::new(conn)),
         })
@@ -490,26 +749,86 @@ impl Db {
         if purpose != "tickets" {
             return Ok(false);
         }
-        let resolved = self.resolve_printer_for_enqueue(purpose, display_label)?;
-        Ok(resolved
+        let Some(target) = self.resolve_print_target_for_enqueue(purpose, display_label)? else {
+            return Ok(false);
+        };
+        if target
+            .network_host
+            .as_ref()
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false)
+        {
+            return Ok(true);
+        }
+        Ok(target
+            .system_printer
             .as_deref()
             .map(|p| self.ticket_escpos_enabled_for_printer(p, purpose))
             .unwrap_or(false))
     }
 
-    /// Impresora que usará un trabajo encolado (alias POS o primera del propósito).
+    /// Impresora que usará un trabajo encolado (alias POS o primera línea del propósito).
     pub fn resolve_printer_for_enqueue(
         &self,
         purpose: &str,
         display_label: Option<&str>,
     ) -> Result<Option<String>> {
-        if let Some(lbl) = display_label.map(str::trim).filter(|s| !s.is_empty()) {
-            return self.system_printer_for_purpose_display_label(purpose, lbl);
-        }
         Ok(self
-            .printers_for_purpose_ordered(purpose)?
-            .into_iter()
-            .next())
+            .resolve_print_target_for_enqueue(purpose, display_label)?
+            .and_then(|t| t.display_string()))
+    }
+
+    /// Destino de impresión: alias POS o primera línea configurada (SO o red).
+    pub fn resolve_print_target_for_enqueue(
+        &self,
+        purpose: &str,
+        display_label: Option<&str>,
+    ) -> Result<Option<PrintTarget>> {
+        if let Some(lbl) = display_label.map(str::trim).filter(|s| !s.is_empty()) {
+            return self.print_target_for_purpose_display_label(purpose, lbl);
+        }
+        self.default_print_target_for_purpose(purpose)
+    }
+
+    /// Primera línea de mapeo con impresora SO o host de red configurado.
+    pub fn default_print_target_for_purpose(&self, purpose: &str) -> Result<Option<PrintTarget>> {
+        let c = self.inner.lock();
+        let mut stmt = c.prepare(
+            "SELECT system_printer_name, ticket_printer_type, ticket_network_host
+             FROM printer_mapping_lines
+             WHERE purpose = ?1
+             ORDER BY sort_order ASC, id ASC",
+        )?;
+        let mut rows = stmt.query(params![purpose])?;
+        while let Some(r) = rows.next()? {
+            let system_printer_name: Option<String> = r.get(0)?;
+            let ticket_printer_type: String = r.get(1)?;
+            let ticket_network_host: Option<String> = r.get(2)?;
+            let target = Self::print_target_from_row(
+                purpose,
+                &ticket_printer_type,
+                system_printer_name,
+                ticket_network_host,
+            );
+            if target.is_configured() {
+                return Ok(Some(target));
+            }
+        }
+        drop(rows);
+        drop(stmt);
+        let mut leg = c.prepare("SELECT printer_name FROM printer_mappings WHERE purpose = ?1")?;
+        let mut lr = leg.query(params![purpose])?;
+        if let Some(r) = lr.next()? {
+            let name: String = r.get(0)?;
+            let t = name.trim();
+            if !t.is_empty() {
+                return Ok(Some(PrintTarget {
+                    system_printer: Some(t.to_string()),
+                    network_host: None,
+                }));
+            }
+        }
+        Ok(None)
     }
 
     pub fn listen_host(&self) -> String {
@@ -573,7 +892,9 @@ impl Db {
     pub fn printers_for_purpose_ordered(&self, purpose: &str) -> Result<Vec<String>> {
         let c = self.inner.lock();
         let mut stmt = c.prepare(
-            "SELECT system_printer_name FROM printer_mapping_lines WHERE purpose = ?1 ORDER BY sort_order ASC, id ASC",
+            "SELECT system_printer_name FROM printer_mapping_lines
+             WHERE purpose = ?1 AND system_printer_name IS NOT NULL AND trim(system_printer_name) != ''
+             ORDER BY sort_order ASC, id ASC",
         )?;
         let rows = stmt.query_map(params![purpose], |r| r.get::<_, String>(0))?;
         let mut names: Vec<String> = rows.collect::<Result<Vec<_>, _>>()?;
@@ -587,34 +908,66 @@ impl Db {
         Ok(names)
     }
 
-  /// Ruta relativa del logo configurado en la línea que imprimirá el ticket.
+    /// Logo de la línea de mapeo que imprimirá (alias o primera línea / red / SO).
+    pub fn ticket_logo_action_for_enqueue(
+        &self,
+        purpose: &str,
+        display_label: Option<&str>,
+    ) -> Result<crate::ticket_logos::MappingLogoAction> {
+        if purpose != "tickets" {
+            return Ok(crate::ticket_logos::MappingLogoAction::LeaveTicketAsIs);
+        }
+        let c = self.inner.lock();
+        if let Some(lbl) = display_label.map(str::trim).filter(|s| !s.is_empty()) {
+            if let Some((en, path)) = query_ticket_logo_config_by_label(&c, purpose, lbl)? {
+                return Ok(logo_action_from_row(en, path));
+            }
+        }
+        drop(c);
+        if let Some(target) = self.resolve_print_target_for_enqueue(purpose, display_label)? {
+            let c = self.inner.lock();
+            if let Some(host) = target
+                .network_host
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                if let Some((en, path)) = query_ticket_logo_config_by_network_host(&c, purpose, host)? {
+                    return Ok(logo_action_from_row(en, path));
+                }
+            }
+            if let Some(pr) = target
+                .system_printer
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                if let Some((en, path)) = query_ticket_logo_config_by_system_printer(&c, purpose, pr)? {
+                    return Ok(logo_action_from_row(en, path));
+                }
+            }
+        }
+        Ok(crate::ticket_logos::MappingLogoAction::LeaveTicketAsIs)
+    }
+
+    /// Ruta relativa del logo configurado en la línea que imprimirá el ticket.
     pub fn ticket_logo_rel_path_for_enqueue(
         &self,
         purpose: &str,
         display_label: Option<&str>,
         system_printer: Option<&str>,
     ) -> Result<Option<String>> {
-        if purpose != "tickets" {
-            return Ok(None);
+        let _ = system_printer;
+        match self.ticket_logo_action_for_enqueue(purpose, display_label)? {
+            crate::ticket_logos::MappingLogoAction::Apply(rel) => Ok(Some(rel)),
+            _ => Ok(None),
         }
-        let c = self.inner.lock();
-        if let Some(lbl) = display_label.map(str::trim).filter(|s| !s.is_empty()) {
-            if let Some(path) = query_ticket_logo_path_by_label(&c, purpose, lbl)? {
-                return Ok(Some(path));
-            }
-        }
-        if let Some(pr) = system_printer.map(str::trim).filter(|s| !s.is_empty()) {
-            if let Some(path) = query_ticket_logo_path_by_printer(&c, purpose, pr)? {
-                return Ok(Some(path));
-            }
-        }
-        Ok(None)
     }
 
     pub fn list_mapping_lines(&self) -> Result<Vec<serde_json::Value>> {
         let c = self.inner.lock();
         let mut stmt = c.prepare(
-            "SELECT id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path, ticket_logo_enabled
+            "SELECT id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path, ticket_logo_enabled, ticket_printer_type, ticket_network_host, drawer_open_enabled
              FROM printer_mapping_lines ORDER BY purpose, sort_order ASC, id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -622,16 +975,23 @@ impl Db {
             let ticket_escpos: i32 = r.get(6)?;
             let ticket_logo_path: Option<String> = r.get(7)?;
             let ticket_logo_enabled: i32 = r.get(8)?;
+            let ticket_printer_type: String = r.get(9)?;
+            let ticket_network_host: Option<String> = r.get(10)?;
+            let drawer_open: i32 = r.get(11)?;
+            let system_printer_name: Option<String> = r.get(2)?;
             Ok(serde_json::json!({
                 "id": r.get::<_, String>(0)?,
                 "purpose": r.get::<_, String>(1)?,
-                "systemPrinterName": r.get::<_, String>(2)?,
+                "systemPrinterName": system_printer_name.filter(|s| !s.trim().is_empty()),
                 "sortOrder": r.get::<_, i32>(3)?,
                 "displayLabel": r.get::<_, Option<String>>(4)?,
                 "autoCutEnabled": auto_cut != 0,
                 "ticketEscposEnabled": ticket_escpos != 0,
                 "ticketLogoPath": ticket_logo_path.filter(|s| !s.trim().is_empty()),
                 "ticketLogoEnabled": ticket_logo_enabled != 0,
+                "ticketPrinterType": ticket_printer_type,
+                "ticketNetworkHost": ticket_network_host.filter(|s| !s.trim().is_empty()),
+                "drawerOpenEnabled": drawer_open != 0,
             }))
         })?;
         let mut out = Vec::new();
@@ -641,32 +1001,75 @@ impl Db {
         Ok(out)
     }
 
-    /// Resuelve `display_label` (alias) + propósito a la impresora del sistema de esa línea.
-    pub fn system_printer_for_purpose_display_label(
+    fn print_target_from_row(
+        purpose: &str,
+        ticket_printer_type: &str,
+        system_printer_name: Option<String>,
+        ticket_network_host: Option<String>,
+    ) -> PrintTarget {
+        if purpose == "tickets" && ticket_printer_type.trim().eq_ignore_ascii_case("network") {
+            let host = ticket_network_host
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
+            return PrintTarget {
+                system_printer: None,
+                network_host: host,
+            };
+        }
+        let sp = system_printer_name
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        PrintTarget {
+            system_printer: sp,
+            network_host: None,
+        }
+    }
+
+    /// Resuelve `display_label` (alias) + propósito al destino de impresión de esa línea.
+    pub fn print_target_for_purpose_display_label(
         &self,
         purpose: &str,
         display_label: &str,
-    ) -> Result<Option<String>> {
+    ) -> Result<Option<PrintTarget>> {
         let t = display_label.trim();
         if t.is_empty() {
             return Ok(None);
         }
         let c = self.inner.lock();
         let mut stmt = c.prepare(
-            "SELECT system_printer_name FROM printer_mapping_lines
+            "SELECT system_printer_name, ticket_printer_type, ticket_network_host FROM printer_mapping_lines
              WHERE purpose = ?1 AND lower(trim(display_label)) = lower(trim(?2))
              ORDER BY sort_order ASC, id ASC LIMIT 1",
         )?;
         let mut rows = stmt.query(params![purpose, t])?;
         if let Some(r) = rows.next()? {
-            return Ok(Some(r.get::<_, String>(0)?));
+            let system_printer_name: Option<String> = r.get(0)?;
+            let ticket_printer_type: String = r.get(1)?;
+            let ticket_network_host: Option<String> = r.get(2)?;
+            return Ok(Some(Self::print_target_from_row(
+                purpose,
+                &ticket_printer_type,
+                system_printer_name,
+                ticket_network_host,
+            )));
         }
         Ok(None)
     }
 
+    /// Resuelve `display_label` (alias) + propósito a la impresora del sistema de esa línea.
+    pub fn system_printer_for_purpose_display_label(
+        &self,
+        purpose: &str,
+        display_label: &str,
+    ) -> Result<Option<String>> {
+        Ok(self
+            .print_target_for_purpose_display_label(purpose, display_label)?
+            .and_then(|t| t.system_printer))
+    }
+
     /// Lista de alias por propósito (solo `display_label` no vacío, sin repetir, orden de failover).
     pub fn aliases_by_purpose_json(&self) -> Result<serde_json::Value> {
-        const PURPOSES: &[&str] = &["documents", "tickets", "labels", "reports"];
+        const PURPOSES: &[&str] = &["documents", "tickets", "labels"];
         let lines = self.list_mapping_lines()?;
         let mut root = serde_json::Map::new();
         for purpose in PURPOSES {
@@ -727,10 +1130,45 @@ impl Db {
             .get("purpose")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow::anyhow!("line missing purpose"))?;
-        let system_printer_name = row
-            .get("systemPrinterName")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("line missing systemPrinterName"))?;
+        let ticket_printer_type = if purpose == "tickets" {
+            json_ticket_printer_type(row).to_string()
+        } else {
+            "system".to_string()
+        };
+        let network_line =
+            purpose == "tickets" && ticket_printer_type.eq_ignore_ascii_case("network");
+        let system_printer_name: Option<String> = if network_line {
+            None
+        } else {
+            let name = row
+                .get("systemPrinterName")
+                .and_then(|v| {
+                    if v.is_null() {
+                        None
+                    } else {
+                        v.as_str().map(str::trim).filter(|s| !s.is_empty())
+                    }
+                })
+                .map(String::from);
+            if name.is_none() {
+                anyhow::bail!("line missing systemPrinterName");
+            }
+            name
+        };
+        let ticket_network_host: Option<String> = if network_line {
+            let host = row
+                .get("ticketNetworkHost")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(String::from);
+            if host.is_none() {
+                anyhow::bail!("ticket_network_host_required");
+            }
+            host
+        } else {
+            None
+        };
         let sort_order = row
             .get("sortOrder")
             .and_then(|v| v.as_i64())
@@ -740,6 +1178,11 @@ impl Db {
             self.validate_display_label_unique(lbl, Some(id))?;
         }
         let auto_cut: i32 = if json_auto_cut_enabled(row) { 1 } else { 0 };
+        let drawer_open: i32 = if purpose == "tickets" && json_drawer_open_enabled(row) {
+            1
+        } else {
+            0
+        };
         let ticket_escpos: i32 = if json_ticket_escpos_enabled(row) { 1 } else { 0 };
         let ticket_logo_path = if purpose == "tickets" {
             row.get("ticketLogoPath")
@@ -756,8 +1199,8 @@ impl Db {
         };
         let c = self.inner.lock();
         c.execute(
-            "INSERT INTO printer_mapping_lines(id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path, ticket_logo_enabled)
-             VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            "INSERT INTO printer_mapping_lines(id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path, ticket_logo_enabled, ticket_printer_type, ticket_network_host, drawer_open_enabled)
+             VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
              ON CONFLICT(id) DO UPDATE SET
                purpose = excluded.purpose,
                system_printer_name = excluded.system_printer_name,
@@ -766,7 +1209,10 @@ impl Db {
                auto_cut_enabled = excluded.auto_cut_enabled,
                ticket_escpos_enabled = excluded.ticket_escpos_enabled,
                ticket_logo_path = excluded.ticket_logo_path,
-               ticket_logo_enabled = excluded.ticket_logo_enabled",
+               ticket_logo_enabled = excluded.ticket_logo_enabled,
+               ticket_printer_type = excluded.ticket_printer_type,
+               ticket_network_host = excluded.ticket_network_host,
+               drawer_open_enabled = excluded.drawer_open_enabled",
             params![
                 id,
                 purpose,
@@ -777,6 +1223,9 @@ impl Db {
                 ticket_escpos,
                 ticket_logo_path,
                 ticket_logo_enabled,
+                ticket_printer_type,
+                ticket_network_host,
+                drawer_open,
             ],
         )?;
         Ok(())
@@ -810,10 +1259,40 @@ impl Db {
                 .get("purpose")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("line missing purpose"))?;
-            let system_printer_name = row
-                .get("systemPrinterName")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| anyhow::anyhow!("line missing systemPrinterName"))?;
+            let ticket_printer_type = if purpose == "tickets" {
+                json_ticket_printer_type(row).to_string()
+            } else {
+                "system".to_string()
+            };
+            let network_line =
+                purpose == "tickets" && ticket_printer_type.eq_ignore_ascii_case("network");
+            let system_printer_name: Option<String> = if network_line {
+                None
+            } else {
+                let name = row
+                    .get("systemPrinterName")
+                    .and_then(|v| {
+                        if v.is_null() {
+                            None
+                        } else {
+                            v.as_str().map(str::trim).filter(|s| !s.is_empty())
+                        }
+                    })
+                    .map(String::from);
+                if name.is_none() {
+                    anyhow::bail!("line missing systemPrinterName");
+                }
+                name
+            };
+            let ticket_network_host: Option<String> = if network_line {
+                row.get("ticketNetworkHost")
+                    .and_then(|v| v.as_str())
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(String::from)
+            } else {
+                None
+            };
             let sort_order = row
                 .get("sortOrder")
                 .and_then(|v| v.as_i64())
@@ -822,6 +1301,11 @@ impl Db {
                 .get("displayLabel")
                 .and_then(|v| v.as_str());
             let auto_cut: i32 = if json_auto_cut_enabled(row) { 1 } else { 0 };
+            let drawer_open: i32 = if purpose == "tickets" && json_drawer_open_enabled(row) {
+                1
+            } else {
+                0
+            };
             let ticket_escpos: i32 = if json_ticket_escpos_enabled(row) { 1 } else { 0 };
             let ticket_logo_path = if purpose == "tickets" {
                 row.get("ticketLogoPath")
@@ -837,8 +1321,8 @@ impl Db {
                 0
             };
             tx.execute(
-                "INSERT INTO printer_mapping_lines(id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path, ticket_logo_enabled)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                "INSERT INTO printer_mapping_lines(id, purpose, system_printer_name, sort_order, display_label, auto_cut_enabled, ticket_escpos_enabled, ticket_logo_path, ticket_logo_enabled, ticket_printer_type, ticket_network_host, drawer_open_enabled)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 params![
                     id,
                     purpose,
@@ -849,6 +1333,9 @@ impl Db {
                     ticket_escpos,
                     ticket_logo_path,
                     ticket_logo_enabled,
+                    ticket_printer_type,
+                    ticket_network_host,
+                    drawer_open,
                 ],
             )?;
         }
@@ -870,13 +1357,14 @@ impl Db {
         source_app: Option<&str>,
         requested_by: Option<&str>,
         target_system_printer: Option<&str>,
+        target_network_host: Option<&str>,
     ) -> Result<()> {
         let c = self.inner.lock();
         let now = Utc::now().to_rfc3339();
         c.execute(
             "INSERT INTO print_jobs(id, status, purpose, filename, payload_ref, copies, created_at, client_id, priority,
-             document_type, internal_folio, source_app, requested_by, target_system_printer)
-             VALUES(?1, 'pending', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+             document_type, internal_folio, source_app, requested_by, target_system_printer, target_network_host)
+             VALUES(?1, 'pending', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 id,
                 purpose,
@@ -890,16 +1378,89 @@ impl Db {
                 internal_folio,
                 source_app,
                 requested_by,
-                target_system_printer
+                target_system_printer,
+                target_network_host,
             ],
         )?;
         Ok(())
     }
 
+    pub fn auto_cut_enabled_for_ticket_network_host(&self, host: &str, purpose: &str) -> bool {
+        let h = host.trim();
+        if h.is_empty() || purpose != "tickets" {
+            return false;
+        }
+        let c = self.inner.lock();
+        let Ok(mut stmt) = c.prepare(
+            "SELECT auto_cut_enabled FROM printer_mapping_lines
+             WHERE purpose = ?1 AND trim(ticket_network_host) = trim(?2)
+             ORDER BY sort_order ASC, id ASC LIMIT 1",
+        ) else {
+            return true;
+        };
+        let Ok(mut rows) = stmt.query(params![purpose, h]) else {
+            return true;
+        };
+        if let Ok(Some(r)) = rows.next() {
+            if let Ok(v) = r.get::<_, i32>(0) {
+                return v != 0;
+            }
+        }
+        true
+    }
+
+    pub fn drawer_open_enabled_for_printer(&self, system_printer_name: &str, purpose: &str) -> bool {
+        let name = system_printer_name.trim();
+        if name.is_empty() || purpose != "tickets" {
+            return false;
+        }
+        let c = self.inner.lock();
+        let Ok(mut stmt) = c.prepare(
+            "SELECT drawer_open_enabled FROM printer_mapping_lines
+             WHERE purpose = ?1 AND trim(system_printer_name) = trim(?2)
+             ORDER BY sort_order ASC, id ASC LIMIT 1",
+        ) else {
+            return false;
+        };
+        let Ok(mut rows) = stmt.query(params![purpose, name]) else {
+            return false;
+        };
+        if let Ok(Some(r)) = rows.next() {
+            if let Ok(v) = r.get::<_, i32>(0) {
+                return v != 0;
+            }
+        }
+        false
+    }
+
+    pub fn drawer_open_enabled_for_ticket_network_host(&self, host: &str, purpose: &str) -> bool {
+        let h = host.trim();
+        if h.is_empty() || purpose != "tickets" {
+            return false;
+        }
+        let c = self.inner.lock();
+        let Ok(mut stmt) = c.prepare(
+            "SELECT drawer_open_enabled FROM printer_mapping_lines
+             WHERE purpose = ?1 AND trim(ticket_network_host) = trim(?2)
+             ORDER BY sort_order ASC, id ASC LIMIT 1",
+        ) else {
+            return false;
+        };
+        let Ok(mut rows) = stmt.query(params![purpose, h]) else {
+            return false;
+        };
+        if let Ok(Some(r)) = rows.next() {
+            if let Ok(v) = r.get::<_, i32>(0) {
+                return v != 0;
+            }
+        }
+        false
+    }
+
     pub fn next_pending_job(&self) -> Result<Option<PendingJob>> {
         let c = self.inner.lock();
         let mut stmt = c.prepare(
-            "SELECT id, payload_ref, purpose, copies, target_system_printer, document_type FROM print_jobs WHERE status = 'pending'
+            "SELECT id, payload_ref, purpose, copies, target_system_printer, document_type, target_network_host FROM print_jobs WHERE status = 'pending'
              ORDER BY priority DESC, created_at ASC LIMIT 1",
         )?;
         let mut rows = stmt.query([])?;
@@ -911,6 +1472,7 @@ impl Db {
                 copies: r.get(3)?,
                 target_system_printer: r.get(4)?,
                 document_type: r.get(5)?,
+                target_network_host: r.get(6)?,
             }));
         }
         Ok(None)

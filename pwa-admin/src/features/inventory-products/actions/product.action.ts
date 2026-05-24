@@ -90,6 +90,8 @@ export type DeleteProductVariantResult = { success: true } | { success: false; e
 
 export type ListProductsForGridInput = {
   query: string;
+  /** Filtra por tipo de producto (`productType` en API). */
+  productType?: string;
   page: number;
   limit: number;
   sortField: string;
@@ -125,7 +127,11 @@ export async function listProductsForGrid(input: ListProductsForGridInput): Prom
   const sortField = input.sortField && input.sortField.trim() ? input.sortField.trim() : "name";
   const sortDir = input.sort === "desc" ? "desc" : "asc";
 
-  const all = await ProductRequest.searchProducts(input.query, 50);
+  const all = await ProductRequest.searchProducts(
+    input.query,
+    50,
+    input.productType?.trim() || undefined,
+  );
   const sorted = [...all].sort((r1, r2) => {
     let va: string | number | boolean | null | undefined;
     let vb: string | number | boolean | null | undefined;

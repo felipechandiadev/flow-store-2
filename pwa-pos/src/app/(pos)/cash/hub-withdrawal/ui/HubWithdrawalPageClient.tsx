@@ -1,12 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   Alert,
   Button,
   DotProgress,
-  IconButton,
   Select,
   TextField,
 } from "@/shared/admin-shared";
@@ -35,7 +33,6 @@ function parseAmountCl(raw: string): number {
 }
 
 export default function HubWithdrawalPageClient() {
-  const router = useRouter();
   const [cashSessionId, setCashSessionId] = useState<string | null>(null);
   const [hubs, setHubs] = useState<CashHubDepositCandidate[]>([]);
   const [availableCash, setAvailableCash] = useState<number | null>(null);
@@ -166,25 +163,14 @@ export default function HubWithdrawalPageClient() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-6 py-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--color-foreground)" }}>
-            Egreso de efectivo a centro de efectivo
-          </h1>
-          <p className="mt-1 max-w-xl text-xs sm:text-sm" style={{ color: "var(--color-muted-foreground)" }}>
-            Traslada efectivo desde la sesión de caja actual hacia el centro de efectivo elegido (aumenta el saldo del
-            centro). El monto no puede superar el efectivo teórico disponible en sesión.
-          </p>
-        </div>
-        <IconButton
-          icon="ArrowLeft"
-          variant="ghost"
-          size="md"
-          ariaLabel="Volver al punto de venta"
-          title="Volver al punto de venta"
-          onClick={() => router.push("/pos")}
-          data-test-id="hub-withdrawal-back-pos"
-        />
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--color-foreground)" }}>
+          Egreso de efectivo a centro de efectivo
+        </h1>
+        <p className="mt-1 max-w-xl text-xs sm:text-sm" style={{ color: "var(--color-muted-foreground)" }}>
+          Traslada efectivo desde la sesión de caja actual hacia el centro de efectivo elegido (aumenta el saldo del
+          centro). El monto no puede superar el efectivo teórico disponible en sesión.
+        </p>
       </div>
 
       {loadError ? (

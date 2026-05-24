@@ -31,6 +31,7 @@ export class ProductsController {
       page: query.page || 1,
       pageSize: query.pageSize || 10,
       priceListId: query.priceListId,
+      productType: query.productType,
     });
   }
 
@@ -68,6 +69,18 @@ export class ProductsController {
       storageId,
     });
     return data;
+  }
+
+  /** Stock disponible de la variante en todos los almacenes activos de la empresa. */
+  @Get('pos/variants/:variantId/stock-breakdown')
+  async getPosVariantStockBreakdown(
+    @Param('variantId') variantId: string,
+    @Query('pointOfSaleId') pointOfSaleId?: string,
+  ) {
+    return this.productsPosService.getVariantStockBreakdownForPos({
+      variantId,
+      pointOfSaleId,
+    });
   }
 
   @Get(':id/stocks')

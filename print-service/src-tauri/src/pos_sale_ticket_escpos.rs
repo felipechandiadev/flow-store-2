@@ -105,6 +105,23 @@ pub fn escpos_feed_and_cut_commands() -> Vec<u8> {
     escpos_feed_and_cut()
 }
 
+/// Pulso de gaveta (`ESC p m t1 t2`). Conector 0, ~100 ms on/off (genéricas 80 mm).
+pub fn escpos_drawer_kick_commands() -> Vec<u8> {
+    vec![0x1B, b'p', 0x00, 0x32, 0x32]
+}
+
+/// Tras el contenido del ticket: corte (si aplica) y luego apertura de gaveta (si aplica).
+pub fn escpos_post_print_trailer(auto_cut: bool, open_drawer: bool) -> Vec<u8> {
+    let mut v = Vec::new();
+    if auto_cut {
+        v.extend(escpos_feed_and_cut_commands());
+    }
+    if open_drawer {
+        v.extend(escpos_drawer_kick_commands());
+    }
+    v
+}
+
 /// Normaliza texto para ticket: sin UTF-8 multibyte que desincronice la impresora.
 fn normalize_ticket_text(s: &str) -> String {
     s.chars()

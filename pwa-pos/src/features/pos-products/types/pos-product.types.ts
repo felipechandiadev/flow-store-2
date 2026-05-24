@@ -51,3 +51,23 @@ export type PosProductSearchResponse =
       products: PosProductSearchItem[];
     }
   | { success: false; message: string; statusCode?: number };
+
+export type PosVariantStockByStorageRow = {
+  storageId: string;
+  storageName: string;
+  branchName: string | null;
+  availableStock: number | null;
+  availableStockBase: number | null;
+  isPosStorage: boolean;
+};
+
+export type PosVariantStockBreakdownResponse =
+  | {
+      success: true;
+      variantId: string;
+      sku: string | null;
+      trackInventory: boolean;
+      posStorageId: string | null;
+      breakdown: PosVariantStockByStorageRow[];
+    }
+  | { success: false; message: string; statusCode?: number };

@@ -3,7 +3,7 @@ import { Logger } from '@nestjs/common';
 import { SearchProductsQuery } from '../../queries/search-products.query';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Product } from '@modules/products/domain/product.entity';
+import { Product, ProductType } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { attachProductVariantMultimedia } from '../../helpers/attach-product-variant-multimedia';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
@@ -76,6 +76,14 @@ export class SearchProductsQueryHandler implements IQueryHandler<
         '(LOWER(p.name) LIKE :q OR LOWER(p.brand) LIKE :q OR LOWER(catalogBrand.name) LIKE :q)',
         { q },
       );
+    }
+
+    const typeFilter = query.productType?.trim().toUpperCase() ?? '';
+    if (
+      typeFilter &&
+      Object.values(ProductType).includes(typeFilter as ProductType)
+    ) {
+      qb.andWhere('p.productType = :productType', { productType: typeFilter });
     }
 
     const products = await qb.getMany();

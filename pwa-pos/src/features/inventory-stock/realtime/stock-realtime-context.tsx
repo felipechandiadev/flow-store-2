@@ -11,25 +11,48 @@ import React, {
 } from "react";
 import { io, type Socket } from "socket.io-client";
 import { getClientBackendApiBase } from "@/lib/backend-api-url";
-import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
-import type { StockUpdatedPayload } from "../lib/stock-alert-copy";
+import {
+  fetchInbox,
+  fetchUnreadCount,
+  markAllNotificationsRead,
+} from "@/features/notifications/infrastructure/notifications.request";
+import {
+  inboxItemToRow,
+  type NotificationRow,
+} from "@/features/notifications/lib/inbox-mapper";
+import type { NotificationDeliveryWsPayload } from "@/features/notifications/types/notification.types";
 
-export type { StockUpdatedPayload };
+export type { NotificationRow };
 
 type StockRealtimeContextValue = {
   stockAlertCount: number;
-  lastStockEvents: Array<StockUpdatedPayload & { receivedAt?: number }>;
-  clearStockAlerts: () => void;
+  notificationRows: NotificationRow[];
+  clearStockAlerts: () => Promise<void>;
+  refreshStockAlerts: () => Promise<void>;
 };
 
 const StockRealtimeContext = createContext<StockRealtimeContextValue>({
   stockAlertCount: 0,
-  lastStockEvents: [],
-  clearStockAlerts: () => {},
+  notificationRows: [],
+  clearStockAlerts: async () => {},
+  refreshStockAlerts: async () => {},
 });
 
 export function useStockRealtime() {
   return useContext(StockRealtimeContext);
+}
+
+function wsPayloadToRow(payload: NotificationDeliveryWsPayload): NotificationRow | null {
+  return inboxItemToRow(
+    {
+      deliveryId: payload.deliveryId,
+      status: payload.status,
+      deliveredAt: payload.deliveredAt,
+      readAt: null,
+      notification: payload.notification,
+    },
+    "STOCK",
+  );
 }
 
 export function PosStockRealtimeProvider({
@@ -42,58 +65,50 @@ export function PosStockRealtimeProvider({
   userId: string | null;
   activeCompanyId?: string | null;
 }) {
-  const [lastStockEvents, setLastStockEvents] = useState<
-    Array<StockUpdatedPayload & { receivedAt?: number }>
-  >([]);
+  const [stockAlertCount, setStockAlertCount] = useState(0);
+  const [notificationRows, setNotificationRows] = useState<NotificationRow[]>([]);
   const socketRef = useRef<Socket | null>(null);
 
-  const clearStockAlerts = useCallback(() => {
-    setLastStockEvents([]);
-  }, []);
-
-  useEffect(() => {
-    const base = getClientBackendApiBase();
-    if (!base || !userId) {
+  const refreshStockAlerts = useCallback(async () => {
+    if (!userId) {
+      setStockAlertCount(0);
+      setNotificationRows([]);
       return;
     }
-    let cancelled = false;
-    void (async () => {
-      try {
-        const ctx = readPosContextClient();
-        const storageId = ctx?.storageId != null ? String(ctx.storageId).trim() : "";
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${userId}`,
-        };
-        if (activeCompanyId) {
-          headers["X-Active-Company-Id"] = activeCompanyId;
-        }
-        const q = storageId ? `?storageId=${encodeURIComponent(storageId)}` : "";
-        const res = await fetch(`${base}/api/inventory/threshold-alerts${q}`, { headers });
-        if (!res.ok || cancelled) {
-          return;
-        }
-        const json = (await res.json()) as { items?: StockUpdatedPayload[] };
-        const items = Array.isArray(json?.items) ? json.items : [];
-        const now = Date.now();
-        const rows = items.map((p) => ({ ...p, receivedAt: now }));
-        setLastStockEvents(rows);
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    const [count, inbox] = await Promise.all([
+      fetchUnreadCount(userId, activeCompanyId, "STOCK"),
+      fetchInbox(userId, activeCompanyId, {
+        domain: "STOCK",
+        status: "UNREAD",
+        limit: 50,
+      }),
+    ]);
+    setStockAlertCount(count);
+    const rows = inbox
+      .map((item) => inboxItemToRow(item, "STOCK"))
+      .filter((x): x is NotificationRow => x != null);
+    setNotificationRows(rows);
+  }, [userId, activeCompanyId]);
+
+  const clearStockAlerts = useCallback(async () => {
+    if (!userId) return;
+    await markAllNotificationsRead(userId, activeCompanyId, "STOCK");
+    setStockAlertCount(0);
+    setNotificationRows([]);
   }, [userId, activeCompanyId]);
 
   useEffect(() => {
+    if (!userId) return;
+    void refreshStockAlerts();
+  }, [userId, activeCompanyId, refreshStockAlerts]);
+
+  useEffect(() => {
     const base = getClientBackendApiBase();
     if (!base || !userId) {
       return;
     }
 
-    const socket = io(`${base}/realtime/stock`, {
+    const socket = io(`${base}/realtime/notifications`, {
       transports: ["websocket"],
       auth: {
         userId,
@@ -102,35 +117,27 @@ export function PosStockRealtimeProvider({
     });
     socketRef.current = socket;
 
-    const subscribePosStorage = () => {
-      const ctx = readPosContextClient();
-      const sid = ctx?.storageId != null ? String(ctx.storageId).trim() : "";
-      const storageIds = sid ? [sid] : [];
-      socket.emit("subscribeStorages", { storageIds });
+    const onDelivery = (payload: NotificationDeliveryWsPayload) => {
+      if (payload.notification.domain !== "STOCK") return;
+      if (payload.status !== "UNREAD") return;
+
+      const row = wsPayloadToRow(payload);
+      if (row) {
+        setNotificationRows((prev) => {
+          const hadUnread = prev.some((p) => p.deliveryId === row.deliveryId);
+          const next = [row, ...prev.filter((p) => p.deliveryId !== row.deliveryId)].slice(0, 50);
+          if (!hadUnread) {
+            setStockAlertCount((c) => c + 1);
+          }
+          return next;
+        });
+      }
     };
 
-    const onConnect = () => {
-      subscribePosStorage();
-    };
-
-    const onStockUpdated = (payload: StockUpdatedPayload) => {
-      const row: StockUpdatedPayload & { receivedAt: number } = {
-        ...payload,
-        receivedAt: Date.now(),
-      };
-      setLastStockEvents((prev) => [row, ...prev].slice(0, 50));
-    };
-
-    socket.on("connect", onConnect);
-    socket.on("stock:updated", onStockUpdated);
-
-    const onFocus = () => subscribePosStorage();
-    window.addEventListener("focus", onFocus);
+    socket.on("notification:delivery", onDelivery);
 
     return () => {
-      window.removeEventListener("focus", onFocus);
-      socket.off("connect", onConnect);
-      socket.off("stock:updated", onStockUpdated);
+      socket.off("notification:delivery", onDelivery);
       socket.disconnect();
       socketRef.current = null;
     };
@@ -138,11 +145,12 @@ export function PosStockRealtimeProvider({
 
   const value = useMemo(
     () => ({
-      stockAlertCount: lastStockEvents.filter((e) => Array.isArray(e.alerts) && e.alerts.length > 0).length,
-      lastStockEvents,
+      stockAlertCount,
+      notificationRows,
       clearStockAlerts,
+      refreshStockAlerts,
     }),
-    [lastStockEvents, clearStockAlerts],
+    [stockAlertCount, notificationRows, clearStockAlerts, refreshStockAlerts],
   );
 
   return <StockRealtimeContext.Provider value={value}>{children}</StockRealtimeContext.Provider>;

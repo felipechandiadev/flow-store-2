@@ -12,7 +12,7 @@ Documento de referencia para el **servicio local de impresión** (app de escrito
 | **Plataformas** | **macOS** y **Windows** (builds separados; mismo protocolo y comportamiento funcional). |
 | **Clientes** | **pwa-admin** y **pwa-pos**: canal **WebSocket** bidireccional al host local (comandos + **alertas** de servicio/impresoras hacia la PWA). |
 | **Configuración de impresoras** | Debe poder hacerse **desde pwa-admin**, **desde pwa-pos** y **desde la app del servicio** (UI local / preferencias del tray). Los tres orígenes deben converger en la **misma fuente de verdad** persistida en el servicio (SQLite). |
-| **Propósitos** | Mapeo lógico → impresora física: al menos `documents`, `tickets`, `labels`, `reports` (extensible). |
+| **Propósitos** | Mapeo lógico → impresora física: `documents`, `tickets`, `labels` (extensible). |
 | **Comunicación** | WebSocket en `localhost`, puerto **configurable** (default documentado). |
 | **Contenido** | Preferencia MVP/producción: **PDF en Base64** generado en la PWA (React), enviado al servicio para impresión silenciosa. |
 
@@ -71,7 +71,6 @@ Documento de referencia para el **servicio local de impresión** (app de escrito
 | `documents`| A4, facturas, OCs | Impresora láser / PDF |
 | `tickets`  | Térmica 80 mm     | Cajón / ticket |
 | `labels`   | Etiquetas         | Zebra / similar |
-| `reports`  | Listados largos   | Impresora secundaria |
 
 Cada `purpose` puede tener **varias líneas** de impresora del OS en orden de failover (SQLite `printer_mapping_lines`); el worker intenta en `sort_order` hasta éxito o agotar líneas.
 

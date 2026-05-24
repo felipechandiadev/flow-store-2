@@ -8,7 +8,7 @@ import {
   type HelloResponseData,
 } from "@flowstore/print-service-client";
 
-export type AdminAgentPrintPurpose = "tickets" | "documents" | "reports" | "labels";
+export type AdminAgentPrintPurpose = "tickets" | "documents" | "labels";
 
 export type AdminAgentPrintMeta = {
   filename: string;

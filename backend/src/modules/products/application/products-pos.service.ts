@@ -470,4 +470,127 @@ export class ProductsPosService {
       availableStockBase,
     };
   }
+
+  /**
+   * Stock disponible por almacén (todos los almacenes activos de la empresa).
+   * `pointOfSaleId` opcional: marca el almacén de la sala de venta del POS.
+   */
+  async getVariantStockBreakdownForPos(args: {
+    variantId: string;
+    pointOfSaleId?: string;
+  }) {
+    const variantId = args.variantId?.trim();
+    if (!variantId) {
+      throw new BadRequestException('variantId es requerido');
+    }
+
+    let posStorageId: string | null = null;
+    if (args.pointOfSaleId?.trim()) {
+      const pos = await this.dataSource.getRepository(PointOfSale).findOne({
+        where: { id: args.pointOfSaleId.trim(), deletedAt: IsNull() },
+        select: ['id', 'storageId'],
+      });
+      if (!pos) {
+        throw new NotFoundException('Punto de venta no encontrado');
+      }
+      posStorageId = pos.storageId ?? null;
+    }
+
+    const variant = await this.variantRepository.findOne({
+      where: { id: variantId, deletedAt: IsNull() },
+      relations: ['product', 'unit', 'saleUnit', 'stockBaseUnit'],
+    });
+    if (!variant) {
+      throw new NotFoundException('Variante no encontrada');
+    }
+
+    const track = variant.trackInventory ?? false;
+    let unitsById: Map<string, Unit> | undefined;
+    const companyId = variant.product?.companyId;
+    if (companyId) {
+      const unitRows = await this.unitRepository.find({
+        where: { companyId, deletedAt: IsNull() },
+      });
+      unitsById = new Map(unitRows.map((u) => [u.id, u]));
+    }
+
+    const levels = await this.stockLevelRepository.find({
+      where: { productVariantId: variantId },
+      relations: ['storage', 'storage.branch'],
+    });
+    const levelsByStorageId = new Map(
+      levels.map((sl) => [sl.storageId, sl] as const),
+    );
+
+    const storageRepo = this.dataSource.getRepository(Storage);
+    let storages: Storage[] = [];
+    if (companyId) {
+      storages = await storageRepo.find({
+        where: { companyId, deletedAt: IsNull(), isActive: true },
+        relations: ['branch'],
+        order: { name: 'ASC' },
+      });
+    }
+
+    if (storages.length === 0) {
+      const seen = new Set<string>();
+      for (const sl of levels) {
+        if (!sl.storage || seen.has(sl.storageId)) {
+          continue;
+        }
+        seen.add(sl.storageId);
+        storages.push(sl.storage);
+      }
+      storages.sort((a, b) =>
+        (a.name ?? '').localeCompare(b.name ?? '', 'es', { sensitivity: 'base' }),
+      );
+    }
+
+    const breakdown = storages.map((storage) => {
+      const sl = levelsByStorageId.get(storage.id) ?? null;
+      const stockBaseQty = Number(sl?.availableStock ?? 0);
+      const availableStockBase = track ? stockBaseQty : null;
+      const availableStock = track
+        ? posDisplayStockInSaleUnits({
+            physicalStockInBase: stockBaseQty,
+            stockBaseUnitId: variant.stockBaseUnitId,
+            saleUnitId: variant.saleUnitId,
+            stockBaseDimension: (variant as any).stockBaseUnit?.dimension ?? null,
+            saleDimension: (variant as any).saleUnit?.dimension ?? null,
+            stockBaseQtyPerCountSaleUnit: (variant as any).stockBaseQtyPerCountSaleUnit,
+            unitsById,
+          })
+        : null;
+
+      return {
+        storageId: storage.id,
+        storageName: storage.name ?? '',
+        branchName: storage.branch?.name ?? null,
+        availableStock,
+        availableStockBase,
+        isPosStorage: posStorageId != null && storage.id === posStorageId,
+      };
+    });
+
+    breakdown.sort((a, b) => {
+      if (a.isPosStorage && !b.isPosStorage) {
+        return -1;
+      }
+      if (!a.isPosStorage && b.isPosStorage) {
+        return 1;
+      }
+      return a.storageName.localeCompare(b.storageName, 'es', {
+        sensitivity: 'base',
+      });
+    });
+
+    return {
+      success: true as const,
+      variantId: variant.id,
+      sku: variant.sku ?? null,
+      trackInventory: track,
+      posStorageId,
+      breakdown,
+    };
+  }
 }

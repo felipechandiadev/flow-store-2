@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getPosVariantStockAction } from "@/features/pos-products/actions/pos-products.action";
-import type { PosProductSearchItem } from "@/features/pos-products/types/pos-product.types";
+import { getPosVariantStockBreakdownAction } from "@/features/pos-products/actions/pos-products.action";
+import type {
+  PosProductSearchItem,
+  PosVariantStockByStorageRow,
+} from "@/features/pos-products/types/pos-product.types";
 import { redirectToLoginIfUnauthorized } from "@/lib/auth/pos-api-failure";
 import type { ResolvedLineDiscount } from "@/features/promotions/lib/discount-engine.types";
 import {
   InlineSepDot,
   PosProductNameWithAttributes,
+  POS_INSUFFICIENT_STOCK_SURFACE_CLASS,
   posCartQuantityExceedsAvailableStock,
   posDisplaySaleUnitSymbol,
   posFormatStockForCard,
@@ -59,25 +63,18 @@ export default function PosCartLineCard({
   const [stockDialogOpen, setStockDialogOpen] = useState(false);
   const [stockLoading, setStockLoading] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
-  const [stockDetail, setStockDetail] = useState<{
-    storageName: string | null;
-    availableStock: number | null;
-    availableStockBase: number | null;
-  } | null>(null);
+  const [stockBreakdown, setStockBreakdown] = useState<PosVariantStockByStorageRow[]>([]);
+  const [stockTrackInventory, setStockTrackInventory] = useState(true);
 
   useEffect(() => {
     if (!stockDialogOpen) return;
     setStockError(null);
-    setStockDetail(null);
-    if (!pointOfSaleId?.trim()) {
-      setStockError("Sin punto de venta en contexto.");
-      return;
-    }
+    setStockBreakdown([]);
     setStockLoading(true);
     void (async () => {
-      const res = await getPosVariantStockAction({
+      const res = await getPosVariantStockBreakdownAction({
         variantId: line.variantId,
-        pointOfSaleId: pointOfSaleId.trim(),
+        pointOfSaleId: pointOfSaleId?.trim() || undefined,
       });
       setStockLoading(false);
       if (!res.success) {
@@ -85,13 +82,22 @@ export default function PosCartLineCard({
         setStockError(res.message);
         return;
       }
-      setStockDetail({
-        storageName: res.storageName,
-        availableStock: res.availableStock,
-        availableStockBase: res.availableStockBase,
-      });
+      setStockTrackInventory(res.trackInventory);
+      setStockBreakdown(res.breakdown);
     })();
   }, [stockDialogOpen, line.variantId, pointOfSaleId]);
+
+  const formatBreakdownQty = (row: PosVariantStockByStorageRow): string => {
+    const qty = posFormatStockQuantity({
+      trackInventory: stockTrackInventory,
+      availableStock: row.availableStock,
+      availableStockBase: row.availableStockBase,
+      stockBaseQtyPerCountSaleUnit: line.stockBaseQtyPerCountSaleUnit,
+      unitAllowDecimals: line.unitAllowDecimals,
+    });
+    if (!qty) return "—";
+    return saleUnitLabel ? `${qty} ${saleUnitLabel}` : qty;
+  };
 
   useEffect(() => {
     if (!qtyDialogOpen) return;
@@ -144,7 +150,7 @@ export default function PosCartLineCard({
     <article
       className={`rounded-xl border p-4 shadow-sm ${
         exceedsAvailableStock
-          ? "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/35"
+          ? POS_INSUFFICIENT_STOCK_SURFACE_CLASS
           : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
       }`}
       data-test-id="pos-cart-line"
@@ -159,8 +165,8 @@ export default function PosCartLineCard({
                 variant="ghost"
                 size="xs"
                 className="shrink-0"
-                ariaLabel="Ver stock en sala de venta"
-                title="Stock en sala de venta"
+                ariaLabel="Ver stock por almacén"
+                title="Stock por almacén"
                 onClick={() => setStockDialogOpen(true)}
                 data-test-id="pos-cart-line-stock-info"
               />
@@ -268,7 +274,7 @@ export default function PosCartLineCard({
       <Dialog
         open={stockDialogOpen}
         onClose={() => setStockDialogOpen(false)}
-        title="Stock en sala de venta"
+        title="Stock por almacén"
         size="sm"
         alertArea={
           stockError ? <Alert variant="error">{stockError}</Alert> : undefined
@@ -284,37 +290,42 @@ export default function PosCartLineCard({
         <div className="grid gap-2 text-sm">
           {stockLoading ? (
             <p className="text-muted-foreground">Cargando…</p>
-          ) : stockDetail ? (
-            <>
-              <p>
-                <span className="text-muted-foreground">Almacén: </span>
-                <span className="font-medium">{stockDetail.storageName ?? "—"}</span>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Disponible (venta): </span>
-                <span className="font-mono font-semibold">
-                  {(() => {
-                    const qty = posFormatStockQuantity({
-                      trackInventory: true,
-                      availableStock: stockDetail.availableStock,
-                      availableStockBase: stockDetail.availableStockBase,
-                      stockBaseQtyPerCountSaleUnit: line.stockBaseQtyPerCountSaleUnit,
-                      unitAllowDecimals: line.unitAllowDecimals,
-                    });
-                    if (!qty) return "—";
-                    return saleUnitLabel ? `${qty} ${saleUnitLabel}` : qty;
-                  })()}
-                </span>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Unidad base: </span>
-                <span className="font-mono font-semibold">
-                  {stockDetail.availableStockBase == null ? "—" : String(stockDetail.availableStockBase)}
-                </span>
-              </p>
-            </>
+          ) : !stockTrackInventory ? (
+            <p className="text-muted-foreground">Este producto no controla inventario.</p>
+          ) : stockBreakdown.length === 0 ? (
+            <p className="text-muted-foreground">Sin stock en almacenes.</p>
           ) : (
-            <p className="text-muted-foreground">Sin datos.</p>
+            <ul className="max-h-[min(16rem,50vh)] space-y-2 overflow-y-auto pr-1">
+              {stockBreakdown.map((row) => (
+                <li
+                  key={row.storageId}
+                  className={`rounded-lg border px-3 py-2 ${
+                    row.isPosStorage
+                      ? "border-secondary/40 bg-secondary/10"
+                      : "border-zinc-200 dark:border-zinc-800"
+                  }`}
+                  data-test-id={`pos-cart-stock-row-${row.storageId}`}
+                  data-pos-storage={row.isPosStorage ? "true" : undefined}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">{row.storageName || "—"}</p>
+                      {row.branchName ? (
+                        <p className="text-xs text-muted-foreground">{row.branchName}</p>
+                      ) : null}
+                      {row.isPosStorage ? (
+                        <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-secondary">
+                          Sala de venta (POS)
+                        </p>
+                      ) : null}
+                    </div>
+                    <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-foreground">
+                      {formatBreakdownQty(row)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </Dialog>

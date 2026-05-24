@@ -521,55 +521,78 @@ fn set_service_settings(
 }
 
 #[tauri::command]
+fn probe_ticket_network_printer(ticket_network_host: String) -> Result<String, String> {
+    crate::platform::probe_network_printer(&ticket_network_host).map_err(|e| e.to_string())?;
+    Ok("Conexión TCP correcta.".into())
+}
+
+#[tauri::command]
 fn queue_test_cut_print(
     state: tauri::State<'_, Arc<AppState>>,
     system_printer_name: Option<String>,
+    ticket_network_host: Option<String>,
 ) -> Result<String, String> {
-    let target_sp = system_printer_name
+    let net = ticket_network_host
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .map(String::from)
-        .or_else(|| {
-            state.db.list_mapping_lines().ok().and_then(|lines| {
-                let pick = |purpose: &str| {
-                    lines.iter().find(|l| {
-                        l.get("purpose").and_then(|v| v.as_str()) == Some(purpose)
-                            && l.get("systemPrinterName")
-                                .and_then(|v| v.as_str())
-                                .map(str::trim)
-                                .filter(|s| !s.is_empty())
-                                .is_some()
-                    })
-                };
-                pick("tickets")
-                    .or_else(|| pick("labels"))
-                    .or_else(|| {
+        .map(String::from);
+    let target_sp = if net.is_some() {
+        None
+    } else {
+        system_printer_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .or_else(|| {
+                state.db.list_mapping_lines().ok().and_then(|lines| {
+                    let pick = |purpose: &str| {
                         lines.iter().find(|l| {
+                            l.get("purpose").and_then(|v| v.as_str()) == Some(purpose)
+                                && l.get("systemPrinterName")
+                                    .and_then(|v| v.as_str())
+                                    .map(str::trim)
+                                    .filter(|s| !s.is_empty())
+                                    .is_some()
+                        })
+                    };
+                    pick("tickets")
+                        .or_else(|| pick("labels"))
+                        .or_else(|| {
+                            lines.iter().find(|l| {
+                                l.get("systemPrinterName")
+                                    .and_then(|v| v.as_str())
+                                    .map(str::trim)
+                                    .filter(|s| !s.is_empty())
+                                    .is_some()
+                            })
+                        })
+                        .and_then(|l| {
                             l.get("systemPrinterName")
                                 .and_then(|v| v.as_str())
-                                .map(str::trim)
-                                .filter(|s| !s.is_empty())
-                                .is_some()
+                                .map(String::from)
                         })
-                    })
-                    .and_then(|l| {
-                        l.get("systemPrinterName")
-                            .and_then(|v| v.as_str())
-                            .map(String::from)
-                    })
+                })
             })
-        })
-        .ok_or_else(|| {
-            "Asigná una impresora del sistema en la sección Impresoras antes de probar el corte."
-                .to_string()
-        })?;
+    };
+    if target_sp.is_none() && net.is_none() {
+        return Err(
+            "Configurá una impresora del sistema o una IP en red antes de probar el corte."
+                .to_string(),
+        );
+    }
 
     let path = jobs::write_cut_test_path(&state.temp_dir, true).map_err(|e| e.to_string())?;
     let filename = "cut_test.escpos";
     let format_label = "ESC/POS RAW";
+    let dest = net
+        .as_deref()
+        .map(|h| format!("red {h}"))
+        .or_else(|| target_sp.as_ref().map(|p| format!("«{p}»")))
+        .unwrap_or_default();
     state.agent_log.push_info(format!(
-        "Prueba de corte encolada ({format_label}) → «{target_sp}»"
+        "Prueba de corte encolada ({format_label}) → {dest}"
     ));
     let id = uuid::Uuid::new_v4().to_string();
     state
@@ -586,7 +609,66 @@ fn queue_test_cut_print(
             None,
             None,
             None,
-            Some(target_sp.as_str()),
+            target_sp.as_deref(),
+            net.as_deref(),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(id)
+}
+
+#[tauri::command]
+fn queue_test_drawer_print(
+    state: tauri::State<'_, Arc<AppState>>,
+    system_printer_name: Option<String>,
+    ticket_network_host: Option<String>,
+) -> Result<String, String> {
+    let net = ticket_network_host
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from);
+    let target_sp = if net.is_some() {
+        None
+    } else {
+        system_printer_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+    };
+    if target_sp.is_none() && net.is_none() {
+        return Err(
+            "Configurá una impresora del sistema o una IP en red antes de probar la gaveta."
+                .to_string(),
+        );
+    }
+
+    let path = jobs::write_drawer_test_path(&state.temp_dir).map_err(|e| e.to_string())?;
+    let dest = net
+        .as_deref()
+        .map(|h| format!("red {h}"))
+        .or_else(|| target_sp.as_ref().map(|p| format!("«{p}»")))
+        .unwrap_or_default();
+    state.agent_log.push_info(format!(
+        "Prueba de gaveta encolada (ESC/POS) → {dest}"
+    ));
+    let id = uuid::Uuid::new_v4().to_string();
+    state
+        .db
+        .insert_job(
+            &id,
+            Some("tickets"),
+            "drawer_test.escpos",
+            path.to_string_lossy().as_ref(),
+            1,
+            Some("local_ui"),
+            0,
+            Some("test_drawer"),
+            None,
+            None,
+            None,
+            target_sp.as_deref(),
+            net.as_deref(),
         )
         .map_err(|e| e.to_string())?;
     Ok(id)
@@ -596,6 +678,7 @@ fn queue_test_cut_print(
 fn queue_escpos_qa_print(
     state: tauri::State<'_, Arc<AppState>>,
     system_printer_name: Option<String>,
+    ticket_network_host: Option<String>,
     purpose: Option<String>,
     include_logo: Option<bool>,
     include_cut: Option<bool>,
@@ -611,12 +694,30 @@ fn queue_escpos_qa_print(
             "La prueba ESC/POS QA solo aplica a líneas con propósito «Tickets».".to_string(),
         );
     }
-    let target_sp = system_printer_name
+    let net = ticket_network_host
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .map(String::from)
-        .ok_or_else(|| "Seleccioná una impresora del sistema en la línea.".to_string())?;
+        .map(String::from);
+    let target_sp = if net.is_some() {
+        None
+    } else {
+        system_printer_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+    };
+    if target_sp.is_none() && net.is_none() {
+        return Err(
+            "Seleccioná una impresora del sistema o ingresá la IP en red en la línea.".to_string(),
+        );
+    }
+    let printer_label = net
+        .as_deref()
+        .map(|h| format!("red:{h}"))
+        .or_else(|| target_sp.clone())
+        .unwrap_or_default();
     let include_logo = include_logo.unwrap_or(false);
     let include_cut = include_cut.unwrap_or(true);
     let logo_b64 = if include_logo {
@@ -636,13 +737,13 @@ fn queue_escpos_qa_print(
     let (path, bytes) = jobs::write_escpos_qa_path(
         &state.temp_dir,
         &agent_label,
-        &target_sp,
+        &printer_label,
         logo_b64.as_deref(),
         include_cut,
     )
     .map_err(|e| e.to_string())?;
     state.agent_log.push_info(format!(
-        "QA ESC/POS encolada: {bytes} bytes → «{target_sp}» (logo={}, corte={})",
+        "QA ESC/POS encolada: {bytes} bytes → {printer_label} (logo={}, corte={})",
         include_logo && logo_b64.is_some(),
         include_cut
     ));
@@ -666,7 +767,8 @@ fn queue_escpos_qa_print(
             None,
             None,
             None,
-            Some(target_sp.as_str()),
+            target_sp.as_deref(),
+            net.as_deref(),
         )
         .map_err(|e| e.to_string())?;
     Ok(id)
@@ -725,6 +827,7 @@ fn queue_test_print(
             None,
             None,
             target_sp,
+            None,
         )
         .map_err(|e| e.to_string())?;
     Ok(id)
@@ -1021,6 +1124,8 @@ pub fn run() {
             queue_test_print,
             queue_escpos_qa_print,
             queue_test_cut_print,
+            queue_test_drawer_print,
+            probe_ticket_network_printer,
             cancel_print_job,
             cancel_all_print_jobs,
             get_agent_logs,
