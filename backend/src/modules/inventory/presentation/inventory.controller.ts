@@ -40,6 +40,23 @@ export class InventoryController {
     return this.inventoryService.lookupVariantByCode(value, by);
   }
 
+  @Get('stock-movements')
+  async getStockMovements(
+    @CurrentCompany() companyId: string,
+    @Query('variantId') variantId: string,
+    @Query('storageId') storageId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.inventoryService.getStockMovementsPaginated({
+      companyId,
+      variantId,
+      storageId: storageId?.trim() || undefined,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 25,
+    });
+  }
+
   @Get()
   async getInventory(
     @Query()

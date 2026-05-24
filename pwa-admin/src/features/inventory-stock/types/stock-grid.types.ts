@@ -1,4 +1,5 @@
 export type StockMovementRow = {
+  lineId?: string;
   transactionId: string;
   documentNumber: string;
   transactionType: string;
@@ -8,6 +9,8 @@ export type StockMovementRow = {
   storageName?: string | null;
   targetStorageName?: string | null;
   direction: "IN" | "OUT";
+  /** Saldo en unidad de stock después del movimiento. */
+  balanceAfter?: number;
 };
 
 export type StockStorageBreakdownRow = {
@@ -78,6 +81,13 @@ export type ListStockForGridInput = {
 
 export type ListStockForGridResult = {
   rows: StockGridRow[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export type ListStockMovementsResult = {
+  rows: StockMovementRow[];
   total: number;
   page: number;
   limit: number;

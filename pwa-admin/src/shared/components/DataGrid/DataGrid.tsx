@@ -19,6 +19,7 @@ import {
 } from './utils/useDataGridFillViewportHeight';
 import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import type { DataGridPaginationChange } from './components/Pagination';
 
 export type DataGridColumnType =
   | 'string'
@@ -66,7 +67,8 @@ export interface DataGridProps {
   columns: DataGridColumn[];
   title?: string;
   rows?: any[];
-  loading?: boolean; // Deprecated: mantener para compatibilidad hacia atrás
+  /** Estado de carga (server-side). En `paginationMode="controlled"` controla el skeleton del cuerpo. */
+  loading?: boolean;
   enableSearch?: boolean; // Deprecated: usar showSearch en su lugar
   enablePagination?: boolean; // Deprecated: siempre habilitado
   sort?: 'asc' | 'desc';
@@ -122,13 +124,20 @@ export interface DataGridProps {
   selectedRowId?: string | number | null;
   /** Oculta pie de paginación (listas cortas estáticas). */
   showFooter?: boolean;
+  /**
+   * `url` (default): `page` y `limit` en la URL de la página.
+   * `controlled`: paginación vía props (diálogos, paneles embebidos).
+   */
+  paginationMode?: 'url' | 'controlled';
+  page?: number;
+  onPaginationChange?: (next: DataGridPaginationChange) => void;
 }
 
 const DataGrid: React.FC<DataGridProps> = ({
   columns,
   title,
   rows,
-  loading: _deprecated_loading = false, // deprecated
+  loading = false,
   enableSearch, // deprecated: map to showSearch
   enablePagination, // deprecated: always enabled
   sort,
@@ -167,13 +176,15 @@ const DataGrid: React.FC<DataGridProps> = ({
   onRowClick,
   selectedRowId = null,
   showFooter = true,
+  paginationMode = 'url',
+  page: controlledPage,
+  onPaginationChange,
 }) => {
   // Map deprecated props to new ones
   const effectiveShowSearch = showSearch !== undefined ? showSearch : (enableSearch !== undefined ? enableSearch : true);
   const searchParams = useSearchParams();
   const router = useRouter();
   const [data, setData] = useState<any[]>(rows || []);
-  const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(totalRows || (rows ? rows.length : 0));
   const [expandedRowIds, setExpandedRowIds] = useState<Set<string | number>>(new Set(defaultExpandedRowIds));
   const containerRef = useRef<HTMLDivElement>(null);
@@ -263,13 +274,16 @@ const DataGrid: React.FC<DataGridProps> = ({
 
   // Inicializar limit en la URL si no está presente
   useEffect(() => {
+    if (paginationMode === 'controlled') {
+      return;
+    }
     const currentLimit = searchParams.get('limit');
     if (!currentLimit) {
       const params = new URLSearchParams(searchParams.toString());
       params.set('limit', limit.toString());
       router.replace(`?${params.toString()}`, { scroll: false });
     }
-  }, [searchParams, limit, router]);
+  }, [searchParams, limit, router, paginationMode]);
 
   const containerClasses = [
     DataGridStyles.container,
@@ -369,7 +383,7 @@ const DataGrid: React.FC<DataGridProps> = ({
         {/* Body */}
         <Body 
           columns={columns} 
-          rows={loading ? [] : data} 
+          rows={loading ? [] : data}
           filterMode={filterMode} 
           screenWidth={screenWidth}
           expandable={expandable}
@@ -385,7 +399,14 @@ const DataGrid: React.FC<DataGridProps> = ({
       </div>
       {showFooter ? (
         <div className="shrink-0">
-          <Footer total={total} totalGeneral={totalGeneral} />
+          <Footer
+            total={total}
+            totalGeneral={totalGeneral}
+            paginationMode={paginationMode}
+            page={controlledPage}
+            limit={limit}
+            onPaginationChange={onPaginationChange}
+          />
         </div>
       ) : null}
     </div>

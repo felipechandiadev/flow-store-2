@@ -4,19 +4,39 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import IconButton from '@/shared/components/IconButton'
 import { Select, type SelectOption } from '@/shared/components'
 
+export type DataGridPaginationChange = { page: number; limit: number };
+
 interface PaginationProps {
   total: number
   totalGeneral?: number
   mobileMode?: boolean // Nuevo prop para modo móvil
+  /** `url` (default): sincroniza con query string. `controlled`: usa props. */
+  paginationMode?: 'url' | 'controlled'
+  page?: number
+  limit?: number
+  onPaginationChange?: (next: DataGridPaginationChange) => void
 }
 
-const Pagination: React.FC<PaginationProps> = ({ total, totalGeneral, mobileMode = false }) => {
+const Pagination: React.FC<PaginationProps> = ({
+  total,
+  totalGeneral,
+  mobileMode = false,
+  paginationMode = 'url',
+  page: controlledPage,
+  limit: controlledLimit,
+  onPaginationChange,
+}) => {
   const searchParams = useSearchParams()
   const router = useRouter()
   
-  // Obtener valores de la URL
-  const page = parseInt(searchParams.get('page') || '1')
-  const limit = parseInt(searchParams.get('limit') || '25')
+  const page =
+    paginationMode === 'controlled'
+      ? Math.max(1, controlledPage ?? 1)
+      : parseInt(searchParams.get('page') || '1', 10)
+  const limit =
+    paginationMode === 'controlled'
+      ? Math.max(1, controlledLimit ?? 25)
+      : parseInt(searchParams.get('limit') || '25', 10)
   
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
@@ -30,10 +50,18 @@ const Pagination: React.FC<PaginationProps> = ({ total, totalGeneral, mobileMode
   }
 
   const handleLimitChange = (newLimit: number) => {
+    if (paginationMode === 'controlled') {
+      onPaginationChange?.({ page: 1, limit: newLimit })
+      return
+    }
     updateSearchParams({ limit: newLimit.toString(), page: '1' }) // Reset to page 1 when changing limit
   }
 
   const handlePageChange = (newPage: number) => {
+    if (paginationMode === 'controlled') {
+      onPaginationChange?.({ page: newPage, limit })
+      return
+    }
     updateSearchParams({ page: newPage.toString() })
   }
 

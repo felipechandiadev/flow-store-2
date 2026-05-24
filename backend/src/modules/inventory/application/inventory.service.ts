@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In, IsNull } from 'typeorm';
@@ -31,6 +32,10 @@ import {
 } from '@modules/stock-realtime/stock-threshold-field.util';
 import { NotificationInboxService } from '@modules/notifications/application/notification-inbox.service';
 import { StockAlertNotificationService } from '@modules/notifications/application/stock-alert-notification.service';
+import {
+  STOCK_LEVELS_REPOSITORY,
+  type StockLevelsRepositoryPort,
+} from './ports/stock-levels.repository.port';
 
 function compactUnitSymbol(u: { symbol?: string | null; name?: string | null } | null | undefined): string {
   if (!u) {
@@ -64,7 +69,39 @@ export class InventoryService {
     private readonly userRepository: Repository<User>,
     private readonly notificationInbox: NotificationInboxService,
     private readonly stockAlertNotifications: StockAlertNotificationService,
+    @Inject(STOCK_LEVELS_REPOSITORY)
+    private readonly stockLevelsRepository: StockLevelsRepositoryPort,
   ) {}
+
+  async getStockMovementsPaginated(params: {
+    companyId: string;
+    variantId: string;
+    storageId?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const variantId = params.variantId?.trim();
+    if (!variantId) {
+      throw new BadRequestException('variantId es requerido');
+    }
+    const storageId = params.storageId?.trim() || undefined;
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(200, Math.max(1, Number(params.limit) || 25));
+    const result = await this.stockLevelsRepository.getMovementHistoryPaginated(
+      variantId,
+      storageId,
+      page,
+      limit,
+      params.companyId?.trim() || undefined,
+    );
+    return {
+      data: result.rows,
+      rows: result.rows,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+    };
+  }
 
   /**
    * Return filter options used by the frontend inventory pages.

@@ -55,6 +55,7 @@ export default async function Page({
           total={result.total}
           storages={storages}
           branchId={branchId || undefined}
+          filterStorageId={storageId || undefined}
         />
       </Suspense>
     </div>

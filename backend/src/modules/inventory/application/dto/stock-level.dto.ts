@@ -99,6 +99,7 @@ export class StockFiltersDto {
 }
 
 export class StockMovementDto {
+  lineId: string;
   transactionId: string;
   documentNumber: string;
   transactionType: string;
@@ -108,4 +109,16 @@ export class StockMovementDto {
   storageName: string;
   targetStorageName?: string;
   direction: 'IN' | 'OUT';
+  /** Saldo físico en unidad de stock después de este movimiento (corrido desde el saldo actual). */
+  balanceAfter: number;
+}
+
+/** Respuesta paginada compatible con DataGrid (`data` + `total` + `page` + `limit`). */
+export class PaginatedStockMovementsDto {
+  data!: StockMovementDto[];
+  /** Alias de `data` para clientes legacy. */
+  rows!: StockMovementDto[];
+  total!: number;
+  page!: number;
+  limit!: number;
 }

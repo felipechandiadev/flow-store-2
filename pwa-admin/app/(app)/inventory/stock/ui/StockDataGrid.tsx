@@ -16,6 +16,7 @@ import IconButton from "@/shared/components/IconButton/IconButton";
 import { adjustStockAction, transferStockAction } from "@/features/inventory-stock/actions/stock.action";
 import { useNotificationsRealtime } from "@/features/notifications/realtime/notifications-realtime-context";
 import { EditVariantStockConfigDialog } from "./EditVariantStockConfigDialog";
+import { StockMovementsDialog } from "./StockMovementsDialog";
 import Switch from "@/shared/components/Switch/Switch";
 import {
   readStockGridCountUnit,
@@ -33,6 +34,8 @@ type StockDataGridProps = {
   storages: StorageListItem[];
   /** When set, expand cards only list storages belonging to this branch. */
   branchId?: string;
+  /** Almacén del filtro de la página; preselección en el diálogo de movimientos. */
+  filterStorageId?: string;
 };
 
 function formatQty(n: number): string {
@@ -590,7 +593,13 @@ function StockExpandPanel({
   );
 }
 
-export default function StockDataGrid({ rows, total, storages, branchId }: StockDataGridProps) {
+export default function StockDataGrid({
+  rows,
+  total,
+  storages,
+  branchId,
+  filterStorageId,
+}: StockDataGridProps) {
   const router = useRouter();
   const { stockRefreshToken } = useNotificationsRealtime();
   const lastRealtimeRefreshAt = useRef(0);
@@ -609,6 +618,7 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
   const [adjust, setAdjust] = useState<AdjustState | null>(null);
   const [transfer, setTransfer] = useState<TransferState | null>(null);
   const [configRow, setConfigRow] = useState<StockGridRow | null>(null);
+  const [movementsRow, setMovementsRow] = useState<StockGridRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** No usar `startTransition` para el action + refresh: retrasa el RSC y la grilla puede quedar con datos viejos. */
   const [isSaving, setIsSaving] = useState(false);
@@ -746,9 +756,17 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         const r = gridRow as StockGridRow;
         return (
           <div
-            className="flex items-center justify-center"
+            className="flex items-center justify-center gap-0.5"
             data-test-id={`stock-row-actions-${r.variantId}`}
           >
+            <IconButton
+              icon="MoreHorizontal"
+              variant="basicSecondary"
+              size="sm"
+              ariaLabel="Ver movimientos de stock"
+              onClick={() => setMovementsRow(r)}
+              data-test-id={`stock-row-movements-${r.variantId}`}
+            />
             <IconButton
               icon="Pencil"
               variant="basicSecondary"
@@ -873,9 +891,9 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
       {
         field: "actions",
         headerName: "",
-        width: 44,
-        minWidth: 44,
-        maxWidth: 44,
+        width: 88,
+        minWidth: 88,
+        maxWidth: 88,
         align: "center",
         sortable: false,
         filterable: false,
@@ -1031,6 +1049,15 @@ export default function StockDataGrid({ rows, total, storages, branchId }: Stock
         branchId={branchId}
         onClose={() => setConfigRow(null)}
         onSaved={() => router.refresh()}
+      />
+
+      <StockMovementsDialog
+        open={movementsRow != null}
+        row={movementsRow}
+        storages={storages}
+        branchId={branchId}
+        filterStorageId={filterStorageId}
+        onClose={() => setMovementsRow(null)}
       />
 
       <Dialog

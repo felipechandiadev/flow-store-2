@@ -35,6 +35,18 @@ export interface StockLevelsRepositoryPort {
     storageId: string,
     limit?: number,
   ): Promise<StockMovementDto[]>;
+  getMovementHistoryPaginated(
+    variantId: string,
+    storageId: string | undefined,
+    page: number,
+    limit: number,
+    companyId?: string,
+  ): Promise<{
+    rows: StockMovementDto[];
+    total: number;
+    page: number;
+    limit: number;
+  }>;
   getLowStockItems(
     minimumThreshold: number,
     storageId?: string,

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Brackets, Repository, DataSource } from 'typeorm';
+import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
 import { StockLevelsRepositoryPort } from '@modules/inventory/application/ports/stock-levels.repository.port';
 import {
   StockLevelDto,
@@ -9,6 +10,7 @@ import {
   StockMovementDto,
   StockFiltersDto,
 } from '@modules/inventory/application/dto/stock-level.dto';
+import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { StockLevelOrmEntity } from '@modules/stock-levels/infrastructure/orm-mappers/stock-level.orm-entity';
 import { StoragesService } from '@modules/storages/application/storages.service';
 
@@ -179,53 +181,227 @@ export class StockLevelsRepository implements StockLevelsRepositoryPort {
     return Number(result?.total || 0);
   }
 
+  private movementHistoryQuery(
+    variantId: string,
+    storageId?: string,
+    companyId?: string,
+  ) {
+    const qb = this.dataSource
+      .getRepository(TransactionLine)
+      .createQueryBuilder('tl')
+      .innerJoin('tl.transaction', 't')
+      .leftJoin('t.storageEntry', 's')
+      .leftJoin('t.targetStorageEntry', 'ts')
+      .where('tl.productVariantId = :vid', { vid: variantId });
+
+    if (companyId?.trim()) {
+      qb.andWhere('t.companyId = :companyId', { companyId: companyId.trim() });
+    }
+
+    const sid = storageId?.trim();
+    if (sid) {
+      qb.andWhere(
+        new Brackets((w) => {
+          w.where('t.storageId = :sid', { sid })
+            .orWhere('t.targetStorageId = :sid')
+            .orWhere(
+              new Brackets((w2) => {
+                w2
+                  .where('t.storageId IS NULL')
+                  .andWhere('t.targetStorageId IS NULL')
+                  .andWhere(
+                    companyId?.trim()
+                      ? `EXISTS (
+                          SELECT 1 FROM stock_levels sl
+                          WHERE sl."productVariantId" = :vid
+                            AND sl."storageId" = :sid
+                            AND sl.company_id = :companyId
+                        )`
+                      : `EXISTS (
+                          SELECT 1 FROM stock_levels sl
+                          WHERE sl."productVariantId" = :vid
+                            AND sl."storageId" = :sid
+                        )`,
+                  );
+              }),
+            );
+        }),
+      );
+    }
+
+    return qb;
+  }
+
+  private rawField(row: Record<string, unknown>, key: string): unknown {
+    const wanted = key.toLowerCase();
+    for (const k of Object.keys(row)) {
+      if (k.toLowerCase() === wanted) {
+        return row[k];
+      }
+    }
+    return undefined;
+  }
+
+  private movementSignedDelta(direction: 'IN' | 'OUT', quantity: number): number {
+    const q = Number(quantity) || 0;
+    return direction === 'IN' ? q : -q;
+  }
+
+  private async getCurrentPhysicalStockForMovements(
+    variantId: string,
+    storageId?: string,
+    companyId?: string,
+  ): Promise<number> {
+    const qb = this.dataSource
+      .getRepository(StockLevel)
+      .createQueryBuilder('sl')
+      .select('COALESCE(SUM(sl.physicalStock), 0)', 'total')
+      .where('sl.productVariantId = :vid', { vid: variantId });
+    if (companyId?.trim()) {
+      qb.andWhere('sl.companyId = :companyId', { companyId: companyId.trim() });
+    }
+    if (storageId?.trim()) {
+      qb.andWhere('sl.storageId = :sid', { sid: storageId.trim() });
+    }
+    const raw = await qb.getRawOne<{ total?: string | number }>();
+    return Number(raw?.total ?? 0);
+  }
+
+  private sumSignedDeltasFromRawRows(rows: Record<string, unknown>[]): number {
+    return this.mapMovementRows(rows).reduce(
+      (sum, row) => sum + this.movementSignedDelta(row.direction, row.quantity),
+      0,
+    );
+  }
+
+  private attachRunningBalances(
+    rows: StockMovementDto[],
+    currentStock: number,
+    priorPagesDeltaSum: number,
+  ): StockMovementDto[] {
+    let running = currentStock - priorPagesDeltaSum;
+    return rows.map((row) => {
+      const balanceAfter = running;
+      running -= this.movementSignedDelta(row.direction, row.quantity);
+      return { ...row, balanceAfter };
+    });
+  }
+
+  private mapMovementRows(movements: Record<string, unknown>[]): StockMovementDto[] {
+    return movements.map((m) => {
+      const transactionType = String(this.rawField(m, 'transactionType') ?? '');
+      const createdRaw = this.rawField(m, 'createdAt');
+      const createdAt =
+        createdRaw instanceof Date
+          ? createdRaw
+          : createdRaw != null && String(createdRaw).trim()
+            ? new Date(String(createdRaw))
+            : new Date(0);
+      return {
+        lineId: String(this.rawField(m, 'lineId') ?? this.rawField(m, 'transactionId') ?? ''),
+        transactionId: String(this.rawField(m, 'transactionId') ?? ''),
+        documentNumber: String(this.rawField(m, 'documentNumber') ?? ''),
+        transactionType,
+        createdAt,
+        quantity: Number(this.rawField(m, 'quantity')),
+        notes:
+          this.rawField(m, 'notes') != null
+            ? String(this.rawField(m, 'notes'))
+            : undefined,
+        storageName: String(this.rawField(m, 'storageName') ?? ''),
+        targetStorageName: (() => {
+          const v = this.rawField(m, 'targetStorageName');
+          return v != null && String(v).trim() ? String(v) : undefined;
+        })(),
+        direction: [
+          'PURCHASE',
+          'TRANSFER_IN',
+          'ADJUSTMENT_IN',
+          'CASH_SESSION_OPENING',
+        ].includes(transactionType)
+          ? 'IN'
+          : 'OUT',
+        balanceAfter: 0,
+      };
+    });
+  }
+
   async getMovementHistory(
     variantId: string,
     storageId: string,
     limit: number = 5,
   ): Promise<StockMovementDto[]> {
-    const movements = await this.dataSource
-      .getRepository('TransactionLine')
-      .createQueryBuilder('tl')
-      .innerJoin('tl.transaction', 't')
-      .leftJoin('t.storageEntry', 's')
-      .leftJoin('t.targetStorageEntry', 'ts')
-      .where('tl.productVariantId = :vid', { vid: variantId })
-      .andWhere('(t.storageId = :sid OR t.targetStorageId = :sid)', {
-        sid: storageId,
-      })
-      .orderBy('t.createdAt', 'DESC')
-      .limit(limit)
-      .select([
-        't.id as transactionId',
-        't.documentNumber as documentNumber',
-        't.transactionType as transactionType',
-        't.createdAt as createdAt',
-        'tl.quantity as quantity',
-        't.notes as notes',
-        's.name as storageName',
-        'ts.name as targetStorageName',
-      ])
-      .getRawMany();
+    const { rows } = await this.getMovementHistoryPaginated(
+      variantId,
+      storageId,
+      1,
+      limit,
+      undefined,
+    );
+    return rows;
+  }
 
-    return movements.map((m) => ({
-      transactionId: m.transactionId,
-      documentNumber: m.documentNumber,
-      transactionType: m.transactionType,
-      createdAt: m.createdAt,
-      quantity: Number(m.quantity),
-      notes: m.notes,
-      storageName: m.storageName || '',
-      targetStorageName: m.targetStorageName || undefined,
-      direction: [
-        'PURCHASE',
-        'TRANSFER_IN',
-        'ADJUSTMENT_IN',
-        'CASH_SESSION_OPENING',
-      ].includes(m.transactionType)
-        ? 'IN'
-        : 'OUT',
-    }));
+  async getMovementHistoryPaginated(
+    variantId: string,
+    storageId: string | undefined,
+    page: number,
+    limit: number,
+    companyId?: string,
+  ): Promise<{
+    rows: StockMovementDto[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const pageNum = Math.max(1, page);
+    const limitNum = Math.min(200, Math.max(1, limit));
+    const offset = (pageNum - 1) * limitNum;
+
+    const base = this.movementHistoryQuery(variantId, storageId, companyId);
+    const total = await base.clone().getCount();
+
+    const [currentStock, priorPagesDeltaSum, movements] = await Promise.all([
+      this.getCurrentPhysicalStockForMovements(variantId, storageId, companyId),
+      offset > 0
+        ? base
+            .clone()
+            .orderBy('t.createdAt', 'DESC')
+            .addOrderBy('tl.id', 'DESC')
+            .offset(0)
+            .limit(offset)
+            .select(['tl.quantity as quantity', 't.transactionType as transactionType'])
+            .getRawMany()
+            .then((rows) => this.sumSignedDeltasFromRawRows(rows))
+        : Promise.resolve(0),
+      base
+        .clone()
+        .orderBy('t.createdAt', 'DESC')
+        .addOrderBy('tl.id', 'DESC')
+        .offset(offset)
+        .limit(limitNum)
+        .select([
+          'tl.id as lineId',
+          't.id as transactionId',
+          't.documentNumber as documentNumber',
+          't.transactionType as transactionType',
+          't.createdAt as createdAt',
+          'tl.quantity as quantity',
+          't.notes as notes',
+          's.name as storageName',
+          'ts.name as targetStorageName',
+        ])
+        .getRawMany(),
+    ]);
+
+    const mapped = this.mapMovementRows(movements);
+    const rows = this.attachRunningBalances(mapped, currentStock, priorPagesDeltaSum);
+
+    return {
+      rows,
+      total,
+      page: pageNum,
+      limit: limitNum,
+    };
   }
 
   async getLowStockItems(

@@ -141,9 +141,10 @@
 }
 
 /**
- * Tarjeta de centro de efectivo (tesorería).
+ * Tarjeta seleccionable en tesorería (centro de efectivo, cuenta bancaria, etc.).
  * Selección: fondo celeste claro vía color-mix (Tailwind bg-secondary/10 no aplica sobre var CSS).
  */
+.fs-treasury-pick-card,
 .fs-cash-hub-card {
   border: 1px solid color-mix(in srgb, var(--color-border, #c1c1c2) 70%, transparent);
   background-color: var(--color-background, #fff);
@@ -153,10 +154,12 @@
     background-color 0.2s ease;
 }
 
+.fs-treasury-pick-card:not(.fs-treasury-pick-card--selected):hover,
 .fs-cash-hub-card:not(.fs-cash-hub-card--selected):hover {
   border-color: color-mix(in srgb, var(--color-secondary, #04c9e6) 60%, var(--color-border, #c1c1c2));
 }
 
+.fs-treasury-pick-card--selected,
 .fs-cash-hub-card--selected {
   border-color: color-mix(in srgb, var(--color-secondary, #04c9e6) 40%, var(--color-border, #c1c1c2));
   background-color: color-mix(

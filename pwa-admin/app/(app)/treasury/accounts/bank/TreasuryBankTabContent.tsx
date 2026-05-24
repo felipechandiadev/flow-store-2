@@ -6,6 +6,7 @@ import type { CompanyDetails } from "@/features/settings-branches/infrastructure
 import type { ShareholderRow } from "@/features/settings-shareholders/types/shareholder.types";
 import type { CashHubRow } from "@/features/treasury-cash-hubs/types/cash-hub.types";
 import { Card, StatisticsCard, type LucideIconName } from "@/shared/components/Cards";
+import "@/shared/components/Cards/cards.css";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import Dialog from "@/shared/components/Dialog/Dialog";
 import Alert from "@/shared/components/Alert/Alert";
@@ -377,13 +378,15 @@ export default function TreasuryBankTabContent({
                   <button
                     type="button"
                     onClick={() => selectBankAccount(key)}
-                    className={`w-full rounded-lg border p-2 text-left text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                      isSelected
-                        ? "border-primary bg-primary/10 ring-2 ring-primary/25"
-                        : "border-border bg-card hover:bg-muted/50"
-                    }`}
+                    className={[
+                      "fs-treasury-pick-card w-full rounded-xl p-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                      isSelected ? "fs-treasury-pick-card--selected" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                     aria-pressed={isSelected}
                     data-test-id={`treasury-bank-account-card-${key}`}
+                    data-selected={isSelected || undefined}
                   >
                     <div className="grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] gap-x-2 gap-y-0.5">
                       <div className="min-w-0 font-medium leading-tight">{a.bankName}</div>

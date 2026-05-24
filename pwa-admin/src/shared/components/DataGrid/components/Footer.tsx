@@ -1,6 +1,6 @@
 'use client'
 import React from 'react';
-import Pagination from './Pagination';
+import Pagination, { type DataGridPaginationChange } from './Pagination';
 import { useScreenSize } from '../utils/columnStyles';
 import { Select, type SelectOption } from '@/shared/components';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -8,15 +8,32 @@ import { useSearchParams, useRouter } from 'next/navigation';
 interface FooterProps {
   total?: number;
   totalGeneral?: number;
+  paginationMode?: 'url' | 'controlled';
+  page?: number;
+  limit?: number;
+  onPaginationChange?: (next: DataGridPaginationChange) => void;
 }
 
-const Footer: React.FC<FooterProps> = ({ total = 0, totalGeneral }) => {
+const Footer: React.FC<FooterProps> = ({
+  total = 0,
+  totalGeneral,
+  paginationMode = 'url',
+  page: controlledPage,
+  limit: controlledLimit,
+  onPaginationChange,
+}) => {
   const { isMobile } = useScreenSize();
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '25', 10);
+  const page =
+    paginationMode === 'controlled'
+      ? Math.max(1, controlledPage ?? 1)
+      : parseInt(searchParams.get('page') || '1', 10);
+  const limit =
+    paginationMode === 'controlled'
+      ? Math.max(1, controlledLimit ?? 25)
+      : parseInt(searchParams.get('limit') || '25', 10);
 
   const updateSearchParams = (newParams: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -27,7 +44,20 @@ const Footer: React.FC<FooterProps> = ({ total = 0, totalGeneral }) => {
   };
 
   const handleLimitChange = (newLimit: number) => {
+    if (paginationMode === 'controlled') {
+      onPaginationChange?.({ page: 1, limit: newLimit });
+      return;
+    }
     updateSearchParams({ limit: newLimit.toString(), page: '1' });
+  };
+
+  const paginationProps = {
+    total,
+    totalGeneral,
+    paginationMode,
+    page: controlledPage,
+    limit: controlledLimit,
+    onPaginationChange,
   };
 
   const limitOptions: SelectOption[] = [
@@ -47,7 +77,7 @@ const Footer: React.FC<FooterProps> = ({ total = 0, totalGeneral }) => {
       <div className="flex min-h-0 flex-col gap-2 border-t border-t-border p-0 py-2" data-test-id="data-grid-footer">
         {/* Fila superior: Paginación */}
         <div className="flex justify-center">
-          <Pagination total={total} totalGeneral={totalGeneral} mobileMode={true} />
+          <Pagination {...paginationProps} mobileMode={true} />
         </div>
         {/* Fila inferior: Selector de filas y recuento */}
         <div className="flex items-center justify-between">
@@ -72,10 +102,7 @@ const Footer: React.FC<FooterProps> = ({ total = 0, totalGeneral }) => {
 
   return (
     <div className="p-0 border-t border-t-border" data-test-id="data-grid-footer">
-      <Pagination
-        total={total}
-        totalGeneral={totalGeneral}
-      />
+      <Pagination {...paginationProps} />
     </div>
   );
 };

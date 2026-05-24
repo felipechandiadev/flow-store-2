@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { updateProductVariantInventoryPartialAction } from "@/features/inventory-products/actions/product.action";
 import { InventoryRequest } from "../infrastructure/inventory.request";
-import type { ListStockForGridInput, ListStockForGridResult } from "../types/stock-grid.types";
+import type {
+  ListStockForGridInput,
+  ListStockForGridResult,
+  ListStockMovementsResult,
+} from "../types/stock-grid.types";
 
 const STOCK_PATH = "/inventory/stock";
 
@@ -11,6 +15,31 @@ function revalidateStockRoute() {
   revalidatePath(STOCK_PATH, "page");
   // Invalida layouts del segmento para que `router.refresh()` reciba RSC nuevo (no solo caché de página aislada).
   revalidatePath(STOCK_PATH, "layout");
+}
+
+export async function listStockMovementsAction(input: {
+  variantId: string;
+  storageId?: string;
+  page: number;
+  limit: number;
+}): Promise<ListStockMovementsResult | { error: string }> {
+  const variantId = input.variantId?.trim() ?? "";
+  if (!variantId) {
+    return { error: "Variante es obligatoria" };
+  }
+  const storageId = input.storageId?.trim() || undefined;
+  try {
+    const r = await InventoryRequest.listStockMovements({
+      variantId,
+      storageId,
+      page: Math.max(1, input.page),
+      limit: Math.min(200, Math.max(1, input.limit)),
+    });
+    return r;
+  } catch (e) {
+    const err = e instanceof Error ? e.message : "Error al cargar movimientos de stock";
+    return { error: err };
+  }
 }
 
 export async function listStockForGrid(input: ListStockForGridInput): Promise<ListStockForGridResult> {

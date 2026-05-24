@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
-import type { StockGridRow } from "../types/stock-grid.types";
+import type { ListStockMovementsResult, StockGridRow, StockMovementRow } from "../types/stock-grid.types";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -171,6 +171,7 @@ function normalizeMovement(raw: unknown): StockGridRow["movements"][number] | nu
   }
   const dir = m.direction === "OUT" ? "OUT" : "IN";
   return {
+    lineId: m.lineId != null ? String(m.lineId) : transactionId,
     transactionId,
     documentNumber: m.documentNumber != null ? String(m.documentNumber) : "",
     transactionType: m.transactionType != null ? String(m.transactionType) : "",
@@ -374,6 +375,89 @@ export class InventoryRequest {
       const err = e instanceof Error ? e.message : "Error al transferir stock";
       return { success: false, error: err };
     }
+  }
+
+  static async listStockMovements(params: {
+    variantId: string;
+    storageId?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<ListStockMovementsResult> {
+    const headers = await authHeaders();
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.min(200, Math.max(1, params.limit ?? 25));
+    const q = new URLSearchParams({
+      variantId: params.variantId.trim(),
+      page: String(page),
+      limit: String(limit),
+    });
+    const storageId = params.storageId?.trim();
+    if (storageId) {
+      q.set("storageId", storageId);
+    }
+    const res = await fetch(apiUrl(`inventory/stock-movements?${q.toString()}`), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+    const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!res.ok) {
+      const msg =
+        typeof json?.message === "string"
+          ? json.message
+          : typeof json?.error === "string"
+            ? json.error
+            : `Error ${res.status} al cargar movimientos`;
+      throw new Error(msg);
+    }
+    const rawRows = Array.isArray(json?.data)
+      ? json.data
+      : Array.isArray(json?.rows)
+        ? json.rows
+        : [];
+    const rows: StockMovementRow[] = [];
+    for (const x of rawRows) {
+      if (!x || typeof x !== "object") {
+        continue;
+      }
+      const o = x as Record<string, unknown>;
+      const transactionId = o.transactionId != null ? String(o.transactionId) : "";
+      if (!transactionId) {
+        continue;
+      }
+      const dir = String(o.direction || "").toUpperCase();
+      const direction: "IN" | "OUT" = dir === "IN" ? "IN" : "OUT";
+      rows.push({
+        lineId:
+          o.lineId != null
+            ? String(o.lineId)
+            : transactionId,
+        transactionId,
+        documentNumber: o.documentNumber != null ? String(o.documentNumber) : "",
+        transactionType: o.transactionType != null ? String(o.transactionType) : "",
+        createdAt:
+          o.createdAt != null
+            ? typeof o.createdAt === "string"
+              ? o.createdAt
+              : new Date(String(o.createdAt)).toISOString()
+            : "",
+        quantity: Number(o.quantity) || 0,
+        notes: o.notes != null ? String(o.notes) : null,
+        storageName: o.storageName != null ? String(o.storageName) : null,
+        targetStorageName: o.targetStorageName != null ? String(o.targetStorageName) : null,
+        direction,
+        balanceAfter:
+          o.balanceAfter != null && Number.isFinite(Number(o.balanceAfter))
+            ? Number(o.balanceAfter)
+            : undefined,
+      });
+    }
+    return {
+      rows,
+      total: typeof json?.total === "number" && Number.isFinite(json.total) ? json.total : rows.length,
+      page: typeof json?.page === "number" && Number.isFinite(json.page) ? json.page : page,
+      limit: typeof json?.limit === "number" && Number.isFinite(json.limit) ? json.limit : limit,
+    };
   }
 
   static async updateStockLevelThresholds(body: {
