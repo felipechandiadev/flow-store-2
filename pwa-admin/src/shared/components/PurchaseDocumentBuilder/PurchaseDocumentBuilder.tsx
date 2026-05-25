@@ -61,6 +61,8 @@ const UUID_RE =
 
 export type PurchaseDocumentMode = "reception" | "purchase_order" | "purchase_return";
 
+export type PurchaseDocumentFieldDensity = "default" | "compact";
+
 export type PurchaseDocumentLine = {
   key: string;
   productId: string;
@@ -70,6 +72,8 @@ export type PurchaseDocumentLine = {
   barcode: string | null;
   /** Valores de atributos de la variante (solo valores, sin nombre de atributo en UI). */
   attributeValues: Record<string, string>;
+  /** Símbolo o nombre de la unidad de compra de la variante (p. ej. L, caja). */
+  purchaseUnitLabel?: string | null;
   quantity: number;
   unitPrice: number;
   taxIds: string[];
@@ -114,6 +118,8 @@ export type PurchaseDocumentBuilderProps = {
   searchPurchaseOrders?: (
     query: string,
   ) => Promise<{ rows: Array<{ id: string; documentNumber: string }> }>;
+  /** Proveedor, fecha, bodega, DTE, referencia (cabecera). Por defecto no compact. */
+  fieldDensity?: PurchaseDocumentFieldDensity;
 };
 
 function supplierLabel(s: SupplierGridRow): string {
@@ -162,6 +168,7 @@ function mapPurchaseOrderLinesToDocumentLines(
       sku,
       barcode: null,
       attributeValues: {},
+      purchaseUnitLabel: l.unitOfMeasure?.trim() || null,
       quantity: qty,
       unitPrice: Math.max(0, Math.round(Number(l.unitPrice) || 0)),
       taxIds,
@@ -303,7 +310,9 @@ function printableCompanyFromDetails(details: CompanyDetails | null): PrintableC
     (typeof settings["direccion"] === "string" ? settings["direccion"].trim() : "") ||
     (typeof settings["companyAddress"] === "string" ? settings["companyAddress"].trim() : "");
   const cityRaw = settings["city"] ?? settings["ciudad"];
-  const phoneRaw = settings["phone"] ?? settings["telefono"] ?? settings["companyPhone"];
+  const columnPhone = details?.phone?.trim() ? details.phone.trim() : "";
+  const phoneRaw =
+    columnPhone || settings["phone"] || settings["telefono"] || settings["companyPhone"];
   const columnMail = details?.mail?.trim() ? details.mail.trim() : "";
   const emailRaw =
     columnMail ||
@@ -342,6 +351,7 @@ export function PurchaseDocumentBuilder({
   resolveReceptionForReturn,
   fetchPurchaseOrderDetail,
   searchPurchaseOrders,
+  fieldDensity = "default",
 }: PurchaseDocumentBuilderProps) {
   const router = useRouter();
   const reference = usePurchaseDocumentReferenceData();
@@ -559,6 +569,7 @@ export function PurchaseDocumentBuilder({
         sku: item.sku,
         barcode: item.barcode,
         attributeValues: { ...item.attributeValues },
+        purchaseUnitLabel: item.purchaseUnitLabel?.trim() || null,
         quantity: 1,
         unitPrice: price,
         taxIds: (item.defaultTaxIds ?? []).filter((id) => activeTaxIdSet.has(id)),
@@ -1254,6 +1265,7 @@ export function PurchaseDocumentBuilder({
           searchQuery={searchQuery}
           searchPage={searchPage}
           onAddVariant={addVariant}
+          fieldDensity={fieldDensity}
         />
       ) : null}
 
@@ -1310,7 +1322,7 @@ export function PurchaseDocumentBuilder({
                     value={selectedSupplierOption}
                     onChange={(opt) => setSupplierId(opt ? String(opt.id) : null)}
                     alwaysShowLabel
-                    density="compact"
+                    density={fieldDensity}
                     disabled={referenceFieldsLocked}
                     data-test-id="purchase-doc-supplier"
                   />
@@ -1322,7 +1334,7 @@ export function PurchaseDocumentBuilder({
                     type="date"
                     value={docDate}
                     onChange={(e) => setDocDate(e.target.value)}
-                    density="compact"
+                    density={fieldDensity}
                     className="w-full min-w-0"
                     data-test-id="purchase-doc-date"
                   />
@@ -1339,7 +1351,7 @@ export function PurchaseDocumentBuilder({
                     onChange={(id) => setStorageId(id == null ? null : String(id))}
                     allowClear
                     alwaysShowLabel
-                    density="compact"
+                    density={fieldDensity}
                     disabled={referenceFieldsLocked}
                     className="w-full min-w-0"
                     data-test-id="purchase-doc-storage"
@@ -1356,7 +1368,7 @@ export function PurchaseDocumentBuilder({
                         value={docKind}
                         onChange={(id) => setDocKind(id == null ? "invoice" : String(id))}
                         alwaysShowLabel
-                        density="compact"
+                        density={fieldDensity}
                         className="w-full min-w-0"
                         data-test-id="purchase-doc-document-type"
                       />
@@ -1369,7 +1381,7 @@ export function PurchaseDocumentBuilder({
                         onChange={(e) => setDocReference(e.target.value)}
                         placeholder="Número o referencia del documento del proveedor"
                         alwaysShowLabel
-                        density="compact"
+                        density={fieldDensity}
                         className="w-full min-w-0"
                         data-test-id="purchase-doc-reference"
                       />
@@ -1384,7 +1396,7 @@ export function PurchaseDocumentBuilder({
                       onChange={(e) => setExternalReference(e.target.value)}
                       placeholder="Folio o referencia opcional"
                       alwaysShowLabel
-                      density="compact"
+                      density={fieldDensity}
                       className="w-full min-w-0"
                       data-test-id="purchase-doc-external-reference"
                     />
@@ -1397,13 +1409,14 @@ export function PurchaseDocumentBuilder({
 
         <div className="min-h-0 flex-1 overflow-auto">
           <table
-            className="w-full min-w-[720px] table-fixed border-collapse text-xs"
+            className="w-full min-w-[640px] table-fixed border-collapse text-xs"
             data-test-id="purchase-doc-lines-table"
           >
             <colgroup>
               {mode === "purchase_return" ? (
                 <>
-                  <col className="w-[26%] min-w-0" />
+                  <col className="w-36 min-w-0" />
+                  <col className="w-14" />
                   <col className="min-w-[5.75rem] w-24" />
                   <col className="w-36" />
                   <col className="min-w-[7rem] w-[7.5rem]" />
@@ -1412,9 +1425,10 @@ export function PurchaseDocumentBuilder({
                 </>
               ) : (
                 <>
-                  <col className="min-w-0" />
-                  <col className="w-36" />
-                  <col className="w-52" />
+                  <col className="w-36 min-w-0" />
+                  <col className="w-14" />
+                  <col className="w-28" />
+                  <col className="w-44" />
                   {showLineTaxes ? <col className="min-w-[7.5rem] w-[8.25rem]" /> : null}
                   <col className="w-36" />
                   <col className="w-12" />
@@ -1423,7 +1437,8 @@ export function PurchaseDocumentBuilder({
             </colgroup>
             <thead>
               <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                <th className="py-1.5 pr-2">Producto</th>
+                <th className="max-w-[9rem] py-1.5 pr-2">Producto</th>
+                <th className="py-1.5 pr-2">Ud. compra</th>
                 <th className="py-1.5 pr-2">
                   {mode === "purchase_return" ? "Cantidad a devolver" : "Cantidad"}
                 </th>
@@ -1436,20 +1451,20 @@ export function PurchaseDocumentBuilder({
             <tbody>
               {lines.length === 0 ? (
                 <tr>
-                  <td colSpan={showLineTaxes ? 6 : 5} className="py-10">
+                  <td colSpan={showLineTaxes ? 7 : 6} className="py-10">
                     <span className="sr-only">Sin líneas en el documento</span>
                   </td>
                 </tr>
               ) : (
                 lines.map((line) => (
                   <tr key={line.key} className="border-b border-border/70 align-top" data-test-id={`purchase-doc-line-${line.key}`}>
-                    <td className="py-1.5 pr-2">
+                    <td className="min-w-0 max-w-[9rem] py-1.5 pr-2">
                       <ProductNameWithAttributes
                         name={line.productName}
                         attributeValues={line.attributeValues}
                         className="font-medium text-foreground"
                       />
-                      <p className="flex flex-wrap items-center gap-x-1.5 font-mono text-xs text-muted-foreground">
+                      <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 truncate font-mono text-[10px] text-muted-foreground">
                         <span>{line.sku}</span>
                         {line.barcode ? (
                           <>
@@ -1458,6 +1473,11 @@ export function PurchaseDocumentBuilder({
                           </>
                         ) : null}
                       </p>
+                    </td>
+                    <td className="py-1.5 pr-2 align-middle text-muted-foreground">
+                      <span className="text-xs font-medium tabular-nums">
+                        {line.purchaseUnitLabel?.trim() || "—"}
+                      </span>
                     </td>
                     <td className="py-1.5 pr-2 align-middle">
                       <NumberStepper

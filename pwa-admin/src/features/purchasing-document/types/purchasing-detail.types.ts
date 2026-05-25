@@ -6,6 +6,7 @@ export type PurchasingTransactionDetailLine = {
   productSku?: string | null;
   variantName?: string | null;
   quantity: number;
+  unitOfMeasure?: string | null;
   unitPrice: number;
   subtotal: number;
   total: number;

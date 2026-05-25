@@ -15,6 +15,7 @@ import { OpeningTransactionDto } from '../application/dto/opening-transaction.dt
 import { GetCashSessionsDto } from '../application/dto/get-cash-sessions.dto';
 import { OpenCashSessionDto } from '../application/dto/open-cash-session.dto';
 import { CreateSaleDto } from '../application/dto/create-sale.dto';
+import { CollectPendingSalesDto } from '../application/dto/collect-pending-sales.dto';
 import { CreateBackorderDto } from '../application/dto/create-backorder.dto';
 import {
   ConfirmCustomerReturnDocumentDto,
@@ -102,6 +103,11 @@ export class CashSessionsController {
   @Post('sales')
   async createSale(@Body() createSaleDto: CreateSaleDto) {
     return this.salesService.createSale(createSaleDto);
+  }
+
+  @Post('collect-pending-sales')
+  async collectPendingSales(@Body() body: CollectPendingSalesDto) {
+    return this.salesService.collectPendingSales(body);
   }
 
   @Post('backorders')

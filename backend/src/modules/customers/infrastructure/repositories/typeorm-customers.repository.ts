@@ -6,8 +6,10 @@ import { Person } from '@modules/persons/domain/person.entity';
 import {
   Transaction,
   TransactionType,
+  TransactionStatus,
   PaymentStatus,
 } from '@modules/transactions/domain/transaction.entity';
+import { saleBalanceDue } from '@modules/cash-sessions/application/collect-pending-sales.util';
 import {
   CustomersRepositoryPort,
   CUSTOMERS_REPOSITORY,
@@ -144,11 +146,19 @@ export class TypeOrmCustomersRepository implements CustomersRepositoryPort {
   }
 
   async getPendingPayments(customerId: string): Promise<Transaction[]> {
-    return this.transactionRepository.find({
-      where: { customerId, paymentStatus: Not(PaymentStatus.PAID) },
+    const rows = await this.transactionRepository.find({
+      where: {
+        customerId,
+        transactionType: TransactionType.SALE,
+        status: TransactionStatus.CONFIRMED,
+        paymentStatus: In([PaymentStatus.PENDING, PaymentStatus.PARTIAL]),
+      },
       order: { createdAt: 'DESC' },
-      take: 50,
+      take: 100,
     });
+    return rows.filter(
+      (tx) => saleBalanceDue(Number(tx.total), Number(tx.amountPaid)) > 0,
+    );
   }
 
   async getPurchases(

@@ -305,7 +305,9 @@ function printableCompanyFromDetails(details: CompanyDetails | null): PrintableC
     (typeof settings["direccion"] === "string" ? settings["direccion"].trim() : "") ||
     (typeof settings["companyAddress"] === "string" ? settings["companyAddress"].trim() : "");
   const cityRaw = settings["city"] ?? settings["ciudad"];
-  const phoneRaw = settings["phone"] ?? settings["telefono"] ?? settings["companyPhone"];
+  const columnPhone = details?.phone?.trim() ? details.phone.trim() : "";
+  const phoneRaw =
+    columnPhone || settings["phone"] || settings["telefono"] || settings["companyPhone"];
   const columnMail = details?.mail?.trim() ? details.mail.trim() : "";
   const emailRaw =
     columnMail ||

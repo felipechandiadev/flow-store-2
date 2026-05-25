@@ -116,6 +116,10 @@ export function QuotationDetailDialog({
       const res = await reprintAdminQuotationTicket(detail, company);
       if (!res.success) {
         setPrintNotice(res.message ?? "No se pudo imprimir el ticket");
+      } else if (res.message) {
+        setPrintNotice(res.message);
+      } else {
+        setPrintNotice(null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo imprimir el ticket");
@@ -131,9 +135,13 @@ export function QuotationDetailDialog({
     setError(null);
     try {
       const company = await getCompanyDetailsAction();
-      const res = reprintAdminQuotationDocument(detail, company);
+      const res = await reprintAdminQuotationDocument(detail, company);
       if (!res.success) {
         setPrintNotice(res.message ?? "No se pudo imprimir el documento");
+      } else if (res.message) {
+        setPrintNotice(res.message);
+      } else {
+        setPrintNotice(null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo imprimir el documento");

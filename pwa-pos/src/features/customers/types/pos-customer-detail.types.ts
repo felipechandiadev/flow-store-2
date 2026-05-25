@@ -20,6 +20,12 @@ export type PosCustomerDetail = {
   businessName?: string | null;
 };
 
+export type PosCustomerPaymentRelatedSale = {
+  saleId: string;
+  documentNumber: string;
+  amount: number;
+};
+
 export type PosCustomerPaymentRow = {
   id: string;
   documentNumber: string | null;
@@ -28,6 +34,7 @@ export type PosCustomerPaymentRow = {
   total: number;
   paymentMethod: string | null;
   createdAt: string;
+  relatedSales: PosCustomerPaymentRelatedSale[];
 };
 
 export type PosCustomerQuotaRow = {
@@ -46,6 +53,9 @@ export type PosCustomerPurchaseRow = {
   status: string | null;
   total: number;
   paymentMethod: string | null;
+  paymentStatus: string | null;
+  amountPaid: number;
+  balanceDue: number;
   createdAt: string;
 };
 

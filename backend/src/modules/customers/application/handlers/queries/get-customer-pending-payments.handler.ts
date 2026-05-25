@@ -5,6 +5,8 @@ import {
   CustomersRepositoryPort,
   CUSTOMERS_REPOSITORY,
 } from '../../ports/customers.repository.port';
+import { saleBalanceDue } from '@modules/cash-sessions/application/collect-pending-sales.util';
+import { TransactionType } from '@modules/transactions/domain/transaction.entity';
 
 @QueryHandler(GetCustomerPendingPaymentsQuery)
 export class GetCustomerPendingPaymentsHandler implements IQueryHandler<GetCustomerPendingPaymentsQuery> {
@@ -20,13 +22,22 @@ export class GetCustomerPendingPaymentsHandler implements IQueryHandler<GetCusto
       await this.customerRepository.getPendingPayments(customerId);
 
     // Map quotas if present; keep shape compatible with callers
-    const mapped = pending.map((p) => ({
-      transactionId: p.id,
-      documentNumber: (p as any).documentNumber ?? null,
-      transactionDate: p.createdAt,
-      total: Number(p.total || 0),
-      quotas: (p as any).quotas || [],
-    }));
+    const mapped = pending
+      .filter((p) => (p as { transactionType?: string }).transactionType === TransactionType.SALE)
+      .map((p) => {
+        const total = Number(p.total || 0);
+        const amountPaid = Number((p as { amountPaid?: number }).amountPaid ?? 0);
+        return {
+          transactionId: p.id,
+          documentNumber: (p as { documentNumber?: string }).documentNumber ?? null,
+          transactionDate: p.createdAt,
+          total,
+          amountPaid,
+          balanceDue: saleBalanceDue(total, amountPaid),
+          paymentStatus: (p as { paymentStatus?: string }).paymentStatus ?? null,
+          quotas: (p as { quotas?: unknown[] }).quotas || [],
+        };
+      });
 
     return mapped;
   }

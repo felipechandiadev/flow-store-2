@@ -1,3 +1,8 @@
+import {
+  buildCompanyInlineParts,
+  DOCUMENT_HEADER_PRINT_CSS,
+  formatCompanyAddressForPrint,
+} from "@flowstore/document-print";
 import type { PosSaleReceiptData } from "@/app/(pos)/pos/payment/ui/PosSaleReceiptDialog";
 import {
   printPosHtmlViaAgentOrBrowser,
@@ -35,14 +40,6 @@ function formatDateSlash(iso: string): string {
   }
 }
 
-function companyAddressLines(address: string | null | undefined): string[] {
-  const raw = address?.trim();
-  if (!raw) return [];
-  const byNl = raw.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-  if (byNl.length > 1) return byNl;
-  return raw.split(",").map((x) => x.trim()).filter(Boolean);
-}
-
 /**
  * Documento tipo hoja (A4) para venta o comprobante de abono de encargo.
  */
@@ -54,10 +51,12 @@ export function buildPosSaleDocumentHtml(data: PosSaleReceiptData): string {
   const c = data.company;
   const razonSocial = (c.razonSocial ?? "").trim();
   const displayName = (c.nombreFantasia ?? "").trim();
-  const addressLines = companyAddressLines(c.address);
-  const rut = (c.rut ?? "").trim();
-  const mail = (c.mail ?? "").trim();
-  const inlineParts = [rut ? `RUT: ${rut}` : "", mail ? mail : ""].filter(Boolean);
+  const addressLines = formatCompanyAddressForPrint(c.address);
+  const inlineParts = buildCompanyInlineParts({
+    rut: c.rut,
+    phone: c.phone,
+    email: c.mail,
+  });
 
   const cust = data.customer;
   const hasCustomer = Boolean(cust?.name?.trim() || cust?.document?.trim());
@@ -166,16 +165,7 @@ export function buildPosSaleDocumentHtml(data: PosSaleReceiptData): string {
   * { box-sizing: border-box; }
   body { margin: 0; padding: 0; color: #111827; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .page { width: 100%; max-width: 190mm; margin: 0 auto; padding: 4mm 0; }
-  .companyHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 1.5rem; }
-  .companyKicker { margin: 0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 9px; color: #6b7280; }
-  .companyName { margin: 0.2rem 0; font-size: 22px; line-height: 1.1; font-weight: 800; color: #111827; }
-  .companyAddress { margin: 0; font-size: 10px; color: #4b5563; }
-  .companyInline { margin: 0.25rem 0 0; font-size: 10px; color: #374151; }
-  .documentMeta { text-align: right; }
-  .documentTitle { margin: 0; font-size: 23px; line-height: 1; font-weight: 900; color: #1e3a8a; }
-  .documentDate { margin: 0.4rem 0 0; font-size: 11px; font-weight: 600; color: #1f2937; }
-  .guideBadge { margin: 0.5rem 0 0; display: inline-block; border: 1px solid #d1d5db; border-radius: 6px; background: #f9fafb; padding: 0.25rem 0.55rem; font-size: 11px; font-weight: 700; }
-  .separator { margin: 1.1rem 0; height: 1px; background: rgba(17, 24, 39, 0.22); }
+  ${DOCUMENT_HEADER_PRINT_CSS}
   .summaryGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1.25rem; margin-bottom: 0.9rem; }
   .field { font-size: 11px; color: #111827; }
   .label { font-size: 10px; color: #6b7280; margin: 0 0 0.2rem 0; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -202,7 +192,7 @@ export function buildPosSaleDocumentHtml(data: PosSaleReceiptData): string {
     <div class="documentMeta">
       <h2 class="documentTitle">${escapeHtml(documentTitle)}</h2>
       <p class="documentDate">Fecha: ${escapeHtml(formatDateSlash(data.issuedAtIso))}</p>
-      <p class="guideBadge">Folio ${escapeHtml(folio)}</p>
+      <p class="documentFolio">Folio ${escapeHtml(folio)}</p>
       ${backorderHeaderLine}
     </div>
   </header>

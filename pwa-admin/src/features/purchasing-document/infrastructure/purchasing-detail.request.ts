@@ -95,6 +95,10 @@ function normalizeLine(raw: unknown): PurchasingTransactionDetailLine | null {
         ? o.variantName.trim()
         : null,
     quantity: qty,
+    unitOfMeasure:
+      typeof o.unitOfMeasure === "string" && o.unitOfMeasure.trim()
+        ? o.unitOfMeasure.trim()
+        : null,
     unitPrice,
     subtotal,
     total,

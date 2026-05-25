@@ -19,6 +19,7 @@ export type PosSaleReceiptPrintDto = {
     logoUrl: string | null;
     address: string | null;
     mail: string | null;
+    phone?: string | null;
   };
   pos: {
     pointOfSaleName: string | null;

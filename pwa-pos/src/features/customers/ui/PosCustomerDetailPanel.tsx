@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { Alert } from "@/shared/admin-shared";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { Alert, Button } from "@/shared/admin-shared";
 import { Badge } from "@/shared/components/Badge";
+import { writePosArCollectDraft } from "@/features/session/lib/pos-ar-collect-storage";
 import { getCustomerPosDetailBundleAction } from "@/features/customers/actions/customers-pos.action";
 import type {
   PosCustomerDetail,
@@ -20,6 +22,8 @@ import {
   documentTypeLabel,
   fmtClp,
   formatCustomerDateTime,
+  PAYMENT_STATUS_LABEL,
+  paymentStatusVariant,
 } from "@/features/customers/lib/pos-customer-detail-format";
 
 type Props = {
@@ -198,7 +202,11 @@ export default function PosCustomerDetailPanel({
       ) : null}
 
       <SectionCard title="Compras" testId="pos-customer-detail-purchases">
-        <PurchasesSection rows={purchases} />
+        <PurchasesSection
+          rows={purchases}
+          customerId={customer.customerId}
+          customerDisplayName={customer.displayName}
+        />
       </SectionCard>
 
       <SectionCard title="Pagos y cobros" testId="pos-customer-detail-payments">
@@ -262,25 +270,184 @@ function CreditSection({ customer }: { customer: PosCustomerDetail }) {
   );
 }
 
-function PurchasesSection({ rows }: { rows: PosCustomerPurchaseRow[] }) {
+function PurchasesSection({
+  rows,
+  customerId,
+  customerDisplayName,
+}: {
+  rows: PosCustomerPurchaseRow[];
+  customerId: string;
+  customerDisplayName: string;
+}) {
+  const router = useRouter();
+  const collectible = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          (r.transactionType ?? "").toUpperCase() === "SALE" &&
+          r.balanceDue > 0 &&
+          (r.paymentStatus ?? "").toUpperCase() !== "PAID",
+      ),
+    [rows],
+  );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [customerId, rows]);
+
+  const toggleRow = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    if (selectedIds.size >= collectible.length) {
+      setSelectedIds(new Set());
+      return;
+    }
+    setSelectedIds(new Set(collectible.map((r) => r.id)));
+  }, [collectible, selectedIds.size]);
+
+  const selectedTotal = useMemo(
+    () =>
+      collectible
+        .filter((r) => selectedIds.has(r.id))
+        .reduce((acc, r) => acc + r.balanceDue, 0),
+    [collectible, selectedIds],
+  );
+
+  const handleCollect = useCallback(() => {
+    const sales = collectible
+      .filter((r) => selectedIds.has(r.id))
+      .map((r) => ({
+        id: r.id,
+        documentNumber: r.documentNumber,
+        balanceDue: r.balanceDue,
+      }));
+    if (sales.length === 0) return;
+    writePosArCollectDraft({
+      customerId,
+      customerDisplayName,
+      sales,
+    });
+    router.push("/pos/payment?mode=collect");
+  }, [collectible, selectedIds, customerId, customerDisplayName, router]);
+
   if (rows.length === 0) {
     return <EmptyTableMsg>No hay ventas ni encargos registrados.</EmptyTableMsg>;
   }
+
   return (
-    <DataTable
-      headers={["Folio", "Tipo", "Estado", "Total", "Fecha"]}
-      rows={rows.map((r) => {
-        const typeKey = r.transactionType ?? "";
-        return [
-          r.documentNumber ?? "—",
-          TX_TYPE_LABEL[typeKey] ?? (typeKey || "—"),
-          r.status ?? "—",
-          fmtClp(r.total),
-          formatCustomerDateTime(r.createdAt),
-        ];
-      })}
-    />
+    <div className="space-y-3">
+      {collectible.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/20 px-3 py-2">
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
+            <input
+              type="checkbox"
+              className="size-4 rounded border-border"
+              checked={selectedIds.size > 0 && selectedIds.size === collectible.length}
+              onChange={toggleAll}
+              data-test-id="pos-customer-purchases-select-all"
+            />
+            Seleccionar todas ({collectible.length})
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {selectedIds.size > 0
+                ? `${selectedIds.size} folio(s) · ${fmtClp(selectedTotal)}`
+                : "Selecciona ventas pendientes de cobro"}
+            </span>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={selectedIds.size === 0}
+              onClick={handleCollect}
+              data-test-id="pos-customer-collect-selection"
+            >
+              Cobrar selección
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full min-w-[720px] border-collapse text-xs">
+          <thead>
+            <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-semibold uppercase text-muted-foreground">
+              {collectible.length > 0 ? <th className="w-8 px-2 py-2" /> : null}
+              <th className="px-3 py-2">Folio</th>
+              <th className="px-3 py-2">Tipo</th>
+              <th className="px-3 py-2">Estado trans.</th>
+              <th className="px-3 py-2">Estado pago</th>
+              <th className="px-3 py-2 text-right">Total</th>
+              <th className="px-3 py-2 text-right">Saldo</th>
+              <th className="px-3 py-2">Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const typeKey = r.transactionType ?? "";
+              const isCollectibleRow = collectible.some((c) => c.id === r.id);
+              const payKey = (r.paymentStatus ?? "").toUpperCase();
+              return (
+                <tr key={r.id} className="border-b border-border/80">
+                  {collectible.length > 0 ? (
+                    <td className="px-2 py-2">
+                      {isCollectibleRow ? (
+                        <input
+                          type="checkbox"
+                          className="size-4 rounded border-border"
+                          checked={selectedIds.has(r.id)}
+                          onChange={() => toggleRow(r.id)}
+                          data-test-id={`pos-customer-purchase-select-${r.id}`}
+                        />
+                      ) : null}
+                    </td>
+                  ) : null}
+                  <td className="px-3 py-2 font-mono">{r.documentNumber ?? "—"}</td>
+                  <td className="px-3 py-2">{TX_TYPE_LABEL[typeKey] ?? (typeKey || "—")}</td>
+                  <td className="px-3 py-2">{r.status ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    {r.paymentStatus ? (
+                      <Badge variant={paymentStatusVariant(r.paymentStatus)}>
+                        {PAYMENT_STATUS_LABEL[payKey] ?? r.paymentStatus}
+                      </Badge>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtClp(r.total)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium">
+                    {r.balanceDue > 0 ? fmtClp(r.balanceDue) : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground">
+                    {formatCustomerDateTime(r.createdAt)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
+}
+
+function formatRelatedSalesLabel(
+  relatedSales: PosCustomerPaymentRow["relatedSales"],
+): string {
+  if (!relatedSales.length) return "—";
+  if (relatedSales.length === 1) {
+    return relatedSales[0].documentNumber?.trim() || relatedSales[0].saleId;
+  }
+  return relatedSales
+    .map((s) => s.documentNumber?.trim() || s.saleId.slice(0, 8))
+    .join(", ");
 }
 
 function PaymentsSection({ rows }: { rows: PosCustomerPaymentRow[] }) {
@@ -289,11 +456,12 @@ function PaymentsSection({ rows }: { rows: PosCustomerPaymentRow[] }) {
   }
   return (
     <DataTable
-      headers={["Folio", "Tipo", "Estado", "Medio", "Monto", "Fecha"]}
+      headers={["Folio cobro", "Ventas", "Estado", "Medio", "Monto", "Fecha"]}
       rows={rows.map((r) => {
         const typeKey = r.type ?? "";
         return [
           r.documentNumber ?? "—",
+          formatRelatedSalesLabel(r.relatedSales),
           TX_TYPE_LABEL[typeKey] ?? (typeKey || "—"),
           r.status ?? "—",
           r.paymentMethod ?? "—",

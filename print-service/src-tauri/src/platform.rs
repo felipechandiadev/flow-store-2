@@ -1,4 +1,4 @@
-//! OS printers + send PDF path to spooler (macOS `lp`, Windows Ghostscript `mswinpr2`).
+//! OS printers + send PDF path to spooler (macOS `lp`, Windows SumatraPDF `-silent -print-to`).
 
 use anyhow::{Context, Result};
 use crate::print_diag;
@@ -826,147 +826,129 @@ pub fn print_pdf_to_printer(
 }
 
 #[cfg(target_os = "windows")]
-static GHOSTSCRIPT_EXE: OnceLock<Option<PathBuf>> = OnceLock::new();
+static BUNDLED_SUMATRA: OnceLock<Option<PathBuf>> = OnceLock::new();
 
 #[cfg(target_os = "windows")]
-fn ghostscript_candidates() -> Vec<PathBuf> {
+static RESOLVED_SUMATRA: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+
+/// Ruta empaquetada vía Tauri (`resources/bin/SumatraPDF.exe`) o portable junto al exe, fijada en `setup`.
+#[cfg(target_os = "windows")]
+pub fn set_bundled_sumatra_path(path: Option<PathBuf>) {
+    let _ = BUNDLED_SUMATRA.set(path);
+}
+
+/// Limpia la caché de resolución (p. ej. tras mover el portable o «Comprobar de nuevo»).
+#[cfg(target_os = "windows")]
+pub fn invalidate_sumatra_cache() {
+    if let Ok(mut g) = RESOLVED_SUMATRA.lock() {
+        *g = None;
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn invalidate_sumatra_cache() {}
+
+#[cfg(target_os = "windows")]
+fn sumatra_candidates() -> Vec<PathBuf> {
     let mut out = Vec::new();
-    if let Ok(p) = std::env::var("KAI_PRINTERS_GHOSTSCRIPT") {
+    if let Ok(p) = std::env::var("KAI_PRINTERS_SUMATRA") {
         out.push(PathBuf::from(p));
     }
-    for key in ["ProgramFiles", "ProgramFiles(x86)"] {
-        let Ok(root) = std::env::var(key) else {
-            continue;
-        };
-        let gs_dir = PathBuf::from(&root).join("gs");
-        if let Ok(entries) = std::fs::read_dir(&gs_dir) {
-            let mut versions: Vec<PathBuf> = entries
-                .flatten()
-                .map(|e| e.path())
-                .filter(|p| p.is_dir())
-                .collect();
-            versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-            for ver in versions {
-                out.push(ver.join("bin").join("gswin64c.exe"));
-                out.push(ver.join("bin").join("gswin32c.exe"));
-            }
+    if let Some(p) = BUNDLED_SUMATRA.get().and_then(|o| o.clone()) {
+        out.push(p);
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            out.push(dir.join("SumatraPDF.exe"));
+            out.push(dir.join("resources").join("bin").join("SumatraPDF.exe"));
+            out.push(dir.join("bin").join("SumatraPDF.exe"));
         }
-        out.push(
-            PathBuf::from(&root)
-                .join("KaiPrinters")
-                .join("gs")
-                .join("bin")
-                .join("gswin64c.exe"),
-        );
     }
     out
 }
 
 #[cfg(target_os = "windows")]
-fn resolve_ghostscript_exe() -> Result<PathBuf> {
-    if let Some(cached) = GHOSTSCRIPT_EXE.get().and_then(|o| o.clone()) {
-        return Ok(cached);
-    }
-    if let Some(p) = ghostscript_candidates()
-        .into_iter()
-        .find(|c| c.is_file())
-    {
-        let _ = GHOSTSCRIPT_EXE.set(Some(p.clone()));
-        return Ok(p);
-    }
-    use std::os::windows::process::CommandExt;
-    for bin in ["gswin64c.exe", "gswin32c.exe"] {
-        let out = Command::new("where")
-            .arg(bin)
-            .creation_flags(CREATE_NO_WINDOW)
-            .output()
-            .with_context(|| format!("where {bin}"))?;
-        if out.status.success() {
-            let line = String::from_utf8_lossy(&out.stdout)
-                .lines()
-                .next()
-                .unwrap_or("")
-                .trim()
-                .to_string();
-            if !line.is_empty() {
-                let p = PathBuf::from(line);
-                if p.is_file() {
-                    let _ = GHOSTSCRIPT_EXE.set(Some(p.clone()));
-                    return Ok(p);
-                }
+fn resolve_sumatra_exe() -> Result<PathBuf> {
+    if let Ok(guard) = RESOLVED_SUMATRA.lock() {
+        if let Some(cached) = guard.clone() {
+            if cached.is_file() {
+                return Ok(cached);
             }
         }
     }
+    if let Some(p) = sumatra_candidates().into_iter().find(|c| c.is_file()) {
+        if let Ok(mut guard) = RESOLVED_SUMATRA.lock() {
+            *guard = Some(p.clone());
+        }
+        return Ok(p);
+    }
+    if let Ok(mut guard) = RESOLVED_SUMATRA.lock() {
+        *guard = None;
+    }
     anyhow::bail!(
-        "Ghostscript no encontrado. Instalá la versión 64 bits desde \
-         https://ghostscript.com/releases/gsdnld.html (añade gswin64c al PATH) \
-         o definí KAI_PRINTERS_GHOSTSCRIPT con la ruta completa a gswin64c.exe"
+        "SumatraPDF no encontrado. Reinstalá KaiPrinters o definí KAI_PRINTERS_SUMATRA \
+         con la ruta completa a SumatraPDF.exe"
     )
 }
 
-/// `-sOutputFile` para el dispositivo `mswinpr2` (nombre de cola de Windows).
+/// Opciones `-print-settings` de Sumatra: copias (`Nx`) y escala térmica (`fit`).
 #[cfg(target_os = "windows")]
-fn ghostscript_printer_output_arg(printer: &str) -> String {
-    let name = printer.trim();
-    if name.contains(' ') {
-        format!("-sOutputFile=\"%printer%{name}\"")
-    } else {
-        format!("-sOutputFile=%printer%{name}")
+fn sumatra_print_settings(copies: u32, thermal: ThermalPrintOptions) -> String {
+    let n = copies.max(1);
+    let mut parts = Vec::new();
+    if n > 1 {
+        parts.push(format!("{n}x"));
     }
+    if thermal.thermal_80mm {
+        parts.push("fit".to_string());
+    }
+    parts.join(",")
 }
 
 #[cfg(target_os = "windows")]
-fn print_windows_ghostscript(
-    gs: &Path,
+fn print_windows_sumatra(
+    sumatra: &Path,
     pdf_path: &Path,
     printer: &str,
+    copies: u32,
     thermal: ThermalPrintOptions,
 ) -> Result<()> {
     use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
     let pdf = pdf_path
         .canonicalize()
         .unwrap_or_else(|_| pdf_path.to_path_buf());
-    let output_arg = ghostscript_printer_output_arg(printer);
-    let mut cmd = Command::new(gs);
+    let settings = sumatra_print_settings(copies, thermal);
+    let mut cmd = Command::new(sumatra);
     cmd.creation_flags(CREATE_NO_WINDOW)
-        .arg("-dBATCH")
-        .arg("-dNOPAUSE")
-        .arg("-dSAFER")
-        .arg("-dPrinted")
-        .arg("-sDEVICE=mswinpr2")
-        .arg(&output_arg);
-    if thermal.thermal_80mm {
-        cmd.arg("-dFIXEDMEDIA").arg("-dPDFFitPage");
+        .arg("-silent")
+        .arg("-print-to")
+        .arg(printer.trim());
+    if !settings.is_empty() {
+        cmd.arg("-print-settings").arg(&settings);
     }
     let out = cmd
         .arg(&pdf)
         .output()
-        .with_context(|| format!("ghostscript ({})", gs.display()))?;
+        .with_context(|| format!("SumatraPDF ({})", sumatra.display()))?;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr);
         let stdout = String::from_utf8_lossy(&out.stdout);
         anyhow::bail!(
-            "Ghostscript salió {:?}: {stdout}{stderr}",
+            "SumatraPDF salió {:?}: {stdout}{stderr}",
             out.status.code()
         );
     }
     tracing::info!(
         printer,
-        ghostscript = ?gs,
+        sumatra = ?sumatra,
+        print_settings = %settings,
         thermal_80mm = thermal.thermal_80mm,
-        "Windows: PDF enviado a impresora vía Ghostscript"
+        copies,
+        "Windows: PDF enviado a impresora vía SumatraPDF"
     );
     Ok(())
-}
-
-#[cfg(target_os = "windows")]
-fn print_windows_one_copy(
-    pdf_path: &Path,
-    printer: &str,
-    thermal: ThermalPrintOptions,
-) -> Result<()> {
-    let gs = resolve_ghostscript_exe()?;
-    print_windows_ghostscript(&gs, pdf_path, printer, thermal)
 }
 
 #[cfg(target_os = "windows")]
@@ -979,18 +961,16 @@ fn print_windows(
     if !pdf_path.is_file() {
         anyhow::bail!("PDF temporal no encontrado: {}", pdf_path.display());
     }
-    for i in 0..copies.max(1) {
-        print_windows_one_copy(pdf_path, printer, thermal)
-            .with_context(|| format!("copia {} de {}", i + 1, copies.max(1)))?;
-    }
-    Ok(())
+    let sumatra = resolve_sumatra_exe()?;
+    print_windows_sumatra(&sumatra, pdf_path, printer, copies, thermal)
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GhostscriptStatus {
+pub struct SumatraStatus {
     pub installed: bool,
     pub path: Option<String>,
+    pub bundled: bool,
 }
 
 pub fn host_platform() -> &'static str {
@@ -1003,25 +983,39 @@ pub fn host_platform() -> &'static str {
     }
 }
 
-pub fn ghostscript_status() -> GhostscriptStatus {
+pub fn sumatra_status() -> SumatraStatus {
     #[cfg(target_os = "windows")]
     {
-        match resolve_ghostscript_exe() {
-            Ok(p) => GhostscriptStatus {
-                installed: true,
-                path: Some(p.display().to_string()),
-            },
-            Err(_) => GhostscriptStatus {
+        match resolve_sumatra_exe() {
+            Ok(p) => {
+                let bundled = BUNDLED_SUMATRA.get().and_then(|o| o.as_ref()).is_some_and(|b| {
+                    if !b.is_file() || !p.is_file() {
+                        return false;
+                    }
+                    match (std::fs::canonicalize(b), std::fs::canonicalize(&p)) {
+                        (Ok(bb), Ok(pp)) => bb == pp,
+                        _ => b == &p,
+                    }
+                });
+                SumatraStatus {
+                    installed: true,
+                    path: Some(p.display().to_string()),
+                    bundled,
+                }
+            }
+            Err(_) => SumatraStatus {
                 installed: false,
                 path: None,
+                bundled: false,
             },
         }
     }
     #[cfg(not(target_os = "windows"))]
     {
-        GhostscriptStatus {
+        SumatraStatus {
             installed: true,
             path: None,
+            bundled: false,
         }
     }
 }
@@ -1056,5 +1050,34 @@ mod tests {
         assert_eq!(page_opt.as_str(), "PageCutType=2FullCutPage");
         assert_eq!(feed_opt.as_str(), "FeedCutAfterJobEnd=1Line");
         assert!(page_score > feed_score);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn sumatra_print_settings_copies_and_thermal() {
+        assert_eq!(
+            sumatra_print_settings(3, ThermalPrintOptions {
+                thermal_80mm: false,
+                auto_cut: false,
+                open_drawer: false,
+            }),
+            "3x"
+        );
+        assert_eq!(
+            sumatra_print_settings(1, ThermalPrintOptions {
+                thermal_80mm: true,
+                auto_cut: false,
+                open_drawer: false,
+            }),
+            "fit"
+        );
+        assert_eq!(
+            sumatra_print_settings(2, ThermalPrintOptions {
+                thermal_80mm: true,
+                auto_cut: false,
+                open_drawer: false,
+            }),
+            "2x,fit"
+        );
     }
 }

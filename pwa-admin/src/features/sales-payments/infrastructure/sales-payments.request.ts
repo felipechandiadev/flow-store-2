@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import type {
   SalesPaymentMethod,
+  SalesPaymentRelatedSale,
   SalesPaymentRow,
   SalesPaymentStatus,
   SalesPaymentsListResult,
@@ -81,6 +82,76 @@ function deriveCustomerDocument(
     : null;
 }
 
+function parseRelatedSalesFromPaymentRaw(
+  o: Record<string, unknown>,
+  meta: Record<string, unknown> | null,
+  relatedTx: Record<string, unknown> | null | undefined,
+  relatedTransactionId: string | null,
+): SalesPaymentRelatedSale[] {
+  const apiRows = o.relatedSales;
+  if (Array.isArray(apiRows) && apiRows.length > 0) {
+    const out: SalesPaymentRelatedSale[] = [];
+    for (const row of apiRows) {
+      if (!row || typeof row !== "object") continue;
+      const r = row as Record<string, unknown>;
+      const saleId =
+        typeof r.saleId === "string"
+          ? r.saleId.trim()
+          : typeof r.saleTransactionId === "string"
+            ? r.saleTransactionId.trim()
+            : "";
+      if (!saleId) continue;
+      out.push({
+        saleId,
+        documentNumber:
+          typeof r.documentNumber === "string" && r.documentNumber.trim()
+            ? r.documentNumber.trim()
+            : "",
+        amount: Math.round(Number(r.amount) || 0),
+      });
+    }
+    if (out.length > 0) return out;
+  }
+
+  const allocations = meta?.allocations;
+  if (Array.isArray(allocations) && allocations.length > 0) {
+    const out: SalesPaymentRelatedSale[] = [];
+    for (const row of allocations) {
+      if (!row || typeof row !== "object") continue;
+      const r = row as Record<string, unknown>;
+      const saleId =
+        typeof r.saleId === "string"
+          ? r.saleId.trim()
+          : typeof r.saleTransactionId === "string"
+            ? r.saleTransactionId.trim()
+            : "";
+      if (!saleId) continue;
+      out.push({
+        saleId,
+        documentNumber:
+          typeof r.documentNumber === "string" && r.documentNumber.trim()
+            ? r.documentNumber.trim()
+            : "",
+        amount: Math.round(Number(r.amount) || 0),
+      });
+    }
+    if (out.length > 0) return out;
+  }
+
+  const relatedSaleId =
+    relatedTx && typeof relatedTx.id === "string" && relatedTx.id.trim()
+      ? relatedTx.id.trim()
+      : relatedTransactionId;
+  if (!relatedSaleId) return [];
+  const folio =
+    relatedTx &&
+    typeof relatedTx.documentNumber === "string" &&
+    relatedTx.documentNumber.trim()
+      ? relatedTx.documentNumber.trim()
+      : "";
+  return [{ saleId: relatedSaleId, documentNumber: folio, amount: 0 }];
+}
+
 function normalizeRow(raw: unknown): SalesPaymentRow | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
@@ -101,16 +172,19 @@ function normalizeRow(raw: unknown): SalesPaymentRow | null {
     typeof o.relatedTransactionId === "string" && o.relatedTransactionId.trim()
       ? o.relatedTransactionId.trim()
       : null;
-  const relatedSaleId =
-    relatedTx && typeof relatedTx.id === "string" && relatedTx.id.trim()
-      ? relatedTx.id.trim()
-      : relatedTransactionId;
+  const relatedSales = parseRelatedSalesFromPaymentRaw(
+    o,
+    meta,
+    relatedTx,
+    relatedTransactionId,
+  );
+  const relatedSaleId = relatedSales[0]?.saleId ?? null;
   const relatedSaleDocumentNumber =
-    relatedTx &&
-    typeof relatedTx.documentNumber === "string" &&
-    relatedTx.documentNumber.trim()
-      ? relatedTx.documentNumber.trim()
-      : null;
+    relatedSales.length === 1
+      ? relatedSales[0].documentNumber || null
+      : relatedSales.length > 1
+        ? `${relatedSales.length} ventas`
+        : null;
   return {
     id,
     documentNumber:
@@ -152,6 +226,7 @@ function normalizeRow(raw: unknown): SalesPaymentRow | null {
     paymentLinesCount: countPaymentSnapshotsFromMetadata(meta),
     status: (o.status as SalesPaymentStatus) ?? "CONFIRMED",
     relatedTransactionId,
+    relatedSales,
     relatedSaleId,
     relatedSaleDocumentNumber,
     notes: typeof o.notes === "string" && o.notes.trim() ? o.notes : null,

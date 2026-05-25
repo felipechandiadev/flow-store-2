@@ -294,8 +294,14 @@ fn get_dashboard(state: tauri::State<'_, Arc<AppState>>) -> Result<serde_json::V
         "agentDisplayName": agent_display_name,
         "agentLogs": state.agent_log.list(),
         "hostPlatform": platform::host_platform(),
-        "ghostscript": platform::ghostscript_status(),
+        "sumatra": platform::sumatra_status(),
     }))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn refresh_sumatra_status() -> Result<platform::SumatraStatus, String> {
+    platform::invalidate_sumatra_cache();
+    Ok(platform::sumatra_status())
 }
 
 #[tauri::command]
@@ -340,37 +346,6 @@ fn open_app_data_dir(state: tauri::State<'_, Arc<AppState>>) -> Result<(), Strin
         let _ = dir;
         Err("open_app_data_dir: plataforma no soportada".into())
     }
-}
-
-const GHOSTSCRIPT_DOWNLOAD_URL: &str = "https://ghostscript.com/releases/gsdnld.html";
-
-fn open_external_url(url: &str) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", url])
-            .spawn()
-            .map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(url)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    {
-        let _ = url;
-        Err("open_external_url: plataforma no soportada".into())
-    }
-}
-
-#[tauri::command(rename_all = "snake_case")]
-fn open_ghostscript_download() -> Result<(), String> {
-    open_external_url(GHOSTSCRIPT_DOWNLOAD_URL)
 }
 
 /// Instala el certificado autofirmado WSS para que el navegador confíe WSS desde HTTPS (POS en la nube).
@@ -1039,6 +1014,26 @@ pub fn run() {
             security::ensure_defaults(&db).map_err(|e| format!("defaults: {e}"))?;
 
             let temp_dir = data_dir.join("temp_print");
+            #[cfg(target_os = "windows")]
+            {
+                use tauri::path::BaseDirectory;
+                let mut bundled = app
+                    .path()
+                    .resolve("bin/SumatraPDF.exe", BaseDirectory::Resource)
+                    .ok()
+                    .filter(|p| p.is_file());
+                if bundled.is_none() {
+                    if let Ok(exe) = std::env::current_exe() {
+                        if let Some(dir) = exe.parent() {
+                            let sibling = dir.join("SumatraPDF.exe");
+                            if sibling.is_file() {
+                                bundled = Some(sibling);
+                            }
+                        }
+                    }
+                }
+                platform::set_bundled_sumatra_path(bundled);
+            }
             let state = AppState::new(db.clone(), temp_dir, data_dir.clone(), agent_log.clone());
             let st_worker = state.clone();
             let st_health = state.clone();
@@ -1170,7 +1165,7 @@ pub fn run() {
             get_wss_certificate_path,
             open_app_data_dir,
             install_wss_trust_certificate,
-            open_ghostscript_download,
+            refresh_sumatra_status,
             open_agent_logs_window,
             stop_print_network,
             start_print_network,

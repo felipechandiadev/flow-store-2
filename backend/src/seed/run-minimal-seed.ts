@@ -1220,6 +1220,8 @@ async function bootstrap() {
       process.env.SEED_COMPANY_ADDRESS || SEED_PARABRISAS.address;
     const companyMail =
       process.env.SEED_COMPANY_MAIL || SEED_PARABRISAS.mail;
+    const companyPhone =
+      process.env.SEED_COMPANY_PHONE || SEED_PARABRISAS.phone;
 
     assertValidChileCompanyRut(rut, 'SEED_COMPANY_RUT');
 
@@ -1234,6 +1236,7 @@ async function bootstrap() {
         rut,
         address: companyAddress,
         mail: companyMail,
+        phone: companyPhone,
         defaultCurrency: SEED_PARABRISAS.defaultCurrency,
         isActive: true,
       });
@@ -1247,6 +1250,7 @@ async function bootstrap() {
       company.businessActivity = businessActivity;
       company.address = companyAddress;
       company.mail = companyMail;
+      company.phone = companyPhone;
       await companyRepo.save(company);
       console.log(
         `✅ Empresa ya existía: id=${company.id} razonSocial='${company.razonSocial}' rut='${company.rut}' (datos básicos actualizados)`,

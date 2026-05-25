@@ -70,6 +70,7 @@ export type CompanyDetails = {
   rut: string | null;
   address: string | null;
   mail: string | null;
+  phone: string | null;
   defaultCurrency: string;
   /** ISO 8601 o `null` */
   fiscalYearStart: string | null;
@@ -85,6 +86,7 @@ export type UpdateCompanyGeneralInput = {
   rut?: string;
   address?: string | null;
   mail?: string | null;
+  phone?: string | null;
 };
 
 export type AddCompanyBankAccountInput = {
@@ -104,6 +106,7 @@ type CompanyApiResponse = {
   rut?: string | null;
   address?: string | null;
   mail?: string | null;
+  phone?: string | null;
   defaultCurrency?: string;
   fiscalYearStart?: string | null;
   isActive?: boolean;
@@ -176,6 +179,7 @@ function mapCompanyResponse(data: CompanyApiResponse): CompanyDetails | null {
     address:
       data.address != null && String(data.address).trim() !== "" ? String(data.address).trim() : null,
     mail: data.mail != null && String(data.mail).trim() !== "" ? String(data.mail).trim() : null,
+    phone: data.phone != null && String(data.phone).trim() !== "" ? String(data.phone).trim() : null,
     defaultCurrency: data.defaultCurrency != null && String(data.defaultCurrency).trim() !== "" ? String(data.defaultCurrency) : "CLP",
     fiscalYearStart: parseFiscalYearStart(data.fiscalYearStart != null ? String(data.fiscalYearStart) : null),
     isActive: data.isActive !== false,

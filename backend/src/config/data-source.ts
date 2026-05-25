@@ -102,6 +102,7 @@ import { UnitIsDefault1756080000000 } from '../migrations/1756080000000-UnitIsDe
 import { NotificationsCore1756090000000 } from '../migrations/1756090000000-NotificationsCore';
 import { StockThresholdEnabledFlags1756100000000 } from '../migrations/1756100000000-StockThresholdEnabledFlags';
 import { CashHubCompanyCodeUnique1756110000000 } from '../migrations/1756110000000-CashHubCompanyCodeUnique';
+import { CompanyPhone1756200000000 } from '../migrations/1756200000000-CompanyPhone';
 import { Notification } from '@modules/notifications/domain/notification.entity';
 import { NotificationDelivery } from '@modules/notifications/domain/notification-delivery.entity';
 import { NotificationAudience } from '@modules/notifications/domain/notification-audience.entity';
@@ -222,6 +223,7 @@ export const AppDataSource = new DataSource({
     NotificationsCore1756090000000,
     StockThresholdEnabledFlags1756100000000,
     CashHubCompanyCodeUnique1756110000000,
+    CompanyPhone1756200000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',

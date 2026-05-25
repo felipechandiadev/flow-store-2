@@ -38,5 +38,9 @@ jobs:
       - name: Build Vite frontend
         working-directory: print-service
         run: npm run build
+      - name: Download SumatraPDF (Windows)
+        if: matrix.os == 'windows-latest'
+        working-directory: print-service
+        run: node scripts/fetch-sumatra-windows.mjs
       - name: Cargo check (cross-target)
         run: cargo check --target ${{ matrix.target }}

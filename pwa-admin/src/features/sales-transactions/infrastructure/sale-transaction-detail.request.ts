@@ -232,6 +232,22 @@ function normalizeDetail(raw: unknown): SaleTransactionDetail | null {
     (o as { linkedCustomerCreditNote?: unknown }).linkedCustomerCreditNote,
   );
 
+  const arCollectionAllocations: SaleTransactionDetail["arCollectionAllocations"] = [];
+  if (meta && Array.isArray(meta.allocations)) {
+    for (const row of meta.allocations) {
+      if (!row || typeof row !== "object") continue;
+      const a = row as Record<string, unknown>;
+      const saleId = a.saleId != null ? String(a.saleId).trim() : "";
+      if (!saleId) continue;
+      arCollectionAllocations.push({
+        saleId,
+        documentNumber:
+          a.documentNumber != null ? String(a.documentNumber) : "",
+        amount: num(a.amount),
+      });
+    }
+  }
+
   return {
     id,
     documentNumber:
@@ -281,6 +297,7 @@ function normalizeDetail(raw: unknown): SaleTransactionDetail | null {
     backorderPendingBalance,
     linkedCustomerCreditNote,
     saleReturnRefundMode,
+    arCollectionAllocations,
   };
 }
 

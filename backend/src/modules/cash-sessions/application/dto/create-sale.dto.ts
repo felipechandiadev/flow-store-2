@@ -8,6 +8,7 @@ import {
   Max,
   IsObject,
   IsUUID,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -225,6 +226,14 @@ export class CreateSaleDto {
   @IsOptional()
   @IsUUID()
   fulfillBackorderId?: string;
+
+  /**
+   * Venta confirmada sin cobro en caja: `paymentStatus` PENDING, sin `PAYMENT_IN`.
+   * Requiere `customerId`. No aplica a encargo ni devolución.
+   */
+  @IsOptional()
+  @IsBoolean()
+  deferPayment?: boolean;
 
   @IsOptional()
   @IsString()

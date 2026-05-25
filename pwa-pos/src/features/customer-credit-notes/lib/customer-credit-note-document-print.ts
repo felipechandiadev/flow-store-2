@@ -1,3 +1,7 @@
+import {
+  buildCompanyInlineParts,
+  formatCompanyAddressForPrint,
+} from "@flowstore/document-print";
 import type { CustomerCreditNotePrintData } from "../types/customer-credit-note-print.types";
 import { printPosHtmlViaAgentOrBrowserFireAndForget } from "@/features/pos-print/lib/pos-agent-print";
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
@@ -30,6 +34,12 @@ function formatDateSlash(iso: string): string {
 export function buildCustomerCreditNoteDocumentHtml(data: CustomerCreditNotePrintData): string {
   const c = data.company;
   const displayName = c.nombreFantasia?.trim() || c.razonSocial;
+  const addressLines = formatCompanyAddressForPrint(c.address);
+  const inlineParts = buildCompanyInlineParts({
+    rut: c.rut,
+    phone: c.phone,
+    email: c.mail,
+  });
   const folio = data.creditNoteFolio;
   const barcodeSvg = receiptBarcodeSvgString(folio);
 
@@ -100,8 +110,8 @@ export function buildCustomerCreditNoteDocumentHtml(data: CustomerCreditNotePrin
   <div class="companyHeader">
     <div>
       <h1 class="companyName">${escapeHtml(displayName)}</h1>
-      ${c.rut ? `<p class="muted">RUT ${escapeHtml(c.rut)}</p>` : ""}
-      ${c.address ? `<p class="muted">${escapeHtml(c.address)}</p>` : ""}
+      ${addressLines.map((l) => `<p class="muted">${escapeHtml(l)}</p>`).join("")}
+      ${inlineParts.length > 0 ? `<p class="muted">${escapeHtml(inlineParts.join(" · "))}</p>` : ""}
     </div>
     <div>
       <p class="documentTitle">NOTA DE CRÉDITO</p>

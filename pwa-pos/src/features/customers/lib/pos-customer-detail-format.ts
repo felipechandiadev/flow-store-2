@@ -29,6 +29,24 @@ export function documentTypeLabel(raw: string | null | undefined): string {
   return raw?.trim() || "Documento";
 }
 
+export const PAYMENT_STATUS_LABEL: Record<string, string> = {
+  PENDING: "Pendiente",
+  PARTIAL: "Parcial",
+  PAID: "Pagado",
+  OVERDUE: "Vencido",
+  VOIDED: "Anulado",
+};
+
+export function paymentStatusVariant(
+  status: string | null | undefined,
+): "success-outlined" | "warning-outlined" | "secondary-outlined" | "error-outlined" {
+  const u = (status ?? "").trim().toUpperCase();
+  if (u === "PAID") return "success-outlined";
+  if (u === "PENDING" || u === "PARTIAL" || u === "OVERDUE") return "warning-outlined";
+  if (u === "VOIDED") return "error-outlined";
+  return "secondary-outlined";
+}
+
 export const TX_TYPE_LABEL: Record<string, string> = {
   SALE: "Venta",
   BACKORDER: "Encargo",

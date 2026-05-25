@@ -1,18 +1,19 @@
 {
   "name": "kai-printers",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "generate-icons": "node scripts/generate-app-icons.mjs",
     "pretauri:build": "node scripts/generate-app-icons.mjs",
+    "fetch-sumatra": "node scripts/fetch-sumatra-windows.mjs",
     "tauri": "node ./node_modules/@tauri-apps/cli/tauri.js",
     "tauri:dev": "node ./node_modules/@tauri-apps/cli/tauri.js dev",
     "tauri:build": "node ./node_modules/@tauri-apps/cli/tauri.js build",
     "tauri:build:windows": "node ./node_modules/@tauri-apps/cli/tauri.js build --target x86_64-pc-windows-msvc",
-    "tauri:build:windows:cross": "node ./node_modules/@tauri-apps/cli/tauri.js build --runner cargo-xwin --target x86_64-pc-windows-msvc --no-bundle",
+    "tauri:build:windows:cross": "node scripts/tauri-build-windows-cross.mjs",
     "package:windows-release": "node scripts/package-windows-release.mjs"
   },
   "dependencies": {

@@ -163,3 +163,13 @@ Si el sistema necesita correcciones trazables sin mutar transacciones:
 ### 6.2 Evitar duplicidades
 - Contabilidad debe permanecer independiente del motor de automatizaciones.
 - Automatizaciones deben enfocarse en stock/cuotas/derivadas (no asientos).
+
+## 7) Venta sin pago (AR) vs crédito interno
+
+**Cuenta por cobrar POS (AR)** — venta `SALE` con `deferPayment` / `paymentStatus: PENDING`, sin `PAYMENT_IN` al emitir. El cobro posterior crea **un** `PAYMENT_IN` con `metadata.source: 'pos_ar_collection'` y `metadata.allocations[]` (varias ventas, varios medios en `metadata.payments`). No usa `INTERNAL_CREDIT` ni `create-multiple-payments` (N transacciones).
+
+**Crédito interno** — flujo distinto (`INTERNAL_CREDIT`, cupo, cuotas). No mezclar medios de encargo ni NC en cobro AR v1.
+
+Endpoints POS: `POST /api/cash-sessions/sales` (`deferPayment: true`) y `POST /api/cash-sessions/collect-pending-sales`.
+
+**Varias ventas por cobro:** un `PAYMENT_IN` puede listar N ventas en `metadata.allocations` (y opcionalmente `relatedTransactionId` en la primera). El listado de transacciones expone `relatedSales[]`; en ventas `SALE`, `relatedSalePayments[]` incluye cobros que referencian esa venta vía allocations o enlace simple.

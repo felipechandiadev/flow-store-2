@@ -9,7 +9,9 @@ export async function printAdminSaleTicketExplicit(
   return printAdminSaleTicket(data);
 }
 
-/** Documento en hoja (navegador / diálogo de impresión). */
-export function printAdminSaleDocumentExplicit(data: SaleReceiptPrintData): void {
-  printSaleReceiptDocument(data);
+/** Documento en hoja vía KaiPrinters (PDF) o navegador. */
+export async function printAdminSaleDocumentExplicit(
+  data: SaleReceiptPrintData,
+): Promise<"agent" | "browser"> {
+  return printSaleReceiptDocument(data);
 }

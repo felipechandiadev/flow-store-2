@@ -52,6 +52,7 @@ export function buildCustomerCreditNotePrintSnapshot(
       logoUrl: c?.logoUrl ?? null,
       address: c?.address?.trim() || null,
       mail: c?.mail?.trim() || null,
+      phone: c?.phone?.trim() || null,
     },
     pos: {
       pointOfSaleName: input.posContext?.pointOfSaleName?.trim() || null,

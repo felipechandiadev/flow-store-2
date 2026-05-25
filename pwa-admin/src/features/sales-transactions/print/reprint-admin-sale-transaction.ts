@@ -31,14 +31,22 @@ export async function reprintAdminSaleTicket(
   return { success: true, channel };
 }
 
-export function reprintAdminSaleDocument(
+export async function reprintAdminSaleDocument(
   detail: SaleTransactionDetail,
   company: CompanyDetails | null,
-): { success: boolean; message?: string } {
+): Promise<{ success: boolean; message?: string; channel?: "agent" | "browser" }> {
   if (!canAdminReprintSaleReceipt(detail.transactionType)) {
     return { success: false, message: "Este tipo de transacción no admite documento" };
   }
   const data = mapSaleTransactionDetailToPrintData(detail, company);
-  printAdminSaleDocumentExplicit(data);
-  return { success: true };
+  const channel = await printAdminSaleDocumentExplicit(data);
+  if (channel === "browser") {
+    return {
+      success: true,
+      channel: "browser",
+      message:
+        "Documento enviado al diálogo del navegador. Configure alias de documentos en Ajustes → Impresión local y verifique KaiPrinters.",
+    };
+  }
+  return { success: true, channel: "agent" };
 }

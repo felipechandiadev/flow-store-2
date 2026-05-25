@@ -22,6 +22,14 @@ import { AttributesService } from '@modules/attributes/application/attributes.se
 import { Product } from '@modules/products/domain/product.entity';
 import { VariantQuantityConversionService } from './variant-quantity-conversion.service';
 import { SearchPurchasingVariantsDto } from './dto/search-purchasing-variants.dto';
+import type { PmpHistoryEntry } from '../domain/pmp-history.types';
+import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
+import {
+  Transaction,
+  TransactionStatus,
+  TransactionType,
+} from '@modules/transactions/domain/transaction.entity';
+import { Supplier } from '@modules/suppliers/domain/supplier.entity';
 import {
   foldPurchasingSearchText,
   mysqlFoldLowerColumnExpr,
@@ -36,6 +44,28 @@ function pmpForApi(value: unknown): number | null {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
+
+function supplierDisplayName(supplier: Supplier | null | undefined): string | null {
+  if (!supplier) return null;
+  const alias = supplier.alias?.trim();
+  if (alias) return alias;
+  const person = (supplier as { person?: { businessName?: string; firstName?: string; lastName?: string } })
+    .person;
+  if (!person) return null;
+  const business = person.businessName?.trim();
+  if (business) return business;
+  const full = [person.firstName, person.lastName]
+    .map((x) => (typeof x === 'string' ? x.trim() : ''))
+    .filter(Boolean)
+    .join(' ');
+  return full || null;
+}
+
+const PURCHASE_INSIGHTS_EXCLUDED_STATUSES: TransactionStatus[] = [
+  TransactionStatus.DRAFT,
+  TransactionStatus.CANCELLED,
+  TransactionStatus.VOIDED,
+];
 
 @Injectable()
 export class ProductVariantsService {
@@ -755,6 +785,123 @@ export class ProductVariantsService {
     );
 
     return { items, page, pageSize, total };
+  }
+
+  /**
+   * PMP histórico (JSON en variante) y últimas compras confirmadas (transacciones PURCHASE).
+   */
+  async getPurchaseInsights(variantId: string, limitRaw?: number) {
+    const limit = Math.min(50, Math.max(1, limitRaw ?? 15));
+
+    const variant = await this.variantOrm.findOne({
+      where: { id: variantId, deletedAt: IsNull() },
+      relations: ['product', 'stockBaseUnit', 'purchaseUnit'],
+    });
+    if (!variant) {
+      throw new NotFoundException('Product variant not found');
+    }
+
+    const historyRaw = (variant as ProductVariant).pmpHistory;
+    const history: PmpHistoryEntry[] = Array.isArray(historyRaw) ? historyRaw : [];
+    const currentPmp = pmpForApi((variant as ProductVariant).pmp);
+    const pmpSeries = this.buildPmpSeriesFromHistory(history, currentPmp);
+
+    const lineRepo = this.variantOrm.manager.getRepository(TransactionLine);
+    const rows = await lineRepo
+      .createQueryBuilder('line')
+      .innerJoinAndSelect('line.transaction', 'tx')
+      .leftJoinAndSelect('tx.supplier', 'supplier')
+      .leftJoinAndSelect('supplier.person', 'supplierPerson')
+      .leftJoinAndSelect('tx.storageEntry', 'storageEntry')
+      .where('line.productVariantId = :variantId', { variantId })
+      .andWhere('line.companyId = :companyId', { companyId: variant.companyId })
+      .andWhere('tx.transactionType = :purchaseType', {
+        purchaseType: TransactionType.PURCHASE,
+      })
+      .andWhere('tx.status NOT IN (:...excludedStatuses)', {
+        excludedStatuses: PURCHASE_INSIGHTS_EXCLUDED_STATUSES,
+      })
+      .orderBy('tx.createdAt', 'DESC')
+      .addOrderBy('line.lineNumber', 'ASC')
+      .take(limit)
+      .getMany();
+
+    const stockBaseUnitLabel =
+      (variant as any).stockBaseUnit?.symbol ||
+      (variant as any).stockBaseUnit?.name ||
+      null;
+    const purchaseUnitLabel =
+      (variant as any).purchaseUnit?.symbol ||
+      (variant as any).purchaseUnit?.name ||
+      null;
+
+    const recentPurchases = rows.map((line) => {
+      const tx = line.transaction as Transaction | undefined;
+      const createdAt =
+        tx?.createdAt instanceof Date
+          ? tx.createdAt.toISOString()
+          : tx?.createdAt
+            ? String(tx.createdAt)
+            : null;
+      return {
+        transactionId: tx?.id ?? null,
+        documentNumber: tx?.documentNumber ?? null,
+        date: createdAt,
+        quantity: Number(line.quantity) || 0,
+        unitLabel: line.unitOfMeasure?.trim() || purchaseUnitLabel,
+        supplierName: supplierDisplayName(tx?.supplier as Supplier | undefined),
+        destinationName:
+          (tx as { storageEntry?: { name?: string } })?.storageEntry?.name?.trim() ||
+          null,
+        unitCost: line.unitCost != null ? Number(line.unitCost) : null,
+      };
+    });
+
+    const av =
+      variant.attributeValues &&
+      typeof variant.attributeValues === 'object' &&
+      !Array.isArray(variant.attributeValues)
+        ? (variant.attributeValues as Record<string, string>)
+        : {};
+
+    return {
+      variant: {
+        id: variant.id,
+        productName: variant.product?.name ?? '',
+        sku: variant.sku,
+        attributeValues: av,
+        pmp: currentPmp,
+        stockBaseUnitLabel,
+        purchaseUnitLabel,
+      },
+      pmpSeries,
+      recentPurchases,
+    };
+  }
+
+  private buildPmpSeriesFromHistory(
+    history: PmpHistoryEntry[],
+    currentPmp: number | null,
+  ): { at: string; pmp: number }[] {
+    const sorted = [...history].sort(
+      (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
+    );
+    const points: { at: string; pmp: number }[] = [];
+    for (const entry of sorted) {
+      const pmp = Number(entry.newPmp);
+      const at = typeof entry.at === 'string' ? entry.at.trim() : '';
+      if (!at || !Number.isFinite(pmp)) continue;
+      const last = points[points.length - 1];
+      if (last && last.at === at && last.pmp === pmp) continue;
+      points.push({ at, pmp });
+    }
+    if (currentPmp != null) {
+      const last = points[points.length - 1];
+      if (!last || last.pmp !== currentPmp) {
+        points.push({ at: new Date().toISOString(), pmp: currentPmp });
+      }
+    }
+    return points;
   }
 
   async remove(id: string) {

@@ -242,22 +242,17 @@ Comportamiento deseado: **retry** con backoff para errores transitorios, **timeo
 
 ## 6. Motor PDF y envío al spooler
 
-La v1 dejaba el motor indefinido. **Definición v2:**
+**Implementación actual en KaiPrinters (`print-service`):**
 
-| Plataforma | Estrategia recomendada |
-|------------|-------------------------|
-| **Windows** | **WinSpool** vía `windows-rs` para enumerar y enviar trabajos; render previo con motor PDF embebido. |
-| **macOS** | **CUPS** / APIs de impresión del sistema; mismo pipeline PDF → bitmap/PDF nativo según driver. |
+| Plataforma | Documentos (PDF) | Tickets (ESC/POS) |
+|------------|------------------|-------------------|
+| **Windows** | **SumatraPDF** empaquetado: `-silent -print-to "<cola>"` (sin diálogo). Ver `platform.rs` y `print-service/THIRD_PARTY_NOTICES.md` (GPLv3). Override: `KAI_PRINTERS_SUMATRA`. |
+| **macOS** | **`lp`** (CUPS), con opciones de rollo térmico cuando aplica. |
+| **Tickets (ambos)** | RAW WinSpool / `copy /B` o TCP `:9100` en red; sin PDF. |
 
-**Motor de rasterizado/render PDF (elegir uno y documentarlo en el repo del servicio):**
+Build Windows: `npm run fetch-sumatra` antes de `tauri build`; CI en `print-service-release.yml` descarga Sumatra 3.5.2.
 
-| Motor | Notas |
-|-------|--------|
-| **PDFium** | Muy usado en industria, buen soporte multiplataforma con bindings Rust. |
-| **MuPDF** | Liviano, licencia AGPL en upstream — revisar compliance. |
-| **Externo Windows-only** | p. ej. SumatraPDF CLI — solo si se acepta dependencia y firma de instalador. |
-
-**Recomendación por defecto v2:** **PDFium** (o el que el equipo elija tras spike), con capa de abstracción `PdfRenderer` en Rust.
+**Posible evolución (no implementada):** motor PDF embebido (PDFium) para unificar plataformas; hoy Windows usa Sumatra por simplicidad y impresión silenciosa fiable.
 
 ---
 

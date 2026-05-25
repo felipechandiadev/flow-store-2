@@ -73,7 +73,11 @@ export function PrintableDocumentLayout({
           <p className={styles.documentDate}>
             {document.issueDateLabel}: {document.issueDateValue}
           </p>
-          {folioValueTrim ? <p className={styles.guideBadge}>{folioLabel} {folioValueTrim}</p> : null}
+          {folioValueTrim ? (
+            <p className={styles.documentFolio}>
+              {folioLabel} {folioValueTrim}
+            </p>
+          ) : null}
         </div>
       </header>
 

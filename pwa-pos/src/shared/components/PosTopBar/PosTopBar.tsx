@@ -357,58 +357,62 @@ export default function PosTopBar({
               onClick={() => router.push("/cash/closing")}
               data-test-id="pos-topbar-cash-closing"
             />
-            <div className="relative z-[100] shrink-0" data-test-id="pos-topbar-session-print">
-              <PrintServiceTopBarDropdown
-                panelVariant="pos"
-                connected={printService.connected}
-                health={printService.health}
-                visual={printService.visual}
-                lastError={printService.lastError}
-                attemptedWsUrl={printService.attemptedWsUrl}
-                reconnect={printService.reconnect}
-                notifications={printService.notifications}
-                unreadCount={printService.unreadCount}
-                markNotificationsRead={printService.markNotificationsRead}
-                clearNotifications={printService.clearNotifications}
-                renderLocalAgentStatus={({ connected }) => {
-                  const label = connected
-                    ? "Conectado al servicio local de impresión"
-                    : "Sin conexión al servicio local de impresión";
-                  return (
-                    <span
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center"
-                      title={label}
-                      aria-label={label}
-                      role="img"
-                    >
-                      {connected ? (
-                        <Wifi
-                          className="shrink-0 text-emerald-600 dark:text-emerald-400"
-                          size={24}
-                          strokeWidth={2}
-                          aria-hidden
-                        />
-                      ) : (
-                        <WifiOff
-                          className="shrink-0 text-red-600 dark:text-red-400"
-                          size={24}
-                          strokeWidth={2}
-                          aria-hidden
-                        />
-                      )}
-                    </span>
-                  );
-                }}
-              />
-              <IconButton
-                icon="LogOut"
-                variant="text"
-                size="md"
-                ariaLabel="Cerrar sesión"
-                onClick={() => signOut({ callbackUrl: "/" })}
-                data-test-id="pos-topbar-logout"
-              />
-            </div>
+            <PrintServiceTopBarDropdown
+              panelVariant="pos"
+              connected={printService.connected}
+              health={printService.health}
+              visual={printService.visual}
+              lastError={printService.lastError}
+              attemptedWsUrl={printService.attemptedWsUrl}
+              reconnect={printService.reconnect}
+              notifications={printService.notifications}
+              unreadCount={printService.unreadCount}
+              markNotificationsRead={printService.markNotificationsRead}
+              clearNotifications={printService.clearNotifications}
+              triggerClassName={`fs-icon-button fs-icon-button--basic-secondary inline-flex items-center justify-center w-10 h-10 shrink-0 ${
+                printService.connected
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-red-600 dark:text-red-400"
+              }`}
+              renderLocalAgentStatus={({ connected }) => {
+                const label = connected
+                  ? "Conectado al servicio local de impresión"
+                  : "Sin conexión al servicio local de impresión";
+                return (
+                  <span
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center"
+                    title={label}
+                    aria-label={label}
+                    role="img"
+                  >
+                    {connected ? (
+                      <Wifi
+                        className="shrink-0 text-emerald-600 dark:text-emerald-400"
+                        size={24}
+                        strokeWidth={2}
+                        aria-hidden
+                      />
+                    ) : (
+                      <WifiOff
+                        className="shrink-0 text-red-600 dark:text-red-400"
+                        size={24}
+                        strokeWidth={2}
+                        aria-hidden
+                      />
+                    )}
+                  </span>
+                );
+              }}
+              data-test-id="pos-topbar-session-print"
+            />
+            <IconButton
+              icon="LogOut"
+              variant="text"
+              size="md"
+              ariaLabel="Cerrar sesión"
+              onClick={() => signOut({ callbackUrl: "/" })}
+              data-test-id="pos-topbar-logout"
+            />
           </nav>
         </div>
       </div>

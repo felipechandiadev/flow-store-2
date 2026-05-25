@@ -69,4 +69,10 @@ export type SaleTransactionDetail = {
   linkedCustomerCreditNote: LinkedCustomerCreditNoteDetail | null;
   /** `document` | `immediate` desde metadata de la devolución. */
   saleReturnRefundMode: string | null;
+  /** Cobro AR consolidado (`metadata.allocations`). */
+  arCollectionAllocations: Array<{
+    saleId: string;
+    documentNumber: string;
+    amount: number;
+  }>;
 };

@@ -8,12 +8,14 @@ import Badge, { type BadgeVariant } from "@/shared/components/Badge/Badge";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import {
   SALES_PAYMENT_METHOD_LABEL,
-  SALES_PAYMENT_STATUS_LABEL,
   type SalesPaymentMethod,
-  type SalesPaymentStatus,
 } from "@/features/sales-payments/types/sales-payment.types";
 import type { SalesTransactionListRow } from "@/features/sales-transactions/types/sales-transaction-list.types";
 import { formatSalePaymentMethodDisplay } from "@/features/sales-transactions/lib/format-sale-payment-method";
+import {
+  SALE_COLLECTION_STATUS_LABEL,
+  type SaleCollectionStatus,
+} from "@/features/sales-transactions/lib/sale-collection-status";
 import SaleTransactionDetailDialog from "./SaleTransactionDetailDialog";
 
 type SalesTransactionsDataGridProps = {
@@ -45,13 +47,20 @@ function formatDateTimeSlash(value: string | null | undefined): string {
   return `${pad2(dt.getDate())}/${pad2(dt.getMonth() + 1)}/${dt.getFullYear()} ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`;
 }
 
-function statusBadgeVariant(status: SalesPaymentStatus): BadgeVariant {
-  if (status === "COMPLETED" || status === "RECEIVED") return "success-outlined";
-  if (status === "VOIDED" || status === "CANCELLED") return "error-outlined";
-  if (status === "PENDING" || status === "PARTIALLY_RECEIVED")
+function collectionStatusBadgeVariant(status: SaleCollectionStatus): BadgeVariant {
+  if (status === "PAID") return "success-outlined";
+  if (status === "VOIDED") return "error-outlined";
+  if (status === "PENDING" || status === "OVERDUE" || status === "PARTIAL")
     return "warning-outlined";
-  if (status === "EXPIRED") return "warning-outlined";
   return "secondary-outlined";
+}
+
+function formatRelatedPaymentFolios(row: SalesTransactionListRow): string {
+  const folios = row.relatedPaymentFolios
+    .map((p) => p.documentNumber?.trim())
+    .filter((f): f is string => Boolean(f) && f !== "—");
+  if (folios.length === 0) return "—";
+  return folios.join(", ");
 }
 
 export default function SalesTransactionsDataGrid({
@@ -104,24 +113,58 @@ export default function SalesTransactionsDataGrid({
         valueGetter: ({ row }) =>
           formatDateTimeSlash((row as SalesTransactionListRow).createdAt),
       },
-      {
-        field: "status",
-        headerName: "Estado",
-        sortable: false,
-        width: 130,
-        valueGetter: ({ row }) => (row as SalesTransactionListRow).status,
-        renderCell: ({ value }) => {
-          const status = value as SalesPaymentStatus;
-          return (
-            <Badge variant={statusBadgeVariant(status)}>
-              {SALES_PAYMENT_STATUS_LABEL[status] ?? status}
-            </Badge>
-          );
-        },
-      },
+      ...(variant === "default"
+        ? [
+            {
+              field: "collectionStatus",
+              headerName: "Estado pago",
+              sortable: false,
+              width: 120,
+              valueGetter: ({ row }: { row: unknown }) =>
+                (row as SalesTransactionListRow).collectionStatus,
+              renderCell: ({ value }: { value: unknown }) => {
+                const status = value as SaleCollectionStatus;
+                return (
+                  <Badge variant={collectionStatusBadgeVariant(status)}>
+                    {SALE_COLLECTION_STATUS_LABEL[status] ?? status}
+                  </Badge>
+                );
+              },
+            },
+            {
+              field: "relatedPaymentFolios",
+              headerName: "Folios cobro",
+              sortable: false,
+              minWidth: 160,
+              flex: 0.85,
+              cellOverflow: "wrap" as const,
+              valueGetter: ({ row }: { row: unknown }) =>
+                formatRelatedPaymentFolios(row as SalesTransactionListRow),
+              renderCell: ({ row }: { row: unknown }) => {
+                const r = row as SalesTransactionListRow;
+                const folios = r.relatedPaymentFolios.filter(
+                  (p) => p.documentNumber?.trim() && p.documentNumber !== "—",
+                );
+                if (folios.length === 0) {
+                  return <span className="text-muted-foreground">—</span>;
+                }
+                return (
+                  <span className="font-mono text-xs leading-relaxed">
+                    {folios.map((p, i) => (
+                      <span key={p.id || `${p.documentNumber}-${i}`}>
+                        {i > 0 ? ", " : null}
+                        {p.documentNumber}
+                      </span>
+                    ))}
+                  </span>
+                );
+              },
+            },
+          ]
+        : []),
       {
         field: "counterpartyLabel",
-        headerName: "Cliente / Proveedor",
+        headerName: "Cliente",
         sortable: false,
         minWidth: 220,
         flex: 1,

@@ -110,23 +110,48 @@ export default function SalesPaymentsDataGrid({
         },
         renderCell: ({ row }) => {
           const r = row as SalesPaymentRow;
-          const folio = r.relatedSaleDocumentNumber?.trim();
-          const saleId = r.relatedSaleId?.trim();
-          if (!folio || !saleId) {
+          const sales = r.relatedSales ?? [];
+          if (sales.length === 0) {
             return <span className="text-muted-foreground">—</span>;
           }
+          if (sales.length === 1) {
+            const s = sales[0];
+            const folio = s.documentNumber?.trim() || "—";
+            return (
+              <button
+                type="button"
+                className="font-mono text-sm text-primary underline-offset-2 hover:underline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openSaleDetail(s.saleId);
+                }}
+                data-test-id={`sales-payment-sale-ref-${s.saleId}`}
+              >
+                {folio}
+              </button>
+            );
+          }
           return (
-            <button
-              type="button"
-              className="font-mono text-sm text-primary underline-offset-2 hover:underline"
-              onClick={(e) => {
-                e.stopPropagation();
-                openSaleDetail(saleId);
-              }}
-              data-test-id={`sales-payment-sale-ref-${saleId}`}
-            >
-              {folio}
-            </button>
+            <div className="flex flex-wrap gap-x-2 gap-y-0.5 py-0.5">
+              {sales.map((s) => {
+                const folio = s.documentNumber?.trim() || s.saleId.slice(0, 8);
+                return (
+                  <button
+                    key={s.saleId}
+                    type="button"
+                    className="font-mono text-xs text-primary underline-offset-2 hover:underline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openSaleDetail(s.saleId);
+                    }}
+                    data-test-id={`sales-payment-sale-ref-${s.saleId}`}
+                    title={s.amount > 0 ? `Monto: ${s.amount}` : undefined}
+                  >
+                    {folio}
+                  </button>
+                );
+              })}
+            </div>
           );
         },
       },

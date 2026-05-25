@@ -1,3 +1,7 @@
+import {
+  buildCompanyInlineParts,
+  formatCompanyAddressForPrint,
+} from "@flowstore/document-print";
 import type { CashClosingPrintInput } from "@/features/cash-closing/lib/cash-closing-print.types";
 import {
   COUNTED_BUCKET_ROWS,
@@ -7,21 +11,16 @@ import {
 } from "@/features/cash-closing/lib/cash-closing-print-format";
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
 
-function companyAddressLines(address: string | null | undefined): string[] {
-  const raw = address?.trim();
-  if (!raw) return [];
-  const byNl = raw.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-  if (byNl.length > 1) return byNl;
-  return raw.split(",").map((x) => x.trim()).filter(Boolean);
-}
-
 export function buildCashClosingDocumentHtml(input: CashClosingPrintInput): string {
   const c = input.company;
   const razonSocial = (c?.razonSocial ?? "").trim();
   const displayName = (c?.nombreFantasia ?? "").trim();
-  const addressLines = companyAddressLines(c?.address);
-  const rut = (c?.rut ?? "").trim();
-  const mail = (c?.mail ?? "").trim();
+  const addressLines = formatCompanyAddressForPrint(c?.address);
+  const inlineParts = buildCompanyInlineParts({
+    rut: c?.rut,
+    phone: c?.phone,
+    email: c?.mail,
+  });
   const folio = input.cashSessionId.slice(0, 8).toUpperCase();
   const barcodeSvg = receiptBarcodeSvgString(folio);
   const originLabel = [input.branchName?.trim(), input.pointOfSaleName?.trim()]
@@ -75,8 +74,7 @@ export function buildCashClosingDocumentHtml(input: CashClosingPrintInput): stri
       ${displayName ? `<p><strong>${escapeHtml(displayName)}</strong></p>` : ""}
       ${razonSocial && razonSocial !== displayName ? `<p class="muted">${escapeHtml(razonSocial)}</p>` : ""}
       ${addressLines.map((l) => `<p class="muted">${escapeHtml(l)}</p>`).join("")}
-      ${rut ? `<p class="muted">RUT: ${escapeHtml(rut)}</p>` : ""}
-      ${mail ? `<p class="muted">${escapeHtml(mail)}</p>` : ""}
+      ${inlineParts.length > 0 ? `<p class="muted">${escapeHtml(inlineParts.join(" · "))}</p>` : ""}
     </div>
     <div class="meta" style="text-align:right;">
       <p><strong>Folio ref.</strong> ${escapeHtml(folio)}</p>

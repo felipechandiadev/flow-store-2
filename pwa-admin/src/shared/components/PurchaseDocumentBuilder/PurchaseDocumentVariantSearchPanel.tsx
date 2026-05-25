@@ -10,6 +10,7 @@ import Dialog from "@/shared/components/Dialog/Dialog";
 import { Button } from "@/shared/components/Button";
 import type { PurchasingVariantSearchItem, PurchasingVariantSearchResult } from "@/features/purchasing-document/types/purchasing-document.types";
 import { formatMoney, InlineSepDot, ProductNameWithAttributes } from "./PurchaseDocumentProductPreview";
+import { PurchaseVariantPurchaseInsightsDialog } from "./PurchaseVariantPurchaseInsightsDialog";
 import {
   clampPurchaseDocVariantSearchPageSize,
   PURCHASE_DOC_VARIANT_SEARCH_DEFAULT_PAGE_SIZE,
@@ -32,6 +33,7 @@ export type PurchaseDocumentVariantSearchPanelProps = {
   searchQuery: string;
   searchPage: number;
   onAddVariant: (item: PurchasingVariantSearchItem) => void;
+  fieldDensity?: "default" | "compact";
 };
 
 export function PurchaseDocumentVariantSearchPanel({
@@ -39,6 +41,7 @@ export function PurchaseDocumentVariantSearchPanel({
   searchQuery,
   searchPage,
   onAddVariant,
+  fieldDensity = "default",
 }: PurchaseDocumentVariantSearchPanelProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -46,6 +49,8 @@ export function PurchaseDocumentVariantSearchPanel({
 
   const [draftSearch, setDraftSearch] = useState(searchQuery);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
+  const [insightsItem, setInsightsItem] = useState<PurchasingVariantSearchItem | null>(null);
   const [draftPageSize, setDraftPageSize] = useState(() => PURCHASE_DOC_VARIANT_SEARCH_DEFAULT_PAGE_SIZE);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncedLimitRef = useRef(false);
@@ -185,7 +190,7 @@ export function PurchaseDocumentVariantSearchPanel({
         }}
         placeholder="Nombre, SKU, código, categoría…"
         alwaysShowLabel
-        density="compact"
+        density={fieldDensity}
         startAdornment={<Search className="h-4 w-4 shrink-0 text-secondary" strokeWidth={2} aria-hidden />}
         data-test-id="purchase-doc-search-field"
         aria-busy={searchTextPending}
@@ -206,11 +211,11 @@ export function PurchaseDocumentVariantSearchPanel({
           variantSearch.items.map((item) => (
             <article
               key={item.id}
-              className="rounded-lg border border-border/80 bg-muted/20 p-2.5 shadow-sm"
+              className="relative rounded-lg border border-border/80 bg-muted/20 p-2.5 shadow-sm"
               data-test-id={`purchase-doc-variant-card-${item.id}`}
             >
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 pr-1">
                   <ProductNameWithAttributes
                     name={item.productName}
                     attributeValues={item.attributeValues}
@@ -254,6 +259,20 @@ export function PurchaseDocumentVariantSearchPanel({
                   ariaLabel="Agregar variante al documento"
                   onClick={() => onAddVariant(item)}
                   data-test-id={`purchase-doc-add-${item.id}`}
+                />
+              </div>
+              <div className="mt-2 flex items-end justify-between gap-2">
+                <IconButton
+                  icon="MoreHorizontal"
+                  variant="ghost"
+                  size="sm"
+                  title="Ver evolución PMP y compras"
+                  ariaLabel="Ver evolución del PMP y últimas compras"
+                  onClick={() => {
+                    setInsightsItem(item);
+                    setInsightsOpen(true);
+                  }}
+                  data-test-id={`purchase-doc-insights-${item.id}`}
                 />
               </div>
             </article>
@@ -327,6 +346,15 @@ export function PurchaseDocumentVariantSearchPanel({
           data-test-id="purchase-doc-search-page-size"
         />
       </Dialog>
+
+      <PurchaseVariantPurchaseInsightsDialog
+        open={insightsOpen}
+        onClose={() => {
+          setInsightsOpen(false);
+          setInsightsItem(null);
+        }}
+        previewItem={insightsItem}
+      />
     </aside>
   );
 }

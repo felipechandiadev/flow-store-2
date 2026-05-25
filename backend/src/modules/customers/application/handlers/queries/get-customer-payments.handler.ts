@@ -5,6 +5,7 @@ import {
   CustomersRepositoryPort,
   CUSTOMERS_REPOSITORY,
 } from '../../ports/customers.repository.port';
+import { relatedSalesFromPaymentIn } from '@modules/transactions/application/payment-in-allocations.util';
 
 @QueryHandler(GetCustomerPaymentsQuery)
 export class GetCustomerPaymentsHandler implements IQueryHandler<GetCustomerPaymentsQuery> {
@@ -18,15 +19,26 @@ export class GetCustomerPaymentsHandler implements IQueryHandler<GetCustomerPaym
 
     const payments = await this.customerRepository.getPaymentIns(customerId);
 
-    const mapped = payments.map((p) => ({
-      id: p.id,
-      documentNumber: (p as any).documentNumber || null,
-      type: (p as any).transactionType || null,
-      status: (p as any).status || null,
-      total: Number((p as any).total ?? 0),
-      paymentMethod: (p as any).paymentMethod || null,
-      createdAt: p.createdAt,
-    }));
+    const mapped = payments.map((p) => {
+      const meta =
+        p.metadata && typeof p.metadata === 'object'
+          ? (p.metadata as Record<string, unknown>)
+          : null;
+      const relatedSales = relatedSalesFromPaymentIn({
+        relatedTransactionId: p.relatedTransactionId,
+        metadata: meta,
+      });
+      return {
+        id: p.id,
+        documentNumber: (p as { documentNumber?: string }).documentNumber ?? null,
+        type: (p as { transactionType?: string }).transactionType ?? null,
+        status: (p as { status?: string }).status ?? null,
+        total: Number((p as { total?: number }).total ?? 0),
+        paymentMethod: (p as { paymentMethod?: string }).paymentMethod ?? null,
+        createdAt: p.createdAt,
+        relatedSales,
+      };
+    });
 
     return {
       success: true,

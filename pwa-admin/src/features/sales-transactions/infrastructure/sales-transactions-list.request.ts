@@ -9,6 +9,8 @@ import type {
   SalesTransactionsListResult,
 } from "../types/sales-transaction-list.types";
 import { countPaymentSnapshotsFromMetadata } from "../lib/format-sale-payment-method";
+import { resolveSaleCollectionStatus } from "../lib/sale-collection-status";
+import type { RelatedSalePaymentFolio } from "../types/sales-transaction-list.types";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -167,6 +169,57 @@ function counterpartyFromRaw(o: Record<string, unknown>): string | null {
   return null;
 }
 
+function pushPaymentFolio(
+  out: RelatedSalePaymentFolio[],
+  seen: Set<string>,
+  item: Record<string, unknown>,
+): void {
+  const id = item.id != null ? String(item.id).trim() : "";
+  const documentNumber =
+    typeof item.documentNumber === "string" ? item.documentNumber.trim() : "";
+  if (!id && !documentNumber) return;
+  const key = id || documentNumber;
+  if (seen.has(key)) return;
+  seen.add(key);
+  out.push({
+    id: id || documentNumber,
+    documentNumber: documentNumber || "—",
+  });
+}
+
+function relatedSalePaymentsFromRaw(
+  o: Record<string, unknown>,
+): RelatedSalePaymentFolio[] {
+  const out: RelatedSalePaymentFolio[] = [];
+  const seen = new Set<string>();
+
+  const raw =
+    o.relatedSalePayments ??
+    (o as { related_sale_payments?: unknown }).related_sale_payments;
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (!item || typeof item !== "object") continue;
+      pushPaymentFolio(out, seen, item as Record<string, unknown>);
+    }
+  }
+
+  const inverse = o.inverseRelations;
+  if (Array.isArray(inverse)) {
+    for (const item of inverse) {
+      if (!item || typeof item !== "object") continue;
+      const row = item as Record<string, unknown>;
+      const txType =
+        typeof row.transactionType === "string"
+          ? row.transactionType.trim()
+          : "";
+      if (txType && txType !== "PAYMENT_IN") continue;
+      pushPaymentFolio(out, seen, row);
+    }
+  }
+
+  return out;
+}
+
 function userFullNameFromRaw(o: Record<string, unknown>): string | null {
   const user = o.user as Record<string, unknown> | null | undefined;
   if (!user || typeof user !== "object") return null;
@@ -202,14 +255,26 @@ function normalizeRow(raw: unknown): SalesTransactionListRow | null {
       ? (meta.backorder as Record<string, unknown>)
       : null;
   const depositFromMeta = bo ? toNumber(bo.depositAmount) : 0;
+  const total = toNumber(o.total);
+  const amountPaid = toNumber(o.amountPaid);
+  const paymentStatusRaw =
+    typeof o.paymentStatus === "string" ? o.paymentStatus : null;
+  const relatedPaymentFolios =
+    txType === "SALE" ? relatedSalePaymentsFromRaw(o) : [];
   return {
     id,
     documentNumber:
       typeof o.documentNumber === "string" ? o.documentNumber : "",
     transactionType: txType,
     status: (o.status as SalesPaymentStatus) ?? "CONFIRMED",
-    total: toNumber(o.total),
-    amountPaid: toNumber(o.amountPaid),
+    collectionStatus: resolveSaleCollectionStatus({
+      paymentStatus: paymentStatusRaw,
+      total,
+      amountPaid,
+    }),
+    relatedPaymentFolios,
+    total,
+    amountPaid,
     backorderDepositAmount:
       txType === "BACKORDER" && depositFromMeta > 0
         ? depositFromMeta

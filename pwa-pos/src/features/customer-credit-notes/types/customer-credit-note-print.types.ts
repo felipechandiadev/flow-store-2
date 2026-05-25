@@ -31,6 +31,7 @@ export type CustomerCreditNotePrintData = {
     logoUrl: string | null;
     address?: string | null;
     mail?: string | null;
+    phone?: string | null;
   };
   pos: {
     pointOfSaleName: string | null;

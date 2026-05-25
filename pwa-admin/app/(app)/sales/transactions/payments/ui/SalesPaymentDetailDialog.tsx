@@ -99,8 +99,18 @@ export default function SalesPaymentDetailDialog({
     (detail?.paymentMethod ?? payment.paymentMethod) as SalesPaymentRow["paymentMethod"],
     detail?.payments?.length ?? payment.paymentLinesCount,
   );
-  const relatedSaleId = payment.relatedSaleId?.trim() || null;
-  const relatedSaleFolio = payment.relatedSaleDocumentNumber?.trim() || null;
+  const relatedSalesFromList = payment.relatedSales ?? [];
+  const allocationRows =
+    detail && detail.arCollectionAllocations.length > 0
+      ? detail.arCollectionAllocations.map((a) => ({
+          saleId: a.saleId,
+          documentNumber: a.documentNumber,
+          amount: a.amount,
+        }))
+      : relatedSalesFromList;
+  const hasMultipleSales = allocationRows.length > 1;
+  const singleSale =
+    allocationRows.length === 1 ? allocationRows[0] : null;
 
   return (
     <Dialog
@@ -177,7 +187,7 @@ export default function SalesPaymentDetailDialog({
                   )}
                 </div>
               </div>
-              {relatedSaleFolio && relatedSaleId ? (
+              {!hasMultipleSales && singleSale ? (
                 <div className="sm:col-span-2">
                   <div className="text-xs uppercase text-muted-foreground">
                     Venta relacionada
@@ -186,13 +196,15 @@ export default function SalesPaymentDetailDialog({
                     <button
                       type="button"
                       className="font-mono text-sm text-primary underline-offset-2 hover:underline"
-                      onClick={() => onOpenRelatedSale(relatedSaleId)}
+                      onClick={() => onOpenRelatedSale(singleSale.saleId)}
                       data-test-id="sales-payment-detail-related-sale"
                     >
-                      {relatedSaleFolio}
+                      {singleSale.documentNumber?.trim() || singleSale.saleId}
                     </button>
                   ) : (
-                    <span className="font-mono text-sm">{relatedSaleFolio}</span>
+                    <span className="font-mono text-sm">
+                      {singleSale.documentNumber?.trim() || singleSale.saleId}
+                    </span>
                   )}
                 </div>
               ) : null}
@@ -229,6 +241,42 @@ export default function SalesPaymentDetailDialog({
 
             {detail && detail.payments.length > 0 ? (
               <SalePaymentsBreakdownTable payments={detail.payments} />
+            ) : null}
+
+            {hasMultipleSales ? (
+              <div>
+                <div className="text-xs font-semibold uppercase text-muted-foreground">
+                  Ventas relacionadas ({allocationRows.length})
+                </div>
+                <ul className="mt-2 space-y-1 text-sm">
+                  {allocationRows.map((row) => (
+                    <li
+                      key={row.saleId}
+                      className="flex justify-between gap-4 border-b border-border/60 py-1"
+                    >
+                      {onOpenRelatedSale ? (
+                        <button
+                          type="button"
+                          className="font-mono text-left text-primary underline-offset-2 hover:underline"
+                          onClick={() => onOpenRelatedSale(row.saleId)}
+                          data-test-id={`sales-payment-detail-sale-${row.saleId}`}
+                        >
+                          {row.documentNumber?.trim() || row.saleId}
+                        </button>
+                      ) : (
+                        <span className="font-mono">
+                          {row.documentNumber?.trim() || row.saleId}
+                        </span>
+                      )}
+                      <span className="tabular-nums font-medium">
+                        {row.amount > 0
+                          ? formatMoney(row.amount, currency)
+                          : "—"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
           </>
         )}

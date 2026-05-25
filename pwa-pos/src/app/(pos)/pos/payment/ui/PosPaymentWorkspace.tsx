@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Alert,
   Button,
@@ -46,8 +46,15 @@ import {
 import { formatReceiptLineDisplayName } from "@/features/pos-print/lib/format-receipt-line-name";
 import { createBackorderFromPosAction } from "@/features/session/actions/create-backorder.action";
 import { createSaleFromPosAction } from "@/features/session/actions/create-sale.action";
+import { collectPendingSalesFromPosAction } from "@/features/session/actions/collect-pending-sales.action";
 import { buildCreateBackorderClientPayload } from "@/features/session/lib/build-create-backorder-payload";
+import { buildCollectPendingSalesClientPayload } from "@/features/session/lib/build-collect-pending-sales-payload";
 import { buildCreateSaleClientPayload } from "@/features/session/lib/build-create-sale-payload";
+import {
+  clearPosArCollectDraft,
+  readPosArCollectDraft,
+  type PosArCollectSaleRow,
+} from "@/features/session/lib/pos-ar-collect-storage";
 import {
   buildConfirmCustomerReturnDocumentPayload,
   buildConfirmCustomerReturnRefundPayload,
@@ -149,6 +156,8 @@ type Props = {
 
 export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isCollectMode = (searchParams.get("mode") ?? "").trim() === "collect";
   const cart = usePosCart();
   const {
     payments,
@@ -184,6 +193,9 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   );
   const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [deferLoading, setDeferLoading] = useState(false);
+  const [collectSales, setCollectSales] = useState<PosArCollectSaleRow[]>([]);
+  const [collectInitError, setCollectInitError] = useState("");
   /** Devolución: reembolso inmediato en caja (muestra barra de montos y medios de pago). */
   const [immediateReturnRefund, setImmediateReturnRefund] = useState(false);
 
@@ -440,10 +452,11 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
 
   useEffect(() => {
     if (!cart.ready) return;
+    if (isCollectMode) return;
     if (cart.lines.length === 0) {
       router.replace("/pos");
     }
-  }, [cart.ready, cart.lines.length, router]);
+  }, [cart.ready, cart.lines.length, router, isCollectMode]);
 
   const pickSearchCustomer = useCallback(
     (row: PosCustomerSearchRow) => {
@@ -495,8 +508,13 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     !isReturnMode && !isFulfillBackorderMode && !isEncargoMode && hasInsufficientStock;
   const stockInsufficientSaleMessage =
     "Hay productos sin stock suficiente. Ajusta cantidades en el carrito antes de cobrar.";
-  const amountToPay =
-    isEncargoMode && backorderDeposit && backorderDeposit.amount >= 1
+  const collectBalanceTotal = useMemo(
+    () => collectSales.reduce((acc, s) => acc + (Number(s.balanceDue) || 0), 0),
+    [collectSales],
+  );
+  const amountToPay = isCollectMode
+    ? collectBalanceTotal
+    : isEncargoMode && backorderDeposit && backorderDeposit.amount >= 1
       ? Math.round(backorderDeposit.amount)
       : saleTotal;
 
@@ -522,21 +540,29 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     [setBackorderDeposit, setEncargoModeEnabled],
   );
 
-  const flowTitle = isReturnMode
-    ? "Devolución en curso"
-    : isFulfillBackorderMode
-      ? "Liquidar encargo"
-      : isEncargoMode
-        ? "Encargo en curso"
-        : "Venta en curso";
-  const summarySectionLabel = isReturnMode
-    ? "Resumen de devolución"
-    : isFulfillBackorderMode
-      ? "Resumen de liquidación"
-      : isEncargoMode
-        ? "Resumen de encargo"
-        : "Resumen de venta";
-  const amountDueLabel = isReturnMode ? "Total a devolver" : "Total a pagar";
+  const flowTitle = isCollectMode
+    ? "Cobro pendiente"
+    : isReturnMode
+      ? "Devolución en curso"
+      : isFulfillBackorderMode
+        ? "Liquidar encargo"
+        : isEncargoMode
+          ? "Encargo en curso"
+          : "Venta en curso";
+  const summarySectionLabel = isCollectMode
+    ? "Ventas a cobrar"
+    : isReturnMode
+      ? "Resumen de devolución"
+      : isFulfillBackorderMode
+        ? "Resumen de liquidación"
+        : isEncargoMode
+          ? "Resumen de encargo"
+          : "Resumen de venta";
+  const amountDueLabel = isReturnMode
+    ? "Total a devolver"
+    : isCollectMode
+      ? "Total a cobrar"
+      : "Total a pagar";
   const showReturnRefundUi = !isReturnMode || immediateReturnRefund;
   /** Devolución sin reembolso en caja: CTA con icono de documento en lugar de cobro. */
   const isReturnDocumentMode = isReturnMode && !immediateReturnRefund;
@@ -550,6 +576,27 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   useEffect(() => {
     void getInternalCustomerCreditEnabledAction().then(setInternalCreditEnabled);
   }, []);
+
+  useEffect(() => {
+    if (!isCollectMode) return;
+    disableEncargoMode();
+    const draft = readPosArCollectDraft();
+    if (!draft) {
+      setCollectInitError("No hay ventas seleccionadas para cobrar. Vuelve a la ficha del cliente.");
+      setCollectSales([]);
+      return;
+    }
+    setCollectInitError("");
+    setCollectSales(draft.sales);
+    setCustomer({
+      customerId: draft.customerId,
+      name: draft.customerDisplayName ?? draft.customerId,
+      document: "",
+      phone: "",
+      email: null,
+    });
+    setPayments([]);
+  }, [isCollectMode, disableEncargoMode, setCustomer, setPayments]);
 
   useEffect(() => {
     if (customer?.customerId?.trim()) {
@@ -1042,8 +1089,18 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     payments.length > 0 &&
     remaining <= 0.01;
 
+  const canConfirmCollect =
+    isCollectMode &&
+    collectSales.length > 0 &&
+    !collectInitError &&
+    hasSaleCustomer &&
+    amountToPay > 0 &&
+    payments.length > 0 &&
+    remaining <= 0.01;
+
   const canConfirmSale =
     !isReturnMode &&
+    !isCollectMode &&
     cart.lines.length > 0 &&
     amountToPay > 0 &&
     payments.length > 0 &&
@@ -1052,9 +1109,22 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     ((!isEncargoMode && !isFulfillBackorderMode) || hasSaleCustomer);
 
   const canConfirm =
-    canConfirmReturnDocument || canConfirmReturnWithRefund || canConfirmSale;
+    canConfirmReturnDocument ||
+    canConfirmReturnWithRefund ||
+    canConfirmSale ||
+    canConfirmCollect;
 
-  const confirmPaymentDisabled = !canConfirm || confirmLoading;
+  const confirmPaymentDisabled = !canConfirm || confirmLoading || deferLoading;
+
+  const showDeferPaymentButton =
+    !isCollectMode &&
+    !isReturnMode &&
+    !isFulfillBackorderMode &&
+    !isEncargoMode &&
+    !stockBlocksSalePayment &&
+    hasSaleCustomer &&
+    cart.lines.length > 0 &&
+    saleTotal > 0;
 
   const confirmPaymentTitle = (() => {
     if (isReturnDocumentMode) {
@@ -1070,8 +1140,13 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar";
       return "Confirmar reembolso";
     }
-    if (isFulfillBackorderMode && !hasSaleCustomer) {
-      return "Selecciona el cliente del encargo";
+    if (isCollectMode) {
+      if (collectInitError) return collectInitError;
+      if (collectSales.length === 0) return "No hay ventas seleccionadas";
+      if (!hasSaleCustomer) return "Cliente requerido para el cobro";
+      if (payments.length === 0) return "Agrega al menos un método de pago";
+      if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar";
+      return "Confirmar cobro";
     }
     if (isFulfillBackorderMode && !hasSaleCustomer) {
       return "Selecciona el cliente del encargo";
@@ -1084,6 +1159,16 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   })();
 
   const validateConfirm = (): string => {
+    if (isCollectMode) {
+      if (collectInitError) return collectInitError;
+      if (collectSales.length === 0) return "No hay ventas seleccionadas para cobrar.";
+      if (!hasSaleCustomer) return "Cliente requerido para el cobro.";
+      if (amountToPay <= 0) return "El total a cobrar debe ser mayor que cero.";
+      if (payments.length === 0) return "Agrega al menos un método de pago.";
+      if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar.";
+      return "";
+    }
+
     if (cart.lines.length === 0) return "El carrito está vacío.";
 
     if (isReturnDocumentMode) {
@@ -1173,6 +1258,87 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     return "";
   };
 
+  const handleDeferPaymentSale = async () => {
+    if (!showDeferPaymentButton) return;
+    setPageAlert("");
+    setDeferLoading(true);
+    const posCtx = readPosContextClient();
+    const cashSessionId = posCtx?.cashSessionId?.trim();
+    const pointOfSaleId = posCtx?.pointOfSaleId?.trim();
+    if (!cashSessionId || !pointOfSaleId) {
+      setDeferLoading(false);
+      setPageAlert(
+        "Falta la sesión de caja en el contexto del POS. Ve a la configuración de sesión y vuelve a entrar al punto de venta.",
+      );
+      return;
+    }
+    if (!customer?.customerId?.trim()) {
+      setDeferLoading(false);
+      setPageAlert("Selecciona un cliente para emitir la venta sin pago.");
+      return;
+    }
+    try {
+      const deferRes = await createSaleFromPosAction(
+        buildCreateSaleClientPayload({
+          pointOfSaleId,
+          cashSessionId,
+          cartLines: cart.lines,
+          payments: [],
+          customer,
+          appliedPromotions,
+          appliedTotal: 0,
+          overpay: 0,
+          deferPayment: true,
+        }),
+      );
+      if (!deferRes.success) {
+        setDeferLoading(false);
+        setPageAlert(deferRes.message);
+        return;
+      }
+      let details = companyDetails;
+      if (!details) {
+        try {
+          details = (await getCompanyDetailsAction()) ?? null;
+          if (details) setCompanyDetails(details);
+        } catch {
+          details = null;
+        }
+      }
+      const snapshot = buildPosSaleReceiptSnapshot({
+        lines: cart.lines,
+        payments: [],
+        customer,
+        company: details,
+        posContext: posCtx,
+        appliedPromotions,
+        orderDiscount,
+        lineDiscountsTotal,
+        totals: {
+          net: totals.net,
+          gross: totals.gross,
+          taxes,
+          discounts,
+          saleTotal,
+          appliedTotal: 0,
+          overpay: 0,
+        },
+        methodsById,
+        loadedQuotation,
+        saleFolio: deferRes.documentNumber,
+        collectionPending: true,
+      });
+      setReceiptData(snapshot);
+      setDeferLoading(false);
+      setSuccessOpen(true);
+    } catch (e) {
+      setDeferLoading(false);
+      setPageAlert(
+        e instanceof Error ? e.message : "No se pudo registrar la venta sin pago.",
+      );
+    }
+  };
+
   const handleConfirm = async () => {
     const err = validateConfirm();
     setPageAlert("");
@@ -1195,6 +1361,76 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         "Falta la sesión de caja en el contexto del POS. Ve a la configuración de sesión y vuelve a entrar al punto de venta.",
       );
       return;
+    }
+
+    if (isCollectMode) {
+      const customerId = customer?.customerId?.trim();
+      if (!customerId) {
+        setConfirmLoading(false);
+        setPageAlert("Cliente requerido para el cobro.");
+        return;
+      }
+      try {
+        const collectRes = await collectPendingSalesFromPosAction(
+          buildCollectPendingSalesClientPayload({
+            pointOfSaleId,
+            cashSessionId,
+            customerId,
+            saleTransactionIds: collectSales.map((s) => s.id),
+            payments,
+          }),
+        );
+        if (!collectRes.success) {
+          setConfirmLoading(false);
+          setPageAlert(collectRes.message);
+          return;
+        }
+        clearPosArCollectDraft();
+        let details = companyDetails;
+        if (!details) {
+          try {
+            details = (await getCompanyDetailsAction()) ?? null;
+            if (details) setCompanyDetails(details);
+          } catch {
+            details = null;
+          }
+        }
+        const snapshot = buildPosSaleReceiptSnapshot({
+          lines: [],
+          payments,
+          customer,
+          company: details,
+          posContext: posCtx,
+          appliedPromotions: [],
+          orderDiscount: 0,
+          lineDiscountsTotal: 0,
+          totals: {
+            net: 0,
+            gross: 0,
+            taxes: 0,
+            discounts: 0,
+            saleTotal: collectBalanceTotal,
+            appliedTotal,
+            overpay,
+          },
+          methodsById,
+          loadedQuotation: null,
+          saleFolio: collectRes.documentNumber,
+          documentKind: "sale",
+          arCollection: collectRes.allocations.map((a) => ({
+            folio: a.documentNumber,
+            amount: a.amount,
+          })),
+        });
+        setReceiptData(snapshot);
+        setConfirmLoading(false);
+        setSuccessOpen(true);
+        return;
+      } catch (e) {
+        setConfirmLoading(false);
+        setPageAlert(e instanceof Error ? e.message : "No se pudo registrar el cobro.");
+        return;
+      }
     }
 
     if (isReturnMode && immediateReturnRefund) {
@@ -1415,7 +1651,16 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     (customer?.document?.trim() ? `Doc. ${customer.document.trim()}` : null) ||
     "no seleccionado";
 
-  if (!cart.ready || cart.lines.length === 0) {
+  if (!cart.ready) {
+    return (
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+        <DotProgress />
+        <span>Cargando…</span>
+      </div>
+    );
+  }
+
+  if (!isCollectMode && cart.lines.length === 0) {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
         <DotProgress />
@@ -1506,7 +1751,21 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           </div>
         ) : null}
 
-        <div className="hidden shrink-0 lg:block">
+        <div className="hidden shrink-0 items-center gap-2 lg:flex">
+          {showDeferPaymentButton ? (
+            <IconButton
+              icon="BanknoteX"
+              variant="outlined"
+              size="lg"
+              className="shrink-0"
+              ariaLabel="Emitir venta sin pago (cobro pendiente)"
+              title="Emitir venta sin pago (cobro pendiente)"
+              disabled={deferLoading || confirmLoading}
+              isLoading={deferLoading}
+              onClick={() => void handleDeferPaymentSale()}
+              data-test-id="pos-payment-defer-desktop"
+            />
+          ) : null}
           <IconButton
             icon={confirmCtaIcon}
             variant="containedPrimary"
@@ -1566,6 +1825,10 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                   labelPosition="left"
                 />
               </div>
+            ) : isCollectMode ? (
+              <span className="text-xs text-muted-foreground">
+                {collectSales.length} venta(s) seleccionada(s)
+              </span>
             ) : isFulfillBackorderMode ? (
               loadedBackorder ? (
                 <span
@@ -1634,6 +1897,11 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               </div>
             )}
           </div>
+          {collectInitError ? (
+            <Alert variant="error" className="text-xs">
+              {collectInitError}
+            </Alert>
+          ) : null}
           {saleSummaryAlert || stockBlocksSalePayment ? (
             <Alert variant="error" className="text-xs">
               {saleSummaryAlert || stockInsufficientSaleMessage}
@@ -1643,12 +1911,27 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
             className="min-h-0 flex-1 divide-y divide-border overflow-y-auto rounded-lg border border-border bg-background [scrollbar-gutter:stable]"
             data-test-id="pos-payment-cart-lines-readonly"
           >
-            {cart.lines.map((line) => (
-              <PaymentCartReadOnlyRow key={line.variantId} line={line} />
-            ))}
+            {isCollectMode
+              ? collectSales.map((sale) => (
+                  <li
+                    key={sale.id}
+                    className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
+                    data-test-id={`pos-collect-sale-${sale.id}`}
+                  >
+                    <span className="font-mono font-medium text-foreground">
+                      {sale.documentNumber ?? sale.id}
+                    </span>
+                    <span className="shrink-0 tabular-nums font-semibold">
+                      {formatMoney(sale.balanceDue)}
+                    </span>
+                  </li>
+                ))
+              : cart.lines.map((line) => (
+                  <PaymentCartReadOnlyRow key={line.variantId} line={line} />
+                ))}
           </ul>
           <footer className="shrink-0 space-y-2 border-t border-border pt-3 text-sm">
-            {isEncargoMode ? (
+            {isCollectMode || isEncargoMode ? (
               <div className="flex justify-between gap-4 pt-1 text-base font-semibold">
                 <span className="text-foreground">{amountDueLabel}</span>
                 <span className="tabular-nums text-foreground">{formatMoney(amountToPay)}</span>
@@ -1923,7 +2206,21 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       </div>
 
       {/* Móvil: CTA fijo */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center border-t border-border bg-background/95 p-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-md lg:hidden pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center gap-2 border-t border-border bg-background/95 p-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-md lg:hidden pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {showDeferPaymentButton ? (
+          <IconButton
+            icon="BanknoteX"
+            variant="outlined"
+            size="lg"
+            className="shrink-0"
+            ariaLabel="Emitir venta sin pago (cobro pendiente)"
+            title="Emitir venta sin pago (cobro pendiente)"
+            disabled={deferLoading || confirmLoading}
+            isLoading={deferLoading}
+            onClick={() => void handleDeferPaymentSale()}
+            data-test-id="pos-payment-defer-mobile"
+          />
+        ) : null}
         <IconButton
           icon={confirmCtaIcon}
           variant="containedPrimary"

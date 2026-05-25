@@ -41,6 +41,7 @@ export interface CompanyDetail {
   rut: string | null;
   address: string | null;
   mail: string | null;
+  phone: string | null;
   defaultCurrency: string;
   fiscalYearStart?: Date;
   isActive: boolean;
@@ -99,6 +100,7 @@ export class CompaniesService {
         rut: null,
         address: null,
         mail: null,
+        phone: null,
         defaultCurrency: 'CLP',
         isActive: true,
         bankAccounts: [],
@@ -123,6 +125,7 @@ export class CompaniesService {
       isActive: data.isActive !== false,
       address: data.address?.trim() ? data.address.trim() : null,
       mail: data.mail?.trim() ? data.mail.trim() : null,
+      phone: data.phone?.trim() ? data.phone.trim() : null,
     });
     const saved = await this.companyRepository.save(company);
     return this.toDetail(saved);
@@ -165,6 +168,10 @@ export class CompaniesService {
     if (data.mail !== undefined) {
       const v = data.mail.trim();
       company.mail = v === '' ? null : v;
+    }
+    if (data.phone !== undefined) {
+      const v = data.phone.trim();
+      company.phone = v === '' ? null : v;
     }
     if ((data as any).isActive !== undefined) {
       company.isActive = !!(data as any).isActive;
@@ -535,6 +542,7 @@ export class CompaniesService {
       rut: company.rut,
       address: company.address?.trim() ? company.address.trim() : null,
       mail: company.mail?.trim() ? company.mail.trim() : null,
+      phone: company.phone?.trim() ? company.phone.trim() : null,
       defaultCurrency: company.defaultCurrency,
       fiscalYearStart: company.fiscalYearStart,
       isActive: company.isActive,

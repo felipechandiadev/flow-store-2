@@ -35,6 +35,9 @@ export class Company {
   @Column({ type: 'varchar', length: 255, nullable: true })
   mail?: string | null;
 
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  phone?: string | null;
+
   @Column({ type: 'varchar', length: 10, default: 'CLP' })
   defaultCurrency!: string;
 

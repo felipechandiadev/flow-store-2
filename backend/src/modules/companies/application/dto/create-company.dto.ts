@@ -37,4 +37,9 @@ export class CreateCompanyDto {
   @IsString()
   @MaxLength(255)
   mail?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string | null;
 }

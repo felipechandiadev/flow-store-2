@@ -18,6 +18,12 @@ export type SalesPaymentMethod =
   | "CREDIT"
   | "INTERNAL_CREDIT";
 
+export type SalesPaymentRelatedSale = {
+  saleId: string;
+  documentNumber: string;
+  amount: number;
+};
+
 export interface SalesPaymentRow {
   id: string;
   documentNumber: string;
@@ -38,7 +44,9 @@ export interface SalesPaymentRow {
   paymentLinesCount: number;
   status: SalesPaymentStatus;
   relatedTransactionId: string | null;
-  /** Venta (SALE) que originó el cobro, si `relatedTransactionId` apunta a una venta. */
+  /** Ventas (SALE) cubiertas por este cobro (1 o N vía `metadata.allocations`). */
+  relatedSales: SalesPaymentRelatedSale[];
+  /** Primera venta vinculada (compatibilidad / cobro simple). */
   relatedSaleId: string | null;
   relatedSaleDocumentNumber: string | null;
   notes: string | null;

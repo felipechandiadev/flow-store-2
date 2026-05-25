@@ -166,6 +166,80 @@ export class CashSessionsRequest {
     return { success: false, message: "Respuesta inesperada al registrar la venta" };
   }
 
+  static async collectPendingSales(
+    body: import("../lib/build-collect-pending-sales-payload").CollectPendingSalesApiBody,
+  ): Promise<
+    | {
+        success: true;
+        paymentIn: { id: string; documentNumber: string };
+        allocations: Array<{ saleId: string; documentNumber: string; amount: number }>;
+      }
+    | { success: false; message: string; statusCode?: number }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      throw new Error("BACKEND_API_URL is not set");
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    const res = await backendFetch(`${base}/api/cash-sessions/collect-pending-sales`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
+
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const rawMsg = data?.message;
+      const msg =
+        typeof rawMsg === "string"
+          ? rawMsg
+          : Array.isArray(rawMsg)
+            ? rawMsg.map(String).join(", ")
+            : typeof data?.error === "string"
+              ? data.error
+              : res.statusText || "Error al registrar el cobro";
+      return { success: false, message: msg, statusCode: res.status };
+    }
+
+    const paymentIn = data?.paymentIn as { id?: string; documentNumber?: string } | undefined;
+    const allocations = Array.isArray(data?.allocations) ? data.allocations : [];
+    if (data?.success === true && paymentIn?.id && paymentIn?.documentNumber) {
+      return {
+        success: true,
+        paymentIn: {
+          id: String(paymentIn.id),
+          documentNumber: String(paymentIn.documentNumber),
+        },
+        allocations: allocations.map((row) => {
+          const r = row as Record<string, unknown>;
+          return {
+            saleId: String(r.saleId ?? ""),
+            documentNumber: String(r.documentNumber ?? ""),
+            amount: Number(r.amount ?? 0),
+          };
+        }),
+      };
+    }
+
+    return { success: false, message: "Respuesta inesperada al registrar el cobro" };
+  }
+
   static async confirmCustomerReturnDocument(
     body: import("../lib/build-create-sale-return-payload").ConfirmCustomerReturnDocumentApiBody,
   ): Promise<

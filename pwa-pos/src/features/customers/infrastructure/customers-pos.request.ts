@@ -92,6 +92,33 @@ export class CustomersPosRequest {
         : [];
     return arr.map((row) => {
       const p = row as Record<string, unknown>;
+      const relatedSales: Array<{
+        saleId: string;
+        documentNumber: string;
+        amount: number;
+      }> = [];
+      const rawRelated = p.relatedSales;
+      if (Array.isArray(rawRelated)) {
+        for (const item of rawRelated) {
+          if (!item || typeof item !== "object") continue;
+          const r = item as Record<string, unknown>;
+          const saleId =
+            typeof r.saleId === "string"
+              ? r.saleId.trim()
+              : typeof r.saleTransactionId === "string"
+                ? r.saleTransactionId.trim()
+                : "";
+          if (!saleId) continue;
+          relatedSales.push({
+            saleId,
+            documentNumber:
+              typeof r.documentNumber === "string" && r.documentNumber.trim()
+                ? r.documentNumber.trim()
+                : "",
+            amount: Math.round(Number(r.amount) || 0),
+          });
+        }
+      }
       return {
         id: String(p.id ?? ""),
         documentNumber: p.documentNumber != null ? String(p.documentNumber) : null,
@@ -100,6 +127,7 @@ export class CustomersPosRequest {
         total: Number(p.total ?? 0),
         paymentMethod: p.paymentMethod != null ? String(p.paymentMethod) : null,
         createdAt: p.createdAt != null ? String(p.createdAt) : "",
+        relatedSales,
       };
     });
   }
@@ -108,13 +136,22 @@ export class CustomersPosRequest {
     const arr = Array.isArray(data.purchases) ? data.purchases : [];
     return arr.map((row) => {
       const p = row as Record<string, unknown>;
+      const total = Number(p.total ?? 0);
+      const amountPaid = Number(p.amountPaid ?? 0);
+      const balanceDue =
+        Number.isFinite(Number(p.balanceDue)) && Number(p.balanceDue) >= 0
+          ? Number(p.balanceDue)
+          : Math.max(0, total - amountPaid);
       return {
         id: String(p.id ?? ""),
         documentNumber: p.documentNumber != null ? String(p.documentNumber) : null,
         transactionType: p.transactionType != null ? String(p.transactionType) : null,
         status: p.status != null ? String(p.status) : null,
-        total: Number(p.total ?? 0),
+        total,
         paymentMethod: p.paymentMethod != null ? String(p.paymentMethod) : null,
+        paymentStatus: p.paymentStatus != null ? String(p.paymentStatus) : null,
+        amountPaid,
+        balanceDue,
         createdAt: p.createdAt != null ? String(p.createdAt) : "",
       };
     });

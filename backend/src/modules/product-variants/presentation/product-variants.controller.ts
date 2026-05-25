@@ -13,6 +13,7 @@ import { CreateProductVariantDto } from '../application/dto/create-product-varia
 import { UpdateProductVariantDto } from '../application/dto/update-product-variant.dto';
 import { ListProductVariantsDto } from '../application/dto/list-product-variants.dto';
 import { SearchPurchasingVariantsDto } from '../application/dto/search-purchasing-variants.dto';
+import { VariantPurchaseInsightsQueryDto } from '../application/dto/variant-purchase-insights.dto';
 
 @Controller('product-variants')
 export class ProductVariantsController {
@@ -34,6 +35,14 @@ export class ProductVariantsController {
     @Query('by') by: 'barcode' | 'sku',
   ) {
     return this.variantsService.lookupByCode(value, by);
+  }
+
+  @Get(':id/purchase-insights')
+  async purchaseInsights(
+    @Param('id') id: string,
+    @Query() query: VariantPurchaseInsightsQueryDto,
+  ) {
+    return this.variantsService.getPurchaseInsights(id, query.limit);
   }
 
   @Get(':id')

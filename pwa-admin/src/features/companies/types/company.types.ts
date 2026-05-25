@@ -12,6 +12,7 @@ export interface CompanyDetail {
   rut: string;
   address: string | null;
   mail: string | null;
+  phone: string | null;
   defaultCurrency: string;
   isActive: boolean;
   createdAt?: string | null;
@@ -27,6 +28,7 @@ export interface CreateCompanyInput {
   isActive?: boolean;
   address?: string | null;
   mail?: string | null;
+  phone?: string | null;
 }
 
 export interface UpdateCompanyInput {
@@ -37,4 +39,5 @@ export interface UpdateCompanyInput {
   isActive?: boolean;
   address?: string | null;
   mail?: string | null;
+  phone?: string | null;
 }

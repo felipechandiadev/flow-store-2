@@ -25,7 +25,16 @@ import { ProductVariant } from '@modules/product-variants/domain/product-variant
 import { Unit } from '@modules/units/domain/unit.entity';
 import { VariantQuantityConversionService } from '@modules/product-variants/application/variant-quantity-conversion.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
+import { CollectPendingSalesDto } from './dto/collect-pending-sales.dto';
 import { CreateBackorderDto } from './dto/create-backorder.dto';
+import {
+  isSaleCollectible,
+  saleBalanceDue,
+} from './collect-pending-sales.util';
+import {
+  resolveSalePaymentStatusFromReceived,
+  saleAmountPaidField,
+} from './sale-payment-status.util';
 import { CreateSaleReturnDto } from './dto/create-sale-return.dto';
 import type { TransactionBackorderMetadata } from '@modules/transactions/domain/transaction-backorder.metadata';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
@@ -66,6 +75,8 @@ type PosCommercialRegisterConfig = {
   backorderDepositPercent?: number;
   /** Venta que liquida un encargo/reserva abierto. */
   fulfillBackorderId?: string;
+  /** Venta POS sin cobro inmediato (cuenta por cobrar / cobro posterior). */
+  deferPayment?: boolean;
 };
 
 /**
@@ -202,11 +213,232 @@ export class SalesFromSessionService {
    */
   async createSale(createSaleDto: CreateSaleDto) {
     const fulfillBackorderId = createSaleDto.fulfillBackorderId?.trim() || undefined;
+    if (createSaleDto.deferPayment && fulfillBackorderId) {
+      throw new BadRequestException(
+        'No se puede diferir el cobro al liquidar un encargo.',
+      );
+    }
     return this.registerPosCommercial(createSaleDto, {
       transactionType: TransactionType.SALE,
       skipStockCheck: false,
       skipStockAvailabilityCheck: Boolean(fulfillBackorderId),
       fulfillBackorderId,
+      deferPayment: Boolean(createSaleDto.deferPayment),
+    });
+  }
+
+  /**
+   * Cobro consolidado de ventas POS con saldo pendiente (cuenta por cobrar).
+   * Un PAYMENT_IN con allocations en metadata; no crea ventas nuevas.
+   */
+  async collectPendingSales(dto: CollectPendingSalesDto) {
+    const customerId = dto.customerId.trim();
+    const saleIds = [
+      ...new Set(
+        (dto.saleTransactionIds ?? [])
+          .map((id) => id.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (!customerId) {
+      throw new BadRequestException('customerId es obligatorio');
+    }
+    if (saleIds.length === 0) {
+      throw new BadRequestException('Debes indicar al menos una venta a cobrar');
+    }
+
+    const paymentsForCollect = (dto.payments ?? []).filter(
+      (p) => (Number(p.amount) || 0) > 0,
+    );
+    if (paymentsForCollect.length === 0) {
+      throw new BadRequestException(
+        'Debes enviar al menos un pago con monto > 0 en payments.',
+      );
+    }
+
+    const pointOfSale = await this.pointOfSaleRepository.findOne({
+      where: { id: dto.pointOfSaleId, deletedAt: IsNull() },
+    });
+    if (!pointOfSale?.branchId) {
+      throw new BadRequestException('Punto de venta sin sucursal');
+    }
+    const user = await this.userRepository.findOne({
+      where: { userName: dto.userName, deletedAt: IsNull() },
+    });
+    if (!user) {
+      throw new NotFoundException(`Usuario ${dto.userName} no encontrado`);
+    }
+
+    const cashSession = await this.cashSessionRepository.findOne({
+      where: { id: dto.cashSessionId },
+    });
+    if (!cashSession) {
+      throw new NotFoundException(
+        `Sesión de caja ${dto.cashSessionId} no encontrada`,
+      );
+    }
+    if (cashSession.status !== CashSessionStatus.OPEN) {
+      throw new ConflictException(
+        `La sesión de caja está en estado ${cashSession.status}, no se pueden registrar operaciones`,
+      );
+    }
+
+    const sales = await this.transactionRepository.find({
+      where: { id: In(saleIds) },
+    });
+    if (sales.length !== saleIds.length) {
+      throw new NotFoundException('Una o más ventas no existen');
+    }
+
+    const allocations: Array<{
+      saleId: string;
+      documentNumber: string;
+      amount: number;
+    }> = [];
+    let balanceTotal = 0;
+
+    for (const sale of sales) {
+      if (sale.customerId?.trim() !== customerId) {
+        throw new BadRequestException(
+          'Todas las ventas deben pertenecer al mismo cliente.',
+        );
+      }
+      if (
+        !isSaleCollectible({
+          transactionType: sale.transactionType,
+          paymentStatus: sale.paymentStatus,
+          total: Number(sale.total),
+          amountPaid: Number(sale.amountPaid),
+        })
+      ) {
+        throw new BadRequestException(
+          `La venta ${sale.documentNumber ?? sale.id} no tiene saldo pendiente de cobro.`,
+        );
+      }
+      const due = saleBalanceDue(Number(sale.total), Number(sale.amountPaid));
+      balanceTotal += due;
+      allocations.push({
+        saleId: sale.id,
+        documentNumber: sale.documentNumber ?? '',
+        amount: due,
+      });
+    }
+
+    const paidTotal = paymentsForCollect.reduce(
+      (acc, p) => acc + (Number(p.amount) || 0),
+      0,
+    );
+    if (Math.abs(paidTotal - balanceTotal) > 1) {
+      throw new BadRequestException(
+        `El total de medios (${paidTotal}) no coincide con el saldo seleccionado (${balanceTotal}).`,
+      );
+    }
+
+    const salePaymentInputs: SalePaymentInput[] = paymentsForCollect.map((p) => ({
+      paymentMethod: p.paymentMethod,
+      amount: Number(p.amount) || 0,
+      companyPaymentMethodId: p.companyPaymentMethodId,
+      bankAccountId: p.bankAccountId,
+      reference: p.reference,
+      checkData: p.checkData as Record<string, unknown> | undefined,
+      creditNoteTransactionId: p.creditNoteTransactionId,
+      backorderTransactionId: p.backorderTransactionId,
+    }));
+
+    for (const p of paymentsForCollect) {
+      const method = (p.paymentMethod ?? '').trim().toUpperCase();
+      if (method === PaymentMethod.INTERNAL_CREDIT) {
+        throw new BadRequestException(
+          'El cobro de ventas pendientes no admite crédito interno.',
+        );
+      }
+      if (p.backorderTransactionId?.trim()) {
+        throw new BadRequestException(
+          'El cobro de ventas pendientes no admite abono de encargo como medio.',
+        );
+      }
+    }
+
+    await this.customerPaymentSourcesService.validatePaymentsForCustomer(
+      customerId,
+      paymentsForCollect,
+    );
+
+    let catalog: Awaited<ReturnType<CompaniesService['getPaymentMethods']>> = [];
+    try {
+      if (pointOfSale.companyId) {
+        catalog = await this.companiesService.getPaymentMethods(
+          pointOfSale.companyId,
+        );
+      }
+    } catch {
+      catalog = [];
+    }
+
+    const paymentSnapshots = buildPaymentSnapshotsFromSalePayments(
+      salePaymentInputs,
+      catalog,
+    );
+    const finalPaymentMethod = getRepresentativePaymentMethod(
+      paymentSnapshots,
+      PaymentMethod.CASH,
+    );
+
+    const changeAmount = Math.max(0, paidTotal - balanceTotal);
+
+    return this.dataSource.transaction(async (manager) => {
+      const paymentInDto = new CreateTransactionDto();
+      Object.assign(paymentInDto, {
+        transactionType: TransactionType.PAYMENT_IN,
+        branchId: pointOfSale.branchId,
+        userId: user.id,
+        pointOfSaleId: pointOfSale.id,
+        cashSessionId: cashSession.id,
+        customerId,
+        relatedTransactionId: allocations[0]?.saleId ?? undefined,
+        subtotal: paidTotal,
+        taxAmount: 0,
+        discountAmount: 0,
+        total: paidTotal,
+        paymentMethod: finalPaymentMethod,
+        paymentStatus: PaymentStatus.PAID,
+        amountPaid: paidTotal,
+        changeAmount,
+        metadata: {
+          source: 'pos_ar_collection',
+          allocations,
+          ...buildPaymentsMetadataFields(paymentSnapshots),
+        },
+      });
+      paymentInDto.lines = [];
+      const paymentIn =
+        await this.transactionsService.createTransaction(paymentInDto);
+
+      for (const alloc of allocations) {
+        const sale = sales.find((s) => s.id === alloc.saleId);
+        if (!sale) continue;
+        const newPaid = Math.round(Number(sale.total) || 0);
+        await manager.getRepository(Transaction).update(alloc.saleId, {
+          amountPaid: newPaid,
+          paymentStatus: PaymentStatus.PAID,
+        });
+      }
+
+      await this.customerPaymentSourcesService.applyPaymentsToSources(
+        customerId,
+        paymentsForCollect,
+        paymentIn.id,
+      );
+
+      return {
+        success: true,
+        paymentIn: {
+          id: paymentIn.id,
+          documentNumber: paymentIn.documentNumber,
+          total: paidTotal,
+        },
+        allocations,
+      };
     });
   }
 
@@ -511,12 +743,24 @@ export class SalesFromSessionService {
     const isSaleReturn = config.transactionType === TransactionType.SALE_RETURN;
     const immediateReturnRefund =
       isSaleReturn && config.immediateRefund === true;
-    const paymentsUsed = isSaleReturn && !immediateReturnRefund
-      ? []
-      : (paymentsForSale ?? []);
+    const isSale = config.transactionType === TransactionType.SALE;
+    const deferPayment = isSale && Boolean(config.deferPayment);
+    const customerIdTrimmedEarly = customerId?.trim() ?? '';
+
+    if (deferPayment && !customerIdTrimmedEarly) {
+      throw new BadRequestException(
+        'La venta sin pago inmediato requiere un cliente.',
+      );
+    }
+
+    const paymentsUsed =
+      deferPayment || (isSaleReturn && !immediateReturnRefund)
+        ? []
+        : (paymentsForSale ?? []);
 
     if (
       !isSaleReturn &&
+      !deferPayment &&
       paymentsUsed.length === 0 &&
       !paymentMethod?.trim()
     ) {
@@ -538,7 +782,9 @@ export class SalesFromSessionService {
     let finalPaymentMethod: PaymentMethod =
       isSaleReturn && !immediateReturnRefund
         ? PaymentMethod.CASH
-        : (paymentMethod as PaymentMethod);
+        : deferPayment
+          ? PaymentMethod.CREDIT
+          : (paymentMethod as PaymentMethod);
     if (paymentsUsed.length > 0) {
       const preliminarySnapshots = buildPaymentSnapshotsFromSalePayments(
         salePaymentInputs,
@@ -550,8 +796,7 @@ export class SalesFromSessionService {
       );
     }
 
-    const customerIdTrimmed = customerId?.trim() ?? '';
-    const isSale = config.transactionType === TransactionType.SALE;
+    const customerIdTrimmed = customerIdTrimmedEarly;
     if (isSale && customerIdTrimmed && paymentsUsed.length > 0) {
       await this.customerPaymentSourcesService.validatePaymentsForCustomer(
         customerIdTrimmed,
@@ -1008,11 +1253,29 @@ export class SalesFromSessionService {
       // construir DTO de transacción usando la clase para que métodos como validate() existan
       const isBackorder = config.transactionType === TransactionType.BACKORDER;
       const depositAmount = config.backorderDepositAmount ?? 0;
-      const paidForTx = isSaleReturn
+      const paidReceived = isSaleReturn
         ? 0
-        : isBackorder
-          ? depositAmount
-          : amountPaid || total;
+        : deferPayment
+          ? 0
+          : isBackorder
+            ? depositAmount
+            : Number(amountPaid) || total;
+      const paidForTx =
+        isSaleReturn || isBackorder
+          ? paidReceived
+          : saleAmountPaidField({
+              deferPayment,
+              total,
+              paidReceived,
+            });
+      const salePaymentStatus = isSale
+        ? resolveSalePaymentStatusFromReceived({
+            deferPayment,
+            hasPayments: paymentsUsed.length > 0,
+            total,
+            paidReceived,
+          })
+        : undefined;
 
       const rawSnap = (metadata as { backorderCustomerSnapshot?: unknown } | undefined)
         ?.backorderCustomerSnapshot;
@@ -1090,12 +1353,7 @@ export class SalesFromSessionService {
         discountAmount,
         total,
         paymentMethod: finalPaymentMethod,
-        paymentStatus:
-          isSale && paymentsUsed.length > 0
-            ? Math.abs(paidForTx - total) <= 1
-              ? PaymentStatus.PAID
-              : PaymentStatus.PARTIAL
-            : undefined,
+        paymentStatus: salePaymentStatus,
         amountPaid: paidForTx,
         changeAmount: isSaleReturn ? 0 : changeAmount || 0,
         externalReference: externalReference || undefined,
@@ -1104,6 +1362,7 @@ export class SalesFromSessionService {
         metadata: {
           ...metadata,
           ...saleReturnMeta,
+          ...(deferPayment ? { deferredPayment: true, collectionSource: 'pos_defer' } : {}),
           ...(backorderMeta ? { backorder: backorderMeta } : {}),
           ...buildPaymentsMetadataFields(paymentSnapshots),
           storageId: isBackorder ? undefined : effectiveStorageId || undefined,

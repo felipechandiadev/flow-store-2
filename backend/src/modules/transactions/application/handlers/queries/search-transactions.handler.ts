@@ -1,11 +1,12 @@
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { SearchTransactionsQuery } from '@modules/transactions/application/queries/search-transactions.query';
 import {
   Transaction,
   TransactionType,
 } from '@modules/transactions/domain/transaction.entity';
+import { relatedSalesFromPaymentIn } from '@modules/transactions/application/payment-in-allocations.util';
 
 @QueryHandler(SearchTransactionsQuery)
 export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTransactionsQuery> {
@@ -15,7 +16,7 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
   ) {}
 
   async execute(query: SearchTransactionsQuery): Promise<{
-    data: Transaction[];
+    data: Record<string, unknown>[];
     total: number;
     page: number;
     limit: number;
@@ -123,11 +124,152 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
 
     const results = await qb.getMany();
 
+    const paymentsBySaleId = await this.loadRelatedSalePayments(results);
+
     return {
-      data: results,
+      data: results.map((tx) => this.toApiListRow(tx, paymentsBySaleId)),
       total,
       page,
       limit,
     };
+  }
+
+  /**
+   * Cobros PAYMENT_IN vinculados a ventas del listado.
+   * Enlace por `relatedTransactionId`, `metadata.saleTransactionId` (POS)
+   * o cualquier fila en `metadata.allocations[]` (cobro AR multi-venta).
+   */
+  private async loadRelatedSalePayments(
+    results: Transaction[],
+  ): Promise<Map<string, { id: string; documentNumber: string }[]>> {
+    const saleRows = results.filter(
+      (t) => t.transactionType === TransactionType.SALE,
+    );
+    const saleIds = saleRows.map((t) => t.id);
+    const bySaleId = new Map<string, { id: string; documentNumber: string }[]>();
+    if (saleIds.length === 0) return bySaleId;
+
+    const companyIds = [
+      ...new Set(
+        saleRows
+          .map((t) => t.companyId)
+          .filter((id): id is string => Boolean(id?.trim())),
+      ),
+    ];
+
+    const payQb = this.transactionRepository
+      .createQueryBuilder('pay')
+      .select([
+        'pay.id',
+        'pay.documentNumber',
+        'pay.relatedTransactionId',
+        'pay.metadata',
+        'pay.createdAt',
+      ])
+      .where('pay.transactionType = :payIn', {
+        payIn: TransactionType.PAYMENT_IN,
+      })
+      .andWhere(
+        new Brackets((sub) => {
+          sub
+            .where('pay.relatedTransactionId IN (:...saleIds)', { saleIds })
+            .orWhere(
+              `pay.metadata->>'saleTransactionId' IN (:...saleIds)`,
+              { saleIds },
+            )
+            .orWhere(
+              `EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements(
+                  COALESCE(pay.metadata::jsonb->'allocations', '[]'::jsonb)
+                ) AS alloc
+                WHERE alloc->>'saleId' IN (:...saleIds)
+              )`,
+              { saleIds },
+            );
+        }),
+      )
+      .orderBy('pay.createdAt', 'ASC');
+
+    if (companyIds.length > 0) {
+      payQb.andWhere('pay.companyId IN (:...companyIds)', { companyIds });
+    }
+
+    const payments = await payQb.getMany();
+
+    const pushFolio = (saleId: string, id: string, documentNumber: string) => {
+      if (!saleId.trim()) return;
+      const folio = documentNumber?.trim() || '—';
+      const list = bySaleId.get(saleId) ?? [];
+      if (list.some((x) => x.id === id)) return;
+      list.push({ id, documentNumber: folio });
+      bySaleId.set(saleId, list);
+    };
+
+    for (const p of payments) {
+      const relatedSales = relatedSalesFromPaymentIn({
+        relatedTransactionId: p.relatedTransactionId,
+        metadata: (p.metadata ?? {}) as Record<string, unknown>,
+      });
+      if (relatedSales.length > 0) {
+        for (const rs of relatedSales) {
+          pushFolio(
+            rs.saleId,
+            p.id,
+            (rs.documentNumber?.trim() || p.documentNumber) ?? '',
+          );
+        }
+        continue;
+      }
+      const meta = (p.metadata ?? {}) as Record<string, unknown>;
+      const metaSaleId =
+        typeof meta.saleTransactionId === 'string'
+          ? meta.saleTransactionId.trim()
+          : '';
+      const saleId = (p.relatedTransactionId?.trim() || metaSaleId) ?? '';
+      pushFolio(saleId, p.id, p.documentNumber ?? '');
+    }
+
+    return bySaleId;
+  }
+
+  /** Serializa la fila incluyendo `relatedSalePayments` (no es columna TypeORM). */
+  private toApiListRow(
+    tx: Transaction,
+    paymentsBySaleId: Map<string, { id: string; documentNumber: string }[]>,
+  ): Record<string, unknown> {
+    const relatedSalePayments =
+      tx.transactionType === TransactionType.SALE
+        ? (paymentsBySaleId.get(tx.id) ?? [])
+        : [];
+
+    let row: Record<string, unknown>;
+    try {
+      row = JSON.parse(
+        JSON.stringify(tx, (_key, value) =>
+          value instanceof Date ? value.toISOString() : value,
+        ),
+      ) as Record<string, unknown>;
+    } catch {
+      row = { ...(tx as unknown as Record<string, unknown>) };
+    }
+
+    if (tx.transactionType === TransactionType.SALE) {
+      row.relatedSalePayments = relatedSalePayments;
+    }
+    if (tx.transactionType === TransactionType.PAYMENT_IN) {
+      row.relatedSales = relatedSalesFromPaymentIn({
+        relatedTransactionId: tx.relatedTransactionId,
+        documentNumber: tx.documentNumber,
+        metadata: (tx.metadata ?? {}) as Record<string, unknown>,
+        relatedTransaction: (tx as { relatedTransaction?: unknown })
+          .relatedTransaction as {
+          id?: string;
+          documentNumber?: string;
+          transactionType?: string;
+        } | null,
+      });
+    }
+    return row;
   }
 }

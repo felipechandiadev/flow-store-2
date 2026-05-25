@@ -93,6 +93,10 @@ export default function SaleTransactionDetailDialog({
       const res = await reprintAdminSaleTicket(detail, company);
       if (!res.success) {
         setPrintNotice(res.message ?? "No se pudo reimprimir el ticket");
+      } else if (res.message) {
+        setPrintNotice(res.message);
+      } else {
+        setPrintNotice(null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo imprimir el ticket");
@@ -108,9 +112,13 @@ export default function SaleTransactionDetailDialog({
     setError(null);
     try {
       const company = await getCompanyDetailsAction();
-      const res = reprintAdminSaleDocument(detail, company);
+      const res = await reprintAdminSaleDocument(detail, company);
       if (!res.success) {
         setPrintNotice(res.message ?? "No se pudo imprimir el documento");
+      } else if (res.message) {
+        setPrintNotice(res.message);
+      } else {
+        setPrintNotice(null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo imprimir el documento");

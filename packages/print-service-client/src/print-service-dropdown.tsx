@@ -39,6 +39,10 @@ export type PrintServiceDropdownProps = {
    * Si no se pasa, se usa un marcador SVG verde/rojo integrado.
    */
   renderLocalAgentStatus?: (ctx: { connected: boolean }) => ReactNode;
+  /** Clases del botón disparador (p. ej. `fs-icon-button` del POS para alinear con la top bar). */
+  triggerClassName?: string;
+  /** Atributo `data-test-id` del contenedor raíz del dropdown. */
+  "data-test-id"?: string;
 };
 
 function connectionIconPresentation(visual: PrintAgentVisualStatus): { dotClass: string; label: string } {
@@ -108,7 +112,7 @@ function GearGlyph({ className }: { className?: string }) {
   );
 }
 
-function PrinterGlyph({ className }: { className?: string }) {
+function PrinterGlyph({ className, strokeWidth = 2 }: { className?: string; strokeWidth?: number }) {
   return (
     <svg
       className={className}
@@ -117,7 +121,7 @@ function PrinterGlyph({ className }: { className?: string }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
@@ -143,6 +147,8 @@ export function PrintServiceTopBarDropdown({
   settingsHref = "/settings/local-printing",
   panelVariant = "default",
   renderLocalAgentStatus,
+  triggerClassName,
+  "data-test-id": dataTestId,
 }: PrintServiceDropdownProps) {
   const posMinimal = panelVariant === "pos";
   /** `unreadCount` debería coincidir; por si algo desincroniza el padre, miramos también el listado local. */
@@ -355,12 +361,18 @@ export function PrintServiceTopBarDropdown({
     ) : null;
 
   return (
-    <div className="relative z-[100] shrink-0 overflow-visible" data-test-id="pos-print-service-dropdown-root">
-      <div ref={triggerWrapRef} className="relative inline-flex shrink-0 overflow-visible">
+    <div
+      className="relative z-[100] shrink-0 overflow-visible"
+      data-test-id={dataTestId ?? "pos-print-service-dropdown-root"}
+    >
+      <div ref={triggerWrapRef} className="relative inline-flex shrink-0">
         <button
           type="button"
           onClick={toggle}
-          className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-md border border-transparent text-foreground hover:bg-black/5 dark:hover:bg-white/10"
+          className={
+            triggerClassName ??
+            "relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-md border border-transparent text-foreground hover:bg-black/5 dark:hover:bg-white/10"
+          }
           aria-label={
             posMinimal
               ? `${connected ? "Conectado" : "Sin conexión"} al servicio local de impresión${unreadCount > 0 ? `: ${unreadCount} sin leer` : ""}`
@@ -378,7 +390,7 @@ export function PrintServiceTopBarDropdown({
                 : ""
             }`}
           >
-            <PrinterGlyph className="relative shrink-0 opacity-90 text-current" />
+            <PrinterGlyph className="relative shrink-0 text-current" strokeWidth={triggerClassName ? 2.5 : 2} />
             {!posMinimal && !hasUnreadNotifications ? (
               <span
                 className={`absolute -right-0.5 -top-0.5 z-[1] h-2 w-2 rounded-full ring-2 ring-background ${statusDotClass(visual)}`}

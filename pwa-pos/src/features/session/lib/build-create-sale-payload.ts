@@ -39,6 +39,7 @@ export type CreateSaleApiBody = {
   changeAmount?: number;
   customerId?: string;
   fulfillBackorderId?: string;
+  deferPayment?: boolean;
   metadata?: Record<string, unknown>;
   promotionSnapshot?: Array<{
     promotionId: string;
@@ -139,19 +140,24 @@ export function buildCreateSaleClientPayload(input: {
   appliedTotal: number;
   overpay: number;
   fulfillBackorderId?: string | null;
+  deferPayment?: boolean;
 }): CreateSaleClientPayload {
-  const paymentLines = input.payments.filter((p) => (Number(p.amount) || 0) > 0);
+  const deferPayment = input.deferPayment === true;
+  const paymentLines = deferPayment
+    ? []
+    : input.payments.filter((p) => (Number(p.amount) || 0) > 0);
   const promotionSnapshot = buildPromotionSnapshot(input.appliedPromotions);
   return {
     pointOfSaleId: input.pointOfSaleId.trim(),
     cashSessionId: input.cashSessionId.trim(),
-    paymentMethod: dominantPaymentMethod(paymentLines),
+    paymentMethod: deferPayment ? "CREDIT" : dominantPaymentMethod(paymentLines),
     lines: buildCreateSaleLines(input.cartLines),
-    payments: buildCreateSalePayments(input.payments),
-    amountPaid: Math.round(input.appliedTotal),
-    changeAmount: Math.round(Math.max(0, input.overpay)),
+    payments: deferPayment ? [] : buildCreateSalePayments(input.payments),
+    amountPaid: deferPayment ? 0 : Math.round(input.appliedTotal),
+    changeAmount: deferPayment ? 0 : Math.round(Math.max(0, input.overpay)),
     customerId: input.customer?.customerId?.trim() || undefined,
     fulfillBackorderId: input.fulfillBackorderId?.trim() || undefined,
     promotionSnapshot,
+    ...(deferPayment ? { deferPayment: true } : {}),
   };
 }

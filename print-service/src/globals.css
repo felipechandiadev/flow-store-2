@@ -127,6 +127,27 @@
     max-width: 100%;
   }
 
+  /** Cola: permitir scroll horizontal de la tabla sin recortar */
+  details.print-acc--queue[open] {
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+
+  .print-queue-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .print-queue-table {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .print-queue-sticky-col {
+    position: sticky;
+  }
+
   details.print-acc > summary .print-acc-chevron {
     transition: transform 0.15s ease;
   }

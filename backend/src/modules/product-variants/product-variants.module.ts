@@ -4,6 +4,10 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { ProductVariant } from './domain/product-variant.entity';
 import { Product } from '@modules/products/domain/product.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
+import { Transaction } from '@modules/transactions/domain/transaction.entity';
+import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
+import { Supplier } from '@modules/suppliers/domain/supplier.entity';
+import { Storage } from '@modules/storages/domain/storage.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import { ProductVariantsService } from './application/product-variants.service';
 import { ProductVariantsController } from './presentation/product-variants.controller';
@@ -17,7 +21,16 @@ import { ProductVariantShippingSchemaBootstrap } from './application/product-var
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ProductVariant, PriceListItem, Unit, Product]),
+    TypeOrmModule.forFeature([
+      ProductVariant,
+      PriceListItem,
+      Unit,
+      Product,
+      Transaction,
+      TransactionLine,
+      Supplier,
+      Storage,
+    ]),
     CqrsModule,
     MultimediaModule,
     PriceListItemsModule,

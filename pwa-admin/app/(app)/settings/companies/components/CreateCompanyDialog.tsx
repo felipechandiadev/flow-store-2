@@ -27,6 +27,7 @@ export function CreateCompanyDialog({
   const [isActive, setIsActive] = useState(true);
   const [address, setAddress] = useState("");
   const [mail, setMail] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -40,6 +41,7 @@ export function CreateCompanyDialog({
     setIsActive(true);
     setAddress("");
     setMail("");
+    setPhone("");
     setError(null);
   }, [open]);
 
@@ -61,6 +63,7 @@ export function CreateCompanyDialog({
           isActive,
           address: address.trim() || null,
           mail: mail.trim() || null,
+          phone: phone.trim() || null,
         });
         if (r.success) {
           onSuccess?.();
@@ -151,6 +154,13 @@ export function CreateCompanyDialog({
           value={mail}
           onChange={(e) => setMail(e.target.value)}
           data-test-id="company-create-mail"
+        />
+        <TextField
+          label="Teléfono (opcional)"
+          name="company-create-phone"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          data-test-id="company-create-phone"
         />
         <TextField
           label="Dirección (opcional)"

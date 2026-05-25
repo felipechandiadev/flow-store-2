@@ -177,6 +177,7 @@ export class PosSaleReceiptPrintService {
       logoUrl,
       address: company.address?.trim() || null,
       mail: company.mail?.trim() || null,
+      phone: company.phone?.trim() || null,
     };
   }
 

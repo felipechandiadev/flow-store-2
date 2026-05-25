@@ -18,6 +18,7 @@ export function mapPosSaleReceiptPrintToReceiptData(
       logoUrl: dto.company.logoUrl,
       address: dto.company.address ?? null,
       mail: dto.company.mail ?? null,
+      phone: dto.company.phone ?? null,
     },
     pos: {
       pointOfSaleName: dto.pos.pointOfSaleName,

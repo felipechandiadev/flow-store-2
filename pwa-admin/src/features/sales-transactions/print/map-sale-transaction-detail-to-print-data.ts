@@ -1,3 +1,4 @@
+import { resolveCompanyPhone } from "@flowstore/document-print";
 import type { CompanyDetails } from "@/features/settings-branches/infrastructure/company.request";
 import {
   SALES_PAYMENT_METHOD_LABEL,
@@ -51,6 +52,7 @@ export function mapSaleTransactionDetailToPrintData(
       logoUrl: null,
       address: company?.address?.trim() ?? null,
       mail: company?.mail?.trim() ?? null,
+      phone: resolveCompanyPhone(company),
     },
     pos: {
       pointOfSaleName: detail.pointOfSaleName,

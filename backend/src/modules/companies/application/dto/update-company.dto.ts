@@ -30,4 +30,9 @@ export class UpdateCompanyDto {
   @IsString()
   @MaxLength(255)
   mail?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string;
 }

@@ -3,6 +3,7 @@ export {
   type PurchaseDocumentBuilderProps,
   type PurchaseDocumentLine,
   type PurchaseDocumentMode,
+  type PurchaseDocumentFieldDensity,
 } from "./PurchaseDocumentBuilder";
 export {
   PurchaseDocumentVariantSearchPanel,

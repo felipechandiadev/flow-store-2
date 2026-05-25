@@ -1,3 +1,9 @@
+import {
+  buildCompanyInlineParts,
+  DOCUMENT_HEADER_PRINT_CSS,
+  formatCompanyAddressForPrint,
+  resolveCompanyPhone,
+} from "@flowstore/document-print";
 import type { CompanyDetails } from "@/features/settings-branches/infrastructure/company.request";
 import { thermalReceiptTicketCss } from "@/features/print/lib/thermal-receipt-ticket-styles";
 import { receiptBarcodeSvgString } from "@/lib/receipt-barcode";
@@ -52,14 +58,6 @@ function resolveReceiptLogoUrl(companyLogoUrl: string | null | undefined, origin
   if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
   if (raw.startsWith("/")) return `${origin}${raw}`;
   return raw;
-}
-
-function companyAddressLines(company: CompanyDetails | null): string[] {
-  const raw = company?.address?.trim();
-  if (!raw) return [];
-  const byNl = raw.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-  if (byNl.length > 1) return byNl;
-  return raw.split(",").map((x) => x.trim()).filter(Boolean);
 }
 
 function appliedTaxNamesFromLines(lines: QuotationLineRow[]): string[] {
@@ -164,14 +162,16 @@ export function buildQuotationDocumentHtml(input: QuotationPrintInput): string {
   const c = input.company;
   const razonSocial = (c?.razonSocial ?? "").trim();
   const displayName = (c?.nombreFantasia ?? "").trim();
-  const addressLines = companyAddressLines(c);
-  const rut = (c?.rut ?? "").trim();
-  const mail = (c?.mail ?? "").trim();
+  const addressLines = formatCompanyAddressForPrint(c?.address);
   const folio = q.documentNumber?.trim() || q.id;
   const barcodeSvg = receiptBarcodeSvgString(folio);
   const appliedTaxNames = appliedTaxNamesFromLines(q.lines ?? []);
 
-  const inlineParts = [rut ? `RUT: ${rut}` : "", mail ? mail : ""].filter(Boolean);
+  const inlineParts = buildCompanyInlineParts({
+    rut: c?.rut,
+    phone: resolveCompanyPhone(c),
+    email: c?.mail,
+  });
 
   const hasCustomer = Boolean(q.customerName?.trim() || q.customerDocument?.trim());
   const hasBranch = Boolean(input.branchName?.trim() || input.pointOfSaleName?.trim());
@@ -243,16 +243,7 @@ export function buildQuotationDocumentHtml(input: QuotationPrintInput): string {
   * { box-sizing: border-box; }
   body { margin: 0; padding: 0; color: #111827; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .page { width: 100%; max-width: 190mm; margin: 0 auto; padding: 4mm 0; }
-  .companyHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 1.5rem; }
-  .companyKicker { margin: 0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 9px; color: #6b7280; }
-  .companyName { margin: 0.2rem 0; font-size: 22px; line-height: 1.1; font-weight: 800; color: #111827; }
-  .companyAddress { margin: 0; font-size: 10px; color: #4b5563; }
-  .companyInline { margin: 0.25rem 0 0; font-size: 10px; color: #374151; }
-  .documentMeta { text-align: right; }
-  .documentTitle { margin: 0; font-size: 23px; line-height: 1; font-weight: 900; color: #1e3a8a; }
-  .documentDate { margin: 0.4rem 0 0; font-size: 11px; font-weight: 600; color: #1f2937; }
-  .guideBadge { margin: 0.5rem 0 0; display: inline-block; border: 1px solid #d1d5db; border-radius: 6px; background: #f9fafb; padding: 0.25rem 0.55rem; font-size: 11px; font-weight: 700; }
-  .separator { margin: 1.1rem 0; height: 1px; background: rgba(17, 24, 39, 0.22); }
+  ${DOCUMENT_HEADER_PRINT_CSS}
   .summaryGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1.25rem; margin-bottom: 0.9rem; }
   .field { font-size: 11px; color: #111827; }
   .label { font-size: 10px; color: #6b7280; margin: 0 0 0.2rem 0; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -283,7 +274,7 @@ export function buildQuotationDocumentHtml(input: QuotationPrintInput): string {
     <div class="documentMeta">
       <h2 class="documentTitle">COTIZACIÓN</h2>
       <p class="documentDate">Fecha: ${escapeHtml(formatDateSlash(q.issuedAt))}</p>
-      <p class="guideBadge">Folio ${escapeHtml(folio)}</p>
+      <p class="documentFolio">Folio ${escapeHtml(folio)}</p>
       <p class="documentDate" style="margin-top:0.35rem">Válida hasta: ${escapeHtml(formatDateSlash(q.validUntil))}</p>
       <p class="documentDate" style="margin-top:0.15rem;font-weight:500">Vigencia: ${q.validityDays} día(s)</p>
     </div>

@@ -39,6 +39,11 @@ jobs:
         working-directory: print-service
         run: npm ci
 
+      - name: Download SumatraPDF (Windows bundle)
+        if: matrix.os == 'windows-latest'
+        working-directory: print-service
+        run: node scripts/fetch-sumatra-windows.mjs
+
       - name: Build KaiPrinters (${{ matrix.target }})
         working-directory: print-service
         run: npm run tauri:build -- --target ${{ matrix.target }}

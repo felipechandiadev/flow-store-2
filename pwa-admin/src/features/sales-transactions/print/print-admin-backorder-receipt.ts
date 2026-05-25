@@ -11,7 +11,7 @@ export async function printAdminBackorderReceipt(
 ): Promise<void> {
   const mode = getAdminDocumentPrintMode("backorder");
   if (mode === "document") {
-    printSaleReceiptDocument(data);
+    await printSaleReceiptDocument(data);
     return;
   }
   const channel = await printAdminSaleTicket(data);

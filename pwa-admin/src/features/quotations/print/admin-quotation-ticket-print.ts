@@ -60,19 +60,36 @@ function quotationToTicketPayload(
   };
 }
 
+function isUnknownPrinterLabelError(e: unknown): boolean {
+  return String(e).includes("unknown_printer_display_label");
+}
+
 async function enqueueQuotationTicket(
   conn: PrintServiceConnection,
   ticket: PosQuotationTicketPayload,
   meta: { filename: string; documentType: string; internalFolio: string },
+  omitDisplayLabel: boolean,
 ): Promise<void> {
-  await enqueueAdminPrint(conn, "tickets", {
+  const body: Record<string, unknown> = {
     type: "pos-quotation-ticket",
     ticket,
     filename: meta.filename,
     copies: 1,
     documentType: meta.documentType,
     internalFolio: meta.internalFolio,
-  });
+  };
+  if (omitDisplayLabel) {
+    const res = (await conn.enqueuePrint({
+      ...body,
+      purpose: "tickets",
+      sourceApp: "pwa-admin",
+    })) as { jobId?: string; queued?: boolean };
+    if (res && res.queued === false && !res.jobId) {
+      throw new Error("enqueue_rejected");
+    }
+    return;
+  }
+  await enqueueAdminPrint(conn, "tickets", body);
 }
 
 export async function printAdminQuotationTicket(
@@ -104,8 +121,14 @@ export async function printAdminQuotationTicket(
       if (!agentSupportsPosQuotationTicket(hello)) {
         throw new Error("agent_no_pos_quotation_ticket");
       }
-      await enqueueQuotationTicket(conn, ticket, meta);
-      enqueued = true;
+      try {
+        await enqueueQuotationTicket(conn, ticket, meta, false);
+        enqueued = true;
+      } catch (e) {
+        if (!isUnknownPrinterLabelError(e)) throw e;
+        await enqueueQuotationTicket(conn, ticket, meta, true);
+        enqueued = true;
+      }
     });
   } catch (e) {
     console.warn("[KaiStore admin print] cotización agente:", e);

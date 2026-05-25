@@ -7,6 +7,8 @@ import IconButton from "./shared/components/IconButton/IconButton";
 import InlineSwitchField from "./shared/components/InlineSwitchField";
 import SharedTextField from "./shared/components/TextField/TextField";
 import { AgentLogPanel } from "./features/agent-log/AgentLogPanel";
+import { AppDialog } from "./shared/components/AppDialog/AppDialog";
+import { Button } from "./components/Button";
 import { PrinterMappingLineCard } from "./features/printer-mapping/PrinterMappingLineCard";
 import {
   isLineDirty,
@@ -14,7 +16,11 @@ import {
   lineToSavePayload,
 } from "./features/printer-mapping/mapping-line-utils";
 import { isPlausibleNetworkHost } from "./features/printer-mapping/ticket-printer-type";
-import type { MappingLineRow } from "./features/printer-mapping/types";
+import type {
+  LinePrinterStatus,
+  MappingLineHealthRow,
+  MappingLineRow,
+} from "./features/printer-mapping/types";
 
 const APP_NAME = "KaiPrinters";
 const DEFAULT_AGENT_DISPLAY_NAME = APP_NAME;
@@ -64,9 +70,10 @@ type JobRow = {
   error?: string;
 };
 
-type GhostscriptStatus = {
+type SumatraStatus = {
   installed?: boolean;
   path?: string;
+  bundled?: boolean;
 };
 
 type DashboardPayload = {
@@ -76,7 +83,7 @@ type DashboardPayload = {
   wsListening?: boolean;
   wssListening?: boolean;
   hostPlatform?: string;
-  ghostscript?: GhostscriptStatus;
+  sumatra?: SumatraStatus;
   agentDisplayName?: string;
   printers?: PrinterRow[];
   mappings?: MappingRow[];
@@ -115,6 +122,21 @@ function newLineId() {
     return crypto.randomUUID();
   }
   return `l-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function mapHealthLines(
+  rows?: Array<{ id?: string; status?: string; reason?: string }>,
+): MappingLineHealthRow[] {
+  return (rows ?? []).map((row) => {
+    const raw = String(row?.status ?? "").trim().toLowerCase();
+    const status: LinePrinterStatus | undefined =
+      raw === "online" || raw === "offline" || raw === "unknown" ? raw : undefined;
+    return {
+      id: row?.id != null ? String(row.id) : undefined,
+      status,
+      reason: row?.reason != null ? String(row.reason) : undefined,
+    };
+  });
 }
 
 function mapDashboardLines(rows: DashboardPayload["mappingLines"]): MappingLineRow[] {
@@ -189,10 +211,18 @@ export default function App() {
   const [networkBusy, setNetworkBusy] = useState(false);
   const [lineSaveBusyId, setLineSaveBusyId] = useState<string | null>(null);
   const [escposQaBusyId, setEscposQaBusyId] = useState<string | null>(null);
+  const [documentPrintTestBusyId, setDocumentPrintTestBusyId] = useState<string | null>(null);
   const [cutTestBusyId, setCutTestBusyId] = useState<string | null>(null);
   const [drawerTestBusyId, setDrawerTestBusyId] = useState<string | null>(null);
   const [networkProbeBusyId, setNetworkProbeBusyId] = useState<string | null>(null);
   const [printersRefreshBusy, setPrintersRefreshBusy] = useState(false);
+  const [sumatraRefreshBusy, setSumatraRefreshBusy] = useState(false);
+  const [wssCertDialog, setWssCertDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    variant: "success" | "error";
+  }>({ open: false, title: "", message: "", variant: "success" });
 
   /** Solo mostramos acciones en la fila del summary cuando el `<details>` está expandido */
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
@@ -225,7 +255,7 @@ export default function App() {
         wsListening: d.wsListening,
         wssListening: d.wssListening,
         hostPlatform: d.hostPlatform,
-        ghostscript: d.ghostscript,
+        sumatra: d.sumatra,
       };
     });
   }, []);
@@ -280,11 +310,11 @@ export default function App() {
   }, [fetchDashboard]);
 
   const printers = dashboard?.printers ?? [];
-  const mappingLineHealth = dashboard?.printerHealth?.lines ?? [];
+  const mappingLineHealth = mapHealthLines(dashboard?.printerHealth?.lines);
   const jobs = dashboard?.jobs ?? [];
   const sessions = dashboard?.serviceStatus?.sessions ?? [];
   const isWindows = dashboard?.hostPlatform === "windows";
-  const ghostscript = dashboard?.ghostscript;
+  const sumatra = dashboard?.sumatra;
   const wsListening = Boolean(dashboard?.wsListening);
   const wssListening = Boolean(dashboard?.wssListening);
   const wssEnabledCfg = Boolean(dashboard?.wssEnabled);
@@ -389,12 +419,51 @@ export default function App() {
         printers: d.printers,
         printerHealth: d.printerHealth,
         hostPlatform: d.hostPlatform ?? prev?.hostPlatform,
-        ghostscript: d.ghostscript ?? prev?.ghostscript,
+        sumatra: d.sumatra ?? prev?.sumatra,
       }));
     } catch {
       window.alert("No se pudo actualizar la lista de impresoras del sistema.");
     } finally {
       setPrintersRefreshBusy(false);
+    }
+  }
+
+  async function handleRefreshSumatra() {
+    if (sumatraRefreshBusy) return;
+    setSumatraRefreshBusy(true);
+    try {
+      const status = (await invoke("refresh_sumatra_status")) as SumatraStatus;
+      setDashboard((prev) => ({ ...(prev ?? {}), sumatra: status }));
+    } catch {
+      window.alert("No se pudo comprobar SumatraPDF.");
+    } finally {
+      setSumatraRefreshBusy(false);
+    }
+  }
+
+  async function handleInstallWssCertificate() {
+    setWssCertDialog({
+      open: true,
+      title: "Certificado WSS",
+      message: "Instalando certificado en el almacén de confianza del usuario…",
+      variant: "success",
+    });
+    try {
+      const msg = String(await invoke("install_wss_trust_certificate"));
+      setWssCertDialog({
+        open: true,
+        title: "Certificado instalado",
+        message: msg,
+        variant: "success",
+      });
+      await fetchDashboard("live");
+    } catch (e) {
+      setWssCertDialog({
+        open: true,
+        title: "No se pudo instalar",
+        message: String(e),
+        variant: "error",
+      });
     }
   }
 
@@ -496,6 +565,45 @@ export default function App() {
     }
   }
 
+  async function handleLineDocumentPrintTest(line: MappingLineRow) {
+    if (!requireLineSaved(line)) return;
+    const purpose = line.purpose;
+    if (purpose !== "documents" && purpose !== "labels") return;
+    const printer = line.systemPrinterName.trim();
+    if (!printer) {
+      window.alert("Seleccioná una impresora del sistema para la prueba de impresión.");
+      return;
+    }
+    setDocumentPrintTestBusyId(line.id);
+    try {
+      await invoke("queue_test_print", {
+        purpose,
+        systemPrinterName: printer,
+      });
+      await fetchDashboard("live");
+    } catch (e: unknown) {
+      const msg =
+        typeof e === "string"
+          ? e
+          : e && typeof e === "object" && "message" in e && typeof (e as Error).message === "string"
+            ? (e as Error).message
+            : "No se pudo encolar la prueba de impresión.";
+      window.alert(msg);
+    } finally {
+      setDocumentPrintTestBusyId(null);
+    }
+  }
+
+  async function handleLinePrintTest(line: MappingLineRow) {
+    if (line.purpose === "tickets") {
+      await handleLineEscposQa(line);
+      return;
+    }
+    if (line.purpose === "documents" || line.purpose === "labels") {
+      await handleLineDocumentPrintTest(line);
+    }
+  }
+
   async function handleLineEscposQa(line: MappingLineRow) {
     if (!requireLineSaved(line)) return;
     const network = isTicketNetworkLine(line);
@@ -511,7 +619,6 @@ export default function App() {
       return;
     }
     if (line.purpose !== "tickets") {
-      window.alert("La prueba ESC/POS QA solo está disponible en líneas de propósito Tickets.");
       return;
     }
     setEscposQaBusyId(line.id);
@@ -702,7 +809,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="print-app-main relative mx-auto max-w-[400px] min-w-0 overflow-x-hidden">
+      <main className="print-app-main relative mx-auto max-w-[400px] min-w-0">
       <div className="min-w-0 divide-y divide-border *:min-w-0 *:max-w-full *:px-1">
         <details className="print-acc min-w-0 max-w-full overflow-hidden py-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 py-2 font-semibold [&::-webkit-details-marker]:hidden">
@@ -800,7 +907,7 @@ export default function App() {
                 <button
                   type="button"
                   className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground hover:bg-accent/40"
-                  onClick={() => void invoke("install_wss_trust_certificate").then((msg) => window.alert(String(msg))).catch((e) => window.alert(String(e)))}
+                  onClick={() => void handleInstallWssCertificate()}
                 >
                   Confiar certificado WSS
                 </button>
@@ -858,43 +965,26 @@ export default function App() {
           ) : null}
         </summary>
         <div className="space-y-3 py-2">
-          {isWindows ? (
+          {isWindows && !sumatra?.installed ? (
             <div className="space-y-2 rounded-md border border-border bg-neutral/30 p-3 text-xs text-muted-foreground">
               <p>
-                En Windows, KaiPrinters envía los PDF a la impresora con{" "}
-                <strong className="text-foreground">Ghostscript</strong> (64 bits). Sin él, los trabajos
-                fallan en la cola.
+                En Windows, los PDF se imprimen en silencio con{" "}
+                <strong className="text-foreground">SumatraPDF.exe</strong> en la misma carpeta que
+                KaiPrinters o empaquetado en el instalador.
               </p>
-              {ghostscript?.installed ? (
-                <p className="text-foreground">
-                  Ghostscript detectado
-                  {ghostscript.path ? (
-                    <>
-                      : <code className="text-xs break-all">{ghostscript.path}</code>
-                    </>
-                  ) : null}
-                </p>
-              ) : (
-                <p className="font-medium text-error">
-                  Ghostscript no encontrado. Instalá la versión 64 bits y reiniciá KaiPrinters, o definí la
-                  variable <code className="text-foreground">KAI_PRINTERS_GHOSTSCRIPT</code> con la ruta a{" "}
-                  <code className="text-foreground">gswin64c.exe</code>.
-                </p>
-              )}
+              <p className="font-medium text-error">
+                SumatraPDF no detectado. Colocá <code className="text-foreground">SumatraPDF.exe</code> junto a{" "}
+                <code className="text-foreground">KaiPrinters.exe</code> o definí{" "}
+                <code className="text-foreground">KAI_PRINTERS_SUMATRA</code>.
+              </p>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground hover:bg-accent/40"
-                  onClick={() => void invoke("open_ghostscript_download").catch((e) => window.alert(String(e)))}
+                  className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground hover:bg-accent/40 disabled:opacity-50"
+                  disabled={sumatraRefreshBusy}
+                  onClick={() => void handleRefreshSumatra()}
                 >
-                  Descargar Ghostscript
-                </button>
-                <button
-                  type="button"
-                  className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground hover:bg-accent/40"
-                  onClick={() => void handleRefreshPrinters()}
-                >
-                  Comprobar de nuevo
+                  {sumatraRefreshBusy ? "Comprobando…" : "Comprobar de nuevo"}
                 </button>
               </div>
             </div>
@@ -911,7 +1001,11 @@ export default function App() {
                   expanded={expandedLineId === line.id}
                   sortOrder={idx}
                   saveBusy={lineSaveBusyId === line.id}
-                  printBusy={escposQaBusyId === line.id}
+                  printBusy={
+                    line.purpose === "tickets"
+                      ? escposQaBusyId === line.id
+                      : documentPrintTestBusyId === line.id
+                  }
                   cutBusy={cutTestBusyId === line.id}
                   drawerTestBusy={drawerTestBusyId === line.id}
                   networkProbeBusy={networkProbeBusyId === line.id}
@@ -922,7 +1016,7 @@ export default function App() {
                   onChange={(patch) => updateLine(line.id, patch)}
                   onSave={() => void handleSaveLine(line.id)}
                   onDelete={() => void handleRemoveLine(line.id)}
-                  onPrintTest={() => void handleLineEscposQa(line)}
+                  onPrintTest={() => void handleLinePrintTest(line)}
                   onCutTest={() => void handleLineTestCut(line)}
                   onDrawerTest={() => void handleLineTestDrawer(line)}
                   onPickLogo={() => void handlePickTicketLogo(line)}
@@ -935,7 +1029,7 @@ export default function App() {
         </div>
       </details>
 
-      <details className="print-acc min-w-0 max-w-full overflow-hidden py-3">
+      <details className="print-acc print-acc--queue min-w-0 max-w-full py-3">
         <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 py-2 font-semibold [&::-webkit-details-marker]:hidden">
           <ChevronDown className="print-acc-chevron h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden />
           <span className="min-w-0 text-sm">Cola</span>
@@ -958,22 +1052,22 @@ export default function App() {
             ) : null}
           </span>
         </summary>
-        <div className="min-w-0 w-full overflow-x-auto py-2">
-          <table className="w-max min-w-full border-collapse text-[0.7rem]">
+        <div className="print-queue-scroll min-w-0 w-full py-2">
+          <table className="print-queue-table border-collapse text-[0.7rem]">
             <thead>
               <tr className="border-b border-border bg-neutral/50">
                 <th
                   scope="col"
-                  className="sticky left-0 z-41 min-w-11 border-border border-r bg-neutral/50 px-1 py-1.5 text-center font-semibold shadow-[4px_0_10px_-3px_rgb(0_0_0/0.12)]"
+                  className="print-queue-sticky-col sticky left-0 z-41 min-w-11 border-border border-r bg-neutral/50 px-1 py-1.5 text-center font-semibold shadow-[4px_0_10px_-3px_rgb(0_0_0/0.12)]"
                 >
                   <span className="sr-only">Eliminar</span>
                 </th>
-                <th className="p-1.5 text-left font-semibold">Estado</th>
-                <th className="p-1.5 text-left font-semibold">Error</th>
-                <th className="p-1.5 text-left font-semibold">Doc</th>
-                <th className="p-1.5 text-left font-semibold">Folio</th>
-                <th className="p-1.5 text-left font-semibold">App</th>
-                <th className="p-1.5 text-left font-semibold">Usuario</th>
+                <th className="min-w-[4.5rem] whitespace-nowrap p-1.5 text-left font-semibold">Estado</th>
+                <th className="min-w-[12rem] p-1.5 text-left font-semibold">Error</th>
+                <th className="min-w-[5rem] whitespace-nowrap p-1.5 text-left font-semibold">Doc</th>
+                <th className="min-w-[5.5rem] whitespace-nowrap p-1.5 text-left font-semibold">Folio</th>
+                <th className="min-w-[5rem] whitespace-nowrap p-1.5 text-left font-semibold">App</th>
+                <th className="min-w-[6rem] whitespace-nowrap p-1.5 text-left font-semibold">Usuario</th>
               </tr>
             </thead>
             <tbody>
@@ -986,7 +1080,7 @@ export default function App() {
               ) : (
                 jobs.map((j) => (
                   <tr key={j.id ?? `${j.createdAt}-${j.filename}`} className="border-b border-border last:border-b-0">
-                    <td className="sticky left-0 z-40 min-w-11 border-border border-r bg-background px-0.5 py-1.5 align-middle shadow-[4px_0_10px_-3px_rgb(0_0_0/0.12)]">
+                    <td className="print-queue-sticky-col sticky left-0 z-40 min-w-11 border-border border-r bg-background px-0.5 py-1.5 align-middle shadow-[4px_0_10px_-3px_rgb(0_0_0/0.12)]">
                       <div className="flex justify-center">
                         {j.id ? (
                           <IconButton
@@ -1004,23 +1098,23 @@ export default function App() {
                       <code className="print-code text-[0.65rem]">{escapeHtml(j.status)}</code>
                     </td>
                     <td
-                      className="max-w-28 p-1.5 align-top text-error"
+                      className="min-w-[12rem] max-w-[20rem] p-1.5 align-top text-error"
                       title={escapeHtml(j.error || "")}
                     >
                       {j.status === "error" && j.error ? (
-                        <span className="line-clamp-3 whitespace-pre-wrap break-words text-[0.65rem]">
+                        <span className="whitespace-pre-wrap break-words text-[0.65rem]">
                           {escapeHtml(j.error)}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
                     </td>
-                    <td className="max-w-18 truncate p-1.5 align-top" title={escapeHtml(j.documentType || j.filename || "")}>
+                    <td className="min-w-[5rem] whitespace-nowrap p-1.5 align-top" title={escapeHtml(j.documentType || j.filename || "")}>
                       {escapeHtml(j.documentType || j.filename || "—")}
                     </td>
-                    <td className="max-w-16 truncate p-1.5 align-top">{escapeHtml(j.internalFolio || "—")}</td>
-                    <td className="max-w-16 truncate p-1.5 align-top">{escapeHtml(j.sourceApp || "—")}</td>
-                    <td className="max-w-16 truncate p-1.5 align-top">{escapeHtml(j.requestedBy || "—")}</td>
+                    <td className="min-w-[5.5rem] whitespace-nowrap p-1.5 align-top">{escapeHtml(j.internalFolio || "—")}</td>
+                    <td className="min-w-[5rem] whitespace-nowrap p-1.5 align-top">{escapeHtml(j.sourceApp || "—")}</td>
+                    <td className="min-w-[6rem] whitespace-nowrap p-1.5 align-top">{escapeHtml(j.requestedBy || "—")}</td>
                   </tr>
                 ))
               )}
@@ -1053,6 +1147,37 @@ export default function App() {
         </footer>
       </div>
       </main>
+
+      <AppDialog
+        open={wssCertDialog.open}
+        onClose={() => setWssCertDialog((d) => ({ ...d, open: false }))}
+        title={wssCertDialog.title}
+        actions={
+          <Button
+            type="button"
+            variant="contained-primary"
+            density="compact"
+            onClick={() => setWssCertDialog((d) => ({ ...d, open: false }))}
+          >
+            Cerrar
+          </Button>
+        }
+      >
+        <p
+          className={
+            wssCertDialog.variant === "error"
+              ? "whitespace-pre-wrap text-error"
+              : "whitespace-pre-wrap text-foreground"
+          }
+        >
+          {wssCertDialog.message}
+        </p>
+        {wssCertDialog.variant === "success" ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Windows puede mostrar un diálogo del sistema al confiar el certificado; eso es normal.
+          </p>
+        ) : null}
+      </AppDialog>
     </>
   );
 }

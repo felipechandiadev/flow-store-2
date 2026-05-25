@@ -18,6 +18,7 @@ export const POS_PRINT_TEST_COMPANY: CompanyDetails = {
   businessActivity: "Venta al por menor",
   address: "Av. Falsa 123, Santiago",
   mail: "demo@ejemplo.cl",
+  phone: "+56 2 2345 6789",
   logoUrl: "/logo.png",
   bankAccounts: [],
 };

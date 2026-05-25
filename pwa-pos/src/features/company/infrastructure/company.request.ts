@@ -1,3 +1,4 @@
+import { resolveCompanyPhone } from "@flowstore/document-print";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 
@@ -11,6 +12,8 @@ export type CompanyDetails = {
   defaultCurrency?: string | null;
   address?: string | null;
   mail?: string | null;
+  /** Teléfono de contacto de la empresa. */
+  phone?: string | null;
   /**
    * URL de logo de marca (absoluta o relativa al dominio del POS).
    * Se intenta leer desde `settings` del backend (`logoUrl`, `posLogoUrl`, `brand.logoUrl`).
@@ -36,6 +39,7 @@ type CompanyApiResponse = {
   defaultCurrency?: string | null;
   address?: string | null;
   mail?: string | null;
+  phone?: string | null;
   settings?: unknown;
   bankAccounts?: unknown[] | null;
 };
@@ -141,6 +145,7 @@ export class CompanyRequest {
         defaultCurrency,
         address,
         mail,
+        phone: resolveCompanyPhone({ phone: data.phone, settings: data.settings }),
         logoUrl: extractCompanyLogoUrl(data.settings),
         bankAccounts: normalizeBankAccounts(data.bankAccounts),
       };

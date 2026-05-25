@@ -5,6 +5,7 @@ import {
   CustomersRepositoryPort,
   CUSTOMERS_REPOSITORY,
 } from '../../ports/customers.repository.port';
+import { saleBalanceDue } from '@modules/cash-sessions/application/collect-pending-sales.util';
 
 @QueryHandler(GetCustomerPurchasesQuery)
 export class GetCustomerPurchasesHandler implements IQueryHandler<GetCustomerPurchasesQuery> {
@@ -21,14 +22,21 @@ export class GetCustomerPurchasesHandler implements IQueryHandler<GetCustomerPur
       status,
     );
 
-    return purchases.map((p) => ({
-      id: p.id,
-      documentNumber: (p as any).documentNumber ?? null,
-      transactionType: (p as any).transactionType ?? null,
-      status: p.status,
-      total: Number(p.total || 0),
-      paymentMethod: (p as any).paymentMethod ?? null,
-      createdAt: p.createdAt,
-    }));
+    return purchases.map((p) => {
+      const total = Number(p.total || 0);
+      const amountPaid = Number((p as { amountPaid?: number }).amountPaid ?? 0);
+      return {
+        id: p.id,
+        documentNumber: (p as { documentNumber?: string }).documentNumber ?? null,
+        transactionType: (p as { transactionType?: string }).transactionType ?? null,
+        status: p.status,
+        total,
+        paymentMethod: (p as { paymentMethod?: string }).paymentMethod ?? null,
+        paymentStatus: (p as { paymentStatus?: string }).paymentStatus ?? null,
+        amountPaid,
+        balanceDue: saleBalanceDue(total, amountPaid),
+        createdAt: p.createdAt,
+      };
+    });
   }
 }

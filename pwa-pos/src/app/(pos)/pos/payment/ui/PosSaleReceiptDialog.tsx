@@ -110,6 +110,7 @@ export type PosSaleReceiptData = {
     logoUrl: string | null;
     address?: string | null;
     mail?: string | null;
+    phone?: string | null;
   };
   pos: {
     pointOfSaleName: string | null;
@@ -132,6 +133,10 @@ export type PosSaleReceiptData = {
     change: number;
   };
   payments: PosSaleReceiptPayment[];
+  /** Venta emitida sin cobro inmediato (AR). */
+  collectionPending?: boolean;
+  /** Cobro consolidado de varias ventas pendientes. */
+  arCollection?: Array<{ folio: string; amount: number }> | null;
 };
 
 export type PosSaleReceiptSnapshotInput = {
@@ -158,6 +163,8 @@ export type PosSaleReceiptSnapshotInput = {
   saleFolio?: string | null;
   documentKind?: PosSaleReceiptDocumentKind;
   backorder?: PosSaleReceiptBackorder | null;
+  collectionPending?: boolean;
+  arCollection?: Array<{ folio: string; amount: number }> | null;
 };
 
 function paymentLabel(
@@ -271,6 +278,7 @@ export function buildPosSaleReceiptSnapshot(input: PosSaleReceiptSnapshotInput):
       logoUrl: c?.logoUrl?.trim() ? c.logoUrl.trim() : null,
       address: c?.address?.trim() ? c.address.trim() : null,
       mail: c?.mail?.trim() ? c.mail.trim() : null,
+      phone: c?.phone?.trim() ? c.phone.trim() : null,
     },
     pos: {
       pointOfSaleName: input.posContext?.pointOfSaleName?.trim() || null,
@@ -293,14 +301,21 @@ export function buildPosSaleReceiptSnapshot(input: PosSaleReceiptSnapshotInput):
       change: input.totals.overpay,
     },
     payments,
+    collectionPending: input.collectionPending === true,
+    arCollection: input.arCollection?.length ? input.arCollection : null,
   };
 }
 
 export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string): string {
   const isBackorder = data.documentKind === "backorder";
+  const isArCollection = Boolean(data.arCollection?.length);
   const logo = resolveReceiptLogoUrl(data.company.logoUrl, origin);
   const displayName = data.company.nombreFantasia || data.company.razonSocial;
-  const receiptHeading = isBackorder ? "ENCARGO" : "Detalle de Venta";
+  const receiptHeading = isArCollection
+    ? "COBRO PENDIENTE"
+    : isBackorder
+      ? "ENCARGO"
+      : "Detalle de Venta";
 
   const lineRows = data.lines
     .map((l) => {
@@ -347,6 +362,22 @@ export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string
       ? `<p class="center muted">Abono: ${formatMoney(bo.depositAmount)}${bo.percent > 0 ? ` · ${bo.percent}%` : ""}</p>`
       : "";
 
+  const collectionPendingBanner = data.collectionPending
+    ? `<p class="center" style="font-weight:700;margin:6px 0;">COBRO PENDIENTE</p>
+       <p class="center muted">Saldo por cobrar: ${formatMoney(data.totals.total)}</p>`
+    : "";
+
+  const arCollectionRows =
+    data.arCollection?.map(
+      (row) =>
+        `<div class="row"><span>${escapeHtml(row.folio)}</span><span>${formatMoney(row.amount)}</span></div>`,
+    ).join("") ?? "";
+  const arCollectionBlock = arCollectionRows
+    ? `<div class="sep"></div>
+       <div class="section-title">Ventas cobradas</div>
+       ${arCollectionRows}`
+    : "";
+
   const paymentsSection =
     payRows || data.totals.change > 0.01
       ? `<div class="sep"></div>
@@ -387,6 +418,7 @@ export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string
   <div class="sep"></div>
   <p class="center muted">Folio: ${escapeHtml(data.folio)}</p>
   <p class="center muted">${escapeHtml(formatDateTime(data.issuedAtIso))}</p>
+  ${collectionPendingBanner}
   ${backorderHeaderLine}
   ${custBlock}
   ${quotBlock}
@@ -407,8 +439,17 @@ export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string
       : `<div class="row tot"><span>TOTAL</span><span>${formatMoney(data.totals.total)}</span></div>`
   }
   ${paymentsSection}
+  ${arCollectionBlock}
   <div class="sep"></div>
-  <p class="center muted" style="margin-top:10px;">${isBackorder ? "Comprobante de abono de encargo" : "Gracias por su compra"}</p>
+  <p class="center muted" style="margin-top:10px;">${
+    isArCollection
+      ? "Comprobante de cobro"
+      : isBackorder
+        ? "Comprobante de abono de encargo"
+        : data.collectionPending
+          ? "Venta registrada — cobro pendiente"
+          : "Gracias por su compra"
+  }</p>
   <div class="sep"></div>
   <div class="barcode-section"><div class="barcode-wrap">${receiptBarcodeSvgString(data.folio)}</div></div>
 </div>

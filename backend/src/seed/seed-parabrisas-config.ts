@@ -13,6 +13,7 @@ export const SEED_PARABRISAS = {
   nombreFantasia: 'Parabrisas don Walter',
   rut: '11.566.882-K',
   mail: 'walter.parada.v@gmail.com',
+  phone: '+56 2 2345 6789',
   address: 'Ignacio Carrera Pinto N°734 , Parral',
   businessActivity: 'Venta de parabrisas y vidrios automotrices',
   defaultCurrency: 'CLP',
