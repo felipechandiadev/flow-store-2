@@ -1,3 +1,5 @@
+import type { VariantPriceListItem } from "@/features/variant-pricing/types/pricing.types";
+
 export type VariantLookupItem = {
   variantId: string;
   sku: string;
@@ -9,4 +11,6 @@ export type VariantLookupItem = {
 export type VariantDetail = VariantLookupItem & {
   productId: string | null;
   unitOfMeasure: string;
+  pmp: number | null;
+  priceListItems: VariantPriceListItem[];
 };

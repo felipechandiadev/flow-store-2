@@ -147,13 +147,13 @@ function MyOpenSessionPanel({
   };
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
       <h1 className="text-2xl font-semibold tracking-tight">Sesión de caja</h1>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
         Tienes una sesión de caja abierta. ¿Quieres continuarla o cerrarla?
       </p>
 
-      <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="mt-4 rounded-xl border border-border bg-neutral p-4">
         <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Sesión abierta</h2>
         <dl className="mt-2 grid gap-1 text-sm">
           <div className="flex justify-between gap-4">
@@ -354,7 +354,7 @@ function NewSessionForm({
   };
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
       <h1 className="text-2xl font-semibold tracking-tight">Sesión de caja</h1>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
         Selecciona la sucursal y el punto de venta para abrir una sesión de caja.
@@ -396,7 +396,7 @@ function NewSessionForm({
         </div>
 
         {selectedPos ? (
-          <div className="mt-2 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="mt-2 rounded-xl border border-border bg-neutral p-4">
             <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Resumen</h2>
             <dl className="mt-2 grid gap-1 text-sm">
               <div className="flex justify-between gap-4">

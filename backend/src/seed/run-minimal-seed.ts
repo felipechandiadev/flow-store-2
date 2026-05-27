@@ -2525,8 +2525,6 @@ async function bootstrap() {
           variantPayload.packageWidthCm = vd.shipping.packageWidthCm;
           variantPayload.packageHeightCm = vd.shipping.packageHeightCm;
           variantPayload.volumetricDivisorK = k;
-          variantPayload.weight = vd.shipping.netWeightKg;
-          variantPayload.weightUnit = 'kg';
         }
 
         if (!variant) {

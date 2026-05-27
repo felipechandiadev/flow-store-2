@@ -1,0 +1,11 @@
+/**
+ * Fondo glass de la sidebar admin.
+ * Tokens en `app/globals.css` (`--color-sidebar-bg`, `--sidebar-backdrop-blur`).
+ */
+aside[data-test-id="side-bar-root"].fs-app-sidebar {
+  background-color: var(--color-sidebar-bg) !important;
+  color: var(--color-foreground);
+  border-right: 1px solid var(--color-border);
+  -webkit-backdrop-filter: blur(var(--sidebar-backdrop-blur));
+  backdrop-filter: blur(var(--sidebar-backdrop-blur));
+}

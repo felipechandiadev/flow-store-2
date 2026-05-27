@@ -12,6 +12,11 @@ import {
   YAxis,
 } from "recharts";
 import type { VariantSalePriceHistoryEntry } from "@/features/inventory-products/types/variant-sale-price-history.types";
+import {
+  rechartsChartCursor,
+  rechartsTooltipContentStyle,
+  rechartsTooltipWrapperStyle,
+} from "@/shared/charts/recharts-tooltip";
 
 const primary = "var(--color-primary, #002b59)";
 const muted = "var(--color-muted, #6b7280)";
@@ -67,6 +72,17 @@ function seriesLabelForEntry(e: VariantSalePriceHistoryEntry): string {
     return e.priceListName?.trim() || "Lista de precios";
   }
   return "Precio referencia";
+}
+
+/** Nombre más reciente disponible en el historial de la serie. */
+function seriesLabelForEvents(events: VariantSalePriceHistoryEntry[]): string {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const name = events[i].priceListName?.trim();
+    if (name) {
+      return name;
+    }
+  }
+  return seriesLabelForEntry(events[0]);
 }
 
 /** Precio colocado en la actualización (con impuestos si aplica). */
@@ -145,7 +161,7 @@ export function buildSalePriceHistoryChartSeries(
     }
     seriesLines.push({
       key,
-      label: seriesLabelForEntry(events[0]),
+      label: seriesLabelForEvents(events),
       points,
     });
   }
@@ -176,19 +192,18 @@ export function VariantSalePriceHistoryChart({
     [items],
   );
 
-  const labelByKey = useMemo(
-    () => new Map(seriesLines.map((s) => [s.key, s.label])),
-    [seriesLines],
-  );
-
   if (seriesLines.length === 0) {
     return null;
   }
 
   return (
-    <div className="mt-3 h-[min(220px,36vh)] w-full min-w-0" data-test-id="pv-sale-price-history-chart">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={axisPoints} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+    <div
+      className="fs-chart-surface mt-3 h-[min(220px,36vh)] w-full min-w-0 overflow-visible"
+      data-test-id="pv-sale-price-history-chart"
+      onMouseDown={(e) => e.preventDefault()}
+    >
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={120}>
+        <LineChart data={axisPoints} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
           <CartesianGrid stroke={border} strokeDasharray="4 8" vertical={false} opacity={0.65} />
           <XAxis
             type="number"
@@ -207,29 +222,24 @@ export function VariantSalePriceHistoryChart({
             width={80}
           />
           <Tooltip
-            formatter={(value: number, name: string) => [
-              formatMoney(Number(value), "CLP"),
-              labelByKey.get(String(name)) ?? String(name),
-            ]}
-            labelFormatter={(_, payload) => {
-              const row = payload?.[0]?.payload as SalePriceChartPoint | undefined;
-              return row?.at ? formatDateTime(row.at) : "";
+            cursor={rechartsChartCursor}
+            allowEscapeViewBox={{ x: true, y: true }}
+            wrapperStyle={rechartsTooltipWrapperStyle}
+            contentStyle={rechartsTooltipContentStyle}
+            formatter={(value, name) => {
+              const n = typeof value === "number" ? value : Number(value);
+              return [formatMoney(Number.isFinite(n) ? n : 0, "CLP"), String(name)];
             }}
-            contentStyle={{
-              borderRadius: 8,
-              border: `1px solid ${border}`,
-              fontSize: 12,
+            labelFormatter={(label, payload) => {
+              const row = payload?.[0]?.payload as SalePriceChartPoint | undefined;
+              if (row?.at) {
+                return formatDateTime(row.at);
+              }
+              return typeof label === "string" ? label : String(label ?? "");
             }}
           />
           {seriesLines.length > 1 ? (
-            <Legend
-              payload={seriesLines.map((s) => ({
-                value: s.label,
-                type: "line" as const,
-                color: colorForSeries(seriesLines, s.key),
-              }))}
-              wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-            />
+            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
           ) : null}
           {seriesLines.map((line) => (
             <Line
@@ -237,7 +247,7 @@ export function VariantSalePriceHistoryChart({
               data={line.points}
               type="linear"
               dataKey="value"
-              name={line.key}
+              name={line.label}
               stroke={colorForSeries(seriesLines, line.key)}
               strokeWidth={2}
               dot={{ r: 3, fill: colorForSeries(seriesLines, line.key) }}

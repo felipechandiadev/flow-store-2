@@ -13,10 +13,21 @@ import {
 } from "@/shared/components/StockThresholdField/StockThresholdField";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import {
+  listVariantSalePriceHistoryAction,
   updateProductVariantIdentityPartialAction,
   updateProductVariantInventoryPartialAction,
   updateProductVariantPricingPartialAction,
 } from "@/features/inventory-products/actions/product.action";
+import {
+  fetchVariantStockBreakdownAction,
+  saveVariantStorageThresholdsAction,
+} from "@/features/inventory-stock/actions/stock.action";
+import {
+  storageDraftsFromBreakdown,
+  storageThresholdsPayloadFromDrafts,
+  type StorageThresholdDraft,
+} from "@/features/inventory-stock/lib/variant-stock-threshold-config";
+import { VariantDetailStorageThresholdsBlock } from "./VariantDetailStorageThresholdsBlock";
 import { listUnitsForPage } from "@/features/inventory-units/actions/unit.action";
 import type { UnitListItem } from "@/features/inventory-units/types/unit.types";
 import { dimensionLabel } from "@/features/inventory-units/types/unit.types";
@@ -625,6 +636,17 @@ export function VariantDetailIdentitySection({
   );
 }
 
+function formatPriceListUpdatedAt(iso: string | null | undefined): string | null {
+  if (!iso?.trim()) {
+    return null;
+  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return null;
+  }
+  return d.toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" });
+}
+
 export function VariantDetailPricingSection({ productId, variant }: SectionProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -637,6 +659,7 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
   const [priceRows, setPriceRows] = useState<VariantPriceRowModel[]>([]);
   const [pmpCalculatorRowKey, setPmpCalculatorRowKey] = useState<string | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [lastUpdatedByListId, setLastUpdatedByListId] = useState<Record<string, string>>({});
 
   const ivaTaxes = useMemo(
     () => taxes.filter((t) => t.isActive && t.taxType === "IVA"),
@@ -668,6 +691,36 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
     const defaultIva = catalogDefaultIvaTaxIds(taxes);
     setPriceRows(priceListItemsToVariantRows(variant.priceListItems ?? [], defaultIva));
   }, [variant, taxes, editing]);
+
+  useEffect(() => {
+    if (editing) {
+      return;
+    }
+    const vid = variant.id?.trim() ?? "";
+    if (!vid) {
+      setLastUpdatedByListId({});
+      return;
+    }
+    void (async () => {
+      const r = await listVariantSalePriceHistoryAction(vid, { limit: 50 });
+      if (!r.success) {
+        return;
+      }
+      const map: Record<string, string> = {};
+      for (const e of r.items) {
+        const listId = e.priceListId?.trim();
+        const at = e.at?.trim();
+        if (!listId || !at) {
+          continue;
+        }
+        const prev = map[listId];
+        if (!prev || at > prev) {
+          map[listId] = at;
+        }
+      }
+      setLastUpdatedByListId(map);
+    })();
+  }, [variant.id, editing, historyRefreshKey]);
 
   const formatMoney = (amount: number, currency: string) => {
     try {
@@ -778,15 +831,30 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
             <p className="text-muted-foreground">Sin precios por lista.</p>
           ) : (
             <ul className="divide-y divide-border rounded-md border border-border">
-              {variant.priceListItems.map((p) => (
-                <li key={p.priceListId} className="flex flex-col gap-0.5 px-3 py-2">
-                  <span className="font-medium">{p.priceListName}</span>
-                  <span className="tabular-nums text-muted-foreground">
-                    Neto {formatMoney(p.netPrice, p.currency)} · Con impuestos{" "}
-                    {formatMoney(p.grossPrice, p.currency)}
-                  </span>
-                </li>
-              ))}
+              {variant.priceListItems.map((p) => {
+                const updatedAtLabel = formatPriceListUpdatedAt(
+                  p.updatedAt ?? lastUpdatedByListId[p.priceListId] ?? null,
+                );
+                return (
+                  <li key={p.priceListId} className="flex flex-col gap-0.5 px-3 py-2">
+                    <span className="font-medium">{p.priceListName}</span>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                      <span className="min-w-0 tabular-nums text-muted-foreground">
+                        Neto {formatMoney(p.netPrice, p.currency)} · Con impuestos{" "}
+                        {formatMoney(p.grossPrice, p.currency)}
+                      </span>
+                      {updatedAtLabel ? (
+                        <span
+                          className="shrink-0 text-xs text-muted-foreground"
+                          data-test-id={`pv-price-list-updated-${p.priceListId}`}
+                        >
+                          Última actualización {updatedAtLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -874,8 +942,21 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
   const [maximumStockEnabled, setMaximumStockEnabled] = useState(false);
   const [reorderPoint, setReorderPoint] = useState("0");
   const [reorderPointEnabled, setReorderPointEnabled] = useState(false);
-  const [weight, setWeight] = useState("");
-  const [weightUnit, setWeightUnit] = useState("kg");
+  const [storageDrafts, setStorageDrafts] = useState<StorageThresholdDraft[]>([]);
+  const [breakdownReloadKey, setBreakdownReloadKey] = useState(0);
+
+  const minimumVariantDraft = useMemo(
+    () => ({ enabled: minimumStockEnabled, value: minimumStock }),
+    [minimumStockEnabled, minimumStock],
+  );
+  const maximumVariantDraft = useMemo(
+    () => ({ enabled: maximumStockEnabled, value: maximumStock }),
+    [maximumStockEnabled, maximumStock],
+  );
+  const reorderVariantDraft = useMemo(
+    () => ({ enabled: reorderPointEnabled, value: reorderPoint }),
+    [reorderPointEnabled, reorderPoint],
+  );
 
   useEffect(() => {
     if (editing) {
@@ -902,10 +983,6 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
         ? String(Math.max(0, Math.round(Number(variant.reorderPoint))))
         : "0",
     );
-    setWeight(
-      variant.weight != null && Number.isFinite(Number(variant.weight)) ? String(variant.weight) : "",
-    );
-    setWeightUnit(variant.weightUnit?.trim() ? String(variant.weightUnit).trim() : "kg");
   }, [variant, productType, editing]);
 
   const ro = !editing;
@@ -916,7 +993,15 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
   const toggleEditOrSave = () => {
     setError(null);
     if (!editing) {
+      const vid = variant.id?.trim() ?? "";
+      const sku = variant.sku?.trim() ?? "";
       setEditing(true);
+      void (async () => {
+        const r = await fetchVariantStockBreakdownAction({ variantId: vid, sku });
+        if (r.ok) {
+          setStorageDrafts(storageDraftsFromBreakdown(r.breakdown));
+        }
+      })();
       return;
     }
     const vid = variant.id?.trim() ?? "";
@@ -924,15 +1009,6 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
       setError("Variante no válida");
       return;
     }
-    const parseOptDecimal = (s: string): number | null => {
-      const t = s.trim();
-      if (!t) {
-        return null;
-      }
-      const n = Number(t.replace(",", "."));
-      return Number.isFinite(n) ? n : null;
-    };
-
     startTransition(() => {
       void (async () => {
         const r = await updateProductVariantInventoryPartialAction(vid, {
@@ -944,22 +1020,29 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
           maximumStockEnabled,
           reorderPoint: Math.max(0, Math.round(Number(reorderPoint) || 0)),
           reorderPointEnabled,
-          weight: parseOptDecimal(weight),
-          weightUnit: weightUnit.trim() || "kg",
         });
-        if (r.success) {
-          setEditing(false);
-          await router.refresh();
-        } else {
+        if (!r.success) {
           setError(r.error);
+          return;
         }
+        const storage = await saveVariantStorageThresholdsAction({
+          variantId: vid,
+          storageThresholds: storageThresholdsPayloadFromDrafts(storageDrafts),
+        });
+        if (!storage.success) {
+          setError(storage.error);
+          return;
+        }
+        setEditing(false);
+        setBreakdownReloadKey((k) => k + 1);
+        await router.refresh();
       })();
     });
   };
 
   return (
     <section className={sectionCardClass(editing)} data-test-id="pv-section-inventory">
-      <h2 className="text-sm font-semibold text-foreground">Inventario</h2>
+      <h2 className="text-sm font-semibold text-foreground">Configuración inventario</h2>
       {error ? <Alert variant="error">{error}</Alert> : null}
 
       {ro ? (
@@ -984,17 +1067,6 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
             label="Punto de reposición"
             name="pv-inv-reorder-ro"
             value={formatThresholdReadOnly(variant.reorderPointEnabled, variant.reorderPoint)}
-            onChange={noop}
-            readOnly
-          />
-          <TextField
-            label="Peso referencia (legacy)"
-            name="pv-inv-weight-ro"
-            value={
-              variant.weight != null && Number.isFinite(Number(variant.weight))
-                ? `${variant.weight} ${(variant.weightUnit ?? "kg").trim()}`
-                : "—"
-            }
             onChange={noop}
             readOnly
           />
@@ -1042,16 +1114,20 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
             onValueChange={setReorderPoint}
             dataTestId="pv-inv-reorder"
           />
-          <TextField label="Peso referencia" name="pv-inv-weight" value={weight} onChange={(e) => setWeight(e.target.value)} />
-          <TextField
-            label="Unidad peso"
-            name="pv-inv-weight-u"
-            value={weightUnit}
-            onChange={(e) => setWeightUnit(e.target.value)}
-            placeholder="kg"
-          />
         </div>
       )}
+
+      <VariantDetailStorageThresholdsBlock
+        variantId={variant.id}
+        sku={variant.sku}
+        editing={!ro}
+        minimumDraft={minimumVariantDraft}
+        maximumDraft={maximumVariantDraft}
+        reorderDraft={reorderVariantDraft}
+        storageDrafts={storageDrafts}
+        onStorageDraftsChange={setStorageDrafts}
+        reloadKey={breakdownReloadKey}
+      />
 
       <div className="absolute bottom-2 right-2">
         <IconButton

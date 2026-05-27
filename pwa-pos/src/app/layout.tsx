@@ -8,13 +8,16 @@ import AuthProvider from "@/providers/AuthProvider";
 const THEME_COLOR = "#002B59";
 
 export const metadata: Metadata = {
-  title: "KaiStore POS",
+  title: {
+    default: "KaiStore | POS",
+    template: "%s | KaiStore POS",
+  },
   description: "Punto de venta KaiStore (PWA)",
   manifest: "/manifest.json",
   applicationName: "KaiStore POS",
   appleWebApp: {
     capable: true,
-    title: "KaiStore POS",
+    title: "KaiStore | POS",
     statusBarStyle: "default",
   },
   icons: {
@@ -51,9 +54,9 @@ export default function RootLayout({
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="KaiStore POS" />
+        <meta name="apple-mobile-web-app-title" content="KaiStore | POS" />
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col bg-background text-foreground">
         <AuthProvider>{children}</AuthProvider>
         <Script id="sw-register" strategy="afterInteractive">
           {`if ('serviceWorker' in navigator && ${registerServiceWorkerInProduction}) {

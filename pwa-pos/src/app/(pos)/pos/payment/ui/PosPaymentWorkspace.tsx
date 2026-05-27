@@ -165,7 +165,7 @@ function PosPaymentMethodCard({
 
   return (
     <li
-      className="grid grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+      className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-surface p-3 shadow-sm"
       data-test-id={`pos-payment-method-row-${p.id}`}
     >
       <div className="grid grid-cols-1 gap-3">

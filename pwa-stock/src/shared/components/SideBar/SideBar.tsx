@@ -169,7 +169,7 @@ export default function SideBar({
 
   return (
     <aside
-      className={`flex h-full min-h-0 w-[13.6rem] shrink-0 flex-col items-center bg-white/40 py-4 text-black shadow-xl backdrop-blur backdrop-saturate-150 ${className ?? ""}`}
+      className={`fs-app-sidebar flex h-full min-h-0 w-[13.6rem] shrink-0 flex-col items-center py-4 shadow-xl backdrop-saturate-150 ${className ?? ""}`}
       style={style}
       data-test-id="side-bar-root"
     >
@@ -190,7 +190,7 @@ export default function SideBar({
                 ref={sideLogoRef}
                 src={logoUrl}
                 alt={`${APP_TITLE} ${APP_SUBTITLE}`}
-                className="relative mx-auto h-20 w-auto max-w-[5rem] object-contain transition-opacity duration-300"
+                className="relative mx-auto h-20 w-auto max-w-20 object-contain transition-opacity duration-300"
                 style={{ opacity: sideLogoLoaded ? 1 : 0 }}
                 data-test-id="side-bar-logo"
                 onLoad={onSideLogoLoad}
@@ -232,10 +232,10 @@ export default function SideBar({
                   style={{ background: "transparent", borderWidth: "0.3px" }}
                 >
                   <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <User className="mt-0.5 shrink-0 text-black" size={24} />
+                    <User className="mt-0.5 shrink-0 text-muted" size={24} />
                     <div className="flex min-w-0 flex-1 flex-col">
                       <span
-                        className="line-clamp-2 break-words text-left text-[11px] font-semibold leading-snug text-foreground"
+                        className="line-clamp-2 wrap-break-word text-left text-[11px] font-semibold leading-snug text-foreground"
                         title={displayName}
                       >
                         {displayName}

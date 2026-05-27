@@ -14,38 +14,42 @@ export type CreateProductPageProps = {
 };
 
 export default function CreateProductPage({ scannedCode, mode }: CreateProductPageProps) {
-  const [code, setCode] = useState(scannedCode);
   const [productName, setProductName] = useState("");
   const [sku, setSku] = useState(mode === "sku" ? scannedCode : "");
+  const [barcode, setBarcode] = useState(mode === "barcode" ? scannedCode : "");
   const [basePrice, setBasePrice] = useState("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
-  const codeLocked = scannedCode.trim().length > 0;
-  const codeLabel = mode === "sku" ? "SKU" : "Código de barras";
+  const skuLocked = scannedCode.trim().length > 0 && mode === "sku";
+  const barcodeLocked = scannedCode.trim().length > 0 && mode === "barcode";
 
   useEffect(() => {
-    setCode(scannedCode);
     setProductName("");
     setSku(mode === "sku" ? scannedCode : "");
+    setBarcode(mode === "barcode" ? scannedCode : "");
     setBasePrice("");
     setError("");
   }, [scannedCode, mode]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedCode = code.trim();
-    if (!trimmedCode) {
-      setError(`${codeLabel} es obligatorio`);
+    const trimmedSku = sku.trim();
+    const trimmedName = productName.trim();
+    if (!trimmedName) {
+      setError("El nombre es obligatorio");
+      return;
+    }
+    if (!trimmedSku) {
+      setError("El SKU es obligatorio");
       return;
     }
     setError("");
     startTransition(async () => {
       const r = await createQuickProductAction({
-        productName,
-        scannedCode: trimmedCode,
-        mode,
-        sku: sku.trim() || undefined,
+        productName: trimmedName,
+        sku: trimmedSku,
+        barcode: barcode.trim() || undefined,
         basePrice: basePrice.trim() ? Number(basePrice.replace(/\D/g, "")) : 0,
       });
       if (!r.success) {
@@ -62,7 +66,7 @@ export default function CreateProductPage({ scannedCode, mode }: CreateProductPa
       <div>
         <h1 className="text-lg font-semibold text-foreground">Crear producto</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {codeLocked ? (
+          {scannedCode.trim() ? (
             <>
               No existe una variante con el código <strong>{scannedCode}</strong>. Completa los datos
               mínimos para registrar el producto y su stock en el almacén por defecto.
@@ -78,15 +82,6 @@ export default function CreateProductPage({ scannedCode, mode }: CreateProductPa
       {error ? <Alert variant="error">{error}</Alert> : null}
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" id="create-product-form">
         <TextField
-          label={codeLabel}
-          placeholder={codeLabel}
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          disabled={pending || codeLocked}
-          readOnly={codeLocked}
-          required
-        />
-        <TextField
           label="Nombre del producto"
           placeholder="Nombre del producto"
           value={productName}
@@ -99,7 +94,17 @@ export default function CreateProductPage({ scannedCode, mode }: CreateProductPa
           placeholder="SKU"
           value={sku}
           onChange={(e) => setSku(e.target.value)}
-          disabled={pending || (codeLocked && mode === "sku")}
+          disabled={pending || skuLocked}
+          readOnly={skuLocked}
+          required
+        />
+        <TextField
+          label="Código de barras"
+          placeholder="Código de barras (opcional)"
+          value={barcode}
+          onChange={(e) => setBarcode(e.target.value)}
+          disabled={pending || barcodeLocked}
+          readOnly={barcodeLocked}
         />
         <TextField
           label="Precio de venta"

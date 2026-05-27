@@ -259,7 +259,7 @@ export default function PosCustomerSearchPanel({
           data-test-id="pos-customer-search-detail-content"
         >
           <article
-            className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+            className="rounded-xl border border-border bg-surface p-4 shadow-sm"
             data-test-id="pos-customer-search-detail-card"
           >
             <header className="flex items-start justify-between gap-3">
@@ -409,10 +409,10 @@ export default function PosCustomerSearchPanel({
                   key={row.customerId}
                   type="button"
                   onClick={() => onPick(row)}
-                  className={`block w-full rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-secondary/60 hover:shadow focus:border-secondary focus:outline-none dark:bg-zinc-950 ${
+                  className={`block w-full rounded-xl border border-border bg-surface p-3 text-left shadow-sm transition hover:border-secondary/60 hover:shadow focus:border-secondary focus:outline-none ${
                     picked
                       ? "border-secondary ring-2 ring-secondary/25 dark:border-secondary"
-                      : "border-zinc-200 dark:border-zinc-800"
+                      : "border-border"
                   }`}
                   data-test-id={`pos-customer-search-pick-${row.customerId}`}
                 >

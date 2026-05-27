@@ -79,7 +79,12 @@ function StockScanSearchNavButton() {
   const router = useRouter();
 
   if (isCreateProductPath(pathname)) {
-    return null;
+    return (
+      <>
+        <StockScanNavButton onClick={() => router.push(SCAN_PATH)} />
+        <StockSearchNavButton onClick={() => router.push(SEARCH_PATH)} />
+      </>
+    );
   }
 
   if (pathname === SCAN_PATH) {
@@ -165,7 +170,8 @@ export default function StockPageShell({ children }: StockPageShellProps) {
             onExpandedChange={setSidebarExpanded}
           />
           <div
-            className="min-h-0 min-w-0 flex-1 cursor-default bg-black/10"
+            className="min-h-0 min-w-0 flex-1 cursor-default"
+            style={{ backgroundColor: "var(--color-sidebar-overlay)" }}
             aria-label="Cerrar menú lateral"
             data-test-id="stock-sidebar-overlay"
             onClick={closeSidebar}

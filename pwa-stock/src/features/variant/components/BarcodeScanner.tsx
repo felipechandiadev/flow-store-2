@@ -190,7 +190,7 @@ export default function BarcodeScanner({ onScan, paused = false }: BarcodeScanne
 
       <div
         id={regionId}
-        className={`mx-auto min-h-[220px] w-full overflow-hidden rounded-lg border border-border bg-neutral-100 ${
+        className={`mx-auto min-h-[220px] w-full overflow-hidden rounded-lg border border-border bg-neutral ${
           cameraActive || starting ? "" : "hidden"
         }`}
         data-test-id="barcode-scanner-region"

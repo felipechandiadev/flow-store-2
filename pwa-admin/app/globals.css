@@ -25,6 +25,44 @@
     var(--color-neutral) 65%,
     var(--color-background)
   );
+
+  /* Sidebar (glass en claro, oscuro derivado del negro) */
+  --color-sidebar-bg: rgba(255, 255, 255, 0.2);
+  --sidebar-backdrop-blur: 7px;
+  /* Overlay al abrir menú lateral (zona clickeable detrás de la sidebar) */
+  --color-sidebar-overlay: rgba(0, 43, 89, 0.25);
+}
+
+/* ==========================================================================
+   MODO OSCURO (Se activa automáticamente según el sistema/navegador)
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: #0a7cad;
+
+    --color-background: #121212;
+    --color-surface: #1e1e1e;
+
+    --color-foreground: #f3f4f6;
+    --color-muted: #9ca3af;
+    --color-border: #374151;
+
+    --color-neutral: #1f2937;
+
+    --color-success: #81c784;
+    --color-info: #64b5f6;
+    --color-warning: #ffd54f;
+    --color-error: #e57373;
+
+    --color-hover: color-mix(in srgb, var(--color-neutral) 40%, var(--color-background));
+
+    /* Mismo secondary que en claro (iconos date, adornos) */
+    --color-secondary: #04c9e6;
+
+    --color-sidebar-bg: rgba(18, 18, 18, 0.3);
+    --sidebar-backdrop-blur: 8px;
+    --color-sidebar-overlay: rgba(0, 32, 66, 0.3);
+  }
 }
 
 body {
@@ -47,4 +85,53 @@ body {
     margin: 0 auto;
     padding: 0 2rem;
   }
+}
+
+/* Recharts: sin recuadro azul de foco/selección al hacer clic en el gráfico */
+.fs-chart-surface,
+.fs-chart-surface .recharts-wrapper,
+.fs-chart-surface .recharts-wrapper *,
+.fs-chart-surface .recharts-surface,
+.fs-chart-surface .recharts-layer,
+.fs-chart-surface .recharts-active-dot,
+.fs-chart-surface .recharts-dot {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.fs-chart-surface,
+.fs-chart-surface .recharts-wrapper {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fs-chart-surface .recharts-wrapper *:focus,
+.fs-chart-surface .recharts-wrapper *:focus-visible,
+.fs-chart-surface .recharts-wrapper svg:focus,
+.fs-chart-surface .recharts-wrapper svg:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Banda vertical del tooltip (cursor) — sin borde/relleno visible al clic */
+.fs-chart-surface .recharts-tooltip-cursor,
+.fs-chart-surface .recharts-rectangle.recharts-tooltip-cursor {
+  fill: transparent !important;
+  stroke: transparent !important;
+}
+
+.recharts-tooltip-wrapper {
+  z-index: 1000 !important;
+  outline: none !important;
+  pointer-events: none;
+}
+
+/* Después de @tailwind utilities (importado arriba) para que no lo pisen utilidades */
+aside[data-test-id="side-bar-root"].fs-app-sidebar {
+  background-color: var(--color-sidebar-bg);
+  color: var(--color-foreground);
+  border-right: 1px solid var(--color-border);
+  -webkit-backdrop-filter: blur(var(--sidebar-backdrop-blur));
+  backdrop-filter: blur(var(--sidebar-backdrop-blur));
 }

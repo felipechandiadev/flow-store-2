@@ -108,7 +108,7 @@ export default function PosCustomerDetailAside(props: {
       </header>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
-        <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contacto</h3>
           <dl className="mt-3 grid gap-3 sm:grid-cols-2">
             <DetailField label="Documento" value={doc} />
@@ -125,7 +125,7 @@ export default function PosCustomerDetailAside(props: {
         </section>
 
         {internalCreditEnabled ? (
-          <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Crédito</h3>
             <dl className="mt-3 grid gap-3 sm:grid-cols-2">
               <DetailField label="Límite" value={money.format(Math.round(customer.creditLimit))} />
@@ -144,7 +144,7 @@ export default function PosCustomerDetailAside(props: {
         ) : null}
 
         {internalCreditEnabled ? (
-          <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Cuotas / documentos pendientes
             </h3>
@@ -175,7 +175,7 @@ export default function PosCustomerDetailAside(props: {
           </section>
         ) : null}
 
-        <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Historial de pagos</h3>
           {payments.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Sin movimientos de cobro registrados.</p>

@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import React from 'react';
-import { useSession, signOut } from 'next-auth/react';
+import { signOut } from 'next-auth/react';
 import TextField from '@/shared/components/TextField';
 import { Button } from '@/shared/components/Button';
 import Alert from '@/shared/components/Alert';
 import Dialog from './Dialog';
+import { changePasswordAction } from '@/features/auth/actions/change-password.action';
 
 const CHANGE_PASSWORD_FORM_ID = 'change-password-form';
 
@@ -16,7 +17,6 @@ interface ChangePasswordDialogProps {
 }
 
 export default function ChangePasswordDialog({ isOpen, onClose }: ChangePasswordDialogProps) {
-  const { data: session } = useSession();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -29,22 +29,9 @@ export default function ChangePasswordDialog({ isOpen, onClose }: ChangePassword
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3001/auth/change-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.user?.accessToken}`,
-        },
-        body: JSON.stringify({
-          currentPassword,
-          newPassword,
-          confirmPassword,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Error al cambiar la contraseña');
+      const r = await changePasswordAction({ currentPassword, newPassword, confirmPassword });
+      if (!r.success) {
+        throw new Error(r.error);
       }
 
       onClose();

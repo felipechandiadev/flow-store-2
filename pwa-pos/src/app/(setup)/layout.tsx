@@ -9,7 +9,7 @@ export default async function SetupLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="min-h-dvh bg-zinc-50 text-zinc-950 dark:bg-black dark:text-zinc-50">
+    <div className="min-h-dvh bg-background text-foreground">
       <main className="mx-auto w-full max-w-2xl px-4 py-10">{children}</main>
     </div>
   );

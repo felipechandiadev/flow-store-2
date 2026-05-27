@@ -2,9 +2,13 @@ import { z } from "zod";
 
 export const quickCreateProductInputSchema = z.object({
   productName: z.string().trim().min(1, "El nombre es obligatorio").max(200),
-  scannedCode: z.string().trim().min(1, "Código inválido").max(100),
-  mode: z.enum(["barcode", "sku"]),
-  sku: z.string().trim().max(100).optional(),
+  sku: z.string().trim().min(1, "El SKU es obligatorio").max(100),
+  barcode: z
+    .string()
+    .trim()
+    .max(100)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
   basePrice: z.coerce.number().min(0).optional(),
 });
 

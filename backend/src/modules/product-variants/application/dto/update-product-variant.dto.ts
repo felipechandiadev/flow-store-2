@@ -61,15 +61,6 @@ export class UpdateProductVariantDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  weight?: number;
-
-  @IsOptional()
-  @IsString()
-  weightUnit?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
   netWeightKg?: number;
 
   @IsOptional()

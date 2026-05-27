@@ -22,7 +22,7 @@ function postLoginPath(): string {
 }
 
 function LoginPaperCard({ children }: { children: React.ReactNode }) {
-  return <div className="w-full bg-white">{children}</div>;
+  return <div className="w-full bg-background">{children}</div>;
 }
 
 export default function LoginPageClient() {
@@ -75,7 +75,7 @@ export default function LoginPageClient() {
       icon="Settings"
       variant="basicSecondary"
       size="md"
-      className="fixed bottom-4 right-4 z-40 rounded-full border border-border bg-white"
+      className="fixed bottom-4 right-4 z-40 rounded-full border border-border bg-surface"
       onClick={() => router.push("/setup")}
       ariaLabel="Configurar empresa"
       data-test-id="login-setup-button"

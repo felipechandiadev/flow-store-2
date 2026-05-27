@@ -109,6 +109,11 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
           if (!priceListId) {
             return null;
           }
+          const updatedAtRaw = p.updatedAt;
+          const updatedAt =
+            updatedAtRaw != null && String(updatedAtRaw).trim()
+              ? String(updatedAtRaw).trim()
+              : null;
           return {
             priceListId,
             priceListName,
@@ -116,6 +121,7 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
             netPrice: net,
             grossPrice: gross,
             taxIds: Array.isArray(p.taxIds) ? p.taxIds.map(String) : undefined,
+            updatedAt,
           };
         })
         .filter((x): x is ProductPriceListItemRow => x != null)
@@ -142,14 +148,6 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
         })
         .filter((x): x is ProductVariantMediaAsset => x != null)
     : undefined;
-  const w =
-    o.weight != null && o.weight !== ""
-      ? typeof o.weight === "number"
-        ? o.weight
-        : Number(o.weight)
-      : null;
-  const weightNum = w != null && Number.isFinite(w) ? w : null;
-
   const parseOptQty = (raw: unknown): number | null | undefined => {
     if (raw === undefined) {
       return undefined;
@@ -238,8 +236,6 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
           : undefined,
     reorderPointEnabled:
       typeof o.reorderPointEnabled === "boolean" ? o.reorderPointEnabled : undefined,
-    weight: weightNum,
-    weightUnit: o.weightUnit != null ? String(o.weightUnit) : undefined,
     netWeightKg: parseNullableDecimal(o.netWeightKg),
     grossWeightKg: parseNullableDecimal(o.grossWeightKg),
     packageLengthCm: parseNullableDecimal(o.packageLengthCm),
@@ -651,8 +647,6 @@ export class ProductRequest {
       maximumStockEnabled?: boolean;
       reorderPoint?: number;
       reorderPointEnabled?: boolean;
-      weight?: number | null;
-      weightUnit?: string | null;
       netWeightKg?: number | null;
       grossWeightKg?: number | null;
       packageLengthCm?: number | null;
@@ -717,12 +711,6 @@ export class ProductRequest {
     }
     if (body.stockBaseQtyPerCountPurchaseUnit != null) {
       payload.stockBaseQtyPerCountPurchaseUnit = body.stockBaseQtyPerCountPurchaseUnit;
-    }
-    if (body.weight !== undefined) {
-      payload.weight = body.weight;
-    }
-    if (body.weightUnit !== undefined && body.weightUnit !== null) {
-      payload.weightUnit = body.weightUnit;
     }
     if (body.netWeightKg !== undefined) {
       payload.netWeightKg = body.netWeightKg;

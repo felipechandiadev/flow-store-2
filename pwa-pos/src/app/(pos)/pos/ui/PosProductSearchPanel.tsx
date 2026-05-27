@@ -363,10 +363,10 @@ export default function PosProductSearchPanel({
                 disabled={!canPick}
                 onClick={() => onPickProduct?.(item)}
                 title={canPick ? "Agregar al carrito" : undefined}
-                className={`block w-full touch-manipulation rounded-xl border bg-white p-3 text-left shadow-sm transition-colors dark:bg-zinc-950 ${
+                className={`block w-full touch-manipulation rounded-xl border border-border bg-surface p-3 text-left shadow-sm transition-colors ${
                   canPick
-                    ? "cursor-pointer border-zinc-200 hover:border-secondary focus:border-secondary focus:outline-none active:border-secondary/40 active:bg-secondary/10 dark:border-zinc-800 dark:active:bg-secondary/10"
-                    : "cursor-not-allowed border-zinc-200 opacity-60 dark:border-zinc-800"
+                    ? "cursor-pointer border-border hover:border-secondary focus:border-secondary focus:outline-none active:border-secondary/40 active:bg-secondary/10"
+                    : "cursor-not-allowed border-border opacity-60"
                 }`}
                 data-test-id={`pos-product-variant-card-${item.variantId}`}
               >

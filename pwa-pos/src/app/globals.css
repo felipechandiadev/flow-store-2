@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /**
- * Fuentes sin descarga en build (evita fallar si no hay red). Mismos nombres que antes usaba `next/font/google`.
+ * Fuentes sin descarga en build (evita fallar si no hay red).
  */
 :root {
   --font-geist-sans:
@@ -10,13 +10,57 @@
   --font-geist-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
+
+  color-scheme: light;
+
+  /* Fuente de verdad (cambia en @media dark); @theme referencia var(--fs-*) */
+  --fs-primary: #002b59;
+  --fs-background: #ffffff;
+  --fs-surface: #ffffff;
+  --fs-foreground: #131615;
+  --fs-border: #c1c1c2;
+  --fs-active: #0a7cad;
+  --fs-accent: #0a7cad;
+  --fs-secondary: #04c9e6;
+  --fs-muted: #6b7280;
+  --fs-muted-foreground: #6b7280;
+  --fs-success: #4caf50;
+  --fs-info: #2196f3;
+  --fs-warning: #ffc107;
+  --fs-error: #f44336;
+  --fs-destructive: #dc2626;
+  --fs-destructive-foreground: #ffffff;
+  --fs-neutral: #f3f4f6;
+
+  /* Aliases para CSS de componentes (textfield, dialog, etc.) */
+  --color-primary: var(--fs-primary);
+  --color-background: var(--fs-background);
+  --color-surface: var(--fs-surface);
+  --color-foreground: var(--fs-foreground);
+  --color-border: var(--fs-border);
+  --color-active: var(--fs-active);
+  --color-accent: var(--fs-accent);
+  --color-secondary: var(--fs-secondary);
+  --color-muted: var(--fs-muted);
+  --color-muted-foreground: var(--fs-muted-foreground);
+  --color-success: var(--fs-success);
+  --color-info: var(--fs-info);
+  --color-warning: var(--fs-warning);
+  --color-error: var(--fs-error);
+  --color-destructive: var(--fs-destructive);
+  --color-destructive-foreground: var(--fs-destructive-foreground);
+  --color-neutral: var(--fs-neutral);
+  --color-hover: color-mix(in srgb, var(--fs-neutral) 65%, var(--fs-background));
+
+  --app-topbar-height: 3.75rem;
+  --app-sidebar-width: 3.5rem;
+  --color-sidebar-bg: rgba(255, 255, 255, 0.2);
+  --sidebar-backdrop-blur: 8px;
+  --color-sidebar-overlay: rgba(0, 43, 89, 0.25);
 }
 
 /**
- * Tokens alineados con `pwa-admin/tailwind.config.ts`.
- * En Tailwind v4 hay que declararlos en `@theme` para que existan utilidades como
- * `border-border`, `bg-background`, `text-foreground`, `ring-primary/20`, etc.
- * Sin esto, Select / TextField / DropdownList se ven rotos.
+ * Tailwind v4: utilidades apuntan a --fs-* para que dark mode en :root las actualice.
  */
 @theme inline {
   --font-sans: var(--font-geist-sans);
@@ -25,32 +69,24 @@
   --app-topbar-height: 3.75rem;
   --app-sidebar-width: 3.5rem;
 
-  --color-primary: #002b59;
-  --color-background: #ffffff;
-  --color-foreground: #131615;
-  --color-border: #c1c1c2;
-  --color-active: #0a7cad;
-  --color-accent: #0a7cad;
-  --color-secondary: #04c9e6;
-  --color-muted: #6b7280;
-  --color-muted-foreground: #6b7280;
-  --color-success: #4caf50;
-  --color-info: #2196f3;
-  --color-warning: #ffc107;
-  --color-error: #f44336;
-  --color-destructive: #dc2626;
-  --color-destructive-foreground: #ffffff;
-  --color-neutral: #f3f4f6;
-  --color-hover: color-mix(in srgb, var(--color-neutral) 65%, var(--color-background));
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: #0a0a0a;
-    --color-foreground: #ededed;
-    --color-border: #3f3f46;
-    --color-neutral: #27272a;
-  }
+  --color-primary: var(--fs-primary);
+  --color-background: var(--fs-background);
+  --color-surface: var(--fs-surface);
+  --color-foreground: var(--fs-foreground);
+  --color-border: var(--fs-border);
+  --color-active: var(--fs-active);
+  --color-accent: var(--fs-accent);
+  --color-secondary: var(--fs-secondary);
+  --color-muted: var(--fs-muted);
+  --color-muted-foreground: var(--fs-muted-foreground);
+  --color-success: var(--fs-success);
+  --color-info: var(--fs-info);
+  --color-warning: var(--fs-warning);
+  --color-error: var(--fs-error);
+  --color-destructive: var(--fs-destructive);
+  --color-destructive-foreground: var(--fs-destructive-foreground);
+  --color-neutral: var(--fs-neutral);
+  --color-hover: color-mix(in srgb, var(--fs-neutral) 65%, var(--fs-background));
 }
 
 @layer base {
@@ -60,13 +96,50 @@
 
   body {
     font-family: var(--font-geist-sans);
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--fs-background);
+    color: var(--fs-foreground);
   }
 
   .container {
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 2rem;
+  }
+}
+
+.fs-app-sidebar {
+  background-color: var(--color-sidebar-bg);
+  color: var(--color-foreground);
+  border-right: 1px solid var(--color-border);
+  -webkit-backdrop-filter: blur(var(--sidebar-backdrop-blur));
+  backdrop-filter: blur(var(--sidebar-backdrop-blur));
+}
+
+/* ==========================================================================
+   MODO OSCURO — al final para no ser pisado por @theme
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --fs-primary: #0a7cad;
+    --fs-background: #121212;
+    --fs-surface: #1e1e1e;
+    --fs-foreground: #f3f4f6;
+    --fs-border: #374151;
+    --fs-muted: #9ca3af;
+    --fs-muted-foreground: #9ca3af;
+    --fs-neutral: #1f2937;
+    --fs-success: #81c784;
+    --fs-info: #64b5f6;
+    --fs-warning: #ffd54f;
+    --fs-error: #e57373;
+    --fs-secondary: #04c9e6;
+
+    --color-hover: color-mix(in srgb, var(--fs-neutral) 40%, var(--fs-background));
+
+    --color-sidebar-bg: rgba(18, 18, 18, 0.3);
+    --sidebar-backdrop-blur: 8px;
+    --color-sidebar-overlay: rgba(0, 32, 66, 0.3);
   }
 }

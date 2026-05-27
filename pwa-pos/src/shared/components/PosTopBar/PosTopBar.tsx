@@ -3,11 +3,14 @@
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BadgeCheck, Building2, ImageOff, Image as ImageIcon, Store, User, Wifi, WifiOff } from "lucide-react";
+import { BadgeCheck, Building2, CircleUser, ImageOff, Image as ImageIcon, Store, Wifi, WifiOff } from "lucide-react";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { readPosContextClient } from "@/features/session/lib/pos-context-storage";
 import { StockAlertsDropdown } from "@/features/inventory-stock/ui/StockAlertsDropdown";
 import { PrintServiceTopBarDropdown, usePrintServiceConnection } from "@flowstore/print-service-client";
+import Dialog from "@/shared/components/Dialog/Dialog";
+import { Button } from "@/shared/components/Button";
+import ChangePasswordDialog from "@/shared/components/Dialog/ChangePasswordDialog";
 import {
   clearPosPrintJobBrowserFallback,
   tryPosPrintJobBrowserFallback,
@@ -60,7 +63,6 @@ type PrintServiceNavProps = {
 type PosTopBarNavProps = {
   pathname: string;
   onNavigate: (path: string) => void;
-  onSignOut: () => void;
   printService: PrintServiceNavProps;
   className?: string;
 };
@@ -68,7 +70,6 @@ type PosTopBarNavProps = {
 function PosTopBarNav({
   pathname,
   onNavigate,
-  onSignOut,
   printService,
   className = "",
 }: PosTopBarNavProps) {
@@ -196,16 +197,13 @@ function PosTopBarNav({
         }}
         data-test-id="pos-topbar-session-print"
       />
-      <IconButton
-        icon="LogOut"
-        variant="text"
-        size="md"
-        ariaLabel="Cerrar sesión"
-        onClick={onSignOut}
-        data-test-id="pos-topbar-logout"
-      />
     </nav>
   );
+}
+
+function userRoleLabel(raw: unknown): string {
+  const r = typeof raw === "string" ? raw.trim() : "";
+  return r ? roleLabel(r) : "—";
 }
 
 export default function PosTopBar({
@@ -281,12 +279,31 @@ export default function PosTopBar({
 
   /** ≤1025px: iconos en barra lateral; una sola instancia de nav (impresión, alertas). */
   const [sidebarNav, setSidebarNav] = useState(false);
+  const headerRef = useRef<HTMLElement | null>(null);
+  const [userDialogOpen, setUserDialogOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1025px)");
     const sync = () => setSidebarNav(mq.matches);
     sync();
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  /** Alinea `--app-topbar-height` con la altura real (subtítulo, etc.) para que la sidebar no tape el border-b. */
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) {
+      return;
+    }
+    const apply = () => {
+      document.documentElement.style.setProperty("--app-topbar-height", `${el.offsetHeight}px`);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   const printServiceNav: PrintServiceNavProps = {
@@ -305,14 +322,17 @@ export default function PosTopBar({
   const navProps: PosTopBarNavProps = {
     pathname,
     onNavigate: (path) => router.push(path),
-    onSignOut: () => signOut({ callbackUrl: "/" }),
     printService: printServiceNav,
   };
+
+  const userName = effectivePerson || "—";
+  const roleText = userRoleLabel(effectiveRole);
 
   return (
     <>
     <header
-      className="fixed top-0 z-30 w-full border-b max-[1025px]:left-0 max-[1025px]:right-0 min-[1026px]:left-0"
+      ref={headerRef}
+      className="fixed top-0 z-40 w-full border-b max-[1025px]:left-0 max-[1025px]:right-0 min-[1026px]:left-0"
       style={{
         backgroundColor: "var(--color-background)",
         borderColor: "var(--color-border)",
@@ -387,17 +407,27 @@ export default function PosTopBar({
                 tamaño de ícono (estilo "detalle" del rol y PV); la jerarquía
                 visual entre "ancla" (empresa / persona) y "subtítulo" (PV /
                 rol) se preserva sólo a través del color. */}
-            {showContextColumn || showUserColumn ? (
-              <div className="flex min-w-0 items-center gap-4 min-[1026px]:gap-6" data-test-id="pos-topbar-right-columns">
+            {/* Desktop: empresa/PV + usuario/rol. Mobile (sidebar): solo empresa/PV alineado a la derecha, con ícono a la derecha del texto. */}
+            {showContextColumn || (!sidebarNav && showUserColumn) ? (
+              <div
+                className={`flex min-w-0 items-center gap-4 min-[1026px]:gap-6 ${
+                  sidebarNav ? "ml-auto justify-end" : ""
+                }`}
+                data-test-id="pos-topbar-right-columns"
+              >
                 {showContextColumn ? (
                   <div
-                    className="flex min-w-0 flex-col gap-0 py-0.5 leading-none"
+                    className={`flex min-w-0 flex-col gap-0 py-0.5 leading-none ${
+                      sidebarNav ? "items-end text-right" : ""
+                    }`}
                     data-test-id="pos-topbar-context"
                     suppressHydrationWarning
                   >
                     {effectiveCompany ? (
                       <span
-                        className="flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs"
+                        className={`flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs ${
+                          sidebarNav ? "flex-row-reverse justify-end" : ""
+                        }`}
                         style={{ color: "var(--color-foreground)" }}
                         data-test-id="pos-topbar-company-trade-name"
                         title={effectiveCompany}
@@ -413,7 +443,9 @@ export default function PosTopBar({
                     ) : null}
                     {effectivePosName ? (
                       <span
-                        className="flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs"
+                        className={`flex min-w-0 items-center gap-1.5 text-[11px] font-normal leading-tight sm:text-xs ${
+                          sidebarNav ? "flex-row-reverse justify-end" : ""
+                        }`}
                         style={{ color: "var(--color-foreground)" }}
                         data-test-id="pos-topbar-pos-name"
                         title={effectivePosName}
@@ -430,7 +462,7 @@ export default function PosTopBar({
                   </div>
                 ) : null}
 
-                {showUserColumn ? (
+                {!sidebarNav && showUserColumn ? (
                   <div
                     className="flex min-w-0 flex-col gap-0 py-0.5 leading-none"
                     data-test-id="pos-topbar-user"
@@ -442,12 +474,19 @@ export default function PosTopBar({
                         data-test-id="pos-topbar-person-name"
                         title={effectivePerson}
                       >
-                        <User
-                          size={14}
-                          className="shrink-0 text-muted"
-                          aria-hidden
-                          data-test-id="pos-topbar-user-icon"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => setUserDialogOpen(true)}
+                          className="shrink-0 text-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                          aria-label="Ver información de usuario"
+                          data-test-id="pos-topbar-user-icon-btn"
+                        >
+                          <CircleUser
+                            size={14}
+                            aria-hidden
+                            data-test-id="pos-topbar-user-icon"
+                          />
+                        </button>
                         <span className="min-w-0 truncate">{effectivePerson}</span>
                       </span>
                     ) : null}
@@ -477,6 +516,14 @@ export default function PosTopBar({
         {!sidebarNav ? (
           <div className="flex shrink-0 items-center justify-end gap-2">
             <PosTopBarNav {...navProps} />
+            <IconButton
+              icon="LogOut"
+              variant="text"
+              size="md"
+              ariaLabel="Cerrar sesión"
+              onClick={() => signOut({ callbackUrl: "/" })}
+              data-test-id="pos-topbar-logout"
+            />
           </div>
         ) : null}
       </div>
@@ -484,19 +531,86 @@ export default function PosTopBar({
 
     {sidebarNav ? (
       <aside
-        className="fixed left-0 z-30 flex w-(--app-sidebar-width) flex-col items-center gap-1 overflow-y-auto border-r py-3"
+        className="fs-app-sidebar fixed left-0 z-30 flex w-(--app-sidebar-width) flex-col items-center gap-1 overflow-y-auto py-3"
         style={{
           top: "var(--app-topbar-height)",
           bottom: 0,
-          backgroundColor: "var(--color-background)",
-          borderColor: "var(--color-border)",
         }}
         data-test-id="pos-sidebar-nav"
         aria-label="Accesos rápidos"
       >
-        <PosTopBarNav {...navProps} className="flex-col items-center gap-1" />
+        <div className="flex w-full flex-1 flex-col items-center">
+          <PosTopBarNav {...navProps} className="flex-col items-center gap-1" />
+          <div className="mt-auto flex w-full flex-col items-center gap-1 pb-2">
+            <IconButton
+              icon="CircleUser"
+              variant="basicSecondary"
+              size="md"
+              ariaLabel="Ver información de usuario"
+              title="Usuario"
+              onClick={() => setUserDialogOpen(true)}
+              data-test-id="pos-sidebar-user"
+            />
+            <IconButton
+              icon="LogOut"
+              variant="basicSecondary"
+              size="md"
+              ariaLabel="Cerrar sesión"
+              title="Cerrar sesión"
+              onClick={() => signOut({ callbackUrl: "/" })}
+              data-test-id="pos-sidebar-logout"
+            />
+          </div>
+        </div>
       </aside>
     ) : null}
+
+    <Dialog
+      open={userDialogOpen}
+      onClose={() => setUserDialogOpen(false)}
+      title="Usuario"
+      size="sm"
+      scroll="body"
+      data-test-id="pos-user-dialog"
+      actions={
+        <>
+          <Button type="button" variant="outlined" onClick={() => setUserDialogOpen(false)}>
+            Cerrar
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => {
+              setUserDialogOpen(false);
+              setChangePasswordOpen(true);
+            }}
+          >
+            Cambiar contraseña
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3 text-sm">
+        <div className="rounded-md border border-border bg-muted/15 px-3 py-2">
+          <p className="text-xs text-muted-foreground">Empresa</p>
+          <p className="mt-0.5 font-medium text-foreground">{effectiveCompany || "—"}</p>
+        </div>
+        <div className="rounded-md border border-border bg-muted/15 px-3 py-2">
+          <p className="text-xs text-muted-foreground">Punto de venta</p>
+          <p className="mt-0.5 font-medium text-foreground">{effectivePosName || "—"}</p>
+        </div>
+        <div className="rounded-md border border-border bg-muted/15 px-3 py-2">
+          <p className="text-xs text-muted-foreground">Usuario</p>
+          <p className="mt-0.5 font-medium text-foreground">{userName}</p>
+        </div>
+        <div className="rounded-md border border-border bg-muted/15 px-3 py-2">
+          <p className="text-xs text-muted-foreground">Rol</p>
+          <p className="mt-0.5 font-medium text-foreground">{roleText}</p>
+        </div>
+      </div>
+    </Dialog>
+
+    <ChangePasswordDialog isOpen={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
     </>
   );
 }

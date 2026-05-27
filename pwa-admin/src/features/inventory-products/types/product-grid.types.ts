@@ -14,6 +14,8 @@ export type ProductPriceListItemRow = {
   netPrice: number;
   grossPrice: number;
   taxIds?: string[];
+  /** Última modificación del ítem en lista (`price_list_items.updatedAt`). */
+  updatedAt?: string | null;
 };
 
 export type ProductVariantMediaAsset = {
@@ -60,8 +62,6 @@ export type ProductVariantGridRow = {
   maximumStockEnabled?: boolean;
   reorderPoint?: number;
   reorderPointEnabled?: boolean;
-  weight?: number | null;
-  weightUnit?: string | null;
   /** Peso neto producto (kg), sin embalaje. */
   netWeightKg?: number | null;
   /** Peso bruto con embalaje (kg), típico para courier. */

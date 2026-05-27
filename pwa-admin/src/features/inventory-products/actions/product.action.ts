@@ -72,9 +72,7 @@ export type CreateProductVariantFormInput = {
   stockBaseQtyPerCountSaleUnit?: number;
   /** Cantidad en unidad base de stock por 1 unidad de compra (conteo), si aplica. */
   stockBaseQtyPerCountPurchaseUnit?: number;
-  /** Peso legacy + logística / courier. */
-  weight?: number | null;
-  weightUnit?: string | null;
+  /** Logística / courier. */
   netWeightKg?: number | null;
   grossWeightKg?: number | null;
   packageLengthCm?: number | null;
@@ -442,8 +440,6 @@ export async function updateProductVariantAction(
     maximumStockEnabled: input.maximumStockEnabled,
     reorderPoint: input.reorderPoint,
     reorderPointEnabled: input.reorderPointEnabled,
-    weight: input.weight,
-    weightUnit: input.weightUnit ?? undefined,
     netWeightKg: input.netWeightKg,
     grossWeightKg: input.grossWeightKg,
     packageLengthCm: input.packageLengthCm,
@@ -650,11 +646,9 @@ export type UpdateProductVariantInventoryPartialInput = {
   maximumStockEnabled: boolean;
   reorderPoint: number;
   reorderPointEnabled: boolean;
-  weight?: number | null;
-  weightUnit?: string | null;
 };
 
-/** Actualiza flags y umbrales de inventario (y peso referencia legacy) vía `PUT` parcial. */
+/** Actualiza flags y umbrales de inventario vía `PUT` parcial. */
 export async function updateProductVariantInventoryPartialAction(
   variantId: string,
   input: UpdateProductVariantInventoryPartialInput,
@@ -673,12 +667,6 @@ export async function updateProductVariantInventoryPartialAction(
     reorderPoint: Math.max(0, Math.round(Number(input.reorderPoint) || 0)),
     reorderPointEnabled: Boolean(input.reorderPointEnabled),
   };
-  if (input.weight !== undefined) {
-    body.weight = input.weight;
-  }
-  if (input.weightUnit !== undefined && input.weightUnit !== null) {
-    body.weightUnit = input.weightUnit;
-  }
 
   const r = await ProductRequest.patchVariantFields(trimmedId, body);
   if (r.success) {

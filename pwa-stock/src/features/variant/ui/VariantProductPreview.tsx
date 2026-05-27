@@ -4,6 +4,17 @@ function attributeValueParts(av: Record<string, string>): string[] {
     .filter(Boolean);
 }
 
+export function variantAttributeValueBadges(
+  av: Record<string, string>,
+): Array<{ key: string; value: string }> {
+  if (!av || typeof av !== "object") {
+    return [];
+  }
+  return Object.entries(av)
+    .map(([key, val]) => ({ key, value: val != null ? String(val).trim() : "" }))
+    .filter((x) => x.value.length > 0);
+}
+
 export function InlineSepDot() {
   return (
     <span

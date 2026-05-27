@@ -47,7 +47,7 @@ export function PosPromotionsPanel() {
 
   return (
     <section
-      className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+      className="rounded-xl border border-border bg-surface p-3 shadow-sm"
       data-test-id="pos-promotions-panel"
     >
       <header className="mb-2 flex items-center justify-between">

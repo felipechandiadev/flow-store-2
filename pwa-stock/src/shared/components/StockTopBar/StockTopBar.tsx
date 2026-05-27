@@ -58,7 +58,8 @@ export default function StockTopBar() {
             onExpandedChange={setSidebarExpanded}
           />
           <div
-            className="flex-1 bg-black/10"
+            className="flex-1"
+            style={{ backgroundColor: "var(--color-sidebar-overlay)" }}
             aria-label="Cerrar menú lateral"
             data-test-id="stock-sidebar-overlay"
             onClick={() => setShowSidebar(false)}

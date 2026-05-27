@@ -138,12 +138,6 @@ export class ProductVariant {
   })
   stockBaseQtyPerCountPurchaseUnit?: number | string | null;
 
-  @Column({ type: 'decimal', precision: 10, scale: 3, nullable: true })
-  weight?: number;
-
-  @Column({ type: 'varchar', length: 16, name: 'weight_unit', default: 'kg' })
-  weightUnit!: string;
-
   /** Peso neto del producto (sin embalaje), en kg. */
   @Column({
     name: 'net_weight_kg',

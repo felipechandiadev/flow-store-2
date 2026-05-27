@@ -4,12 +4,23 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import Dialog from "@/shared/components/Dialog/Dialog";
 import Alert from "@/shared/components/Alert/Alert";
 import { Button } from "@/shared/components/Button";
-import { TextField } from "@/shared/components/TextField/TextField";
 import Switch from "@/shared/components/Switch/Switch";
-import type { StockGridRow, StockStorageBreakdownRow } from "@/features/inventory-stock/types/stock-grid.types";
+import type { StockGridRow } from "@/features/inventory-stock/types/stock-grid.types";
 import type { StorageListItem } from "@/features/inventory-storages/types/storage.types";
 import { getProductVariantDetailForPage } from "@/features/inventory-products/actions/product.action";
 import { saveVariantStockConfigAction } from "@/features/inventory-stock/actions/stock.action";
+import {
+  mergeStoragesForThresholds,
+  numToThresholdInput,
+  storageDraftsFromBreakdown,
+  storageThresholdsPayloadFromDrafts,
+  type StorageThresholdDraft,
+  type VariantThresholdDraft,
+} from "@/features/inventory-stock/lib/variant-stock-threshold-config";
+import {
+  StorageThresholdField,
+  VariantThresholdField,
+} from "@/features/inventory-stock/components/VariantStockThresholdFields";
 
 export type EditVariantStockConfigDialogProps = {
   open: boolean;
@@ -19,222 +30,6 @@ export type EditVariantStockConfigDialogProps = {
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 };
-
-type VariantThresholdDraft = {
-  enabled: boolean;
-  value: string;
-};
-
-type StorageThresholdFieldDraft = {
-  /** true = umbral propio del almacén; false = heredar variante */
-  override: boolean;
-  enabled: boolean;
-  value: string;
-};
-
-type StorageThresholdDraft = {
-  storageId: string;
-  storageName: string;
-  minimum: StorageThresholdFieldDraft;
-  maximum: StorageThresholdFieldDraft;
-  reorder: StorageThresholdFieldDraft;
-};
-
-function mergeStoragesForThresholds(
-  storages: StorageListItem[],
-  breakdown: StockStorageBreakdownRow[],
-  branchId?: string,
-): StockStorageBreakdownRow[] {
-  const byId = new Map(breakdown.map((b) => [b.storageId, b]));
-  const active = storages.filter((s) => s.isActive !== false);
-  const scoped = branchId
-    ? active.filter((s) => (s.branchId ?? s.branch?.id ?? "") === branchId)
-    : active;
-  const sorted = [...scoped].sort((a, b) => {
-    if (a.isDefault !== b.isDefault) {
-      return a.isDefault ? -1 : 1;
-    }
-    return a.name.localeCompare(b.name, "es", { sensitivity: "base" });
-  });
-  if (sorted.length === 0) {
-    return [...breakdown];
-  }
-  return sorted.map((s) => {
-    const existing = byId.get(s.id);
-    if (existing) {
-      return existing;
-    }
-    return {
-      storageId: s.id,
-      storageName: s.name,
-      branchName: s.branch?.name ?? null,
-      quantity: 0,
-      reservedStock: 0,
-      availableStock: 0,
-      committedStock: 0,
-    };
-  });
-}
-
-function numToInput(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(Number(v))) {
-    return "";
-  }
-  return String(Math.max(0, Math.round(Number(v))));
-}
-
-function parseThresholdInput(raw: string): number | null {
-  const t = raw.trim();
-  if (t === "") {
-    return null;
-  }
-  const n = Math.round(Number(t.replace(",", ".")));
-  if (!Number.isFinite(n) || n < 0) {
-    return null;
-  }
-  return n;
-}
-
-function storageFieldFromBreakdown(
-  valueOverride: number | null | undefined,
-  enabledOverride: boolean | null | undefined,
-): StorageThresholdFieldDraft {
-  const hasValueOverride = valueOverride !== null && valueOverride !== undefined;
-  const hasEnabledOverride = enabledOverride !== null && enabledOverride !== undefined;
-  const override = hasValueOverride || hasEnabledOverride;
-  return {
-    override,
-    enabled: hasEnabledOverride ? Boolean(enabledOverride) : false,
-    value: hasValueOverride ? numToInput(valueOverride) : "",
-  };
-}
-
-function inheritedThresholdDisplay(variant: VariantThresholdDraft): string {
-  if (!variant.enabled) {
-    return "—";
-  }
-  return variant.value.trim() !== "" ? variant.value : "0";
-}
-
-function VariantThresholdField({
-  label,
-  name,
-  draft,
-  onChange,
-  disabled,
-  dataTestId,
-}: {
-  label: string;
-  name: string;
-  draft: VariantThresholdDraft;
-  onChange: (next: VariantThresholdDraft) => void;
-  disabled?: boolean;
-  dataTestId?: string;
-}) {
-  return (
-    <TextField
-      label={label}
-      name={name}
-      type="number"
-      min={0}
-      density="compact"
-      labelLayout="inline"
-      selectOnFocus
-      disabled={disabled || !draft.enabled}
-      value={draft.value}
-      onChange={(e) => onChange({ ...draft, value: e.target.value })}
-      data-test-id={dataTestId}
-      inlineLeadingAdornment={
-        <Switch
-          density="compact"
-          checked={draft.enabled}
-          onChange={(enabled) => onChange({ ...draft, enabled })}
-          disabled={disabled}
-          data-test-id={`${dataTestId}-enabled`}
-        />
-      }
-    />
-  );
-}
-
-function StorageThresholdField({
-  label,
-  name,
-  draft,
-  variantDraft,
-  onChange,
-  disabled,
-  dataTestId,
-}: {
-  label: string;
-  name: string;
-  draft: StorageThresholdFieldDraft;
-  variantDraft: VariantThresholdDraft;
-  onChange: (next: StorageThresholdFieldDraft) => void;
-  disabled?: boolean;
-  dataTestId?: string;
-}) {
-  const inherited = inheritedThresholdDisplay(variantDraft);
-  const inheriting = !draft.override;
-  const switchChecked = inheriting ? false : draft.enabled;
-  const fieldValue = inheriting ? inherited : draft.value;
-  const fieldReadOnly = inheriting || !draft.enabled;
-
-  const handleSwitchChange = (on: boolean) => {
-    if (inheriting && on) {
-      onChange({
-        override: true,
-        enabled: true,
-        value: variantDraft.enabled ? variantDraft.value || "0" : "0",
-      });
-      return;
-    }
-    if (!inheriting && !on) {
-      onChange({ override: false, enabled: false, value: "" });
-      return;
-    }
-    onChange({ ...draft, enabled: on });
-  };
-
-  return (
-    <TextField
-      label={label}
-      name={name}
-      type={fieldReadOnly ? "text" : "number"}
-      min={fieldReadOnly ? undefined : 0}
-      density="compact"
-      labelLayout="inline"
-      selectOnFocus={!fieldReadOnly}
-      readOnly={inheriting}
-      disabled={disabled || (!inheriting && !draft.enabled)}
-      value={fieldValue}
-      onChange={(e) => onChange({ ...draft, value: e.target.value })}
-      data-test-id={dataTestId}
-      title={inheriting ? `Heredado de variante: ${inherited}` : undefined}
-      inlineLeadingAdornment={
-        <Switch
-          density="compact"
-          checked={switchChecked}
-          onChange={handleSwitchChange}
-          disabled={disabled}
-          data-test-id={`${dataTestId}-enabled`}
-        />
-      }
-    />
-  );
-}
-
-function storageFieldForSave(
-  draft: StorageThresholdFieldDraft,
-): { value: number | null; enabled: boolean | null } {
-  if (!draft.override) {
-    return { value: null, enabled: null };
-  }
-  return {
-    enabled: draft.enabled,
-    value: parseThresholdInput(draft.value),
-  };
-}
 
 export function EditVariantStockConfigDialog({
   open,
@@ -300,36 +95,19 @@ export function EditVariantStockConfigDialog({
       setAllowNegativeStock(v.allowNegativeStock === true);
       setMinimumDraft({
         enabled: v.minimumStockEnabled === true,
-        value: numToInput(v.minimumStock) || "0",
+        value: numToThresholdInput(v.minimumStock) || "0",
       });
       setMaximumDraft({
         enabled: v.maximumStockEnabled === true,
-        value: numToInput(v.maximumStock) || "0",
+        value: numToThresholdInput(v.maximumStock) || "0",
       });
       setReorderDraft({
         enabled: v.reorderPointEnabled === true,
-        value: numToInput(v.reorderPoint) || "0",
+        value: numToThresholdInput(v.reorderPoint) || "0",
       });
 
       const merged = mergeStoragesForThresholds(storages, row.storageBreakdown ?? [], branchId);
-      setStorageDrafts(
-        merged.map((b) => ({
-          storageId: b.storageId,
-          storageName: b.branchName ? `${b.storageName} (${b.branchName})` : b.storageName,
-          minimum: storageFieldFromBreakdown(
-            b.minimumStockOverride,
-            b.minimumStockEnabledOverride,
-          ),
-          maximum: storageFieldFromBreakdown(
-            b.maximumStockOverride,
-            b.maximumStockEnabledOverride,
-          ),
-          reorder: storageFieldFromBreakdown(
-            b.reorderPointOverride,
-            b.reorderPointEnabledOverride,
-          ),
-        })),
-      );
+      setStorageDrafts(storageDraftsFromBreakdown(merged));
       setLoading(false);
     })();
     return () => {
@@ -366,20 +144,7 @@ export function EditVariantStockConfigDialog({
           maximumStockEnabled: maximumDraft.enabled,
           reorderPoint: reorderVal,
           reorderPointEnabled: reorderDraft.enabled,
-          storageThresholds: storageDrafts.map((s) => {
-            const min = storageFieldForSave(s.minimum);
-            const max = storageFieldForSave(s.maximum);
-            const rep = storageFieldForSave(s.reorder);
-            return {
-              storageId: s.storageId,
-              minimumStock: min.value,
-              minimumStockEnabled: min.enabled,
-              maximumStock: max.value,
-              maximumStockEnabled: max.enabled,
-              reorderPoint: rep.value,
-              reorderPointEnabled: rep.enabled,
-            };
-          }),
+          storageThresholds: storageThresholdsPayloadFromDrafts(storageDrafts),
         });
         if (r.success) {
           await onSaved();

@@ -252,6 +252,9 @@ export class ProductVariantsService {
           netPrice: Number(item.netPrice),
           grossPrice: Number(item.grossPrice),
           taxIds: item.taxIds || [],
+          updatedAt: item.updatedAt
+            ? new Date(item.updatedAt).toISOString()
+            : null,
         }),
       );
 
@@ -281,8 +284,6 @@ export class ProductVariantsService {
         trackInventory: variant.trackInventory,
         allowNegativeStock: variant.allowNegativeStock,
         isActive: variant.isActive,
-        weight: variant.weight ? Number(variant.weight) : null,
-        weightUnit: variant.weightUnit,
         netWeightKg:
           (variant as any).netWeightKg != null
             ? Number((variant as any).netWeightKg)
@@ -557,8 +558,6 @@ export class ProductVariantsService {
       purchaseUnitId: purchaseId,
       stockBaseQtyPerCountSaleUnit: persistedBridges.stockBaseQtyPerCountSaleUnit,
       stockBaseQtyPerCountPurchaseUnit: persistedBridges.stockBaseQtyPerCountPurchaseUnit,
-      weight: sanitizedData.weight ?? null,
-      weightUnit: sanitizedData.weightUnit ?? 'kg',
       netWeightKg: sanitizedData.netWeightKg ?? null,
       grossWeightKg: sanitizedData.grossWeightKg ?? null,
       packageLengthCm: sanitizedData.packageLengthCm ?? null,
@@ -979,6 +978,8 @@ export class ProductVariantsService {
       (variant as any).purchaseUnit?.name ||
       null;
 
+    const unitsById = await this.conversion.unitsMapForCompany(variant.companyId);
+
     const recentPurchases = rows.map((line) => {
       const tx = line.transaction as Transaction | undefined;
       const createdAt =
@@ -987,11 +988,34 @@ export class ProductVariantsService {
           : tx?.createdAt
             ? String(tx.createdAt)
             : null;
+
+      let quantityInStockBase: number;
+      const storedBase = line.quantityInBase;
+      if (storedBase != null && Number.isFinite(Number(storedBase))) {
+        quantityInStockBase = Number(storedBase);
+      } else {
+        const defaultUnit =
+          (variant.purchaseUnitId ?? variant.unitId ?? '').trim();
+        const lineUnit = (line.unitId ?? defaultUnit).trim();
+        try {
+          quantityInStockBase = this.conversion.toVariantStockBaseSync(
+            variant as ProductVariant,
+            Number(line.quantity) || 0,
+            lineUnit,
+            unitsById,
+            'purchase',
+          ).quantityInBase;
+        } catch {
+          quantityInStockBase = Number(line.quantity) || 0;
+        }
+      }
+
       return {
         transactionId: tx?.id ?? null,
         documentNumber: tx?.documentNumber ?? null,
         date: createdAt,
         quantity: Number(line.quantity) || 0,
+        quantityInStockBase,
         unitLabel: line.unitOfMeasure?.trim() || purchaseUnitLabel,
         supplierName: supplierDisplayName(tx?.supplier as Supplier | undefined),
         destinationName:

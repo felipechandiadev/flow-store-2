@@ -110,7 +110,7 @@ export default function LoginPage() {
         className="flex min-h-dvh items-center justify-center bg-background px-6"
         data-test-id="login-unconfigured-root"
       >
-        <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
+        <div className="w-full max-w-md rounded-lg border border-border bg-surface p-8 shadow-md">
           <div className="mb-4 flex items-center gap-3 text-gray-700">
             <Store className="h-6 w-6 shrink-0 text-secondary" strokeWidth={2} aria-hidden />
             <h1 className="text-xl font-bold">POS no configurado</h1>
@@ -141,7 +141,7 @@ export default function LoginPage() {
       className="flex min-h-dvh items-center justify-center bg-background px-6"
       data-test-id="login-root"
     >
-      <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
+      <div className="w-full max-w-md rounded-lg border border-border bg-surface p-8 shadow-md">
         <div className="mb-6 flex flex-col items-center text-center">
           <img
             src="/logo.png"

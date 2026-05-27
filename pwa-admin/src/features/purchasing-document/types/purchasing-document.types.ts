@@ -50,6 +50,8 @@ export type VariantPurchaseInsightsPurchaseRow = {
   documentNumber: string | null;
   date: string | null;
   quantity: number;
+  /** Cantidad convertida a unidad base de stock de la variante. */
+  quantityInStockBase?: number;
   unitLabel: string | null;
   supplierName: string | null;
   destinationName: string | null;

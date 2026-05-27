@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import type { ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "@/shared/components/Alert/Alert";
 import { TextField } from "@/shared/components/TextField/TextField";
@@ -12,6 +13,68 @@ function noop() {}
 
 function formatNumber(n: number): string {
   return new Intl.NumberFormat("es-CL", { maximumFractionDigits: 6 }).format(n);
+}
+
+/** Muestra y edita con coma decimal (es-CL). */
+function formatDecimalField(n: number): string {
+  return formatNumber(n);
+}
+
+function sanitizeDecimalInput(raw: string): string {
+  const normalized = raw.replace(/\./g, ",").replace(/[^0-9,]/g, "");
+  const commaIdx = normalized.indexOf(",");
+  if (commaIdx === -1) {
+    return normalized;
+  }
+  const intPart = normalized.slice(0, commaIdx);
+  const decPart = normalized.slice(commaIdx + 1).replace(/,/g, "").slice(0, 6);
+  return decPart.length > 0 || normalized.endsWith(",") ? `${intPart},${decPart}` : intPart;
+}
+
+function sanitizeIntegerInput(raw: string): string {
+  return raw.replace(/\D/g, "");
+}
+
+type LogisticsFieldProps = {
+  label: string;
+  name: string;
+  value: string;
+  setValue: (v: string) => void;
+  readOnly: boolean;
+  unit: string;
+  placeholder?: string;
+  integer?: boolean;
+};
+
+function LogisticsField({
+  label,
+  name,
+  value,
+  setValue,
+  readOnly,
+  unit,
+  placeholder,
+  integer = false,
+}: LogisticsFieldProps) {
+  const onChange = readOnly
+    ? noop
+    : (e: ChangeEvent<HTMLInputElement>) => {
+        setValue(integer ? sanitizeIntegerInput(e.target.value) : sanitizeDecimalInput(e.target.value));
+      };
+
+  return (
+    <TextField
+      label={label}
+      name={name}
+      value={value}
+      onChange={onChange}
+      readOnly={readOnly}
+      selectOnFocus={!readOnly}
+      endSymbol={unit}
+      placeholder={placeholder}
+      inputMode={integer ? "numeric" : "decimal"}
+    />
+  );
 }
 
 type VariantDetailLogisticsSectionProps = {
@@ -27,7 +90,6 @@ export function VariantDetailLogisticsSection({ variant }: VariantDetailLogistic
   const [heiCm, setHeiCm] = useState("");
   const [divK, setDivK] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
 
@@ -35,30 +97,34 @@ export function VariantDetailLogisticsSection({ variant }: VariantDetailLogistic
     if (editing) {
       return;
     }
-    setNetKg(variant.netWeightKg != null && Number.isFinite(Number(variant.netWeightKg)) ? String(variant.netWeightKg) : "");
+    setNetKg(
+      variant.netWeightKg != null && Number.isFinite(Number(variant.netWeightKg))
+        ? formatDecimalField(Number(variant.netWeightKg))
+        : "",
+    );
     setGrossKg(
       variant.grossWeightKg != null && Number.isFinite(Number(variant.grossWeightKg))
-        ? String(variant.grossWeightKg)
+        ? formatDecimalField(Number(variant.grossWeightKg))
         : "",
     );
     setLenCm(
       variant.packageLengthCm != null && Number.isFinite(Number(variant.packageLengthCm))
-        ? String(variant.packageLengthCm)
+        ? formatDecimalField(Number(variant.packageLengthCm))
         : "",
     );
     setWidCm(
       variant.packageWidthCm != null && Number.isFinite(Number(variant.packageWidthCm))
-        ? String(variant.packageWidthCm)
+        ? formatDecimalField(Number(variant.packageWidthCm))
         : "",
     );
     setHeiCm(
       variant.packageHeightCm != null && Number.isFinite(Number(variant.packageHeightCm))
-        ? String(variant.packageHeightCm)
+        ? formatDecimalField(Number(variant.packageHeightCm))
         : "",
     );
     setDivK(
       variant.volumetricDivisorK != null && Number.isFinite(Number(variant.volumetricDivisorK))
-        ? String(variant.volumetricDivisorK)
+        ? String(Math.round(Number(variant.volumetricDivisorK)))
         : "",
     );
   }, [variant, editing]);
@@ -85,7 +151,6 @@ export function VariantDetailLogisticsSection({ variant }: VariantDetailLogistic
 
   const save = useCallback(() => {
     setError(null);
-    setOk(null);
     const divKRaw = divK.trim();
     let divKParsed: number | null = null;
     if (divKRaw) {
@@ -107,7 +172,6 @@ export function VariantDetailLogisticsSection({ variant }: VariantDetailLogistic
           volumetricDivisorK: divKParsed,
         });
         if (r.success) {
-          setOk("Datos de despacho guardados.");
           setEditing(false);
           await router.refresh();
         } else {
@@ -121,7 +185,6 @@ export function VariantDetailLogisticsSection({ variant }: VariantDetailLogistic
 
   const toggleEditOrSave = () => {
     setError(null);
-    setOk(null);
     if (!editing) {
       setEditing(true);
       return;
@@ -138,64 +201,61 @@ export function VariantDetailLogisticsSection({ variant }: VariantDetailLogistic
     >
       <h2 className="text-sm font-semibold text-foreground">Despacho para transportista</h2>
       <p className="text-xs text-muted-foreground">
-        Peso neto (producto), peso bruto (con embalaje), dimensiones del empaque en centímetros y divisor K para peso
+        Peso neto (producto), peso bruto (con embalaje), dimensiones del empaque y divisor K para peso
         volumétrico kg = (L×W×H)/K.
       </p>
-      {error ? (
-        <Alert variant="error" data-test-id="pv-detail-logistics-error">
-          {error}
-        </Alert>
-      ) : null}
-      {ok ? (
-        <Alert variant="success" data-test-id="pv-detail-logistics-ok">
-          {ok}
-        </Alert>
-      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
-        <TextField
-          label="Peso neto (kg)"
+        <LogisticsField
+          label="Peso neto"
           name="pv-net-kg"
           value={netKg}
-          onChange={readOnly ? noop : (e) => setNetKg(e.target.value)}
+          setValue={setNetKg}
           readOnly={readOnly}
-          placeholder="Ej: 0.25"
+          unit="kg"
+          placeholder="Ej: 0,25"
         />
-        <TextField
-          label="Peso bruto con embalaje (kg)"
+        <LogisticsField
+          label="Peso bruto con embalaje"
           name="pv-gross-kg"
           value={grossKg}
-          onChange={readOnly ? noop : (e) => setGrossKg(e.target.value)}
+          setValue={setGrossKg}
           readOnly={readOnly}
-          placeholder="Ej: 0.31"
+          unit="kg"
+          placeholder="Ej: 0,31"
         />
-        <TextField
-          label="Largo empaque (cm)"
+        <LogisticsField
+          label="Largo empaque"
           name="pv-l"
           value={lenCm}
-          onChange={readOnly ? noop : (e) => setLenCm(e.target.value)}
+          setValue={setLenCm}
           readOnly={readOnly}
+          unit="cm"
         />
-        <TextField
-          label="Ancho empaque (cm)"
+        <LogisticsField
+          label="Ancho empaque"
           name="pv-w"
           value={widCm}
-          onChange={readOnly ? noop : (e) => setWidCm(e.target.value)}
+          setValue={setWidCm}
           readOnly={readOnly}
+          unit="cm"
         />
-        <TextField
-          label="Alto empaque (cm)"
+        <LogisticsField
+          label="Alto empaque"
           name="pv-h"
           value={heiCm}
-          onChange={readOnly ? noop : (e) => setHeiCm(e.target.value)}
+          setValue={setHeiCm}
           readOnly={readOnly}
+          unit="cm"
         />
-        <TextField
+        <LogisticsField
           label="Divisor K (volumétrico)"
           name="pv-k"
           value={divK}
-          onChange={readOnly ? noop : (e) => setDivK(e.target.value)}
+          setValue={setDivK}
           readOnly={readOnly}
-          placeholder="Vacío → 5000 en cálculo"
+          unit="K"
+          placeholder="Vacío → 5000"
+          integer
         />
       </div>
       <p className="text-sm text-muted-foreground">
@@ -205,7 +265,12 @@ export function VariantDetailLogisticsSection({ variant }: VariantDetailLogistic
         </strong>
         {divK.trim() ? "" : " (K=5000 por defecto)"}
       </p>
-      <div className="absolute bottom-2 right-2">
+      <div className="absolute bottom-2 left-4 right-2 flex flex-col items-end gap-2">
+        {error ? (
+          <Alert variant="error" className="w-full" data-test-id="pv-detail-logistics-error">
+            {error}
+          </Alert>
+        ) : null}
         <IconButton
           icon={editing ? "Save" : "Pencil"}
           variant="basicSecondary"

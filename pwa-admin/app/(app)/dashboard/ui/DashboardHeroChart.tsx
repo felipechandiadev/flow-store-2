@@ -55,8 +55,8 @@ export function DashboardHeroChart() {
           <p className="text-xs text-muted-foreground">Serie anual de demostración</p>
         </div>
 
-        <div className="h-[min(360px,55vh)] w-full min-w-0">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="fs-chart-surface h-[min(360px,55vh)] min-h-[240px] w-full min-w-0">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
             <AreaChart data={DATA} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="fillVentas" x1="0" y1="0" x2="0" y2="1">

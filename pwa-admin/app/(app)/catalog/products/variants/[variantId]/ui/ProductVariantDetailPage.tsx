@@ -12,9 +12,12 @@ import {
   VariantDetailInventorySection,
   VariantDetailPricingSection,
 } from "./VariantDetailPageSections";
+import { VariantDetailStockByStorageSection } from "./VariantDetailStockByStorageSection";
+import { VariantDetailStockValueSection } from "./VariantDetailStockValueSection";
 import { VariantDetailLogisticsSection } from "./VariantDetailLogisticsSection";
 import { VariantDetailMultimediaSection } from "./VariantDetailMultimediaSection";
 import { VariantDetailRecipeSection } from "./VariantDetailRecipeSection";
+import { VariantDetailPurchasesSection } from "./VariantDetailPurchasesSection";
 import { VariantDetailSectionNav } from "./VariantDetailSectionNav";
 import {
   VARIANT_DETAIL_TABS,
@@ -48,6 +51,7 @@ export default function ProductVariantDetailPage({ product, variant: initialVari
   const [variant, setVariant] = useState(initialVariant);
   const [bomOpen, setBomOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<VariantDetailSectionId>("identidad");
+  const [stockRefreshKey, setStockRefreshKey] = useState(0);
 
   useEffect(() => {
     setVariant(initialVariant);
@@ -148,7 +152,17 @@ export default function ProductVariantDetailPage({ product, variant: initialVari
       >
         {activeSection === "identidad" ? <VariantDetailIdentitySection {...sectionProps} /> : null}
         {activeSection === "precios" ? <VariantDetailPricingSection {...sectionProps} /> : null}
-        {activeSection === "inventario" ? <VariantDetailInventorySection {...sectionProps} /> : null}
+        {activeSection === "compras" ? <VariantDetailPurchasesSection variant={variant} /> : null}
+        {activeSection === "inventario" ? (
+          <div className="flex flex-col gap-4">
+            <VariantDetailStockValueSection variant={variant} refreshKey={stockRefreshKey} />
+            <VariantDetailInventorySection {...sectionProps} />
+            <VariantDetailStockByStorageSection
+              variant={variant}
+              onStockChanged={() => setStockRefreshKey((k) => k + 1)}
+            />
+          </div>
+        ) : null}
         {activeSection === "despacho" ? <VariantDetailLogisticsSection variant={variant} /> : null}
         {activeSection === "multimedia" ? <VariantDetailMultimediaSection variantId={variant.id} /> : null}
         {activeSection === "receta" && showRecipe ? (

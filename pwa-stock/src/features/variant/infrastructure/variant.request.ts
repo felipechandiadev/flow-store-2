@@ -1,6 +1,48 @@
 import { apiFailure } from "@/lib/auth/api-response";
 import { apiUrl, authHeaders } from "@/lib/auth/auth-headers";
+import type { VariantPriceListItem } from "@/features/variant-pricing/types/pricing.types";
 import type { VariantDetail, VariantLookupItem } from "../types/variant.types";
+
+function parsePriceListItems(raw: unknown): VariantPriceListItem[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw
+    .map((item): VariantPriceListItem | null => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const p = item as Record<string, unknown>;
+      const priceListId = p.priceListId != null ? String(p.priceListId) : "";
+      const pl = p.priceList && typeof p.priceList === "object" ? (p.priceList as Record<string, unknown>) : null;
+      const priceListName =
+        p.priceListName != null && String(p.priceListName).trim()
+          ? String(p.priceListName).trim()
+          : pl?.name != null && String(pl.name).trim()
+            ? String(pl.name).trim()
+            : "";
+      const currency =
+        p.currency != null && String(p.currency).trim()
+          ? String(p.currency).trim()
+          : pl?.currency != null && String(pl.currency).trim()
+            ? String(pl.currency).trim()
+            : "CLP";
+      const net = typeof p.netPrice === "number" ? p.netPrice : Number(p.netPrice) || 0;
+      const gross = typeof p.grossPrice === "number" ? p.grossPrice : Number(p.grossPrice) || 0;
+      if (!priceListId) {
+        return null;
+      }
+      return {
+        priceListId,
+        priceListName,
+        currency,
+        netPrice: net,
+        grossPrice: gross,
+        taxIds: Array.isArray(p.taxIds) ? p.taxIds.map(String) : undefined,
+      };
+    })
+    .filter((x): x is VariantPriceListItem => x != null);
+}
 
 function parseAttributeValues(raw: unknown): Record<string, string> {
   if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
@@ -85,6 +127,13 @@ export class VariantRequest {
         return apiFailure(res, data);
       }
       const product = data.product as Record<string, unknown> | undefined;
+      const pmpRaw = data.pmp;
+      const pmp =
+        typeof pmpRaw === "number" && Number.isFinite(pmpRaw)
+          ? pmpRaw
+          : pmpRaw != null && String(pmpRaw).trim() !== ""
+            ? Number(pmpRaw)
+            : null;
       return {
         success: true,
         variant: {
@@ -101,6 +150,8 @@ export class VariantRequest {
             const o = u as Record<string, unknown>;
             return String(o.symbol || o.name || "").trim();
           })(),
+          pmp: pmp != null && Number.isFinite(pmp) ? pmp : null,
+          priceListItems: parsePriceListItems(data.priceListItems),
         },
       };
     } catch (e) {

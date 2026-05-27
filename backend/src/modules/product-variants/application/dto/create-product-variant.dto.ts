@@ -81,15 +81,6 @@ export class CreateProductVariantDto {
   @IsUUID()
   saleUnitId?: string;
 
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  weight?: number;
-
-  @IsOptional()
-  @IsString()
-  weightUnit?: string;
-
   /** Peso neto del producto (kg), sin embalaje. */
   @IsOptional()
   @Type(() => Number)

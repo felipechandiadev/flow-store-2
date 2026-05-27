@@ -259,7 +259,7 @@ function VariantSearchCard({ item }: { item: VariantSearchItem }) {
   return (
     <Link
       href={href}
-      className="block rounded-xl border border-zinc-200 bg-white p-3 shadow-sm transition-colors hover:border-secondary/50 dark:border-zinc-800 dark:bg-zinc-950"
+      className="block rounded-xl border border-border bg-surface p-3 shadow-sm transition-colors hover:border-secondary/50"
       data-test-id={`variant-search-card-${item.id}`}
     >
       <VariantProductNameWithAttributes

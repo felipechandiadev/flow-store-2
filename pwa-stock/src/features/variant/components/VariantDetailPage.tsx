@@ -1,16 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useParams } from "next/navigation";
 import { Barcode } from "lucide-react";
 import Link from "next/link";
-import { Alert, DotProgress } from "@/shared";
-import StorageStockCard from "@/features/stock/components/StorageStockCard";
+import { Alert, Badge, DotProgress } from "@/shared";
+import { VariantDetailPricingSection } from "@/features/variant-pricing/components/VariantDetailPricingSection";
+import { VariantDetailStockByStorageSection } from "./VariantDetailStockByStorageSection";
+import { variantAttributeValueBadges } from "../ui/VariantProductPreview";
 import { handleUnauthorizedClient } from "@/lib/auth/handle-unauthorized";
 import { getVariantDetailAction } from "../actions/variant.action";
-import { getVariantStockAction, listStoragesAction } from "@/features/stock/actions/stock.action";
 import type { VariantDetail } from "../types/variant.types";
-import type { StorageOption, VariantStockRow } from "@/features/stock/types/stock.types";
 import { variantBarcodePath } from "../lib/variant-routes";
 
 export default function VariantDetailPage() {
@@ -19,11 +19,14 @@ export default function VariantDetailPage() {
 
   const [error, setError] = useState("");
   const [variant, setVariant] = useState<VariantDetail | null>(null);
-  const [stock, setStock] = useState<VariantStockRow | null>(null);
-  const [storages, setStorages] = useState<StorageOption[]>([]);
   const [pending, startTransition] = useTransition();
 
-  const loadDetail = useCallback(async (id: string, sku?: string) => {
+  const attributeBadges = useMemo(
+    () => variantAttributeValueBadges(variant?.attributeValues ?? {}),
+    [variant?.attributeValues],
+  );
+
+  const loadDetail = useCallback(async (id: string) => {
     setError("");
     const detailRes = await getVariantDetailAction(id);
     if (!detailRes.success) {
@@ -32,30 +35,9 @@ export default function VariantDetailPage() {
       }
       setError(detailRes.error);
       setVariant(null);
-      setStock(null);
       return;
     }
     setVariant(detailRes.variant);
-
-    const resolvedSku = sku?.trim() || detailRes.variant.sku;
-    const [stockRes, storagesRes] = await Promise.all([
-      getVariantStockAction(id, resolvedSku),
-      listStoragesAction(),
-    ]);
-    if (!stockRes.success && handleUnauthorizedClient(stockRes)) {
-      return;
-    }
-    if (stockRes.success) {
-      setStock(stockRes.row);
-    } else {
-      setStock({ variantId: id, productName: "", sku: resolvedSku, stockUnitSymbol: "", storageBreakdown: [] });
-    }
-    if (!storagesRes.success && handleUnauthorizedClient(storagesRes)) {
-      return;
-    }
-    if (storagesRes.success) {
-      setStorages(storagesRes.storages);
-    }
   }, []);
 
   useEffect(() => {
@@ -89,21 +71,33 @@ export default function VariantDetailPage() {
         <div className="rounded-lg p-4">
           <div className="mb-3 flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-xs text-muted-foreground">SKU: {variant.sku || "—"}</p>
-              <p className="mt-1 text-lg font-semibold leading-snug text-foreground">
-                {variant.productName}
+              <p className="text-xs text-muted-foreground">
+                SKU: {variant.sku || "—"}
               </p>
-              {variant.barcode ? (
-                <p className="mt-1 text-xs text-muted-foreground">Código: {variant.barcode}</p>
-              ) : null}
-              {Object.keys(variant.attributeValues).length > 0 ? (
-                <ul className="mt-2 text-xs text-muted-foreground">
-                  {Object.entries(variant.attributeValues).map(([k, v]) => (
-                    <li key={k}>
-                      {k}: {v}
-                    </li>
+              <h1
+                className="mt-1 text-lg font-semibold leading-snug text-foreground"
+                title={variant.productName}
+              >
+                {variant.productName}
+              </h1>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Código: {variant.barcode?.trim() || "—"}
+              </p>
+              {attributeBadges.length > 0 ? (
+                <div
+                  className="mt-2 flex flex-wrap gap-1.5"
+                  data-test-id="variant-detail-attrs"
+                >
+                  {attributeBadges.map(({ key, value }) => (
+                    <Badge
+                      key={key}
+                      variant="secondary-outlined"
+                      className="max-w-full shrink-0 truncate text-xs font-normal"
+                    >
+                      {value}
+                    </Badge>
                   ))}
-                </ul>
+                </div>
               ) : null}
             </div>
             <Link
@@ -116,21 +110,16 @@ export default function VariantDetailPage() {
           </div>
         </div>
 
-        {stock?.storageBreakdown.length ? (
-          <div className="flex flex-col gap-3">
-            {stock.storageBreakdown.map((s) => (
-              <StorageStockCard
-                key={s.storageId}
-                variantId={variant.variantId}
-                storage={s}
-                allStorages={storages}
-                onUpdated={() => void loadDetail(variant.variantId, variant.sku)}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">Sin stock registrado en almacenes.</p>
-        )}
+        <VariantDetailPricingSection
+          variant={variant}
+          onPricingChanged={() => void loadDetail(variant.variantId)}
+        />
+
+        <VariantDetailStockByStorageSection
+          variantId={variant.variantId}
+          sku={variant.sku}
+          onStockChanged={() => void loadDetail(variant.variantId)}
+        />
       </section>
     </div>
   );

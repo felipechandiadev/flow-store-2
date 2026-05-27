@@ -2,7 +2,6 @@ import { StockRequest } from "@/features/stock/infrastructure/stock.request";
 import { CatalogRequest } from "../infrastructure/catalog.request";
 import { ProductRequest } from "../infrastructure/product.request";
 import {
-  buildInitialSku,
   effectiveIvaFactor,
   grossToNet,
   roundMoneyInt,
@@ -23,7 +22,7 @@ export async function createQuickProductUseCase(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-  const { productName, scannedCode, mode, sku: skuInput, basePrice } = parsed.data;
+  const { productName, sku, barcode, basePrice } = parsed.data;
 
   const catalog = await CatalogRequest.resolveDefaults();
   if (!catalog.success) {
@@ -36,10 +35,6 @@ export async function createQuickProductUseCase(
     return { ok: false, error: productRes.error, unauthorized: productRes.unauthorized };
   }
 
-  const sku =
-    skuInput?.trim() ||
-    (mode === "sku" ? scannedCode : buildInitialSku(productName, productRes.id));
-
   const gross = roundMoneyInt(basePrice ?? 0);
   const factor = effectiveIvaFactor(taxes, defaultIvaTaxIds);
   const net = grossToNet(gross, factor);
@@ -47,7 +42,7 @@ export async function createQuickProductUseCase(
   const variantRes = await ProductRequest.createVariant({
     productId: productRes.id,
     sku,
-    barcode: mode === "barcode" ? scannedCode : null,
+    barcode: barcode ?? null,
     basePrice: net,
     unitId,
     priceListItems: [

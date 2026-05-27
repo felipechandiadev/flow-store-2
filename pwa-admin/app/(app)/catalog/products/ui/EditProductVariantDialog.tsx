@@ -80,8 +80,6 @@ export function EditProductVariantDialog({
   const [maximumStockEnabled, setMaximumStockEnabled] = useState(false);
   const [reorderPoint, setReorderPoint] = useState("0");
   const [reorderPointEnabled, setReorderPointEnabled] = useState(false);
-  const [weight, setWeight] = useState("");
-  const [weightUnit, setWeightUnit] = useState("kg");
   const [netWeightKg, setNetWeightKg] = useState("");
   const [grossWeightKg, setGrossWeightKg] = useState("");
   const [packageLengthCm, setPackageLengthCm] = useState("");
@@ -239,10 +237,6 @@ export function EditProductVariantDialog({
             ? String(Math.max(0, Math.round(Number(variant.reorderPoint))))
             : "0",
         );
-        setWeight(
-          variant.weight != null && Number.isFinite(Number(variant.weight)) ? String(variant.weight) : "",
-        );
-        setWeightUnit(variant.weightUnit?.trim() ? String(variant.weightUnit).trim() : "kg");
         setNetWeightKg(
           variant.netWeightKg != null && Number.isFinite(Number(variant.netWeightKg))
             ? String(variant.netWeightKg)
@@ -314,8 +308,6 @@ export function EditProductVariantDialog({
     variant.maximumStockEnabled,
     variant.reorderPoint,
     variant.reorderPointEnabled,
-    variant.weight,
-    variant.weightUnit,
     variant.netWeightKg,
     variant.grossWeightKg,
     variant.packageLengthCm,
@@ -462,8 +454,6 @@ export function EditProductVariantDialog({
           reorderPointEnabled,
           stockBaseQtyPerCountSaleUnit: stockBaseQtyPerCountSaleUnitOut,
           stockBaseQtyPerCountPurchaseUnit: stockBaseQtyPerCountPurchaseUnitOut,
-          weight: parseOptDecimal(weight),
-          weightUnit: weightUnit.trim() || "kg",
           netWeightKg: parseOptDecimal(netWeightKg),
           grossWeightKg: parseOptDecimal(grossWeightKg),
           packageLengthCm: parseOptDecimal(packageLengthCm),
@@ -747,20 +737,6 @@ export function EditProductVariantDialog({
               Opcional: peso neto y bruto en kg; empaque L×W×H en cm; divisor K (p. ej. 5000) para peso volumétrico.
             </p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <TextField
-                label="Peso referencia (legacy)"
-                name="pv-edit-weight"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                placeholder="Opcional"
-              />
-              <TextField
-                label="Unidad peso legacy"
-                name="pv-edit-weight-unit"
-                value={weightUnit}
-                onChange={(e) => setWeightUnit(e.target.value)}
-                placeholder="kg"
-              />
               <TextField
                 label="Peso neto (kg)"
                 name="pv-edit-net-kg"

@@ -151,7 +151,7 @@ export default function PosCartLineCard({
       className={`rounded-xl border p-4 shadow-sm ${
         exceedsAvailableStock
           ? POS_INSUFFICIENT_STOCK_SURFACE_CLASS
-          : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+          : "border-border bg-surface"
       }`}
       data-test-id="pos-cart-line"
       data-stock-exceeded={exceedsAvailableStock ? "true" : undefined}
@@ -226,10 +226,10 @@ export default function PosCartLineCard({
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="flex items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-50 px-1 py-0.5 dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-neutral px-1 py-0.5">
                 <button
                   type="button"
-                  className="rounded px-2 py-1 text-lg leading-none text-zinc-700 hover:bg-white dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  className="rounded px-2 py-1 text-lg leading-none text-foreground hover:bg-background"
                   onClick={onDecrement}
                   aria-label="Disminuir cantidad"
                 >
@@ -238,7 +238,7 @@ export default function PosCartLineCard({
                 <span className="min-w-[2ch] text-center text-sm font-semibold tabular-nums">{quantityLabel}</span>
                 <button
                   type="button"
-                  className="rounded px-2 py-1 text-lg leading-none text-zinc-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  className="rounded px-2 py-1 text-lg leading-none text-foreground hover:bg-background disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={onIncrement}
                   disabled={atMaxQty}
                   aria-label="Aumentar cantidad"
@@ -302,7 +302,7 @@ export default function PosCartLineCard({
                   className={`rounded-lg border px-3 py-2 ${
                     row.isPosStorage
                       ? "border-secondary/40 bg-secondary/10"
-                      : "border-zinc-200 dark:border-zinc-800"
+                      : "border-border"
                   }`}
                   data-test-id={`pos-cart-stock-row-${row.storageId}`}
                   data-pos-storage={row.isPosStorage ? "true" : undefined}

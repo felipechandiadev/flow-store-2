@@ -302,7 +302,8 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
               onOpenChangePassword={onOpenChangePassword}
             />
             <div
-              className="min-h-0 min-w-0 flex-1 cursor-default bg-black/10"
+              className="min-h-0 min-w-0 flex-1 cursor-default"
+              style={{ backgroundColor: "var(--color-sidebar-overlay)" }}
               aria-label="Cerrar menú lateral"
               data-test-id="sidebar-overlay"
               onClick={close}

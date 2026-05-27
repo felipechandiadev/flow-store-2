@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Barcode, Check, X } from "lucide-react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
@@ -123,13 +123,20 @@ function formatCatalogMoney(amount: number, currency = "CLP"): string {
   }
 }
 
-function VariantExpandVerticalDivider() {
+function VariantExpandSection({
+  title,
+  children,
+  testId,
+}: {
+  title: string;
+  children: ReactNode;
+  testId?: string;
+}) {
   return (
-    <div
-      role="presentation"
-      className="hidden w-px shrink-0 self-stretch bg-border sm:block sm:min-h-8"
-      aria-hidden
-    />
+    <div className="min-w-0" data-test-id={testId}>
+      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+      <div className="min-w-0">{children}</div>
+    </div>
   );
 }
 
@@ -176,7 +183,7 @@ function ProductVariantExpandCard({
 
   return (
     <div
-      className="flex min-w-0 cursor-pointer items-start justify-between gap-2 rounded-md border border-border bg-muted/15 px-2 py-1.5 transition-colors hover:bg-muted/30 sm:items-center"
+      className="flex min-w-0 cursor-pointer items-start justify-between gap-2 rounded-md border border-border bg-muted/15 px-2 py-1.5 transition-colors hover:bg-muted/30"
       data-test-id={`products-expand-variant-row-${v.id}`}
       role="button"
       tabIndex={0}
@@ -191,38 +198,31 @@ function ProductVariantExpandCard({
       }}
     >
       <div
-        className="grid min-w-0 flex-1 grid-cols-1 gap-y-2 sm:grid-cols-[minmax(0,auto)_minmax(0,auto)] sm:items-center sm:gap-x-2 sm:gap-y-1.5"
+        className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
         data-test-id={`products-expand-variant-meta-${v.id}`}
       >
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-        <div
-          className="flex shrink-0 flex-col gap-0 leading-tight"
-          data-test-id={`products-expand-variant-ids-${v.id}`}
-        >
-          <span className="whitespace-nowrap text-[10px] text-muted-foreground" title={`SKU: ${v.sku}`}>
-            SKU: <span className="font-mono font-medium text-foreground">{v.sku}</span>
-          </span>
-          <span
-            className="whitespace-nowrap text-[10px] text-muted-foreground"
-            title={barcode ? `Código de barras: ${barcode}` : "Sin código de barras"}
-          >
-            Código de barras:{" "}
-            <span className="font-mono font-medium text-foreground">{barcode || "—"}</span>
-          </span>
-        </div>
-
-        {attributeEntries.length > 0 ? (
-          <>
-            <VariantExpandVerticalDivider />
-            <div
-              className="flex min-w-0 flex-wrap items-center gap-1"
-              data-test-id={`products-expand-variant-attrs-${v.id}`}
+        <VariantExpandSection title="SKU / código" testId={`products-expand-variant-ids-${v.id}`}>
+          <div className="flex flex-col gap-0 leading-tight">
+            <span className="text-[10px] text-muted-foreground" title={`SKU: ${v.sku}`}>
+              SKU: <span className="font-mono font-medium text-foreground">{v.sku}</span>
+            </span>
+            <span
+              className="text-[10px] text-muted-foreground"
+              title={barcode ? `Código de barras: ${barcode}` : "Sin código de barras"}
             >
+              Código: <span className="font-mono font-medium text-foreground">{barcode || "—"}</span>
+            </span>
+          </div>
+        </VariantExpandSection>
+
+        <VariantExpandSection title="Atributos" testId={`products-expand-variant-attrs-${v.id}`}>
+          {attributeEntries.length > 0 ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
               {attributeEntries.map(({ key, value }) => (
                 <Badge
                   key={key}
                   variant="primary-outlined"
-                  className="max-w-[12rem] shrink-0 truncate text-[10px] font-medium"
+                  className="max-w-full shrink truncate text-[10px] font-medium"
                   title={value}
                   data-test-id={`products-expand-variant-attr-${v.id}-${key}`}
                 >
@@ -230,49 +230,52 @@ function ProductVariantExpandCard({
                 </Badge>
               ))}
             </div>
-          </>
-        ) : null}
-        </div>
+          ) : (
+            <span className="text-[10px] text-muted-foreground">—</span>
+          )}
+        </VariantExpandSection>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:justify-end sm:border-l sm:border-border sm:pl-2">
-          <div className="flex flex-wrap items-center gap-1">
+        <VariantExpandSection title="Configuración de stock" testId={`products-expand-variant-stock-${v.id}`}>
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
             <VariantFlagBadge label="Inventario" enabled={trackInventory} />
             <VariantFlagBadge
-              label="Stock −"
+              label="Stock (-)"
               enabled={v.allowNegativeStock === true}
               enabledLabel="Permitido"
               disabledLabel="No permitido"
             />
           </div>
-          {(priceItems.length > 0 || v.isActive === false) && (
-            <>
-              <VariantExpandVerticalDivider />
-              <div className="flex min-w-0 flex-wrap items-center gap-1">
-                {priceItems.map((p) => {
-                  const listName = p.priceListName.trim();
-                  const gross = formatCatalogMoney(p.grossPrice, p.currency);
-                  const net = formatCatalogMoney(p.netPrice, p.currency);
-                  return (
-                    <Badge
-                      key={p.priceListId}
-                      variant="secondary-outlined"
-                      className="max-w-[14rem] shrink-0 truncate text-[10px] font-normal tabular-nums"
-                      title={`Precio de venta «${listName}» — Neto ${net} · Bruto ${gross} (c/ imp.)`}
-                    >
-                      <span className="text-muted-foreground">Venta «{listName}»</span>{" "}
-                      <span className="font-medium text-foreground">{gross}</span>
-                    </Badge>
-                  );
-                })}
-                {v.isActive === false ? (
-                  <Badge variant="warning-outlined" className="shrink-0 text-[10px] font-normal">
-                    Inactiva
+        </VariantExpandSection>
+
+        <VariantExpandSection title="Precios de venta" testId={`products-expand-variant-prices-${v.id}`}>
+          {priceItems.length > 0 || v.isActive === false ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              {priceItems.map((p) => {
+                const listName = p.priceListName.trim();
+                const gross = formatCatalogMoney(p.grossPrice, p.currency);
+                const net = formatCatalogMoney(p.netPrice, p.currency);
+                return (
+                  <Badge
+                    key={p.priceListId}
+                    variant="secondary-outlined"
+                    className="inline-flex max-w-full shrink items-center gap-2 text-[10px] font-normal"
+                    title={`Precio de venta «${listName}» — Neto ${net} · Bruto ${gross} (c/ imp.)`}
+                  >
+                    <span className="min-w-0 truncate text-muted-foreground">«{listName}»</span>
+                    <span className="shrink-0 font-medium tabular-nums text-foreground">{gross}</span>
                   </Badge>
-                ) : null}
-              </div>
-            </>
+                );
+              })}
+              {v.isActive === false ? (
+                <Badge variant="warning-outlined" className="shrink-0 text-[10px] font-normal">
+                  Inactiva
+                </Badge>
+              ) : null}
+            </div>
+          ) : (
+            <span className="text-[10px] text-muted-foreground">—</span>
           )}
-        </div>
+        </VariantExpandSection>
       </div>
       {onDelete ? (
         <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
