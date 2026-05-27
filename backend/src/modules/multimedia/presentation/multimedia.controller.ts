@@ -13,6 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { SkipTenant } from '@common/tenant';
 import { AppConfigService } from '../../../config/config.service';
 import { MultimediaServiceAdapter } from '../application/services/multimedia.service.adapter';
 import { UploadMultimediaDto } from '../application/dto/upload-multimedia.dto';
@@ -73,6 +74,8 @@ export class MultimediaController {
     };
   }
 
+  /** Archivos locales: lectura pública por URL opaca (UUID); el navegador no envía Bearer en <img>. */
+  @SkipTenant()
   @Get('files/:storageKey')
   async getLocalFile(
     @Param('storageKey') storageKey: string,

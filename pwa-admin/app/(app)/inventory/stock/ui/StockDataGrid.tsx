@@ -17,6 +17,7 @@ import { adjustStockAction, transferStockAction } from "@/features/inventory-sto
 import { useNotificationsRealtime } from "@/features/notifications/realtime/notifications-realtime-context";
 import { EditVariantStockConfigDialog } from "./EditVariantStockConfigDialog";
 import { StockMovementsDialog } from "./StockMovementsDialog";
+import { StockReservationsDialog } from "./StockReservationsDialog";
 import Switch from "@/shared/components/Switch/Switch";
 import {
   readStockGridCountUnit,
@@ -375,6 +376,7 @@ function StockStorageCard({
   b,
   busy,
   countInSaleUnits,
+  onOpenReservations,
   onCountInSaleUnitsChange,
   onRecount,
   onQuickDelta,
@@ -385,6 +387,7 @@ function StockStorageCard({
   b: StockStorageBreakdownRow;
   busy: boolean;
   countInSaleUnits: boolean;
+  onOpenReservations: (row: StockGridRow, b: StockStorageBreakdownRow) => void;
   onCountInSaleUnitsChange: (saleUnits: boolean) => void;
   onRecount: (p: { variantId: string; storageId: string; title: string; currentQty: number }) => void;
   onQuickDelta: (p: { variantId: string; storageId: string; currentQty: number; delta: number }) => void;
@@ -462,7 +465,20 @@ function StockStorageCard({
         >
           {formatStockSlashPair(b.quantity, row)}
         </dd>
-        <dt className="text-muted-foreground">Reservado</dt>
+        <dt className="flex items-center gap-1 text-muted-foreground">
+          <span>Reservado</span>
+          {b.reservedStock > 0 ? (
+            <IconButton
+              icon="Info"
+              variant="ghost"
+              size="xs"
+              ariaLabel="Ver detalle de reservas"
+              title="Ver detalle de reservas"
+              onClick={() => onOpenReservations(row, b)}
+              data-test-id={`stock-reserved-detail-${row.variantId}-${b.storageId}`}
+            />
+          ) : null}
+        </dt>
         <dd className="text-right font-mono tabular-nums text-foreground">
           {formatStockSlashPair(b.reservedStock, row)}
         </dd>
@@ -578,6 +594,7 @@ function StockExpandPanel({
   onRecount,
   onQuickDelta,
   onTransfer,
+  onOpenReservations,
 }: {
   row: StockGridRow;
   storages: StorageListItem[];
@@ -591,6 +608,7 @@ function StockExpandPanel({
   onRecount: (p: { variantId: string; storageId: string; title: string; currentQty: number }) => void;
   onQuickDelta: (p: { variantId: string; storageId: string; currentQty: number; delta: number }) => void;
   onTransfer: (p: { variantId: string; sourceStorageId: string; sourceLabel: string }) => void;
+  onOpenReservations: (row: StockGridRow, b: StockStorageBreakdownRow) => void;
 }) {
   const cards = useMemo(() => {
     const merged = mergeStoragesWithBreakdown(storages, row.storageBreakdown ?? [], branchId);
@@ -631,6 +649,7 @@ function StockExpandPanel({
               b={b}
               busy={busy}
               countInSaleUnits={countInSaleUnits}
+              onOpenReservations={onOpenReservations}
               onCountInSaleUnitsChange={onCountInSaleUnitsChange}
               canTransfer={canTransfer}
               onRecount={onRecount}
@@ -670,6 +689,8 @@ export default function StockDataGrid({
   const [transfer, setTransfer] = useState<TransferState | null>(null);
   const [configRow, setConfigRow] = useState<StockGridRow | null>(null);
   const [movementsRow, setMovementsRow] = useState<StockGridRow | null>(null);
+  const [reservationsRow, setReservationsRow] = useState<StockGridRow | null>(null);
+  const [reservationsStorage, setReservationsStorage] = useState<StockStorageBreakdownRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** No usar `startTransition` para el action + refresh: retrasa el RSC y la grilla puede quedar con datos viejos. */
   const [isSaving, setIsSaving] = useState(false);
@@ -969,6 +990,10 @@ export default function StockDataGrid({
         onRecount={openRecount}
         onQuickDelta={submitQuickDelta}
         onTransfer={openTransfer}
+        onOpenReservations={(r, b) => {
+          setReservationsRow(r);
+          setReservationsStorage(b);
+        }}
       />
     ),
     [
@@ -1126,6 +1151,16 @@ export default function StockDataGrid({
         branchId={branchId}
         filterStorageId={filterStorageId}
         onClose={() => setMovementsRow(null)}
+      />
+
+      <StockReservationsDialog
+        open={reservationsRow != null && reservationsStorage != null}
+        row={reservationsRow}
+        storage={reservationsStorage}
+        onClose={() => {
+          setReservationsRow(null);
+          setReservationsStorage(null);
+        }}
       />
 
       <Dialog

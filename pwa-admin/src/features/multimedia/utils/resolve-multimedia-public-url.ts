@@ -8,7 +8,12 @@ export function resolveMultimediaPublicUrl(publicUrl: string): string {
   if (!u || /^https?:\/\//i.test(u)) {
     return u;
   }
-  const base = process.env.BACKEND_API_URL?.replace(/\/$/, "") ?? "";
+  const base =
+    (
+      process.env.NEXT_PUBLIC_BACKEND_API_URL?.trim() ||
+      process.env.BACKEND_API_URL?.trim() ||
+      ""
+    ).replace(/\/$/, "") || "";
   if (!base) {
     return u;
   }

@@ -7,7 +7,7 @@ import { CreateSaleDto } from './create-sale.dto';
  */
 export class CreateBackorderDto extends CreateSaleDto {
   @IsNumber()
-  @Min(1)
+  @Min(0)
   backorderDepositAmount: number;
 
   @IsOptional()

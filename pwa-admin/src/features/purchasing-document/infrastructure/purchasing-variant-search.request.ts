@@ -1,6 +1,9 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
-import type { PurchasingVariantSearchResult } from "../types/purchasing-document.types";
+import type {
+  PurchasingVariantSearchResult,
+  PurchasingVariantStorageStock,
+} from "../types/purchasing-document.types";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -24,6 +27,31 @@ async function authHeaders(): Promise<HeadersInit> {
   return h;
 }
 
+function normalizeStorageStock(row: unknown): PurchasingVariantStorageStock | null {
+  if (!row || typeof row !== "object") {
+    return null;
+  }
+  const o = row as Record<string, unknown>;
+  const storageId = o.storageId != null ? String(o.storageId) : "";
+  if (!storageId) {
+    return null;
+  }
+  const available =
+    typeof o.availableStock === "number" && Number.isFinite(o.availableStock)
+      ? o.availableStock
+      : Number.isFinite(Number(o.availableStock))
+        ? Number(o.availableStock)
+        : 0;
+  return {
+    storageId,
+    storageName: o.storageName != null ? String(o.storageName) : "",
+    branchName:
+      o.branchName != null && String(o.branchName).trim() ? String(o.branchName).trim() : null,
+    availableStock: available,
+    hasStockAlert: o.hasStockAlert === true,
+  };
+}
+
 function normalizeItem(row: unknown): PurchasingVariantSearchResult["items"][number] | null {
   if (!row || typeof row !== "object") {
     return null;
@@ -44,6 +72,11 @@ function normalizeItem(row: unknown): PurchasingVariantSearchResult["items"][num
       : {};
   const taxRaw = o.defaultTaxIds;
   const defaultTaxIds = Array.isArray(taxRaw) ? taxRaw.map((x) => String(x)) : [];
+  const storageRaw = o.storageStocks;
+  const storageStocks = Array.isArray(storageRaw)
+    ? storageRaw.map(normalizeStorageStock).filter((x): x is NonNullable<typeof x> => x != null)
+    : [];
+  const hasStockAlert = o.hasStockAlert === true;
   return {
     id,
     productId: o.productId != null ? String(o.productId) : "",
@@ -74,6 +107,12 @@ function normalizeItem(row: unknown): PurchasingVariantSearchResult["items"][num
       o.stockBaseUnitLabel != null && String(o.stockBaseUnitLabel).trim()
         ? String(o.stockBaseUnitLabel).trim()
         : null,
+    stockQtyPerPurchaseUnit:
+      o.stockQtyPerPurchaseUnit == null || o.stockQtyPerPurchaseUnit === ""
+        ? 1
+        : Number.isFinite(Number(o.stockQtyPerPurchaseUnit)) && Number(o.stockQtyPerPurchaseUnit) > 0
+          ? Number(o.stockQtyPerPurchaseUnit)
+          : 1,
     attributeValues,
     unitLabel:
       (o.purchaseUnitLabel != null && String(o.purchaseUnitLabel).trim()
@@ -81,6 +120,8 @@ function normalizeItem(row: unknown): PurchasingVariantSearchResult["items"][num
         : null) ??
       (o.unitLabel != null && String(o.unitLabel).trim() ? String(o.unitLabel).trim() : null),
     defaultTaxIds,
+    storageStocks,
+    hasStockAlert,
   };
 }
 
@@ -107,6 +148,11 @@ export class PurchasingVariantSearchRequest {
         cache: "no-store",
       });
       if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        console.error(
+          `[PurchasingVariantSearchRequest.search] ${res.status} ${res.statusText}`,
+          body.slice(0, 400),
+        );
         return { items: [], page: 1, pageSize, total: 0 };
       }
       const json = (await res.json()) as unknown;
@@ -124,7 +170,8 @@ export class PurchasingVariantSearchRequest {
       const ps =
         typeof body.pageSize === "number" && Number.isFinite(body.pageSize) ? body.pageSize : pageSize;
       return { items, page: p, pageSize: ps, total };
-    } catch {
+    } catch (e) {
+      console.error("[PurchasingVariantSearchRequest.search]", e);
       return { items: [], page: 1, pageSize, total: 0 };
     }
   }

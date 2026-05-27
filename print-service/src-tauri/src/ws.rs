@@ -40,6 +40,7 @@ fn is_vector_pos_ticket_type(print_type: &str) -> bool {
         print_type,
         "pos-sale-ticket"
             | "pos-quotation-ticket"
+            | "pos-payment-in-ticket"
             | "pos-customer-credit-note-ticket"
             | "pos-cash-closing-ticket"
             | "pos-cash-count-sheet-ticket"
@@ -49,7 +50,7 @@ fn is_vector_pos_ticket_type(print_type: &str) -> bool {
 
 fn vector_ticket_folio(print_type: &str, ticket: &serde_json::Value) -> String {
     match print_type {
-        "pos-quotation-ticket" => ticket
+        "pos-quotation-ticket" | "pos-payment-in-ticket" => ticket
             .get("documentNumber")
             .and_then(|v| v.as_str())
             .unwrap_or("")
@@ -86,6 +87,7 @@ type WriteVectorTicketFn =
 fn vector_ticket_escpos_writer(print_type: &str) -> WriteVectorTicketFn {
     match print_type {
         "pos-quotation-ticket" => jobs::write_pos_quotation_ticket_escpos_from_value,
+        "pos-payment-in-ticket" => jobs::write_pos_payment_in_ticket_escpos_from_value,
         "pos-customer-credit-note-ticket" => {
             jobs::write_pos_customer_credit_note_ticket_escpos_from_value
         }
@@ -328,6 +330,7 @@ where
                                     "pdf-base64",
                                     "pos-sale-ticket",
                                     "pos-quotation-ticket",
+                                    "pos-payment-in-ticket",
                                     "pos-customer-credit-note-ticket",
                                     "pos-cash-closing-ticket",
                                     "pos-cash-count-sheet-ticket",

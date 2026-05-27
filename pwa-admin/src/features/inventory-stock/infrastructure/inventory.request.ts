@@ -483,6 +483,74 @@ export class InventoryRequest {
     };
   }
 
+  static async listActiveReservations(params: {
+    variantId: string;
+    storageId?: string;
+    branchId?: string;
+    customerId?: string;
+  }): Promise<
+    Array<{
+      id: string;
+      productId: string;
+      productName: string;
+      variantId?: string;
+      variantName?: string;
+      quantity: number;
+      customerId: string;
+      customerName: string;
+      storageId: string;
+      storageName: string;
+      branchId: string;
+      branchName: string;
+      createdAt: string;
+      expiresAt?: string;
+      orderReference?: string;
+      notes?: string;
+      isExpired: boolean;
+    }>
+  > {
+    const headers = await authHeaders();
+    const q = new URLSearchParams();
+    q.set("variantId", params.variantId.trim());
+    if (params.storageId?.trim()) q.set("storageId", params.storageId.trim());
+    if (params.branchId?.trim()) q.set("branchId", params.branchId.trim());
+    if (params.customerId?.trim()) q.set("customerId", params.customerId.trim());
+
+    const res = await fetch(apiUrl(`inventory-transactions/reservations?${q.toString()}`), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+    const json = (await res.json().catch(() => null)) as any;
+    if (!res.ok) {
+      const msg =
+        typeof json?.message === "string" && json.message.trim()
+          ? json.message.trim()
+          : `Error ${res.status} al cargar reservas`;
+      throw new Error(msg);
+    }
+    const rows = Array.isArray(json) ? json : [];
+    return rows.map((r) => ({
+      id: String(r.id ?? ""),
+      productId: String(r.productId ?? ""),
+      productName: String(r.productName ?? ""),
+      variantId: r.variantId != null ? String(r.variantId) : undefined,
+      variantName: r.variantName != null ? String(r.variantName) : undefined,
+      quantity: Number(r.quantity) || 0,
+      customerId: String(r.customerId ?? ""),
+      customerName: String(r.customerName ?? ""),
+      storageId: String(r.storageId ?? ""),
+      storageName: String(r.storageName ?? ""),
+      branchId: String(r.branchId ?? ""),
+      branchName: String(r.branchName ?? ""),
+      createdAt: r.createdAt ? new Date(String(r.createdAt)).toISOString() : "",
+      expiresAt: r.expiresAt ? new Date(String(r.expiresAt)).toISOString() : undefined,
+      orderReference: r.orderReference != null ? String(r.orderReference) : undefined,
+      notes: r.notes != null ? String(r.notes) : undefined,
+      isExpired: Boolean(r.isExpired),
+    }));
+  }
+
   static async updateStockLevelThresholds(body: {
     productVariantId: string;
     storageId: string;

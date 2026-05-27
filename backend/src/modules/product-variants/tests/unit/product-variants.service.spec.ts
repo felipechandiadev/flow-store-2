@@ -28,6 +28,9 @@ describe('ProductVariantsService', () => {
     createQueryBuilder: jest.Mock;
     manager: { getRepository: jest.Mock };
   };
+  let stockLevelOrm: {
+    find: jest.Mock;
+  };
 
   beforeEach(() => {
     variantRepository = {
@@ -80,6 +83,9 @@ describe('ProductVariantsService', () => {
         }),
       },
     };
+    stockLevelOrm = {
+      find: jest.fn().mockResolvedValue([]),
+    };
 
     const conversion = {
       validateVariantUomTripletAsync: jest.fn().mockResolvedValue(undefined),
@@ -97,6 +103,7 @@ describe('ProductVariantsService', () => {
       multimediaService as unknown as MultimediaServiceAdapter,
       attributesService as any,
       variantOrm as any,
+      stockLevelOrm as any,
       conversion as any,
     );
   });
@@ -316,6 +323,32 @@ describe('ProductVariantsService', () => {
     expect(saved.pmpHistory).toBeUndefined();
   });
 
+  it('should strip salePriceHistory from client payload on update', async () => {
+    variantRepository.findById
+      .mockResolvedValueOnce({
+        id: 'variant-1',
+        productId: 'product-1',
+        sku: 'SKU-1',
+        pmp: 10,
+        companyId: 'company-1',
+        unitId: 'unit-1',
+        saleUnitId: 'unit-1',
+        stockBaseUnitId: 'unit-1',
+        purchaseUnitId: 'unit-1',
+      })
+      .mockResolvedValueOnce({ id: 'variant-1', sku: 'SKU-1' });
+    variantRepository.save.mockImplementation(async (row: any) => ({ ...row }));
+    multimediaService.listByEntity.mockResolvedValue([]);
+
+    await service.update('variant-1', {
+      sku: 'SKU-1',
+      salePriceHistory: [{ forged: true }] as any,
+    });
+
+    const saved = variantRepository.save.mock.calls[0][0] as any;
+    expect(saved.salePriceHistory).toBeUndefined();
+  });
+
   it('should create variant with null pmp and reject explicit pmp in payload', async () => {
     variantRepository.save.mockImplementation(async (row: any) => ({
       id: 'variant-new',
@@ -339,6 +372,7 @@ describe('ProductVariantsService', () => {
       expect.objectContaining({
         pmp: null,
         pmpHistory: null,
+        salePriceHistory: null,
       }),
     );
 

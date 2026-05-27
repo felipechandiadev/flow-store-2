@@ -304,6 +304,32 @@ export class VariantQuantityConversionService {
     };
   }
 
+  async unitsMapForCompany(companyId: string): Promise<Map<string, Unit>> {
+    const rows = await this.unitRepo.find({
+      where: { companyId, deletedAt: IsNull() },
+    });
+    return new Map(rows.map((u) => [u.id, u]));
+  }
+
+  /** Unidades de stock base equivalentes a 1 unidad de compra (p. ej. 1 docena → 12). */
+  purchaseQtyToStockBaseFactor(variant: ProductVariant, byId: Map<string, Unit>): number {
+    const purchaseUnitId = (variant.purchaseUnitId ?? variant.unitId ?? '').trim();
+    if (!purchaseUnitId) {
+      return 1;
+    }
+    try {
+      return this.toVariantStockBaseSync(
+        variant,
+        1,
+        purchaseUnitId,
+        byId,
+        'purchase',
+      ).quantityInBase;
+    } catch {
+      return 1;
+    }
+  }
+
   /**
    * Convierte PMP (moneda por 1 unidad base de stock) al costo por 1 unidad de compra de la variante.
    * Usado en búsqueda de compras para prellenar el costo de línea en recepciones.

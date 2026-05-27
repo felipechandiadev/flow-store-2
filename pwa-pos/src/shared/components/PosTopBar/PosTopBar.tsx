@@ -44,6 +44,170 @@ function pathnameMatchesRoute(pathname: string, routePrefix: string): boolean {
   return p === routePrefix || p.startsWith(`${routePrefix}/`);
 }
 
+type PrintServiceNavProps = {
+  connected: boolean;
+  health: ReturnType<typeof usePrintServiceConnection>["health"];
+  visual: ReturnType<typeof usePrintServiceConnection>["visual"];
+  lastError: string | null;
+  attemptedWsUrl: string | null;
+  reconnect: () => void;
+  notifications: ReturnType<typeof usePrintServiceConnection>["notifications"];
+  unreadCount: number;
+  markNotificationsRead: () => void;
+  clearNotifications: () => void;
+};
+
+type PosTopBarNavProps = {
+  pathname: string;
+  onNavigate: (path: string) => void;
+  onSignOut: () => void;
+  printService: PrintServiceNavProps;
+  className?: string;
+};
+
+function PosTopBarNav({
+  pathname,
+  onNavigate,
+  onSignOut,
+  printService,
+  className = "",
+}: PosTopBarNavProps) {
+  return (
+    <nav
+      className={`flex items-center gap-2 ${className}`.trim()}
+      data-test-id="pos-topbar-nav"
+      aria-label="Navegación principal"
+    >
+      <IconButton
+        icon="ShoppingCart"
+        variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/pos"))}
+        size="md"
+        ariaLabel="Ir al punto de venta"
+        title="Punto de venta"
+        aria-current={pathnameMatchesRoute(pathname, "/pos") ? "page" : undefined}
+        onClick={() => onNavigate("/pos")}
+        data-test-id="pos-topbar-pos"
+      />
+      <IconButton
+        icon="Users"
+        variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/customers"))}
+        size="md"
+        ariaLabel="Clientes"
+        aria-current={pathnameMatchesRoute(pathname, "/customers") ? "page" : undefined}
+        onClick={() => onNavigate("/customers")}
+        data-test-id="pos-topbar-customers"
+      />
+      <StockAlertsDropdown />
+      <IconButton
+        icon="FileCheck"
+        variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/purchasing/receptions"))}
+        size="md"
+        ariaLabel="Recepción de compra"
+        title="Recepción de compra"
+        aria-current={pathnameMatchesRoute(pathname, "/purchasing/receptions") ? "page" : undefined}
+        onClick={() => onNavigate("/purchasing/receptions/new")}
+        data-test-id="pos-topbar-reception"
+      />
+      <IconButton
+        icon="ArrowLeftRight"
+        variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/movements"))}
+        size="md"
+        ariaLabel="Movimientos de caja"
+        title="Movimientos de caja"
+        aria-current={pathnameMatchesRoute(pathname, "/cash/movements") ? "page" : undefined}
+        onClick={() => onNavigate("/cash/movements")}
+        data-test-id="pos-topbar-cash-movements"
+      />
+      <IconButton
+        icon="BanknoteArrowDown"
+        variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/hub-deposit"))}
+        size="md"
+        ariaLabel="Ingreso de efectivo desde centro de efectivo"
+        title="Ingreso desde centro de efectivo"
+        aria-current={pathnameMatchesRoute(pathname, "/cash/hub-deposit") ? "page" : undefined}
+        onClick={() => onNavigate("/cash/hub-deposit")}
+        data-test-id="pos-topbar-hub-deposit"
+      />
+      <IconButton
+        icon="BanknoteArrowUp"
+        variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/hub-withdrawal"))}
+        size="md"
+        ariaLabel="Egreso de efectivo a centro de efectivo"
+        title="Egreso a centro de efectivo"
+        aria-current={pathnameMatchesRoute(pathname, "/cash/hub-withdrawal") ? "page" : undefined}
+        onClick={() => onNavigate("/cash/hub-withdrawal")}
+        data-test-id="pos-topbar-hub-withdrawal"
+      />
+      <IconButton
+        icon="LockKeyhole"
+        variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/closing"))}
+        size="md"
+        ariaLabel="Cerrar caja"
+        title="Cerrar caja"
+        aria-current={pathnameMatchesRoute(pathname, "/cash/closing") ? "page" : undefined}
+        onClick={() => onNavigate("/cash/closing")}
+        data-test-id="pos-topbar-cash-closing"
+      />
+      <PrintServiceTopBarDropdown
+        panelVariant="pos"
+        connected={printService.connected}
+        health={printService.health}
+        visual={printService.visual}
+        lastError={printService.lastError}
+        attemptedWsUrl={printService.attemptedWsUrl}
+        reconnect={printService.reconnect}
+        notifications={printService.notifications}
+        unreadCount={printService.unreadCount}
+        markNotificationsRead={printService.markNotificationsRead}
+        clearNotifications={printService.clearNotifications}
+        triggerClassName={`fs-icon-button fs-icon-button--basic-secondary inline-flex items-center justify-center w-10 h-10 shrink-0 ${
+          printService.connected
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-red-600 dark:text-red-400"
+        }`}
+        renderLocalAgentStatus={({ connected }) => {
+          const label = connected
+            ? "Conectado al servicio local de impresión"
+            : "Sin conexión al servicio local de impresión";
+          return (
+            <span
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center"
+              title={label}
+              aria-label={label}
+              role="img"
+            >
+              {connected ? (
+                <Wifi
+                  className="shrink-0 text-emerald-600 dark:text-emerald-400"
+                  size={24}
+                  strokeWidth={2}
+                  aria-hidden
+                />
+              ) : (
+                <WifiOff
+                  className="shrink-0 text-red-600 dark:text-red-400"
+                  size={24}
+                  strokeWidth={2}
+                  aria-hidden
+                />
+              )}
+            </span>
+          );
+        }}
+        data-test-id="pos-topbar-session-print"
+      />
+      <IconButton
+        icon="LogOut"
+        variant="text"
+        size="md"
+        ariaLabel="Cerrar sesión"
+        onClick={onSignOut}
+        data-test-id="pos-topbar-logout"
+      />
+    </nav>
+  );
+}
+
 export default function PosTopBar({
   pointOfSaleName = null,
   companyTradeName = null,
@@ -115,16 +279,47 @@ export default function PosTopBar({
   const showContextColumn = Boolean(effectiveCompany || effectivePosName);
   const showUserColumn = Boolean(effectivePerson || effectiveRole);
 
+  /** ≤1025px: iconos en barra lateral; una sola instancia de nav (impresión, alertas). */
+  const [sidebarNav, setSidebarNav] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1025px)");
+    const sync = () => setSidebarNav(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const printServiceNav: PrintServiceNavProps = {
+    connected: printService.connected,
+    health: printService.health,
+    visual: printService.visual,
+    lastError: printService.lastError,
+    attemptedWsUrl: printService.attemptedWsUrl,
+    reconnect: printService.reconnect,
+    notifications: printService.notifications,
+    unreadCount: printService.unreadCount,
+    markNotificationsRead: printService.markNotificationsRead,
+    clearNotifications: printService.clearNotifications,
+  };
+
+  const navProps: PosTopBarNavProps = {
+    pathname,
+    onNavigate: (path) => router.push(path),
+    onSignOut: () => signOut({ callbackUrl: "/" }),
+    printService: printServiceNav,
+  };
+
   return (
+    <>
     <header
-      className="fixed top-0 z-30 w-full border-b"
+      className="fixed top-0 z-30 w-full border-b max-[1025px]:left-0 max-[1025px]:right-0 min-[1026px]:left-0"
       style={{
         backgroundColor: "var(--color-background)",
         borderColor: "var(--color-border)",
       }}
       data-test-id="top-bar-root"
     >
-      <div className="flex items-center justify-between gap-6 px-10 py-2 pb-3">
+      <div className="flex items-center justify-between gap-4 px-4 py-2 pb-3 min-[1026px]:gap-6 min-[1026px]:px-10">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {logoSrc ? (
             <div
@@ -193,7 +388,7 @@ export default function PosTopBar({
                 visual entre "ancla" (empresa / persona) y "subtítulo" (PV /
                 rol) se preserva sólo a través del color. */}
             {showContextColumn || showUserColumn ? (
-              <div className="flex min-w-0 items-center gap-6" data-test-id="pos-topbar-right-columns">
+              <div className="flex min-w-0 items-center gap-4 min-[1026px]:gap-6" data-test-id="pos-topbar-right-columns">
                 {showContextColumn ? (
                   <div
                     className="flex min-w-0 flex-col gap-0 py-0.5 leading-none"
@@ -279,143 +474,29 @@ export default function PosTopBar({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-2">
-          <nav className="flex items-center gap-2">
-            <IconButton
-              icon="ShoppingCart"
-              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/pos"))}
-              size="md"
-              ariaLabel="Ir al punto de venta"
-              title="Punto de venta"
-              aria-current={pathnameMatchesRoute(pathname, "/pos") ? "page" : undefined}
-              onClick={() => router.push("/pos")}
-              data-test-id="pos-topbar-pos"
-            />
-            <IconButton
-              icon="Users"
-              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/customers"))}
-              size="md"
-              ariaLabel="Clientes"
-              aria-current={pathnameMatchesRoute(pathname, "/customers") ? "page" : undefined}
-              onClick={() => router.push("/customers")}
-              data-test-id="pos-topbar-customers"
-            />
-            <StockAlertsDropdown />
-            <IconButton
-              icon="FileCheck"
-              variant={topBarNavIconVariant(
-                pathnameMatchesRoute(pathname, "/purchasing/receptions"),
-              )}
-              size="md"
-              ariaLabel="Recepción de compra"
-              title="Recepción de compra"
-              aria-current={
-                pathnameMatchesRoute(pathname, "/purchasing/receptions") ? "page" : undefined
-              }
-              onClick={() => router.push("/purchasing/receptions/new")}
-              data-test-id="pos-topbar-reception"
-            />
-            <IconButton
-              icon="ArrowLeftRight"
-              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/movements"))}
-              size="md"
-              ariaLabel="Movimientos de caja"
-              title="Movimientos de caja"
-              aria-current={pathnameMatchesRoute(pathname, "/cash/movements") ? "page" : undefined}
-              onClick={() => router.push("/cash/movements")}
-              data-test-id="pos-topbar-cash-movements"
-            />
-            <IconButton
-              icon="BanknoteArrowDown"
-              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/hub-deposit"))}
-              size="md"
-              ariaLabel="Ingreso de efectivo desde centro de efectivo"
-              title="Ingreso desde centro de efectivo"
-              aria-current={pathnameMatchesRoute(pathname, "/cash/hub-deposit") ? "page" : undefined}
-              onClick={() => router.push("/cash/hub-deposit")}
-              data-test-id="pos-topbar-hub-deposit"
-            />
-            <IconButton
-              icon="BanknoteArrowUp"
-              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/hub-withdrawal"))}
-              size="md"
-              ariaLabel="Egreso de efectivo a centro de efectivo"
-              title="Egreso a centro de efectivo"
-              aria-current={
-                pathnameMatchesRoute(pathname, "/cash/hub-withdrawal") ? "page" : undefined
-              }
-              onClick={() => router.push("/cash/hub-withdrawal")}
-              data-test-id="pos-topbar-hub-withdrawal"
-            />
-            <IconButton
-              icon="LockKeyhole"
-              variant={topBarNavIconVariant(pathnameMatchesRoute(pathname, "/cash/closing"))}
-              size="md"
-              ariaLabel="Cerrar caja"
-              title="Cerrar caja"
-              aria-current={pathnameMatchesRoute(pathname, "/cash/closing") ? "page" : undefined}
-              onClick={() => router.push("/cash/closing")}
-              data-test-id="pos-topbar-cash-closing"
-            />
-            <PrintServiceTopBarDropdown
-              panelVariant="pos"
-              connected={printService.connected}
-              health={printService.health}
-              visual={printService.visual}
-              lastError={printService.lastError}
-              attemptedWsUrl={printService.attemptedWsUrl}
-              reconnect={printService.reconnect}
-              notifications={printService.notifications}
-              unreadCount={printService.unreadCount}
-              markNotificationsRead={printService.markNotificationsRead}
-              clearNotifications={printService.clearNotifications}
-              triggerClassName={`fs-icon-button fs-icon-button--basic-secondary inline-flex items-center justify-center w-10 h-10 shrink-0 ${
-                printService.connected
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-red-600 dark:text-red-400"
-              }`}
-              renderLocalAgentStatus={({ connected }) => {
-                const label = connected
-                  ? "Conectado al servicio local de impresión"
-                  : "Sin conexión al servicio local de impresión";
-                return (
-                  <span
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center"
-                    title={label}
-                    aria-label={label}
-                    role="img"
-                  >
-                    {connected ? (
-                      <Wifi
-                        className="shrink-0 text-emerald-600 dark:text-emerald-400"
-                        size={24}
-                        strokeWidth={2}
-                        aria-hidden
-                      />
-                    ) : (
-                      <WifiOff
-                        className="shrink-0 text-red-600 dark:text-red-400"
-                        size={24}
-                        strokeWidth={2}
-                        aria-hidden
-                      />
-                    )}
-                  </span>
-                );
-              }}
-              data-test-id="pos-topbar-session-print"
-            />
-            <IconButton
-              icon="LogOut"
-              variant="text"
-              size="md"
-              ariaLabel="Cerrar sesión"
-              onClick={() => signOut({ callbackUrl: "/" })}
-              data-test-id="pos-topbar-logout"
-            />
-          </nav>
-        </div>
+        {!sidebarNav ? (
+          <div className="flex shrink-0 items-center justify-end gap-2">
+            <PosTopBarNav {...navProps} />
+          </div>
+        ) : null}
       </div>
     </header>
+
+    {sidebarNav ? (
+      <aside
+        className="fixed left-0 z-30 flex w-(--app-sidebar-width) flex-col items-center gap-1 overflow-y-auto border-r py-3"
+        style={{
+          top: "var(--app-topbar-height)",
+          bottom: 0,
+          backgroundColor: "var(--color-background)",
+          borderColor: "var(--color-border)",
+        }}
+        data-test-id="pos-sidebar-nav"
+        aria-label="Accesos rápidos"
+      >
+        <PosTopBarNav {...navProps} className="flex-col items-center gap-1" />
+      </aside>
+    ) : null}
+    </>
   );
 }

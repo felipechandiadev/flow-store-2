@@ -5,6 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '../../../domain/product.entity';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
+import { applyProductCatalogTextSearch } from '../../product-catalog-search.util';
 
 interface ProductsResponse {
   items: Product[];
@@ -36,13 +37,7 @@ export class GetAllProductsQueryHandler implements IQueryHandler<
       .leftJoinAndSelect('product.catalogBrand', 'catalogBrand')
       .where('product.deletedAt IS NULL');
 
-    if (query.search && query.search.trim().length > 0) {
-      const q = `%${query.search.trim().toLowerCase()}%`;
-      qb.andWhere(
-        '(LOWER(product.name) LIKE :q OR LOWER(product.brand) LIKE :q OR LOWER(product.description) LIKE :q OR LOWER(catalogBrand.name) LIKE :q)',
-        { q },
-      );
-    }
+    applyProductCatalogTextSearch(qb, query.search, { product: 'product' });
 
     const total = await qb.getCount();
     const items = await qb

@@ -40,7 +40,7 @@ function parseAmountCLP(raw: string): number {
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
-const DEFAULT_PERCENT = 30;
+const DEFAULT_PERCENT = 0;
 
 export function BackorderDepositDialog({
   open,
@@ -98,15 +98,8 @@ export function BackorderDepositDialog({
       return;
     }
     const p = clampDepositPercent(parsePercentInput(percentStr));
-    if (p < 1) {
-      setError("Indique un porcentaje de abono de al menos 1 %.");
-      return;
-    }
     const amount = clampDepositAmount(parseAmountCLP(amountStr), saleTotal);
-    if (amount < 1) {
-      setError("El monto de abono debe ser al menos $1.");
-      return;
-    }
+    // Permitir 0% / $0: encargo sin abono (solo reserva).
     onConfirm({ percent: p, amount });
     onClose();
   }
@@ -140,7 +133,7 @@ export function BackorderDepositDialog({
         <TextField
           label="Porcentaje de abono (%)"
           type="number"
-          min={1}
+          min={0}
           max={100}
           value={percentStr}
           onChange={handlePercentChange}

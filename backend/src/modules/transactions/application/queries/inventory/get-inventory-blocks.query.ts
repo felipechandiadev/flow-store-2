@@ -70,7 +70,7 @@ export class GetInventoryBlocksQueryHandler implements IQueryHandler<GetInventor
       ])
       .innerJoin('t.lines', 'tl')
       .innerJoin('tl.product', 'p')
-      .leftJoin('tl.variant', 'pv')
+      .leftJoin('tl.productVariant', 'pv')
       .innerJoin('t.storage', 's')
       .innerJoin('t.branch', 'b')
       .innerJoin('t.user', 'u')

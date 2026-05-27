@@ -10,6 +10,7 @@ import { documentTypeLabel } from "@/features/sales-customers/lib/customer-docum
 import { CustomerDetailSummarySection } from "./customer-detail/CustomerDetailSummarySection";
 import { CustomerDetailCreditSection } from "./customer-detail/CustomerDetailCreditSection";
 import { CustomerDetailPurchasesSection } from "./customer-detail/CustomerDetailPurchasesSection";
+import { CustomerDetailBackordersSection } from "./customer-detail/CustomerDetailBackordersSection";
 import { CustomerDetailPaymentsSection } from "./customer-detail/CustomerDetailPaymentsSection";
 import { CustomerDetailQuotasSection } from "./customer-detail/CustomerDetailQuotasSection";
 import { CustomerDetailReturnsSection } from "./customer-detail/CustomerDetailReturnsSection";
@@ -19,6 +20,7 @@ export type CustomerDetailSectionId =
   | "summary"
   | "credit"
   | "purchases"
+  | "backorders"
   | "payments"
   | "returns"
   | "creditNotes"
@@ -28,6 +30,7 @@ const NAV_ITEMS: { id: CustomerDetailSectionId; label: string }[] = [
   { id: "summary", label: "Resumen" },
   { id: "credit", label: "Crédito" },
   { id: "purchases", label: "Compras" },
+  { id: "backorders", label: "Encargos" },
   { id: "payments", label: "Pagos" },
   { id: "returns", label: "Devoluciones" },
   { id: "creditNotes", label: "Notas de crédito" },
@@ -193,6 +196,9 @@ export function CustomerDetailDialog({
             ) : null}
             {section === "purchases" && customerId?.trim() ? (
               <CustomerDetailPurchasesSection customerId={customerId.trim()} />
+            ) : null}
+            {section === "backorders" && customerId?.trim() ? (
+              <CustomerDetailBackordersSection customerId={customerId.trim()} />
             ) : null}
             {section === "payments" && customerId?.trim() ? (
               <CustomerDetailPaymentsSection customerId={customerId.trim()} />

@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Alert from "@/shared/components/Alert/Alert";
 import MultimediaUpdater from "@/shared/components/FileUploader/MultimediaUpdater";
 import {
   listMultimediaForEntityAction,
-  uploadMultimediaForEntityAction,
+  revalidateMultimediaCachesAction,
   unlinkMultimediaFromEntityAction,
 } from "@/features/multimedia/actions/multimedia.action";
+import { uploadMultimediaForEntityClient } from "@/features/multimedia/infrastructure/multimedia.client";
 import type { MultimediaAssetListItem, MultimediaEntityType } from "@/features/multimedia/types/multimedia.types";
 
 const ENTITY_TYPE: MultimediaEntityType = "company";
@@ -30,6 +32,10 @@ function pickLogoUrl(assets: MultimediaAssetListItem[]): string | null {
 
 export function CompanyLogoSection({ companyId, embedded = false }: Props) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const accessToken = session?.user?.accessToken;
+  const activeCompanyId = (session?.user as { activeCompanyId?: string | null } | undefined)
+    ?.activeCompanyId;
   const [assets, setAssets] = useState<MultimediaAssetListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -85,16 +91,19 @@ export function CompanyLogoSection({ companyId, embedded = false }: Props) {
           return;
         }
       }
-      const form = new FormData();
-      form.append("file", file);
-      form.append("entityType", ENTITY_TYPE);
-      form.append("entityId", id);
-      form.append("isPrimary", "true");
-      const up = await uploadMultimediaForEntityAction(form);
+      const up = await uploadMultimediaForEntityClient({
+        file,
+        entityType: ENTITY_TYPE,
+        entityId: id,
+        isPrimary: true,
+        accessToken,
+        activeCompanyId,
+      });
       if (!up.success) {
         setError(up.error);
         return;
       }
+      await revalidateMultimediaCachesAction(ENTITY_TYPE, id);
       await load();
       setUpdaterKey((k) => k + 1);
       router.refresh();

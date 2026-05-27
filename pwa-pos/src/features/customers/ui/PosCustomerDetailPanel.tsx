@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button } from "@/shared/admin-shared";
+import { Alert, Button, Dialog, IconButton } from "@/shared/admin-shared";
 import { Badge } from "@/shared/components/Badge";
 import { writePosArCollectDraft } from "@/features/session/lib/pos-ar-collect-storage";
-import { getCustomerPosDetailBundleAction } from "@/features/customers/actions/customers-pos.action";
+import { getBackorderDetailPosAction, getCustomerPosDetailBundleAction } from "@/features/customers/actions/customers-pos.action";
 import type {
   PosCustomerDetail,
+  PosCustomerBackorderRow,
   PosCustomerDetailBundle,
   PosCustomerCreditNoteRow,
   PosCustomerPaymentRow,
@@ -171,6 +172,7 @@ export default function PosCustomerDetailPanel({
 
   const customer = bundle.customer;
   const { payments, quotas, purchases, returns, creditNotes } = bundle;
+  const backorders = (bundle as any).backorders ?? [];
 
   return (
     <article className="w-full min-w-0 space-y-4" data-test-id="pos-customer-detail-panel">
@@ -209,6 +211,10 @@ export default function PosCustomerDetailPanel({
         />
       </SectionCard>
 
+      <SectionCard title="Encargos" testId="pos-customer-detail-backorders">
+        <BackordersSection rows={backorders} />
+      </SectionCard>
+
       <SectionCard title="Pagos y cobros" testId="pos-customer-detail-payments">
         <PaymentsSection rows={payments} />
       </SectionCard>
@@ -221,6 +227,152 @@ export default function PosCustomerDetailPanel({
         <CreditNotesSection rows={creditNotes} />
       </SectionCard>
     </article>
+  );
+}
+
+function BackordersSection({ rows }: { rows?: PosCustomerBackorderRow[] }) {
+  const safe = Array.isArray(rows) ? rows : [];
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<{
+    id: string;
+    documentNumber: string | null;
+    createdAt: string;
+    lines: Array<{
+      id: string;
+      productName: string;
+      variantName: string | null;
+      quantity: number;
+      unitOfMeasure: string | null;
+    }>;
+  } | null>(null);
+
+  if (!safe.length) {
+    return <EmptyTableMsg>No hay encargos registrados.</EmptyTableMsg>;
+  }
+
+  const openDetail = async (txId: string) => {
+    setBusy(true);
+    setError(null);
+    setOpen(true);
+    try {
+      const res = await getBackorderDetailPosAction(txId);
+      if (!res || (res as any).success !== true) {
+        setDetail(null);
+        setError((res as any)?.message || "No se pudo cargar el encargo");
+        return;
+      }
+      setDetail((res as any).transaction);
+    } catch (e) {
+      setDetail(null);
+      setError(e instanceof Error ? e.message : "No se pudo cargar el encargo");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full min-w-[640px] border-collapse text-xs">
+          <thead>
+            <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-semibold uppercase text-muted-foreground">
+              <th className="w-10 px-3 py-2" />
+              <th className="px-3 py-2">Folio</th>
+              <th className="px-3 py-2">Estado</th>
+              <th className="px-3 py-2 text-right">Total</th>
+              <th className="px-3 py-2">Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {safe.map((r) => (
+              <tr key={r.id} className="border-b border-border/80">
+                <td className="px-2 py-2">
+                  <IconButton
+                    icon="MoreHorizontal"
+                    variant="ghost"
+                    size="sm"
+                    ariaLabel="Ver productos del encargo"
+                    title="Ver productos del encargo"
+                    onClick={() => void openDetail(r.id)}
+                    data-test-id={`pos-customer-backorder-detail-${r.id}`}
+                  />
+                </td>
+                <td className="px-3 py-2 font-mono">{r.documentNumber ?? "—"}</td>
+                <td className="px-3 py-2">{r.status ?? "—"}</td>
+                <td className="px-3 py-2 text-right font-mono tabular-nums">{fmtClp(r.total)}</td>
+                <td className="px-3 py-2">{formatCustomerDateTime(r.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Dialog
+        open={open}
+        onClose={() => {
+          if (busy) return;
+          setOpen(false);
+          setError(null);
+          setDetail(null);
+        }}
+        title="Productos del encargo"
+        size="lg"
+        scroll="paper"
+        alertArea={
+          error ? (
+            <Alert variant="error" className="text-sm">
+              {error}
+            </Alert>
+          ) : null
+        }
+        actions={
+          <>
+            <Button variant="secondary" type="button" disabled={busy} onClick={() => setOpen(false)}>
+              Cerrar
+            </Button>
+          </>
+        }
+        data-test-id="pos-backorder-detail-dialog"
+      >
+        {busy ? <p className="text-sm text-muted-foreground">Cargando…</p> : null}
+        {!busy && detail && detail.lines.length === 0 ? (
+          <EmptyTableMsg>Este encargo no tiene líneas.</EmptyTableMsg>
+        ) : null}
+        {!busy && detail && detail.lines.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              {detail.documentNumber ? <span className="font-mono">{detail.documentNumber}</span> : "Encargo"} ·{" "}
+              {formatCustomerDateTime(detail.createdAt)}
+            </p>
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full min-w-[680px] border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-semibold uppercase text-muted-foreground">
+                    <th className="px-3 py-2">Producto</th>
+                    <th className="px-3 py-2">Variante</th>
+                    <th className="px-3 py-2 text-right">Cantidad</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.lines.map((l) => (
+                    <tr key={l.id} className="border-b border-border/80">
+                      <td className="px-3 py-2">{l.productName}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{l.variantName ?? "—"}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">
+                        {new Intl.NumberFormat("es-CL", { maximumFractionDigits: 3 }).format(l.quantity)}
+                        {l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+      </Dialog>
+    </>
   );
 }
 

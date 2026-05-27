@@ -178,8 +178,8 @@ export function VariantPriceRowsEditor({
       </div>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Pulse el botón + para vincular al menos una lista de precios (obligatorio). Defina neto, bruto e impuestos por
-          fila.
+          Pulse el botón + para vincular al menos una lista de precios (obligatorio). Defina neto, precio con impuestos e
+          IVA por fila.
         </p>
       ) : (
         <div className="flex flex-col gap-4">
@@ -214,7 +214,7 @@ export function VariantPriceRowsEditor({
                   <IconButton
                     type="button"
                     icon="Calculator"
-                    ariaLabel="Calculadora PMP y utilidad para esta lista"
+                    ariaLabel="Calculadora precio de venta para esta lista"
                     variant="basicSecondary"
                     size="sm"
                     onClick={() => onOpenPmpCalculator(row.key)}

@@ -89,6 +89,21 @@ export async function getCustomerPurchasesListAction(
   }
 }
 
+export async function getCustomerBackordersListAction(
+  customerId: string,
+): Promise<{ success: true; rows: Record<string, unknown>[] } | { success: false; error: string }> {
+  const id = customerId?.trim();
+  if (!id) {
+    return { success: false, error: "Cliente no especificado." };
+  }
+  try {
+    const rows = await CustomerRequest.getBackorders(id);
+    return { success: true, rows };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Error al cargar encargos." };
+  }
+}
+
 export async function getCustomerReturnsListAction(
   customerId: string,
 ): Promise<{ success: true; rows: Record<string, unknown>[] } | { success: false; error: string }> {

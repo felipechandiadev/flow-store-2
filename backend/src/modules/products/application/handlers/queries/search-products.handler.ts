@@ -7,6 +7,8 @@ import { Product, ProductType } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { attachProductVariantMultimedia } from '../../helpers/attach-product-variant-multimedia';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
+import { applyProductCatalogTextSearch } from '../../product-catalog-search.util';
+import { TenantContext } from '@common/tenant/tenant.context';
 
 export interface SearchProductsResult {
   id: string;
@@ -69,14 +71,12 @@ export class SearchProductsQueryHandler implements IQueryHandler<
       .leftJoinAndSelect('p.catalogBrand', 'catalogBrand')
       .where('p.deletedAt IS NULL');
 
-    const term = query.query?.trim() ?? '';
-    if (term.length > 0) {
-      const q = `%${term.toLowerCase()}%`;
-      qb.andWhere(
-        '(LOWER(p.name) LIKE :q OR LOWER(p.brand) LIKE :q OR LOWER(catalogBrand.name) LIKE :q)',
-        { q },
-      );
+    const companyId = TenantContext.getCompanyId();
+    if (companyId) {
+      qb.andWhere('p.companyId = :companyId', { companyId });
     }
+
+    applyProductCatalogTextSearch(qb, query.query, { product: 'p' });
 
     const typeFilter = query.productType?.trim().toUpperCase() ?? '';
     if (

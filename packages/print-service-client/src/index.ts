@@ -1,6 +1,7 @@
 export * from "./core";
 export * from "./pos-sale-ticket";
 export * from "./pos-quotation-ticket";
+export * from "./pos-payment-in-ticket";
 export * from "./pos-customer-credit-note-ticket";
 export * from "./pos-cash-closing-ticket";
 export * from "./pos-cash-count-sheet-ticket";

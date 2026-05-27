@@ -5,7 +5,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, In } from 'typeorm';
 import { Unit } from '@modules/units/domain/unit.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
@@ -23,6 +23,15 @@ import { Product } from '@modules/products/domain/product.entity';
 import { VariantQuantityConversionService } from './variant-quantity-conversion.service';
 import { SearchPurchasingVariantsDto } from './dto/search-purchasing-variants.dto';
 import type { PmpHistoryEntry } from '../domain/pmp-history.types';
+import type { SalePriceHistoryEntry } from '../domain/sale-price-history.types';
+import {
+  filterSalePriceHistory,
+  recordSalePriceHistory,
+  type SalePriceSnapshot,
+} from './helpers/sale-price-history';
+import { TenantContext } from '@common/tenant';
+import { PriceList } from '@modules/price-lists/domain/price-list.entity';
+import { User } from '@modules/users/domain/user.entity';
 import { TransactionLine } from '@modules/transaction-lines/domain/transaction-line.entity';
 import {
   Transaction,
@@ -37,6 +46,17 @@ import {
   PG_PURCHASING_SEARCH_TRANSLATE_TO,
   purchasingSearchLikePattern,
 } from './helpers/purchasing-search-text-fold';
+import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
+import { variantThresholdDefaultsFromRow } from '@modules/stock-realtime/stock-threshold-field.util';
+import {
+  resolveStockThresholds,
+  sumVariantPhysicalStock,
+  type VariantThresholds,
+} from '@modules/stock-realtime/stock-threshold-resolution.util';
+import {
+  computeVariantStockAlertKinds,
+  stockLevelToThresholdSlice,
+} from '@modules/stock-realtime/variant-stock-alert.util';
 
 /** PMP en API: `null` si no hubo primera compra; nunca forzar 0 por defecto. */
 function pmpForApi(value: unknown): number | null {
@@ -78,8 +98,65 @@ export class ProductVariantsService {
     private readonly attributesService: AttributesService,
     @InjectRepository(ProductVariant)
     private readonly variantOrm: Repository<ProductVariant>,
+    @InjectRepository(StockLevel)
+    private readonly stockLevelOrm: Repository<StockLevel>,
     private readonly conversion: VariantQuantityConversionService,
   ) {}
+
+  private purchasingStockBreakdownForVariant(
+    v: ProductVariant,
+    levels: StockLevel[],
+  ): {
+    storageStocks: Array<{
+      storageId: string;
+      storageName: string;
+      branchName: string | null;
+      availableStock: number;
+      hasStockAlert: boolean;
+    }>;
+    hasStockAlert: boolean;
+  } {
+    if (!levels.length) {
+      return { storageStocks: [], hasStockAlert: false };
+    }
+    const slices = levels.map((sl) => stockLevelToThresholdSlice(sl));
+    const totalPhysical = sumVariantPhysicalStock(slices);
+    const defaults = variantThresholdDefaultsFromRow(v);
+    const variantRow: VariantThresholds = {
+      minimumStock: defaults.minimumStock,
+      minimumStockEnabled: defaults.minimumStockEnabled,
+      maximumStock: defaults.maximumStock,
+      maximumStockEnabled: defaults.maximumStockEnabled,
+      reorderPoint: defaults.reorderPoint,
+      reorderPointEnabled: defaults.reorderPointEnabled,
+    };
+    const storageStocks = levels.map((sl) => {
+      const qty = Number(sl.physicalStock ?? 0) || 0;
+      const reserved = Number(sl.committedStock ?? 0) || 0;
+      const available = qty - reserved;
+      const slice = stockLevelToThresholdSlice(sl);
+      const resolved = resolveStockThresholds(variantRow, slice, {
+        totalPhysicalStock: totalPhysical,
+      });
+      const st = sl.storage;
+      const storageName = (st?.name ?? '').trim() || 'Almacén';
+      const branchRaw = (st as { branch?: { name?: string } } | undefined)?.branch?.name;
+      const branchName =
+        branchRaw != null && String(branchRaw).trim() ? String(branchRaw).trim() : null;
+      return {
+        storageId: sl.storageId,
+        storageName,
+        branchName,
+        availableStock: available,
+        hasStockAlert: resolved.alerts.length > 0,
+      };
+    });
+    storageStocks.sort((a, b) =>
+      a.storageName.localeCompare(b.storageName, 'es', { sensitivity: 'base' }),
+    );
+    const variantKinds = computeVariantStockAlertKinds(v, slices);
+    return { storageStocks, hasStockAlert: variantKinds.length > 0 };
+  }
 
   private parseCountBridgeInput(raw: unknown): number | null {
     if (raw === null || raw === undefined || raw === '') {
@@ -397,6 +474,7 @@ export class ProductVariantsService {
       : undefined;
     delete sanitizedData.multimediaAssetIds;
     delete (sanitizedData as any).pmpHistory;
+    delete (sanitizedData as any).salePriceHistory;
 
     this.assertUniquePriceListIdsInPayload(sanitizedData.priceListItems);
 
@@ -472,6 +550,7 @@ export class ProductVariantsService {
       baseCost: sanitizedData.baseCost ?? 0,
       pmp: null,
       pmpHistory: null,
+      salePriceHistory: null,
       unitId: saleId,
       stockBaseUnitId: stockId,
       saleUnitId: saleId,
@@ -530,6 +609,17 @@ export class ProductVariantsService {
             this.priceListItemRepository.save(it),
           ),
         );
+
+        (saved as ProductVariant).salePriceHistory = recordSalePriceHistory({
+          existing: null,
+          previousItems: [],
+          nextItems: this.snapshotsFromPayload(sanitizedData.priceListItems),
+          previousBasePrice: 0,
+          nextBasePrice: Number(saved.basePrice) || 0,
+          source: 'variant_create',
+          userId: TenantContext.getUserId(),
+        });
+        await this.variantRepository.save(saved);
       }
 
       await this.syncMediaLinks(saved.id, multimediaAssetIds);
@@ -551,6 +641,7 @@ export class ProductVariantsService {
       : undefined;
     delete sanitizedData.multimediaAssetIds;
     delete (sanitizedData as any).pmpHistory;
+    delete (sanitizedData as any).salePriceHistory;
 
     const v =
       typeof (this.variantRepository as any).findById === 'function'
@@ -654,6 +745,28 @@ export class ProductVariantsService {
     delete (v as any).saleUnit;
     delete (v as any).purchaseUnit;
 
+    if (
+      sanitizedData.priceListItems &&
+      Array.isArray(sanitizedData.priceListItems) &&
+      sanitizedData.priceListItems.length > 0
+    ) {
+      const previousItems = await this.priceListItemRepository.findByVariantId(id);
+      const previousBase = Number((v as any).basePrice) || 0;
+      const nextBase =
+        sanitizedData.basePrice != null && Number.isFinite(Number(sanitizedData.basePrice))
+          ? Number(sanitizedData.basePrice)
+          : previousBase;
+      (v as any).salePriceHistory = recordSalePriceHistory({
+        existing: (v as any).salePriceHistory,
+        previousItems: this.snapshotsFromPriceListItems(previousItems),
+        nextItems: this.snapshotsFromPayload(sanitizedData.priceListItems),
+        previousBasePrice: previousBase,
+        nextBasePrice: nextBase,
+        source: 'catalog_edit',
+        userId: TenantContext.getUserId(),
+      });
+    }
+
     const saved = await this.variantRepository.save(v);
 
     if (
@@ -743,10 +856,33 @@ export class ProductVariantsService {
     qb.skip((page - 1) * pageSize).take(pageSize);
     const [variants, total] = await qb.getManyAndCount();
 
+    const variantIds = variants.map((x) => x.id).filter(Boolean);
+    const levelsByVariant = new Map<string, StockLevel[]>();
+    if (variantIds.length > 0) {
+      const allLevels = await this.stockLevelOrm.find({
+        where: { productVariantId: In(variantIds) },
+        relations: ['storage', 'storage.branch'],
+      });
+      for (const sl of allLevels) {
+        const vid = String(sl.productVariantId || '');
+        if (!vid) continue;
+        const arr = levelsByVariant.get(vid) ?? [];
+        arr.push(sl);
+        levelsByVariant.set(vid, arr);
+      }
+    }
+
     const companyId = variants[0]?.companyId;
+    const unitsById =
+      companyId != null ? await this.conversion.unitsMapForCompany(companyId) : null;
+
     const items = await Promise.all(
       variants.map(async (v) => {
         const pmp = pmpForApi(v.pmp);
+        const stockQtyPerPurchaseUnit =
+          unitsById != null
+            ? this.conversion.purchaseQtyToStockBaseFactor(v, unitsById)
+            : 1;
         const suggestedPurchaseUnitCost =
           companyId && pmp != null
             ? await this.conversion.purchaseUnitCostFromPmpForVariant(v, pmp, companyId)
@@ -761,6 +897,11 @@ export class ProductVariantsService {
           (v as any).stockBaseUnit?.symbol ||
           (v as any).stockBaseUnit?.name ||
           null;
+        const levels = levelsByVariant.get(v.id) ?? [];
+        const { storageStocks, hasStockAlert } = this.purchasingStockBreakdownForVariant(
+          v,
+          levels,
+        );
         return {
           id: v.id,
           productId: v.productId ?? '',
@@ -772,6 +913,7 @@ export class ProductVariantsService {
           suggestedPurchaseUnitCost,
           purchaseUnitLabel,
           stockBaseUnitLabel,
+          stockQtyPerPurchaseUnit,
           attributeValues:
             v.attributeValues &&
             typeof v.attributeValues === 'object' &&
@@ -780,6 +922,8 @@ export class ProductVariantsService {
               : {},
           unitLabel: purchaseUnitLabel,
           defaultTaxIds: Array.isArray(v.taxIds) ? v.taxIds.map((x) => String(x)) : [],
+          storageStocks,
+          hasStockAlert,
         };
       }),
     );
@@ -879,6 +1023,94 @@ export class ProductVariantsService {
     };
   }
 
+  /**
+   * Historial de precios de venta (JSON en variante).
+   */
+  async getSalePriceHistory(
+    variantId: string,
+    opts: { priceListId?: string; limit?: number },
+  ) {
+    const variant = await this.variantOrm.findOne({
+      where: { id: variantId, deletedAt: IsNull() },
+      relations: ['product'],
+    });
+    if (!variant) {
+      throw new NotFoundException('Product variant not found');
+    }
+
+    const raw = (variant as ProductVariant).salePriceHistory;
+    const history: SalePriceHistoryEntry[] = Array.isArray(raw) ? raw : [];
+    let items = filterSalePriceHistory(history, {
+      priceListId: opts.priceListId,
+      limit: opts.limit ?? 100,
+    });
+
+    const missingNameIds = [
+      ...new Set(
+        items
+          .filter((e) => e.priceListId && !e.priceListName?.trim())
+          .map((e) => e.priceListId as string),
+      ),
+    ];
+    if (missingNameIds.length > 0) {
+      const lists = await this.variantOrm.manager.getRepository(PriceList).find({
+        where: { id: In(missingNameIds) },
+        select: { id: true, name: true },
+      });
+      const nameById = new Map(lists.map((pl) => [pl.id, pl.name?.trim() || '']));
+      items = items.map((e) => {
+        if (e.priceListId && !e.priceListName?.trim()) {
+          const name = nameById.get(e.priceListId);
+          if (name) {
+            return { ...e, priceListName: name };
+          }
+        }
+        return e;
+      });
+    }
+
+    const userIds = [
+      ...new Set(
+        items.map((e) => e.userId?.trim()).filter((id): id is string => !!id),
+      ),
+    ];
+    if (userIds.length > 0) {
+      const users = await this.variantOrm.manager.getRepository(User).find({
+        where: { id: In(userIds) },
+        relations: ['person'],
+      });
+      const displayById = new Map(
+        users.map((u) => [u.id, this.formatSalePriceHistoryUserName(u)]),
+      );
+      items = items.map((e) => {
+        const uid = e.userId?.trim();
+        if (!uid) {
+          return e;
+        }
+        const userDisplayName = displayById.get(uid);
+        return userDisplayName ? { ...e, userDisplayName } : e;
+      });
+    }
+
+    const av =
+      variant.attributeValues &&
+      typeof variant.attributeValues === 'object' &&
+      !Array.isArray(variant.attributeValues)
+        ? (variant.attributeValues as Record<string, string>)
+        : {};
+
+    return {
+      variant: {
+        id: variant.id,
+        productName: variant.product?.name ?? '',
+        sku: variant.sku,
+        attributeValues: av,
+        basePrice: Number(variant.basePrice) || 0,
+      },
+      items,
+    };
+  }
+
   private buildPmpSeriesFromHistory(
     history: PmpHistoryEntry[],
     currentPmp: number | null,
@@ -921,6 +1153,54 @@ export class ProductVariantsService {
     return { success: true };
   }
 
+  private snapshotsFromPriceListItems(items: PriceListItem[] | null | undefined): SalePriceSnapshot[] {
+    const out: SalePriceSnapshot[] = [];
+    if (!Array.isArray(items)) {
+      return out;
+    }
+    for (const item of items) {
+      const priceListId = item.priceListId != null ? String(item.priceListId).trim() : '';
+      if (!priceListId) {
+        continue;
+      }
+      const pl = (item as { priceList?: { name?: string } }).priceList;
+      out.push({
+        priceListId,
+        priceListName: pl?.name?.trim() || undefined,
+        netPrice: Number(item.netPrice),
+        grossPrice: Number(item.grossPrice),
+        taxIds: Array.isArray(item.taxIds) ? [...item.taxIds] : null,
+      });
+    }
+    return out;
+  }
+
+  private snapshotsFromPayload(payload: unknown[]): SalePriceSnapshot[] {
+    if (!Array.isArray(payload)) {
+      return [];
+    }
+    const out: SalePriceSnapshot[] = [];
+    for (const raw of payload) {
+      if (!raw || typeof raw !== 'object') {
+        continue;
+      }
+      const o = raw as Record<string, unknown>;
+      const priceListId = o.priceListId != null ? String(o.priceListId).trim() : '';
+      if (!priceListId) {
+        continue;
+      }
+      out.push({
+        priceListId,
+        priceListName:
+          o.priceListName != null ? String(o.priceListName).trim() || undefined : undefined,
+        netPrice: Number(o.netPrice),
+        grossPrice: Number(o.grossPrice),
+        taxIds: Array.isArray(o.taxIds) ? o.taxIds.map(String) : null,
+      });
+    }
+    return out;
+  }
+
   private async syncMediaLinks(
     variantId: string,
     multimediaAssetIds?: string[],
@@ -956,5 +1236,22 @@ export class ProductVariantsService {
         }),
       ),
     );
+  }
+
+  private formatSalePriceHistoryUserName(user: User): string {
+    const person = user.person;
+    if (person) {
+      const businessName = person.businessName?.trim();
+      if (businessName) {
+        return businessName;
+      }
+      const parts = [person.firstName, person.lastName].filter(
+        (v): v is string => typeof v === 'string' && v.trim().length > 0,
+      );
+      if (parts.length > 0) {
+        return parts.join(' ').trim();
+      }
+    }
+    return user.userName?.trim() || 'Usuario';
   }
 }

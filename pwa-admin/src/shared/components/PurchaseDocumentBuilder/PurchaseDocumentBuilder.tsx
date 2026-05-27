@@ -74,6 +74,10 @@ export type PurchaseDocumentLine = {
   attributeValues: Record<string, string>;
   /** Símbolo o nombre de la unidad de compra de la variante (p. ej. L, caja). */
   purchaseUnitLabel?: string | null;
+  /** Etiqueta de la unidad base de stock (p. ej. u, ml). */
+  stockBaseUnitLabel?: string | null;
+  /** Unidades de stock base por 1 unidad de compra. */
+  stockQtyPerPurchaseUnit?: number;
   quantity: number;
   unitPrice: number;
   taxIds: string[];
@@ -278,6 +282,27 @@ function receptionLineReadyForInventory(line: PurchaseDocumentLine): boolean {
   );
 }
 
+function purchaseStockQtyDiffersFromPurchaseUnit(factor: number | undefined): boolean {
+  const f = factor ?? 1;
+  return Math.abs(f - 1) > 1e-6;
+}
+
+function formatPurchaseStockImpactQty(n: number): string {
+  if (!Number.isFinite(n)) {
+    return "0";
+  }
+  const rounded = Math.round(n);
+  if (Math.abs(n - rounded) < 1e-6) {
+    return String(rounded);
+  }
+  return n.toLocaleString("es-CL", { maximumFractionDigits: 4 });
+}
+
+function lineStockImpactQty(line: PurchaseDocumentLine): number {
+  const factor = line.stockQtyPerPurchaseUnit ?? 1;
+  return line.quantity * factor;
+}
+
 function initialUnitCostFromVariant(item: PurchasingVariantSearchItem): number {
   const suggested = item.suggestedPurchaseUnitCost;
   if (suggested != null && Number.isFinite(Number(suggested)) && Number(suggested) > 0) {
@@ -415,6 +440,12 @@ export function PurchaseDocumentBuilder({
 
   const showLineTaxes = true;
   const [lines, setLines] = useState<PurchaseDocumentLine[]>([]);
+  const showStockImpactColumn = useMemo(
+    () =>
+      mode !== "purchase_return" &&
+      lines.some((l) => purchaseStockQtyDiffersFromPurchaseUnit(l.stockQtyPerPurchaseUnit)),
+    [mode, lines],
+  );
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [storageId, setStorageId] = useState<string | null>(null);
   const [docDate, setDocDate] = useState(todayIsoDate);
@@ -570,6 +601,11 @@ export function PurchaseDocumentBuilder({
         barcode: item.barcode,
         attributeValues: { ...item.attributeValues },
         purchaseUnitLabel: item.purchaseUnitLabel?.trim() || null,
+        stockBaseUnitLabel: item.stockBaseUnitLabel?.trim() || null,
+        stockQtyPerPurchaseUnit:
+          item.stockQtyPerPurchaseUnit != null && item.stockQtyPerPurchaseUnit > 0
+            ? item.stockQtyPerPurchaseUnit
+            : 1,
         quantity: 1,
         unitPrice: price,
         taxIds: (item.defaultTaxIds ?? []).filter((id) => activeTaxIdSet.has(id)),
@@ -1417,41 +1453,91 @@ export function PurchaseDocumentBuilder({
                 <>
                   <col className="w-36 min-w-0" />
                   <col className="w-14" />
-                  <col className="min-w-[5.75rem] w-24" />
-                  <col className="w-36" />
-                  <col className="min-w-[7rem] w-[7.5rem]" />
-                  <col className="w-28" />
-                  <col className="w-12" />
+                  <col className="w-[5.67rem] min-w-0" />
+                  <col className="min-w-[5.175rem] w-[5.4rem]" />
+                  <col className="min-w-[4.9rem] w-[5.25rem]" />
+                  <col className="w-[3.15rem]" />
+                  <col className="w-[1.8rem] min-w-0" />
                 </>
               ) : (
                 <>
                   <col className="w-36 min-w-0" />
                   <col className="w-14" />
-                  <col className="w-28" />
-                  <col className="w-44" />
-                  {showLineTaxes ? <col className="min-w-[7.5rem] w-[8.25rem]" /> : null}
-                  <col className="w-36" />
-                  <col className="w-12" />
+                  <col className="w-[6.93rem] min-w-0" />
+                  <col className="w-[6.3rem] min-w-0" />
+                  {showStockImpactColumn ? <col className="w-[3.2rem] min-w-0" /> : null}
+                  {showLineTaxes ? <col className="min-w-[5.25rem] w-[5.775rem]" /> : null}
+                  <col className="w-[4.05rem]" />
+                  <col className="w-[1.8rem] min-w-0" />
                 </>
               )}
             </colgroup>
             <thead>
               <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 <th className="max-w-[9rem] py-1.5 pr-2">Producto</th>
-                <th className="py-1.5 pr-2">Ud. compra</th>
-                <th className="py-1.5 pr-2">
-                  {mode === "purchase_return" ? "Cantidad a devolver" : "Cantidad"}
+                <th className="py-1.5 pr-2">und. compra</th>
+                <th
+                  className={`py-1.5 pr-1 ${
+                    mode === "purchase_return" ? "w-[5.67rem] max-w-[5.67rem]" : "w-[6.93rem] max-w-[6.93rem]"
+                  }`}
+                >
+                  <span className="block truncate" title="Precio de compra neto">
+                    Precio de compra neto
+                  </span>
                 </th>
-                <th className="py-1.5 pr-2">Precio de compra neto</th>
-                {showLineTaxes ? <th className="py-1.5 pr-2">Impuestos</th> : null}
-                <th className="py-1.5 pr-2 text-right">Subtotal</th>
-                <th className="w-12 py-1.5 text-center"> </th>
+                <th
+                  className={`py-1.5 pr-1 ${
+                    mode === "purchase_return"
+                      ? "w-[5.4rem] max-w-[5.4rem]"
+                      : "w-[6.3rem] max-w-[6.3rem]"
+                  }`}
+                >
+                  <span
+                    className="block truncate"
+                    title={mode === "purchase_return" ? "Cantidad a devolver" : "Cantidad"}
+                  >
+                    {mode === "purchase_return" ? "Cantidad a devolver" : "Cantidad"}
+                  </span>
+                </th>
+                {showStockImpactColumn ? (
+                  <th className="w-[3.2rem] max-w-[3.2rem] py-1.5 pr-1 text-center">Stock</th>
+                ) : null}
+                {showLineTaxes ? (
+                  <th
+                    className={`py-1.5 pr-1 ${
+                      mode === "purchase_return"
+                        ? "w-[5.25rem] max-w-[5.25rem]"
+                        : "w-[5.775rem] max-w-[5.775rem]"
+                    }`}
+                  >
+                    <span className="block truncate" title="Impuestos">
+                      Impuestos
+                    </span>
+                  </th>
+                ) : null}
+                <th
+                  className={`py-1.5 pr-1 text-right ${
+                    mode === "purchase_return" ? "w-[3.15rem] max-w-[3.15rem]" : "w-[4.05rem] max-w-[4.05rem]"
+                  }`}
+                >
+                  Subtotal
+                </th>
+                <th className="w-[1.8rem] max-w-[1.8rem] py-1.5 text-center"> </th>
               </tr>
             </thead>
             <tbody>
               {lines.length === 0 ? (
                 <tr>
-                  <td colSpan={showLineTaxes ? 7 : 6} className="py-10">
+                  <td
+                    colSpan={
+                      mode === "purchase_return"
+                        ? showLineTaxes
+                          ? 7
+                          : 6
+                        : (showLineTaxes ? 7 : 6) + (showStockImpactColumn ? 1 : 0)
+                    }
+                    className="py-10"
+                  >
                     <span className="sr-only">Sin líneas en el documento</span>
                   </td>
                 </tr>
@@ -1479,23 +1565,11 @@ export function PurchaseDocumentBuilder({
                         {line.purchaseUnitLabel?.trim() || "—"}
                       </span>
                     </td>
-                    <td className="py-1.5 pr-2 align-middle">
-                      <NumberStepper
-                        value={line.quantity}
-                        onChange={(v) =>
-                          mode === "purchase_return"
-                            ? updateLine(line.key, { quantity: Number(v) })
-                            : updateLine(line.key, { quantity: Math.max(1, Math.round(Number(v))) })
-                        }
-                        min={mode === "purchase_return" ? 0.01 : 1}
-                        max={mode === "purchase_return" ? (line.maxReturnQuantity ?? undefined) : undefined}
-                        step={mode === "purchase_return" ? 0.01 : 1}
-                        allowFloat={mode === "purchase_return"}
-                        allowNegative={false}
-                        data-test-id={`purchase-doc-qty-${line.key}`}
-                      />
-                    </td>
-                    <td className="py-1.5 pr-2 align-middle">
+                    <td
+                      className={`py-1.5 pr-1 align-middle ${
+                        mode === "purchase_return" ? "w-[5.67rem] max-w-[5.67rem]" : "w-[6.93rem] max-w-[6.93rem]"
+                      }`}
+                    >
                       <TextField
                         label=""
                         name={`price-${line.key}`}
@@ -1512,9 +1586,62 @@ export function PurchaseDocumentBuilder({
                         data-test-id={`purchase-doc-price-${line.key}`}
                       />
                     </td>
+                    <td
+                      className={`py-1.5 pr-1 align-middle ${
+                        mode === "purchase_return"
+                          ? "w-[5.4rem] max-w-[5.4rem]"
+                          : "w-[6.3rem] max-w-[6.3rem]"
+                      }`}
+                    >
+                      <NumberStepper
+                        value={line.quantity}
+                        onChange={(v) =>
+                          mode === "purchase_return"
+                            ? updateLine(line.key, { quantity: Number(v) })
+                            : updateLine(line.key, { quantity: Math.max(1, Math.round(Number(v))) })
+                        }
+                        min={mode === "purchase_return" ? 0.01 : 1}
+                        max={mode === "purchase_return" ? (line.maxReturnQuantity ?? undefined) : undefined}
+                        step={mode === "purchase_return" ? 0.01 : 1}
+                        allowFloat={mode === "purchase_return"}
+                        allowNegative={false}
+                        data-test-id={`purchase-doc-qty-${line.key}`}
+                      />
+                    </td>
+                    {showStockImpactColumn ? (
+                      <td
+                        className="w-[3.2rem] max-w-[3.2rem] py-1.5 pr-1 align-middle text-center text-[11px] tabular-nums text-foreground"
+                        data-test-id={`purchase-doc-stock-impact-${line.key}`}
+                      >
+                        {purchaseStockQtyDiffersFromPurchaseUnit(line.stockQtyPerPurchaseUnit) ? (
+                          <span
+                            title={
+                              line.stockBaseUnitLabel?.trim()
+                                ? `${formatPurchaseStockImpactQty(lineStockImpactQty(line))} ${line.stockBaseUnitLabel.trim()}`
+                                : undefined
+                            }
+                          >
+                            {formatPurchaseStockImpactQty(lineStockImpactQty(line))}
+                            {line.stockBaseUnitLabel?.trim() ? (
+                              <span className="ml-0.5 text-muted-foreground">
+                                {line.stockBaseUnitLabel.trim()}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    ) : null}
                     {showLineTaxes ? (
-                      <td className="py-1.5 pr-2 align-middle">
-                        <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1">
+                      <td
+                        className={`py-1.5 pr-1 align-middle ${
+                          mode === "purchase_return"
+                            ? "w-[5.25rem] max-w-[5.25rem]"
+                            : "w-[5.775rem] max-w-[5.775rem]"
+                        }`}
+                      >
+                        <div className="flex min-h-8 min-w-0 flex-col items-start gap-y-1">
                           {referenceLoading ? (
                             <span className="text-xs text-muted-foreground">Cargando impuestos…</span>
                           ) : activeTaxes.length === 0 ? (
@@ -1527,6 +1654,8 @@ export function PurchaseDocumentBuilder({
                                 onChange={(checked) => toggleLineTax(line.key, tax.id, checked)}
                                 label={`${tax.name} (${tax.rate}%)`}
                                 labelPosition="right"
+                                density="compact"
+                                className="[&_.fs-switch__label]:text-[10px] [&_.fs-switch__label]:font-normal [&_.fs-switch__label]:leading-snug"
                                 data-test-id={`purchase-doc-tax-${line.key}-${tax.id}`}
                               />
                             ))
@@ -1534,10 +1663,14 @@ export function PurchaseDocumentBuilder({
                         </div>
                       </td>
                     ) : null}
-                    <td className="py-1.5 pr-2 align-middle text-right tabular-nums font-medium text-foreground">
+                    <td
+                      className={`py-1.5 pr-1 align-middle text-right text-[11px] tabular-nums font-medium text-foreground ${
+                        mode === "purchase_return" ? "w-[3.15rem] max-w-[3.15rem]" : "w-[4.05rem] max-w-[4.05rem]"
+                      }`}
+                    >
                       {formatMoney(line.quantity * line.unitPrice)}
                     </td>
-                    <td className="py-1.5 align-middle text-center">
+                    <td className="w-[1.8rem] max-w-[1.8rem] px-0 py-1.5 align-middle text-center">
                       <IconButton
                         icon="Trash2"
                         variant="basicSecondary"

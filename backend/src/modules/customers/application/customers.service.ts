@@ -298,15 +298,16 @@ export class CustomersService {
   }
 
   async search(dto: SearchCustomersDto) {
-    const { query = '', page = 1, pageSize = 10 } = dto;
+    const { query = '', page = 1, pageSize = 10, activeOnly } = dto;
+
+    const filter: Record<string, unknown> = { searchQuery: query };
+    if (activeOnly === true) {
+      filter.isActive = true;
+    }
 
     // Delegate to repository port pagination/search
     const { customers: items, total } =
-      await this.customersRepository.findAllWithPagination(
-        { searchQuery: query },
-        page,
-        pageSize,
-      );
+      await this.customersRepository.findAllWithPagination(filter, page, pageSize);
 
     // search and pagination handled by repository port
 

@@ -10,6 +10,9 @@ describe('GetAllProductsQueryHandler', () => {
   let repository: { createQueryBuilder: jest.Mock };
   let multimediaService: { listByEntity: jest.Mock };
   let queryBuilder: {
+    leftJoin: jest.Mock;
+    leftJoinAndSelect: jest.Mock;
+    distinct: jest.Mock;
     where: jest.Mock;
     andWhere: jest.Mock;
     getCount: jest.Mock;
@@ -17,10 +20,14 @@ describe('GetAllProductsQueryHandler', () => {
     limit: jest.Mock;
     offset: jest.Mock;
     getMany: jest.Mock;
+    expressionMap: { joinAttributes: unknown[] };
   };
 
   beforeEach(async () => {
     queryBuilder = {
+      leftJoin: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      distinct: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       getCount: jest.fn(),
@@ -28,6 +35,7 @@ describe('GetAllProductsQueryHandler', () => {
       limit: jest.fn().mockReturnThis(),
       offset: jest.fn().mockReturnThis(),
       getMany: jest.fn(),
+      expressionMap: { joinAttributes: [] },
     };
 
     repository = {
@@ -80,8 +88,8 @@ describe('GetAllProductsQueryHandler', () => {
     expect(repository.createQueryBuilder).toHaveBeenCalledWith('product');
     expect(queryBuilder.where).toHaveBeenCalledWith('product.deletedAt IS NULL');
     expect(queryBuilder.andWhere).toHaveBeenCalledWith(
-      '(LOWER(product.name) LIKE :q OR LOWER(product.brand) LIKE :q OR LOWER(product.description) LIKE :q)',
-      { q: '%gold%' },
+      expect.stringContaining('unaccent'),
+      { productCatalogSearchQ: '%gold%' }, // término plegado (sin tildes / minúsculas)
     );
     expect(queryBuilder.orderBy).toHaveBeenCalledWith('product.name', 'ASC');
     expect(queryBuilder.limit).toHaveBeenCalledWith(20);

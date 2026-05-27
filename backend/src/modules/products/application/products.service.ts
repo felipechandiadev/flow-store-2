@@ -22,6 +22,7 @@ import {
 import { SearchProductsDto } from './dto/search-products.dto';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 import { attachProductVariantMultimedia } from './helpers/attach-product-variant-multimedia';
+import { applyProductCatalogTextSearch } from './product-catalog-search.util';
 
 type MovementDirection = 'IN' | 'OUT';
 
@@ -97,11 +98,7 @@ export class ProductsService {
       .createQueryBuilder('p')
       .where('p.deletedAt IS NULL');
 
-    const term = searchDto.query?.trim() ?? '';
-    if (term.length > 0) {
-      const q = `%${term.toLowerCase()}%`;
-      qb.andWhere('(LOWER(p.name) LIKE :q OR LOWER(p.brand) LIKE :q)', { q });
-    }
+    applyProductCatalogTextSearch(qb, searchDto.query, { product: 'p' });
 
     const products = await qb.getMany();
 

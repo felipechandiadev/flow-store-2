@@ -82,7 +82,7 @@ export function VariantPmpPriceCalculatorDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title="Calculadora PMP y utilidad"
+      title="Calculadora precio de venta"
       size="md"
       zIndex={2000}
       scroll="paper"
@@ -93,23 +93,22 @@ export function VariantPmpPriceCalculatorDialog({
             Cancelar
           </Button>
           <Button variant="primary" size="md" onClick={handleApply} data-test-id="variant-pmp-calc-apply">
-            Aplicar precio neto
+            Aplicar precio
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4 text-sm">
         <p className="text-muted-foreground">
-          Indique el <strong className="text-foreground">PMP</strong> (precio medio ponderado) y la{" "}
+          Indique el <strong className="text-foreground">PMP</strong> (precio de compra medio ponderado) y la{" "}
           <strong className="text-foreground">utilidad esperada</strong> % sobre ese costo. El precio neto sugerido es{" "}
-          <strong className="text-foreground">PMP × (1 + utilidad%)</strong>. Al aplicar, se carga el neto en la fila de
-          lista desde la que abrió la calculadora y el bruto se recalcula con los impuestos activos en esa fila.
+          <strong className="text-foreground">PMP × (1 + utilidad%)</strong>.
         </p>
         <TextField
           type="currency"
           currencySymbol="$"
           allowDecimalComma={false}
-          label="PMP (CLP)"
+          label="PMP"
           name="pmp-calc-pmp"
           value={pmpValue}
           placeholder="$ 0"
@@ -130,7 +129,7 @@ export function VariantPmpPriceCalculatorDialog({
             Precio neto sugerido: <span className="font-semibold">${netSuggested.toLocaleString("es-CL")}</span>
           </p>
           <p className="mt-0.5 tabular-nums text-muted-foreground" data-test-id="variant-pmp-calc-preview-gross">
-            Precio con impuestos (según IVA de esta fila):{" "}
+            Precio con impuestos:{" "}
             <span className="font-medium text-foreground">${grossPreview.toLocaleString("es-CL")}</span>
           </p>
         </div>

@@ -9,6 +9,7 @@ export class GetActiveInventoryReservationsQuery implements IQuery {
     public readonly branchId?: string,
     public readonly storageId?: string,
     public readonly productId?: string,
+    public readonly variantId?: string,
     public readonly customerId?: string,
   ) {}
 }
@@ -44,7 +45,7 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
   async execute(
     query: GetActiveInventoryReservationsQuery,
   ): Promise<InventoryReservationSummary[]> {
-    const { branchId, storageId, productId, customerId } = query;
+    const { branchId, storageId, productId, variantId, customerId } = query;
 
     const qb = this.transactionRepository
       .createQueryBuilder('t')
@@ -53,10 +54,10 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
         't.externalReference',
         't.notes',
         't.createdAt',
+        't.metadata',
         'p.id',
         'p.name',
         'pv.id',
-        'pv.name',
         'c.id',
         'cp.firstName',
         'cp.lastName',
@@ -65,13 +66,14 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
         'b.id',
         'b.name',
         'tl.quantity',
+        'tl.variantName',
       ])
       .innerJoin('t.lines', 'tl')
       .innerJoin('tl.product', 'p')
-      .leftJoin('tl.variant', 'pv')
+      .leftJoin('tl.productVariant', 'pv')
       .innerJoin('t.customer', 'c')
       .leftJoin('c.person', 'cp')
-      .innerJoin('t.storage', 's')
+      .innerJoin('t.storageEntry', 's')
       .innerJoin('t.branch', 'b')
       .where('t.transactionType = :type', { type: 'INVENTORY_RESERVATION' })
       .andWhere('t.status = :status', { status: 'COMPLETED' });
@@ -86,6 +88,10 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
 
     if (productId) {
       qb.andWhere('p.id = :productId', { productId });
+    }
+
+    if (variantId) {
+      qb.andWhere('tl.productVariantId = :variantId', { variantId });
     }
 
     if (customerId) {
@@ -107,7 +113,7 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
         productId: result.p_id,
         productName: result.p_name,
         variantId: result.pv_id,
-        variantName: result.pv_name,
+        variantName: result.tl_variantName ?? null,
         quantity: result.tl_quantity,
         customerId: result.c_id,
         customerName: `${result.cp_firstName || ''} ${result.cp_lastName || ''}`.trim(),

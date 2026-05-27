@@ -121,6 +121,202 @@ function parseAmountCLPInput(raw: string): number {
   return Math.round(n);
 }
 
+type PosPaymentMethodCardProps = {
+  payment: PosPaymentLine;
+  index: number;
+  label: string;
+  remaining: number;
+  confirmLoading: boolean;
+  paymentsCount: number;
+  showRefField: boolean;
+  bankAccountOptions: Array<{ id: string; label: string }>;
+  onUpdateAmount: (lineId: string, raw: string) => void;
+  onFillRemaining: (lineId: string) => void;
+  onClearAmount: (lineId: string) => void;
+  onRemove: (lineId: string) => void;
+  onUpdateBankAccountKey: (lineId: string, key: string) => void;
+  onUpdateReference: (lineId: string, reference: string) => void;
+  onUpdateCheckField: (
+    lineId: string,
+    field: keyof NonNullable<PosPaymentLine["checkData"]>,
+    value: string,
+  ) => void;
+};
+
+/** Card de medio de pago: nombre arriba; monto y acciones en la fila siguiente. */
+function PosPaymentMethodCard({
+  payment: p,
+  index,
+  label,
+  remaining,
+  confirmLoading,
+  paymentsCount,
+  showRefField,
+  bankAccountOptions,
+  onUpdateAmount,
+  onFillRemaining,
+  onClearAmount,
+  onRemove,
+  onUpdateBankAccountKey,
+  onUpdateReference,
+  onUpdateCheckField,
+}: PosPaymentMethodCardProps) {
+  const amountValue = String(Math.max(0, Math.round(p.amount)));
+
+  return (
+    <li
+      className="grid grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+      data-test-id={`pos-payment-method-row-${p.id}`}
+    >
+      <div className="grid grid-cols-1 gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-foreground" title={label}>
+            {label}
+          </p>
+          <IconButton
+            icon="Trash2"
+            variant="basicSecondary"
+            size="sm"
+            className="shrink-0"
+            ariaLabel="Quitar medio de pago"
+            title="Quitar medio de pago"
+            disabled={paymentsCount <= 1 || confirmLoading}
+            onClick={() => onRemove(p.id)}
+            data-test-id={`pos-payment-remove-line-${p.id}`}
+          />
+        </div>
+        <TextField
+          type="currency"
+          label="Monto"
+          name={`pos-payment-line-${index}`}
+          value={amountValue}
+          onChange={(e) => onUpdateAmount(p.id, e.target.value)}
+          currencySymbol="$"
+          alwaysShowLabel
+          className="w-full min-w-0"
+          endAdornment={
+            <span className="inline-flex items-center">
+              {p.type !== "CASH" && remaining > 0.01 ? (
+                <IconButton
+                  icon="ArrowDownToLine"
+                  variant="ghost"
+                  size="xs"
+                  ariaLabel="Rellenar con saldo pendiente"
+                  title="Rellenar con saldo pendiente"
+                  disabled={confirmLoading}
+                  onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.preventDefault()}
+                  onClick={() => onFillRemaining(p.id)}
+                  data-test-id={`pos-payment-fill-remaining-${p.id}`}
+                />
+              ) : null}
+              <IconButton
+                icon="X"
+                variant="ghost"
+                size="xs"
+                ariaLabel="Limpiar monto"
+                title="Limpiar monto"
+                disabled={confirmLoading}
+                onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.preventDefault()}
+                onClick={() => onClearAmount(p.id)}
+                data-test-id={`pos-payment-clear-amount-${p.id}`}
+              />
+            </span>
+          }
+          data-test-id={
+            index === 0 ? "pos-payment-default-cash-amount" : `pos-payment-line-amount-${p.id}`
+          }
+        />
+      </div>
+      {p.type === "TRANSFER" && bankAccountOptions.length > 0 ? (
+        <div className="grid grid-cols-1 gap-2">
+          <Select
+            label="Cuenta bancaria destino"
+            placeholder="Cuenta bancaria destino"
+            value={p.bankAccountKey?.trim() ? p.bankAccountKey.trim() : null}
+            onChange={(id) => onUpdateBankAccountKey(p.id, id ? String(id) : "")}
+            options={bankAccountOptions}
+            alwaysShowLabel
+            data-test-id={`pos-payment-transfer-account-${p.id}`}
+          />
+        </div>
+      ) : null}
+      {p.creditNoteTransactionId || p.backorderTransactionId ? (
+        <p className="text-xs text-muted-foreground">
+          Folio:{" "}
+          <span className="font-mono text-foreground">{p.reference?.trim() || "—"}</span>
+        </p>
+      ) : null}
+      {showRefField ? (
+        <div className="grid grid-cols-1">
+          <TextField
+            label="Referencia"
+            name={`pos-payment-ref-${p.id}`}
+            value={p.reference}
+            onChange={(e) => onUpdateReference(p.id, e.target.value)}
+            placeholder="Opcional"
+            alwaysShowLabel
+            density="compact"
+          />
+        </div>
+      ) : null}
+      {p.type === "CHECK" ? (
+        <div className="grid grid-cols-1 gap-2 rounded-lg border border-dashed border-zinc-300 p-2 dark:border-zinc-700 sm:grid-cols-2">
+          <TextField
+            label="N° de cheque"
+            name={`pos-payment-check-number-${p.id}`}
+            value={p.checkData?.checkNumber ?? ""}
+            onChange={(e) => onUpdateCheckField(p.id, "checkNumber", e.target.value)}
+            alwaysShowLabel
+            density="compact"
+            required
+            data-test-id={`pos-payment-check-number-${p.id}`}
+          />
+          <TextField
+            label="Banco emisor"
+            name={`pos-payment-check-bank-${p.id}`}
+            value={p.checkData?.bankName ?? ""}
+            onChange={(e) => onUpdateCheckField(p.id, "bankName", e.target.value)}
+            alwaysShowLabel
+            density="compact"
+            required
+            data-test-id={`pos-payment-check-bank-${p.id}`}
+          />
+          <TextField
+            label="Girador"
+            name={`pos-payment-check-drawer-${p.id}`}
+            value={p.checkData?.drawerName ?? ""}
+            onChange={(e) => onUpdateCheckField(p.id, "drawerName", e.target.value)}
+            alwaysShowLabel
+            density="compact"
+            placeholder="Nombre del firmante"
+            data-test-id={`pos-payment-check-drawer-${p.id}`}
+          />
+          <TextField
+            label="RUT girador"
+            name={`pos-payment-check-drawer-doc-${p.id}`}
+            value={p.checkData?.drawerDocument ?? ""}
+            onChange={(e) => onUpdateCheckField(p.id, "drawerDocument", e.target.value)}
+            alwaysShowLabel
+            density="compact"
+            placeholder="Opcional"
+            data-test-id={`pos-payment-check-drawer-doc-${p.id}`}
+          />
+          <TextField
+            label="A fecha"
+            name={`pos-payment-check-due-${p.id}`}
+            value={p.checkData?.dueDate ?? ""}
+            onChange={(e) => onUpdateCheckField(p.id, "dueDate", e.target.value)}
+            alwaysShowLabel
+            density="compact"
+            placeholder="YYYY-MM-DD (opcional)"
+            data-test-id={`pos-payment-check-due-${p.id}`}
+          />
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
 function PaymentCartReadOnlyRow({ line }: { line: PosCartLine }) {
   const q = Number(line.quantity) || 0;
   const lineGross = (Number(line.unitPriceWithTax) || 0) * q;
@@ -514,8 +710,8 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   );
   const amountToPay = isCollectMode
     ? collectBalanceTotal
-    : isEncargoMode && backorderDeposit && backorderDeposit.amount >= 1
-      ? Math.round(backorderDeposit.amount)
+    : isEncargoMode && backorderDeposit
+      ? Math.max(0, Math.round(backorderDeposit.amount))
       : saleTotal;
 
   const openBackorderDepositDialog = useCallback(() => {
@@ -1561,17 +1757,20 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           if (!backorderDeposit) {
             return { success: false as const, message: "Define el abono de encargo." };
           }
+          const depositAmount = Math.max(0, Math.round(backorderDeposit.amount));
+          // Encargo sin abono: no enviar medios de pago (evita validación "todos cero").
+          const paymentsForBackorder = depositAmount > 0 ? payments : [];
           const backorderPayload = buildCreateBackorderClientPayload({
             pointOfSaleId,
             cashSessionId,
             cartLines: cart.lines,
-            payments,
+            payments: paymentsForBackorder,
             customer,
             appliedPromotions,
-            appliedTotal,
-            overpay,
-            backorderDepositAmount: backorderDeposit.amount,
-            backorderDepositPercent: backorderDeposit.percent,
+            appliedTotal: depositAmount > 0 ? appliedTotal : 0,
+            overpay: depositAmount > 0 ? overpay : 0,
+            backorderDepositAmount: depositAmount,
+            backorderDepositPercent: Math.max(0, Math.round(backorderDeposit.percent)),
           });
           return createBackorderFromPosAction(backorderPayload);
         })()
@@ -2029,175 +2228,25 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               const fallbackLabel =
                 FALLBACK_PAYMENT_OPTIONS.find((o) => o.id === p.type)?.label ?? p.type;
               const label = cfg?.label ?? fallbackLabel;
-              const amountValue = String(Math.max(0, Math.round(p.amount)));
               return (
-                <li
+                <PosPaymentMethodCard
                   key={p.id}
-                  className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
-                  data-test-id={`pos-payment-method-row-${p.id}`}
-                >
-                  <div className="grid grid-cols-[minmax(10rem,1fr)_minmax(11.5rem,15rem)_auto] items-center gap-3">
-                    <p className="truncate text-sm font-medium text-foreground" title={label}>
-                      {label}
-                    </p>
-                    <TextField
-                      type="currency"
-                      label="Monto"
-                      name={`pos-payment-line-${index}`}
-                      value={amountValue}
-                      onChange={(e) => updatePaymentLineAmount(p.id, e.target.value)}
-                      currencySymbol="$"
-                      alwaysShowLabel
-                      className="w-full"
-                      endAdornment={
-                        <span className="inline-flex items-center">
-                          {p.type !== "CASH" && remaining > 0.01 ? (
-                            <IconButton
-                              icon="ArrowDownToLine"
-                              variant="ghost"
-                              size="xs"
-                              ariaLabel="Rellenar con saldo pendiente"
-                              title="Rellenar con saldo pendiente"
-                              disabled={confirmLoading}
-                              onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.preventDefault()}
-                              onClick={() => fillNonCashLineBalance(p.id)}
-                              data-test-id={`pos-payment-fill-remaining-${p.id}`}
-                            />
-                          ) : null}
-                          <IconButton
-                            icon="X"
-                            variant="ghost"
-                            size="xs"
-                            ariaLabel="Limpiar monto"
-                            title="Limpiar monto"
-                            disabled={confirmLoading}
-                            onMouseDown={(e: MouseEvent<HTMLButtonElement>) => e.preventDefault()}
-                            onClick={() => clearPaymentLineAmount(p.id)}
-                            data-test-id={`pos-payment-clear-amount-${p.id}`}
-                          />
-                        </span>
-                      }
-                      data-test-id={
-                        index === 0 ? "pos-payment-default-cash-amount" : `pos-payment-line-amount-${p.id}`
-                      }
-                    />
-                    <IconButton
-                      icon="Trash2"
-                      variant="basicSecondary"
-                      size="sm"
-                      className="ml-1 shrink-0"
-                      ariaLabel="Quitar medio de pago"
-                      title="Quitar medio de pago"
-                      disabled={payments.length <= 1 || confirmLoading}
-                      onClick={() => removePayment(p.id)}
-                      data-test-id={`pos-payment-remove-line-${p.id}`}
-                    />
-                  </div>
-                  {p.type === "TRANSFER" && bankAccountOptions.length > 0 ? (
-                    <div className="mt-2">
-                      <Select
-                        label="Cuenta bancaria destino"
-                        placeholder="Cuenta bancaria destino"
-                        value={p.bankAccountKey?.trim() ? p.bankAccountKey.trim() : null}
-                        onChange={(id) =>
-                          updatePaymentLineBankAccountKey(p.id, id ? String(id) : "")
-                        }
-                        options={bankAccountOptions}
-                        alwaysShowLabel
-                        data-test-id={`pos-payment-transfer-account-${p.id}`}
-                      />
-                    </div>
-                  ) : null}
-                  {p.creditNoteTransactionId || p.backorderTransactionId ? (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Folio:{" "}
-                      <span className="font-mono text-foreground">
-                        {p.reference?.trim() || "—"}
-                      </span>
-                    </p>
-                  ) : null}
-                  {showsRefField(p) ? (
-                    <div className="mt-2">
-                      <TextField
-                        label="Referencia"
-                        name={`pos-payment-ref-${p.id}`}
-                        value={p.reference}
-                        onChange={(e) => updatePaymentLineReference(p.id, e.target.value)}
-                        placeholder="Opcional"
-                        alwaysShowLabel
-                        density="compact"
-                      />
-                    </div>
-                  ) : null}
-                  {p.type === "CHECK" ? (
-                    <div className="mt-2 grid grid-cols-1 gap-2 rounded-lg border border-dashed border-zinc-300 p-2 dark:border-zinc-700 sm:grid-cols-2">
-                      <TextField
-                        label="N° de cheque"
-                        name={`pos-payment-check-number-${p.id}`}
-                        value={p.checkData?.checkNumber ?? ""}
-                        onChange={(e) =>
-                          updatePaymentLineCheckField(p.id, "checkNumber", e.target.value)
-                        }
-                        alwaysShowLabel
-                        density="compact"
-                        required
-                        data-test-id={`pos-payment-check-number-${p.id}`}
-                      />
-                      <TextField
-                        label="Banco emisor"
-                        name={`pos-payment-check-bank-${p.id}`}
-                        value={p.checkData?.bankName ?? ""}
-                        onChange={(e) =>
-                          updatePaymentLineCheckField(p.id, "bankName", e.target.value)
-                        }
-                        alwaysShowLabel
-                        density="compact"
-                        required
-                        data-test-id={`pos-payment-check-bank-${p.id}`}
-                      />
-                      <TextField
-                        label="Girador"
-                        name={`pos-payment-check-drawer-${p.id}`}
-                        value={p.checkData?.drawerName ?? ""}
-                        onChange={(e) =>
-                          updatePaymentLineCheckField(p.id, "drawerName", e.target.value)
-                        }
-                        alwaysShowLabel
-                        density="compact"
-                        placeholder="Nombre del firmante"
-                        data-test-id={`pos-payment-check-drawer-${p.id}`}
-                      />
-                      <TextField
-                        label="RUT girador"
-                        name={`pos-payment-check-drawer-doc-${p.id}`}
-                        value={p.checkData?.drawerDocument ?? ""}
-                        onChange={(e) =>
-                          updatePaymentLineCheckField(
-                            p.id,
-                            "drawerDocument",
-                            e.target.value,
-                          )
-                        }
-                        alwaysShowLabel
-                        density="compact"
-                        placeholder="Opcional"
-                        data-test-id={`pos-payment-check-drawer-doc-${p.id}`}
-                      />
-                      <TextField
-                        label="A fecha"
-                        name={`pos-payment-check-due-${p.id}`}
-                        value={p.checkData?.dueDate ?? ""}
-                        onChange={(e) =>
-                          updatePaymentLineCheckField(p.id, "dueDate", e.target.value)
-                        }
-                        alwaysShowLabel
-                        density="compact"
-                        placeholder="YYYY-MM-DD (opcional)"
-                        data-test-id={`pos-payment-check-due-${p.id}`}
-                      />
-                    </div>
-                  ) : null}
-                </li>
+                  payment={p}
+                  index={index}
+                  label={label}
+                  remaining={remaining}
+                  confirmLoading={confirmLoading}
+                  paymentsCount={payments.length}
+                  showRefField={showsRefField(p)}
+                  bankAccountOptions={bankAccountOptions}
+                  onUpdateAmount={updatePaymentLineAmount}
+                  onFillRemaining={fillNonCashLineBalance}
+                  onClearAmount={clearPaymentLineAmount}
+                  onRemove={removePayment}
+                  onUpdateBankAccountKey={updatePaymentLineBankAccountKey}
+                  onUpdateReference={updatePaymentLineReference}
+                  onUpdateCheckField={updatePaymentLineCheckField}
+                />
               );
             })}
           </ul>

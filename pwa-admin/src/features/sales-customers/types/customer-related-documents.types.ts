@@ -34,6 +34,15 @@ export type CustomerPurchaseRow = {
   createdAt: string;
 };
 
+export type CustomerBackorderRow = {
+  id: string;
+  documentNumber: string | null;
+  transactionType: string | null;
+  status: string | null;
+  total: number;
+  createdAt: string;
+};
+
 export type CustomerPaymentRow = {
   id: string;
   documentNumber: string | null;

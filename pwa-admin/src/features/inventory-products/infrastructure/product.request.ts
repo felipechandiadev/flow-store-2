@@ -7,6 +7,7 @@ import type {
   ProductVariantMediaAsset,
 } from "../types/product-grid.types";
 import { resolveMultimediaPublicUrl } from "@/features/multimedia/utils/resolve-multimedia-public-url";
+import type { VariantSalePriceHistoryResponse } from "../types/variant-sale-price-history.types";
 
 function parseAttributeValuesRecord(raw: unknown): Record<string, string> | undefined {
   if (raw == null) {
@@ -333,14 +334,27 @@ export class ProductRequest {
         cache: "no-store",
       });
       if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        console.error(
+          `[ProductRequest.searchProducts] ${res.status} ${res.statusText}`,
+          body.slice(0, 300),
+        );
         return [];
       }
       const json = (await res.json()) as unknown;
-      if (!Array.isArray(json)) {
+      const list = Array.isArray(json)
+        ? json
+        : json &&
+            typeof json === "object" &&
+            Array.isArray((json as { data?: unknown }).data)
+          ? (json as { data: unknown[] }).data
+          : null;
+      if (!list) {
         return [];
       }
-      return json.map(normalizeProduct).filter((x): x is ProductGridRow => x != null);
-    } catch {
+      return list.map(normalizeProduct).filter((x): x is ProductGridRow => x != null);
+    } catch (e) {
+      console.error("[ProductRequest.searchProducts]", e);
       return [];
     }
   }
@@ -855,6 +869,51 @@ export class ProductRequest {
       return { success: true };
     } catch (e) {
       const err = e instanceof Error ? e.message : "Error al actualizar variante";
+      return { success: false, error: err };
+    }
+  }
+
+  static async getVariantSalePriceHistory(
+    variantId: string,
+    opts?: { priceListId?: string; limit?: number },
+  ): Promise<
+    { success: true; data: VariantSalePriceHistoryResponse } | { success: false; error: string }
+  > {
+    const id = variantId.trim();
+    if (!id) {
+      return { success: false, error: "Variante no válida" };
+    }
+    const q = new URLSearchParams();
+    if (opts?.priceListId?.trim()) {
+      q.set("priceListId", opts.priceListId.trim());
+    }
+    if (opts?.limit != null && opts.limit > 0) {
+      q.set("limit", String(Math.min(500, opts.limit)));
+    }
+    const qs = q.toString();
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(
+        apiUrl(`product-variants/${encodeURIComponent(id)}/sale-price-history${qs ? `?${qs}` : ""}`),
+        { headers, cache: "no-store" },
+      );
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        const m = body.message;
+        const msg = Array.isArray(m)
+          ? m.map(String).join("; ")
+          : typeof m === "string" && m.trim()
+            ? m.trim()
+            : res.statusText;
+        return { success: false, error: msg };
+      }
+      const data = body.data as VariantSalePriceHistoryResponse | undefined;
+      if (!data || typeof data !== "object" || !Array.isArray(data.items)) {
+        return { success: false, error: "Respuesta inválida del servidor" };
+      }
+      return { success: true, data };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al cargar historial de precios";
       return { success: false, error: err };
     }
   }

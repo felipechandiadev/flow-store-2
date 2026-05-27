@@ -41,6 +41,7 @@ import {
   parseStockAlertsQueryParam,
   stockLevelToThresholdSlice,
 } from '@modules/stock-realtime/variant-stock-alert.util';
+import { applyInventoryStockTextSearch } from './inventory-stock-search.util';
 
 function compactUnitSymbol(u: { symbol?: string | null; name?: string | null } | null | undefined): string {
   if (!u) {
@@ -159,13 +160,7 @@ export class InventoryService {
       .where('variant.deletedAt IS NULL')
       .andWhere('(product.deletedAt IS NULL OR product.id IS NULL)');
 
-    if (params?.search) {
-      const s = `%${params.search}%`;
-      variantQb.andWhere(
-        '(product.name LIKE :s OR variant.sku LIKE :s OR (variant.barcode IS NOT NULL AND variant.barcode LIKE :s))',
-        { s },
-      );
-    }
+    applyInventoryStockTextSearch(variantQb, params?.search);
 
     const variants = await variantQb.getMany();
     const variantIds = variants.map((v) => v.id);

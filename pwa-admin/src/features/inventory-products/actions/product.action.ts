@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { ProductRequest } from "../infrastructure/product.request";
 import type { CatalogProductType, ProductGridRow } from "../types/product-grid.types";
+import { latinSearchIncludes } from "@/shared/utils/fold-latin-search-text";
 
 const PRODUCTS_PATH = "/catalog/products";
 const PRODUCT_VARIANT_DETAIL_PATH_PREFIX = "/catalog/products/variants";
@@ -105,6 +106,20 @@ export type ListProductsForGridResult = {
   limit: number;
 };
 
+function productRowMatchesSearch(row: ProductGridRow, query: string): boolean {
+  const q = query.trim();
+  if (!q) {
+    return true;
+  }
+  const fields: Array<string | null | undefined> = [
+    row.name,
+    row.brand,
+    row.description,
+    ...(row.variants ?? []).flatMap((v) => [v.sku, v.barcode, v.displayName]),
+  ];
+  return fields.some((f) => typeof f === "string" && f.length > 0 && latinSearchIncludes(f, q));
+}
+
 function compare(a: string | number | boolean | null | undefined, b: string | number | boolean | null | undefined): number {
   if (a == null && b == null) {
     return 0;
@@ -127,12 +142,16 @@ export async function listProductsForGrid(input: ListProductsForGridInput): Prom
   const sortField = input.sortField && input.sortField.trim() ? input.sortField.trim() : "name";
   const sortDir = input.sort === "desc" ? "desc" : "asc";
 
+  const searchQuery = input.query?.trim() ?? "";
+  // Catálogo completo desde API; el filtro de texto (tildes/mayúsculas/SKU/barcode) va aquí
+  // para no depender de que PostgreSQL tenga `unaccent` en el endpoint GET /products.
   const all = await ProductRequest.searchProducts(
-    input.query,
+    "",
     50,
     input.productType?.trim() || undefined,
   );
-  const sorted = [...all].sort((r1, r2) => {
+  const filtered = searchQuery ? all.filter((row) => productRowMatchesSearch(row, searchQuery)) : all;
+  const sorted = [...filtered].sort((r1, r2) => {
     let va: string | number | boolean | null | undefined;
     let vb: string | number | boolean | null | undefined;
     switch (sortField) {
@@ -671,4 +690,19 @@ export async function updateProductVariantInventoryPartialAction(
 
 export async function getProductVariantDetailForPage(variantId: string) {
   return ProductRequest.fetchVariantById(variantId);
+}
+
+export type ListVariantSalePriceHistoryResult =
+  | { success: true; items: import("../types/variant-sale-price-history.types").VariantSalePriceHistoryEntry[] }
+  | { success: false; error: string };
+
+export async function listVariantSalePriceHistoryAction(
+  variantId: string,
+  opts?: { priceListId?: string; limit?: number },
+): Promise<ListVariantSalePriceHistoryResult> {
+  const r = await ProductRequest.getVariantSalePriceHistory(variantId, opts);
+  if (!r.success) {
+    return r;
+  }
+  return { success: true, items: r.data.items };
 }

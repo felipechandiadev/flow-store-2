@@ -6,6 +6,7 @@ import type {
   PosCustomerCreditNoteRow,
   PosCustomerDetail,
   PosCustomerDetailBundle,
+  PosCustomerBackorderRow,
   PosCustomerPaymentRow,
   PosCustomerPurchaseRow,
   PosCustomerQuotaRow,
@@ -15,7 +16,13 @@ import type { PosCreateCustomerInput, PosCreateCustomerResult } from "../types/p
 import type { CustomerPaymentSourcesResponse } from "../types/customer-payment-sources.types";
 
 export class CustomersPosRequest {
-  static async search(input: { query?: string; page?: number; pageSize?: number }): Promise<PosCustomerSearchResponse> {
+  static async search(input: {
+    query?: string;
+    page?: number;
+    pageSize?: number;
+    /** Excluye clientes inactivos (cobro POS). */
+    activeOnly?: boolean;
+  }): Promise<PosCustomerSearchResponse> {
     const base = process.env.BACKEND_API_URL;
     if (!base) {
       return { success: false, message: "BACKEND_API_URL no está configurada" };
@@ -32,6 +39,7 @@ export class CustomersPosRequest {
     if (input.query?.trim()) qs.set("query", input.query.trim());
     qs.set("page", String(Math.max(1, input.page ?? 1)));
     qs.set("pageSize", String(Math.min(50, Math.max(1, input.pageSize ?? 15))));
+    if (input.activeOnly === true) qs.set("activeOnly", "true");
 
     try {
       const headers: Record<string, string> = {
@@ -157,6 +165,21 @@ export class CustomersPosRequest {
     });
   }
 
+  private static parseBackordersPayload(data: unknown): PosCustomerBackorderRow[] {
+    const body = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+    const arr = Array.isArray(body.data) ? body.data : Array.isArray(body.rows) ? body.rows : [];
+    return arr.map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: String(r.id ?? ""),
+        documentNumber: r.documentNumber != null ? String(r.documentNumber) : null,
+        status: r.status != null ? String(r.status) : null,
+        total: Number(r.total ?? 0),
+        createdAt: r.createdAt != null ? String(r.createdAt) : "",
+      };
+    });
+  }
+
   private static parseCreditNoteRow(raw: Record<string, unknown>): PosCustomerCreditNoteRow | null {
     const id = raw.id != null ? String(raw.id) : "";
     if (!id) return null;
@@ -229,11 +252,15 @@ export class CustomersPosRequest {
     const url = (path: string) => `${base}/api${path}`;
 
     try {
-      const [cRes, pRes, qRes, purRes, retRes, ncRes] = await Promise.all([
+      const [cRes, pRes, qRes, purRes, boRes, retRes, ncRes] = await Promise.all([
         fetch(url(`/customers/${encodeURIComponent(id)}`), { headers, cache: "no-store" }),
         fetch(url(`/customers/${encodeURIComponent(id)}/payments`), { headers, cache: "no-store" }),
         fetch(url(`/customers/${encodeURIComponent(id)}/pending-quotas`), { headers, cache: "no-store" }),
         fetch(url(`/customers/${encodeURIComponent(id)}/purchases`), { headers, cache: "no-store" }),
+        fetch(url(`/transactions/backorders?customerId=${encodeURIComponent(id)}&limit=50&page=1`), {
+          headers,
+          cache: "no-store",
+        }),
         fetch(url(`/customers/${encodeURIComponent(id)}/customer-returns`), { headers, cache: "no-store" }),
         fetch(url(`/customers/${encodeURIComponent(id)}/customer-credit-notes`), {
           headers,
@@ -301,6 +328,9 @@ export class CustomersPosRequest {
       const purData = (await purRes.json().catch(() => ({}))) as Record<string, unknown>;
       const purchases = purRes.ok ? CustomersPosRequest.parsePurchasesPayload(purData) : [];
 
+      const boData = await boRes.json().catch(() => ({}));
+      const backorders = boRes.ok ? CustomersPosRequest.parseBackordersPayload(boData) : [];
+
       const retData = (await retRes.json().catch(() => ({}))) as Record<string, unknown>;
       const returns = retRes.ok ? CustomersPosRequest.parseReturnsPayload(retData) : [];
 
@@ -313,10 +343,101 @@ export class CustomersPosRequest {
             .filter((x): x is PosCustomerCreditNoteRow => x != null)
         : [];
 
-      return { success: true, customer, payments, quotas, purchases, returns, creditNotes };
+      return { success: true, customer, payments, quotas, purchases, backorders, returns, creditNotes };
     } catch (e) {
       const err = e instanceof Error ? e.message : "Error de red";
       return { success: false, message: err };
+    }
+  }
+
+  static async getBackorderDetail(input: {
+    transactionId: string;
+  }): Promise<
+    | {
+        success: true;
+        transaction: {
+          id: string;
+          documentNumber: string | null;
+          status: string | null;
+          total: number;
+          createdAt: string;
+          lines: Array<{
+            id: string;
+            productName: string;
+            variantName: string | null;
+            quantity: number;
+            unitOfMeasure: string | null;
+          }>;
+        };
+      }
+    | { success: false; message: string }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      return { success: false, message: "BACKEND_API_URL no está configurada" };
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const id = input.transactionId?.trim();
+    if (!id) {
+      return { success: false, message: "Transacción inválida" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    try {
+      const res = await fetch(`${base}/api/transactions/${encodeURIComponent(id)}`, {
+        method: "GET",
+        headers,
+        cache: "no-store",
+      });
+      const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        const msg =
+          (typeof json?.message === "string" && json.message) ||
+          (Array.isArray(json?.message) ? (json.message as string[]).join("; ") : null) ||
+          `HTTP ${res.status}`;
+        return { success: false, message: String(msg) };
+      }
+
+      const linesRaw = (json as any)?.lines;
+      const linesArr = Array.isArray(linesRaw) ? linesRaw : [];
+      const lines = linesArr.map((l: any) => ({
+        id: String(l?.id ?? ""),
+        productName: String(l?.productName ?? l?.product?.name ?? "Ítem"),
+        variantName:
+          typeof l?.variantName === "string" && l.variantName.trim()
+            ? l.variantName.trim()
+            : typeof l?.productVariant?.sku === "string"
+              ? null
+              : null,
+        quantity: Number(l?.quantity ?? 0),
+        unitOfMeasure: l?.unitOfMeasure != null ? String(l.unitOfMeasure) : null,
+      }));
+
+      return {
+        success: true,
+        transaction: {
+          id: String((json as any)?.id ?? id),
+          documentNumber: (json as any)?.documentNumber != null ? String((json as any).documentNumber) : null,
+          status: (json as any)?.status != null ? String((json as any).status) : null,
+          total: Number((json as any)?.total ?? 0),
+          createdAt: (json as any)?.createdAt != null ? String((json as any).createdAt) : "",
+          lines,
+        },
+      };
+    } catch (e) {
+      return { success: false, message: e instanceof Error ? e.message : "Error de red" };
     }
   }
 

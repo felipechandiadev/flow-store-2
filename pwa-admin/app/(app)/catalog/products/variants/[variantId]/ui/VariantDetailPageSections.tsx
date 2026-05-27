@@ -39,6 +39,7 @@ import {
   type VariantPriceRowModel,
 } from "../../../ui/VariantPriceRowsEditor";
 import { VariantPmpPriceCalculatorDialog } from "../../../ui/VariantPmpPriceCalculatorDialog";
+import { VariantSalePriceHistoryPanel } from "./VariantSalePriceHistoryPanel";
 
 function catalogDefaultIvaTaxIds(taxes: TaxListItem[]): string[] {
   const iva = taxes.filter((t) => t.isActive && t.taxType === "IVA");
@@ -74,7 +75,7 @@ function variantAttributeValueBadges(v: ProductVariantGridRow): Array<{ key: str
 }
 
 function sectionCardClass(editing: boolean): string {
-  return `scroll-mt-24 relative space-y-3 rounded-lg border border-border bg-background p-4 pb-12 ${
+  return `relative space-y-3 rounded-lg border border-border bg-background p-4 pb-12 ${
     editing ? "ring-1 ring-primary/25" : ""
   }`;
 }
@@ -346,7 +347,7 @@ export function VariantDetailIdentitySection({
   };
 
   return (
-    <section id="identidad" className={sectionCardClass(editing)} data-test-id="pv-section-identity">
+    <section className={sectionCardClass(editing)} data-test-id="pv-section-identity">
       <h2 className="text-sm font-semibold text-foreground">Identidad y atributos</h2>
       {loadError ? (
         <Alert variant="error" data-test-id="pv-section-identity-load">
@@ -635,6 +636,7 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
   const [taxes, setTaxes] = useState<TaxListItem[]>([]);
   const [priceRows, setPriceRows] = useState<VariantPriceRowModel[]>([]);
   const [pmpCalculatorRowKey, setPmpCalculatorRowKey] = useState<string | null>(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const ivaTaxes = useMemo(
     () => taxes.filter((t) => t.isActive && t.taxType === "IVA"),
@@ -729,6 +731,7 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
         });
         if (r.success) {
           setEditing(false);
+          setHistoryRefreshKey((k) => k + 1);
           await router.refresh();
         } else {
           setError(r.error);
@@ -753,8 +756,8 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
   const ro = !editing;
 
   return (
-    <section id="precios" className={sectionCardClass(editing)} data-test-id="pv-section-pricing">
-      <h2 className="text-sm font-semibold text-foreground">Precios y PMP</h2>
+    <div className="space-y-4">
+    <section className={sectionCardClass(editing)} data-test-id="pv-section-pricing">
       {loadError ? <Alert variant="error">{loadError}</Alert> : null}
       {error ? <Alert variant="error">{error}</Alert> : null}
 
@@ -779,7 +782,8 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
                 <li key={p.priceListId} className="flex flex-col gap-0.5 px-3 py-2">
                   <span className="font-medium">{p.priceListName}</span>
                   <span className="tabular-nums text-muted-foreground">
-                    Neto {formatMoney(p.netPrice, p.currency)} · Bruto {formatMoney(p.grossPrice, p.currency)}
+                    Neto {formatMoney(p.netPrice, p.currency)} · Con impuestos{" "}
+                    {formatMoney(p.grossPrice, p.currency)}
                   </span>
                 </li>
               ))}
@@ -839,6 +843,20 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
         onApply={handlePmpCalculatorApply}
       />
     </section>
+
+    {!editing ? (
+      <section
+        className="space-y-3 rounded-lg border border-border bg-background p-4"
+        data-test-id="pv-section-sale-price-history"
+      >
+        <VariantSalePriceHistoryPanel
+          variantId={variant.id}
+          formatMoney={formatMoney}
+          refreshKey={historyRefreshKey}
+        />
+      </section>
+    ) : null}
+    </div>
   );
 }
 
@@ -940,7 +958,7 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
   };
 
   return (
-    <section id="inventario" className={sectionCardClass(editing)} data-test-id="pv-section-inventory">
+    <section className={sectionCardClass(editing)} data-test-id="pv-section-inventory">
       <h2 className="text-sm font-semibold text-foreground">Inventario</h2>
       {error ? <Alert variant="error">{error}</Alert> : null}
 

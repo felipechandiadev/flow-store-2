@@ -1165,6 +1165,9 @@ async function bootstrap() {
     await dataSource.query(
       `ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS "pmpHistory" json`,
     );
+    await dataSource.query(
+      `ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS "salePriceHistory" json`,
+    );
     await dataSource.query(`ALTER TABLE product_variants ALTER COLUMN pmp DROP DEFAULT`);
     await dataSource.query(
       `ALTER TABLE product_variants ALTER COLUMN pmp DROP NOT NULL`,

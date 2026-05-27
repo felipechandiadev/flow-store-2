@@ -70,6 +70,10 @@ export class TypeOrmCustomersRepository implements CustomersRepositoryPort {
       .leftJoinAndSelect('c.person', 'person')
       .where('1=1');
 
+    if (filter?.isActive !== undefined) {
+      qb.andWhere('c.isActive = :isActive', { isActive: filter.isActive });
+    }
+
     if (searchQuery && searchQuery.trim().length > 0) {
       // Búsqueda insensible a mayúsculas (ILIKE) y a tildes (unaccent).
       // Extensión `unaccent` asegurada por CustomersSearchBootstrap.

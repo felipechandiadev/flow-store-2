@@ -63,9 +63,9 @@ export default function CustomersDataGrid({
         field: "documentNumber",
         headerName: "Documento",
         sortable: false,
-        width: 64,
-        minWidth: 64,
-        maxWidth: 80,
+        width: 150,
+        minWidth: 130,
+        maxWidth: 200,
         valueGetter: ({ row }) => (row as CustomerListRow).documentNumber?.trim() || "—",
       },
       {

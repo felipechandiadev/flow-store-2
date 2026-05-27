@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import Alert from "@/shared/components/Alert/Alert";
 import MultimediaUpdater from "@/shared/components/FileUploader/MultimediaUpdater";
 import { MultimediaUploader } from "@/shared/components/FileUploader/MultimediaUploader";
 import {
   listMultimediaForEntityAction,
-  uploadMultimediaForEntityAction,
+  revalidateMultimediaCachesAction,
   unlinkMultimediaFromEntityAction,
 } from "@/features/multimedia/actions/multimedia.action";
+import { uploadMultimediaForEntityClient } from "@/features/multimedia/infrastructure/multimedia.client";
 import type { MultimediaAssetListItem, MultimediaEntityType } from "@/features/multimedia/types/multimedia.types";
 import IconButton from "@/shared/components/IconButton/IconButton";
 
@@ -38,6 +40,11 @@ export function EntityMultimediaPanel({
   disabled = false,
   collectionOnly = false,
 }: EntityMultimediaPanelProps) {
+  const { data: session } = useSession();
+  const accessToken = session?.user?.accessToken;
+  const activeCompanyId = (session?.user as { activeCompanyId?: string | null } | undefined)
+    ?.activeCompanyId;
+
   const [assets, setAssets] = useState<MultimediaAssetListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,18 +85,25 @@ export function EntityMultimediaPanel({
     setError(null);
     try {
       let markPrimary = assets.length === 0;
+      let uploadedAny = false;
       for (const file of files) {
-        const form = new FormData();
-        form.append("file", file);
-        form.append("entityType", entityType);
-        form.append("entityId", id);
-        form.append("isPrimary", markPrimary ? "true" : "false");
+        const r = await uploadMultimediaForEntityClient({
+          file,
+          entityType,
+          entityId: id,
+          isPrimary: markPrimary,
+          accessToken,
+          activeCompanyId,
+        });
         markPrimary = false;
-        const r = await uploadMultimediaForEntityAction(form);
         if (!r.success) {
           setError(r.error);
           break;
         }
+        uploadedAny = true;
+      }
+      if (uploadedAny) {
+        await revalidateMultimediaCachesAction(entityType, id);
       }
       await load();
       onChanged?.();

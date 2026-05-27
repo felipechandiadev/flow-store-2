@@ -3,6 +3,15 @@ import { buildLanAllowedDevOrigins } from "../shared/next-lan-dev-origins";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: buildLanAllowedDevOrigins(),
+  /** Fallback for flows that still post files via Server Actions (maxSize 9 MB in uploader). */
+  serverActions: {
+    bodySizeLimit: "10mb",
+  },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
   transpilePackages: ["@flowstore/print-service-client"],
   env: {
     NEXT_PUBLIC_BACKEND_API_URL:

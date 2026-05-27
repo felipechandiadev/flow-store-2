@@ -59,6 +59,14 @@ export type PosCustomerPurchaseRow = {
   createdAt: string;
 };
 
+export type PosCustomerBackorderRow = {
+  id: string;
+  documentNumber: string | null;
+  status: string | null;
+  total: number;
+  createdAt: string;
+};
+
 export type CustomerCreditNoteUsageStatus =
   | "available"
   | "partially_used"
@@ -92,6 +100,7 @@ export type PosCustomerDetailBundle =
       payments: PosCustomerPaymentRow[];
       quotas: PosCustomerQuotaRow[];
       purchases: PosCustomerPurchaseRow[];
+      backorders: PosCustomerBackorderRow[];
       returns: PosCustomerReturnRow[];
       creditNotes: PosCustomerCreditNoteRow[];
     }

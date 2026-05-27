@@ -685,8 +685,8 @@ export class SalesFromSessionService {
     const deposit = Math.round(
       Number(createBackorderDto.backorderDepositAmount) || 0,
     );
-    if (deposit < 1) {
-      throw new BadRequestException('El abono del encargo debe ser mayor que cero');
+    if (deposit < 0) {
+      throw new BadRequestException('El abono del encargo no puede ser negativo');
     }
     return this.registerPosCommercial(createBackorderDto, {
       transactionType: TransactionType.BACKORDER,

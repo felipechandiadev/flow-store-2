@@ -245,6 +245,31 @@ export class CustomerRequest {
     return Array.isArray(arr) ? arr : [];
   }
 
+  static async getBackorders(customerId: string): Promise<Record<string, unknown>[]> {
+    const id = customerId?.trim();
+    if (!id) {
+      return [];
+    }
+    const headers = await authHeaders();
+    const q = new URLSearchParams({
+      customerId: id,
+      page: "1",
+      limit: "200",
+    });
+    const res = await fetch(apiUrl(`transactions/backorders?${q.toString()}`), {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const arr = (json.data ?? json.rows) as unknown;
+    return Array.isArray(arr) ? (arr as Record<string, unknown>[]) : [];
+  }
+
   static async getCustomerReturns(customerId: string): Promise<Record<string, unknown>[]> {
     const id = customerId?.trim();
     if (!id) return [];

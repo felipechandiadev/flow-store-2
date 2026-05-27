@@ -1,4 +1,12 @@
 /** Fila devuelta por `GET /product-variants/purchasing-search`. */
+export type PurchasingVariantStorageStock = {
+  storageId: string;
+  storageName: string;
+  branchName: string | null;
+  availableStock: number;
+  hasStockAlert: boolean;
+};
+
 export type PurchasingVariantSearchItem = {
   id: string;
   productId: string;
@@ -15,6 +23,8 @@ export type PurchasingVariantSearchItem = {
   attributeValues: Record<string, string>;
   unitLabel: string | null;
   defaultTaxIds: string[];
+  storageStocks: PurchasingVariantStorageStock[];
+  hasStockAlert: boolean;
 };
 
 export type PurchasingVariantSearchResult = {

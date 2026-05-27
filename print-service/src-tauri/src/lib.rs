@@ -23,6 +23,8 @@ mod pos_cash_count_sheet_ticket;
 mod pos_cash_count_sheet_ticket_escpos;
 mod pos_cash_session_opening_ticket;
 mod pos_cash_session_opening_ticket_escpos;
+mod pos_payment_in_ticket;
+mod pos_payment_in_ticket_escpos;
 mod ticket_barcode;
 mod platform;
 mod port_release;

@@ -45,6 +45,41 @@ describe('VariantQuantityConversionService', () => {
     expect(r.unitConversionFactor).toBe(12);
   });
 
+  it('purchaseQtyToStockBaseFactor devuelve unidades base por 1 unidad de compra', () => {
+    const base: Unit = {
+      id: 'u-base',
+      companyId: 'c1',
+      name: 'Unidad',
+      symbol: 'u',
+      isBase: true,
+      baseUnitId: null,
+      conversionFactor: 1,
+      dimension: UnitDimension.COUNT,
+    } as Unit;
+    const dozen: Unit = {
+      id: 'u-doz',
+      companyId: 'c1',
+      name: 'Docena',
+      symbol: 'doc',
+      isBase: false,
+      baseUnitId: 'u-base',
+      conversionFactor: 12,
+      dimension: UnitDimension.COUNT,
+    } as Unit;
+    const byId = new Map<string, Unit>([
+      ['u-base', base],
+      ['u-doz', dozen],
+    ]);
+    const variant = {
+      stockBaseUnitId: 'u-base',
+      saleUnitId: 'u-doz',
+      purchaseUnitId: 'u-doz',
+      unitId: 'u-doz',
+    } as ProductVariant;
+
+    expect(service.purchaseQtyToStockBaseFactor(variant, byId)).toBe(12);
+  });
+
   it('rechaza masa + conteo sin factor de variante', () => {
     const mass: Unit = {
       id: 'u-g',

@@ -58,6 +58,7 @@ export default async function Page({
     query: customerQuery,
     page: customerPage,
     pageSize: customerPageSize,
+    activeOnly: true,
   });
 
   const initialCustomerSearch: PosCustomerSearchInitial = res.success

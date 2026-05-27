@@ -9,11 +9,24 @@ const SETTINGS_COMPANY_PATH = "/settings/company";
 
 const ENTITY_TYPES: MultimediaEntityType[] = ["product", "product-variant", "company"];
 
-function revalidatePathsForEntityType(entityType: MultimediaEntityType) {
+export async function revalidateMultimediaCachesAction(
+  entityType: MultimediaEntityType,
+  entityId?: string,
+): Promise<void> {
+  revalidatePathsForEntityType(entityType, entityId);
+}
+
+function revalidatePathsForEntityType(
+  entityType: MultimediaEntityType,
+  entityId?: string,
+) {
   if (entityType === "company") {
     revalidatePath(SETTINGS_COMPANY_PATH, "page");
-  } else {
-    revalidatePath(PRODUCTS_PATH, "page");
+    return;
+  }
+  revalidatePath(PRODUCTS_PATH, "page");
+  if (entityType === "product-variant" && entityId?.trim()) {
+    revalidatePath(`/catalog/products/variants/${entityId.trim()}`, "page");
   }
 }
 
@@ -46,7 +59,7 @@ export async function uploadMultimediaForEntityAction(formData: FormData): Promi
   }
   const r = await MultimediaRequest.uploadForEntity({ file, entityType, entityId, isPrimary });
   if (r.success) {
-    revalidatePathsForEntityType(entityType);
+    revalidatePathsForEntityType(entityType, entityId);
   }
   return r;
 }
@@ -62,7 +75,7 @@ export async function setPrimaryMultimediaAssetAction(input: {
     assetId: input.assetId.trim(),
   });
   if (r.success) {
-    revalidatePathsForEntityType(input.entityType);
+    revalidatePathsForEntityType(input.entityType, input.entityId);
   }
   return r;
 }
@@ -80,7 +93,7 @@ export async function unlinkMultimediaFromEntityAction(input: {
     usageType: input.usageType,
   });
   if (r.success) {
-    revalidatePathsForEntityType(input.entityType);
+    revalidatePathsForEntityType(input.entityType, input.entityId);
   }
   return r;
 }

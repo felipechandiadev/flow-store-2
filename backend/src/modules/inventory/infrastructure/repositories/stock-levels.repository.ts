@@ -13,6 +13,7 @@ import {
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { StockLevelOrmEntity } from '@modules/stock-levels/infrastructure/orm-mappers/stock-level.orm-entity';
 import { StoragesService } from '@modules/storages/application/storages.service';
+import { applyInventoryStockTextSearch } from '@modules/inventory/application/inventory-stock-search.util';
 
 @Injectable()
 export class StockLevelsRepository implements StockLevelsRepositoryPort {
@@ -80,10 +81,7 @@ export class StockLevelsRepository implements StockLevelsRepositoryPort {
         branchId: filters.branchId,
       });
     }
-    if (filters.search) {
-      const s = `%${filters.search}%`;
-      qb.andWhere('(product.name LIKE :s OR variant.sku LIKE :s)', { s });
-    }
+    applyInventoryStockTextSearch(qb, filters.search);
 
     // Get total before pagination
     const total = await qb.getCount();

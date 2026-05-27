@@ -20,8 +20,10 @@ import { deriveBasePriceFromPriceRows, roundMoneyInt } from "@/features/inventor
 import { createVariantPriceRow } from "./VariantPriceRowsEditor";
 import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
 import { MultimediaUploader } from "@/shared/components/FileUploader/MultimediaUploader";
-import { uploadMultimediaForEntityAction } from "@/features/multimedia/actions/multimedia.action";
+import { revalidateMultimediaCachesAction } from "@/features/multimedia/actions/multimedia.action";
+import { uploadMultimediaFilesForEntity } from "@/features/multimedia/infrastructure/multimedia.client";
 import type { MultimediaEntityType } from "@/features/multimedia/types/multimedia.types";
+import { useSession } from "next-auth/react";
 import type { CatalogProductType } from "@/features/inventory-products/types/product-grid.types";
 import { CATALOG_PRODUCT_TYPE_SELECT_OPTIONS, normalizeCatalogProductType } from "./catalog-product-type-options";
 
@@ -29,23 +31,18 @@ async function uploadFilesToEntity(
   files: File[],
   entityType: MultimediaEntityType,
   entityId: string,
+  auth: { accessToken?: string | null; activeCompanyId?: string | null },
 ): Promise<string | null> {
-  if (files.length === 0 || !entityId.trim()) {
-    return null;
+  const r = await uploadMultimediaFilesForEntity({
+    files,
+    entityType,
+    entityId,
+    ...auth,
+  });
+  if (!r.success) {
+    return r.error;
   }
-  let markPrimary = true;
-  for (const file of files) {
-    const form = new FormData();
-    form.append("file", file);
-    form.append("entityType", entityType);
-    form.append("entityId", entityId.trim());
-    form.append("isPrimary", markPrimary ? "true" : "false");
-    markPrimary = false;
-    const r = await uploadMultimediaForEntityAction(form);
-    if (!r.success) {
-      return r.error;
-    }
-  }
+  await revalidateMultimediaCachesAction(entityType, entityId);
   return null;
 }
 
@@ -83,6 +80,11 @@ export type CreateProductDialogProps = {
 
 export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductDialogProps) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const multimediaAuth = {
+    accessToken: session?.user?.accessToken,
+    activeCompanyId: (session?.user as { activeCompanyId?: string | null } | undefined)?.activeCompanyId,
+  };
   const [phase, setPhase] = useState<"form" | "media">("form");
   const [newProductId, setNewProductId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -259,7 +261,7 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
 
         try {
           if (stagedProductFiles.length > 0) {
-            const upErr = await uploadFilesToEntity(stagedProductFiles, "product", r.id);
+            const upErr = await uploadFilesToEntity(stagedProductFiles, "product", r.id, multimediaAuth);
             if (upErr) {
               setPostCreateUploadError(upErr);
             }

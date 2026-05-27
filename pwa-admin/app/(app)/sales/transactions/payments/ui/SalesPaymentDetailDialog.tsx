@@ -1,9 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog";
 import Alert from "@/shared/components/Alert/Alert";
 import Badge, { type BadgeVariant } from "@/shared/components/Badge/Badge";
+import IconButton from "@/shared/components/IconButton/IconButton";
+import { getCompanyDetailsAction } from "@/features/settings-company/actions/company.action";
+import {
+  canAdminPrintPaymentIn,
+  reprintAdminPaymentInDocument,
+  reprintAdminPaymentInTicket,
+} from "@/features/sales-payments/print/print-admin-payment-in";
 import {
   SALES_PAYMENT_STATUS_LABEL,
   type SalesPaymentRow,
@@ -62,6 +69,54 @@ export default function SalesPaymentDetailDialog({
   const [detail, setDetail] = useState<SaleTransactionDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [printBusy, setPrintBusy] = useState<"ticket" | "document" | null>(null);
+  const [printNotice, setPrintNotice] = useState<string | null>(null);
+
+  const canPrint = detail ? canAdminPrintPaymentIn(detail.transactionType) : false;
+
+  const handlePrintTicket = useCallback(async () => {
+    if (!detail || !canAdminPrintPaymentIn(detail.transactionType)) return;
+    setPrintBusy("ticket");
+    setPrintNotice(null);
+    setError(null);
+    try {
+      const company = await getCompanyDetailsAction();
+      const res = await reprintAdminPaymentInTicket(detail, company);
+      if (!res.success) {
+        setPrintNotice(res.message ?? "No se pudo imprimir el ticket");
+      } else if (res.message) {
+        setPrintNotice(res.message);
+      } else {
+        setPrintNotice(null);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo imprimir el ticket");
+    } finally {
+      setPrintBusy(null);
+    }
+  }, [detail]);
+
+  const handlePrintDocument = useCallback(async () => {
+    if (!detail || !canAdminPrintPaymentIn(detail.transactionType)) return;
+    setPrintBusy("document");
+    setPrintNotice(null);
+    setError(null);
+    try {
+      const company = await getCompanyDetailsAction();
+      const res = await reprintAdminPaymentInDocument(detail, company);
+      if (!res.success) {
+        setPrintNotice(res.message ?? "No se pudo imprimir el documento");
+      } else if (res.message) {
+        setPrintNotice(res.message);
+      } else {
+        setPrintNotice(null);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo imprimir el documento");
+    } finally {
+      setPrintBusy(null);
+    }
+  }, [detail]);
 
   useEffect(() => {
     if (!open || !payment?.id?.trim()) {
@@ -121,8 +176,46 @@ export default function SalesPaymentDetailDialog({
       scroll="paper"
       maxHeight="min(85vh, 640px)"
       showCloseButton
-      hideActions
-      alertArea={error ? <Alert variant="error">{error}</Alert> : undefined}
+      hideActions={loading || !canPrint}
+      actionsJustify="end"
+      alertArea={
+        <>
+          {error ? <Alert variant="error">{error}</Alert> : null}
+          {printNotice ? (
+            <Alert variant="info" data-test-id="sales-payment-detail-print-notice">
+              {printNotice}
+            </Alert>
+          ) : null}
+        </>
+      }
+      actions={
+        !loading && canPrint ? (
+          <div className="flex items-center justify-end gap-1">
+            <IconButton
+              icon="Receipt"
+              variant="basicSecondary"
+              size="sm"
+              ariaLabel="Imprimir ticket"
+              title="Imprimir ticket (80 mm)"
+              isLoading={printBusy === "ticket"}
+              disabled={printBusy != null && printBusy !== "ticket"}
+              onClick={() => void handlePrintTicket()}
+              data-test-id="sales-payment-detail-print-ticket"
+            />
+            <IconButton
+              icon="FileText"
+              variant="basicSecondary"
+              size="sm"
+              ariaLabel="Imprimir documento de cobro"
+              title="Imprimir documento de cobro (hoja)"
+              isLoading={printBusy === "document"}
+              disabled={printBusy != null && printBusy !== "document"}
+              onClick={() => void handlePrintDocument()}
+              data-test-id="sales-payment-detail-print-document"
+            />
+          </div>
+        ) : null
+      }
       data-test-id="sales-payment-detail-dialog"
     >
       <div className="flex flex-col gap-4 p-4">

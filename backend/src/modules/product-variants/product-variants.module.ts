@@ -18,6 +18,7 @@ import { PriceListItemsModule } from '@modules/price-list-items/price-list-items
 import { AttributesModule } from '@modules/attributes/attributes.module';
 import { VariantQuantityConversionService } from './application/variant-quantity-conversion.service';
 import { ProductVariantShippingSchemaBootstrap } from './application/product-variant-shipping-schema.bootstrap';
+import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ProductVariantShippingSchemaBootstrap } from './application/product-var
       TransactionLine,
       Supplier,
       Storage,
+      StockLevel,
     ]),
     CqrsModule,
     MultimediaModule,

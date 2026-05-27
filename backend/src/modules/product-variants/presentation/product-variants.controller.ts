@@ -14,6 +14,7 @@ import { UpdateProductVariantDto } from '../application/dto/update-product-varia
 import { ListProductVariantsDto } from '../application/dto/list-product-variants.dto';
 import { SearchPurchasingVariantsDto } from '../application/dto/search-purchasing-variants.dto';
 import { VariantPurchaseInsightsQueryDto } from '../application/dto/variant-purchase-insights.dto';
+import { VariantSalePriceHistoryQueryDto } from '../application/dto/variant-sale-price-history.dto';
 
 @Controller('product-variants')
 export class ProductVariantsController {
@@ -43,6 +44,18 @@ export class ProductVariantsController {
     @Query() query: VariantPurchaseInsightsQueryDto,
   ) {
     return this.variantsService.getPurchaseInsights(id, query.limit);
+  }
+
+  @Get(':id/sale-price-history')
+  async salePriceHistory(
+    @Param('id') id: string,
+    @Query() query: VariantSalePriceHistoryQueryDto,
+  ) {
+    const data = await this.variantsService.getSalePriceHistory(id, {
+      priceListId: query.priceListId,
+      limit: query.limit,
+    });
+    return { success: true, data };
   }
 
   @Get(':id')

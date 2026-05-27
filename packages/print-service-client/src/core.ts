@@ -4,6 +4,10 @@ import type {
   PosQuotationTicketPrintExtras,
 } from "./pos-quotation-ticket";
 import type {
+  PosPaymentInTicketPayload,
+  PosPaymentInTicketPrintExtras,
+} from "./pos-payment-in-ticket";
+import type {
   PosCustomerCreditNoteTicketPayload,
   PosCustomerCreditNoteTicketPrintExtras,
 } from "./pos-customer-credit-note-ticket";
@@ -74,6 +78,7 @@ export type PrinterHealthPayload = {
 /** Capacidades del agente (protocolo 2.1+). */
 export const AGENT_CAPABILITY_POS_SALE_TICKET = "pos-sale-ticket";
 export const AGENT_CAPABILITY_POS_QUOTATION_TICKET = "pos-quotation-ticket";
+export const AGENT_CAPABILITY_POS_PAYMENT_IN_TICKET = "pos-payment-in-ticket";
 export const AGENT_CAPABILITY_POS_CUSTOMER_CREDIT_NOTE_TICKET =
   "pos-customer-credit-note-ticket";
 export const AGENT_CAPABILITY_POS_CASH_CLOSING_TICKET = "pos-cash-closing-ticket";
@@ -483,6 +488,29 @@ export class PrintServiceConnection {
     return this.enqueuePosPrint(body);
   }
 
+  /** Cobro PAYMENT_IN: ESC/POS desde JSON (`type: "pos-payment-in-ticket"`). */
+  enqueuePosPaymentInTicket(
+    ticket: PosPaymentInTicketPayload,
+    extras: PosPaymentInTicketPrintExtras & { purpose?: string },
+    omitPrinterDisplayLabel = false,
+  ): Promise<unknown> {
+    const purpose = extras.purpose ?? "tickets";
+    const body: Record<string, unknown> = {
+      purpose,
+      type: "pos-payment-in-ticket",
+      ticket,
+      filename: extras.filename,
+      copies: 1,
+      sourceApp: extras.sourceApp ?? "pwa-pos",
+      documentType: extras.documentType,
+      internalFolio: extras.internalFolio,
+    };
+    if (omitPrinterDisplayLabel) {
+      return this.enqueuePrint(body);
+    }
+    return this.enqueuePosPrint(body);
+  }
+
   /**
    * Nota de crédito POS: el agente genera PDF o ESC/POS desde JSON (`type: "pos-customer-credit-note-ticket"`).
    */
@@ -795,6 +823,16 @@ export function agentSupportsPosQuotationTicket(
   const caps = hello?.agentCapabilities;
   if (Array.isArray(caps) && caps.length > 0) {
     return caps.includes(AGENT_CAPABILITY_POS_QUOTATION_TICKET);
+  }
+  return Boolean(hello?.serviceStatus);
+}
+
+export function agentSupportsPosPaymentInTicket(
+  hello: HelloResponseData | null | undefined,
+): boolean {
+  const caps = hello?.agentCapabilities;
+  if (Array.isArray(caps) && caps.length > 0) {
+    return caps.includes(AGENT_CAPABILITY_POS_PAYMENT_IN_TICKET);
   }
   return Boolean(hello?.serviceStatus);
 }

@@ -27,6 +27,7 @@ import { RemoveProductCommandHandler } from './application/handlers/commands/rem
 import { GetProductQueryHandler } from './application/handlers/queries/get-product.handler';
 import { GetAllProductsQueryHandler } from './application/handlers/queries/get-all-products.handler';
 import { SearchProductsQueryHandler } from './application/handlers/queries/search-products.handler';
+import { ProductCatalogSearchBootstrap } from './application/product-catalog-search.bootstrap';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { SearchProductsQueryHandler } from './application/handlers/queries/searc
   ],
   controllers: [ProductsController],
   providers: [
+    ProductCatalogSearchBootstrap,
     // Legacy service (kept for internal compatibility)
     ProductsService,
     ProductsPosService,

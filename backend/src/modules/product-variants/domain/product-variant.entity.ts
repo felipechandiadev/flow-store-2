@@ -15,6 +15,7 @@ import { Product } from '@modules/products/domain/product.entity';
 import { Unit } from '@modules/units/domain/unit.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import type { PmpHistoryEntry } from './pmp-history.types';
+import type { SalePriceHistoryEntry } from './sale-price-history.types';
 
 export interface ProductVariantMediaAsset {
   id: string;
@@ -73,6 +74,12 @@ export class ProductVariant {
    */
   @Column({ type: 'json', nullable: true })
   pmpHistory?: PmpHistoryEntry[] | null;
+
+  /**
+   * Historial de precios de venta por lista (append-only). Vigente en `priceListItems` y `basePrice`.
+   */
+  @Column({ type: 'json', nullable: true })
+  salePriceHistory?: SalePriceHistoryEntry[] | null;
 
   @Column({ type: 'uuid', name: 'unit_id' })
   unitId!: string;

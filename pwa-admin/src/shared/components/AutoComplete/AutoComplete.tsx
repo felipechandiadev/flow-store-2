@@ -69,10 +69,10 @@ const AutoComplete = <T = Option,>({
   const [inputValue, setInputValue] = useState(value ? getLabel(value) : "");
   const [focused, setFocused] = useState(false);
   const [open, setOpen] = useState(false);
-  const [isSelectingOption, setIsSelectingOption] = useState(false);
   const [validationTriggered, setValidationTriggered] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const blurCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSelectingOptionRef = useRef(false);
   /** Refs por instancia (evita colisiones entre múltiples AutoComplete en la página). */
   const itemRefsRef = useRef<Map<string | number, HTMLLIElement | null>>(new Map());
   const disabled = (props as any).disabled;
@@ -254,14 +254,6 @@ const AutoComplete = <T = Option,>({
     }
   }, [highlightedIndex, open, filteredOptions, getValue]);
 
-  const handleClear = () => {
-    setInputValue(""); // Clear the input text
-    setOpen(false); // Close the dropdown
-    setHighlightedIndex(-1); // Reset the highlighted index
-    onInputChange?.("");
-    onChange?.(null); // Clear the selected option
-  };
-
   const handleValidation = () => {
     if (required && (!value || (inputValue && !value))) {
       setValidationTriggered(true);
@@ -269,6 +261,92 @@ const AutoComplete = <T = Option,>({
     } else {
       setValidationTriggered(false);
     }
+  };
+
+  const focusInput = useCallback(() => {
+    containerRef.current
+      ?.querySelector<HTMLInputElement>('input[data-test-id="auto-complete-input"]')
+      ?.focus();
+  }, []);
+
+  const cancelScheduledClose = useCallback(() => {
+    if (blurCloseTimerRef.current != null) {
+      clearTimeout(blurCloseTimerRef.current);
+      blurCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleClose = useCallback(() => {
+    cancelScheduledClose();
+    blurCloseTimerRef.current = setTimeout(() => {
+      blurCloseTimerRef.current = null;
+      if (isSelectingOptionRef.current) {
+        return;
+      }
+      const active = document.activeElement;
+      if (active && containerRef.current?.contains(active)) {
+        return;
+      }
+      setOpen(false);
+    }, 150);
+  }, [cancelScheduledClose]);
+
+  useEffect(() => () => cancelScheduledClose(), [cancelScheduledClose]);
+
+  /** Evita blur del input al pulsar chevron / limpiar (causa parpadeo abrir-cerrar). */
+  const handleChromeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    cancelScheduledClose();
+  };
+
+  const handleChevronClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    cancelScheduledClose();
+    focusInput();
+    if (filteredOptions.length === 0) {
+      setOpen(false);
+      return;
+    }
+    setOpen((prev) => !prev);
+  };
+
+  const handleContainerBlur = (e: React.FocusEvent) => {
+    const next = e.relatedTarget as Node | null;
+    if (next && containerRef.current?.contains(next)) {
+      return;
+    }
+    setFocused(false);
+    handleValidation();
+    setHighlightedIndex(-1);
+    if (!isSelectingOptionRef.current) {
+      scheduleClose();
+    }
+  };
+
+  const handleContainerFocusCapture = (e: React.FocusEvent) => {
+    if (disabled) {
+      return;
+    }
+    const target = e.target as HTMLElement;
+    if (
+      target.closest('[data-test-id="auto-complete-dropdown-icon"]') ||
+      target.closest('[data-test-id="auto-complete-clear-icon"]')
+    ) {
+      return;
+    }
+    setFocused(true);
+    if (filteredOptions.length > 0) {
+      setOpen(true);
+    }
+  };
+
+  const handleClear = () => {
+    setInputValue(""); // Clear the input text
+    setOpen(false); // Close the dropdown
+    setHighlightedIndex(-1); // Reset the highlighted index
+    onInputChange?.("");
+    onChange?.(null); // Clear the selected option
   };
 
   const compactFloatCaption = (label?.trim() || placeholder?.trim() || "").trim();
@@ -282,21 +360,8 @@ const AutoComplete = <T = Option,>({
         className={`relative w-full rounded-md border border-border focus-within:border-primary ${
           isCompact ? "flex h-8 min-h-8 max-h-8 min-w-0 items-center" : ""
         }`.trim()}
-        onFocusCapture={() => {
-          if (disabled) {
-            return;
-          }
-          setFocused(true);
-          setOpen(true);
-        }}
-        onBlur={() => {
-          setFocused(false);
-          handleValidation();
-          if (!isSelectingOption) {
-            setTimeout(() => setOpen(false), 150);
-          }
-          setHighlightedIndex(-1);
-        }}
+        onFocusCapture={handleContainerFocusCapture}
+        onBlur={handleContainerBlur}
         tabIndex={-1}
       >
         <TextField
@@ -330,6 +395,7 @@ const AutoComplete = <T = Option,>({
             icon="X"
             variant="basicSecondary"
             className="absolute right-10 top-1/2 z-20 flex h-6 w-6 min-h-6 min-w-6 -translate-y-1/2 items-center justify-center p-0"
+            onMouseDown={handleChromeMouseDown}
             onClick={handleClear}
             aria-label="Limpiar selección"
             data-test-id="auto-complete-clear-icon"
@@ -345,10 +411,8 @@ const AutoComplete = <T = Option,>({
             className="absolute right-2 top-1/2 z-20 flex h-6 w-6 min-h-6 min-w-6 -translate-y-1/2 items-center justify-center p-0"
             tabIndex={-1}
             aria-label="Desplegar opciones"
-            onClick={(ev) => {
-              ev.stopPropagation();
-              setOpen((o) => !o);
-            }}
+            onMouseDown={handleChromeMouseDown}
+            onClick={handleChevronClick}
             data-test-id="auto-complete-dropdown-icon"
             disabled={disabled}
           />
@@ -376,9 +440,12 @@ const AutoComplete = <T = Option,>({
               }}
               className={dropdownOptionClass}
               onMouseDown={() => {
-                setIsSelectingOption(true);
+                isSelectingOptionRef.current = true;
+                cancelScheduledClose();
                 handleSelect(opt);
-                setTimeout(() => setIsSelectingOption(false), 200);
+                window.setTimeout(() => {
+                  isSelectingOptionRef.current = false;
+                }, 200);
               }}
               onMouseEnter={() => {
                 setHighlightedIndex(idx);

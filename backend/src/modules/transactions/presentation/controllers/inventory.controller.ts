@@ -110,12 +110,14 @@ export class InventoryTransactionsController {
     @Query('branchId') branchId?: string,
     @Query('storageId') storageId?: string,
     @Query('productId') productId?: string,
+    @Query('variantId') variantId?: string,
     @Query('customerId') customerId?: string,
   ): Promise<InventoryReservationSummary[]> {
     const query = new GetActiveInventoryReservationsQuery(
       branchId,
       storageId,
       productId,
+      variantId,
       customerId,
     );
     return this.queryBus.execute(query);

@@ -34,30 +34,27 @@ import { VariantPmpPriceCalculatorDialog } from "./VariantPmpPriceCalculatorDial
 import { VariantAttributesPickerDialog } from "./VariantAttributesPickerDialog";
 import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
 import { MultimediaUploader } from "@/shared/components/FileUploader/MultimediaUploader";
-import { uploadMultimediaForEntityAction } from "@/features/multimedia/actions/multimedia.action";
+import { revalidateMultimediaCachesAction } from "@/features/multimedia/actions/multimedia.action";
+import { uploadMultimediaFilesForEntity } from "@/features/multimedia/infrastructure/multimedia.client";
 import type { MultimediaEntityType } from "@/features/multimedia/types/multimedia.types";
+import { useSession } from "next-auth/react";
 
 async function uploadFilesToEntity(
   files: File[],
   entityType: MultimediaEntityType,
   entityId: string,
+  auth: { accessToken?: string | null; activeCompanyId?: string | null },
 ): Promise<string | null> {
-  if (files.length === 0 || !entityId.trim()) {
-    return null;
+  const r = await uploadMultimediaFilesForEntity({
+    files,
+    entityType,
+    entityId,
+    ...auth,
+  });
+  if (!r.success) {
+    return r.error;
   }
-  let markPrimary = true;
-  for (const file of files) {
-    const form = new FormData();
-    form.append("file", file);
-    form.append("entityType", entityType);
-    form.append("entityId", entityId.trim());
-    form.append("isPrimary", markPrimary ? "true" : "false");
-    markPrimary = false;
-    const r = await uploadMultimediaForEntityAction(form);
-    if (!r.success) {
-      return r.error;
-    }
-  }
+  await revalidateMultimediaCachesAction(entityType, entityId);
   return null;
 }
 
@@ -92,6 +89,11 @@ export function CreateProductVariantDialog({
   onSuccess,
 }: CreateProductVariantDialogProps) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const multimediaAuth = {
+    accessToken: session?.user?.accessToken,
+    activeCompanyId: (session?.user as { activeCompanyId?: string | null } | undefined)?.activeCompanyId,
+  };
   const [phase, setPhase] = useState<"form" | "media">("form");
   const [newVariantId, setNewVariantId] = useState<string | null>(null);
   const [sku, setSku] = useState("");
@@ -387,7 +389,7 @@ export function CreateProductVariantDialog({
         if (r.success) {
           setNewVariantId(r.id);
           if (stagedVariantFiles.length > 0) {
-            const upErr = await uploadFilesToEntity(stagedVariantFiles, "product-variant", r.id);
+            const upErr = await uploadFilesToEntity(stagedVariantFiles, "product-variant", r.id, multimediaAuth);
             if (upErr) {
               setPostCreateUploadError(upErr);
             }
