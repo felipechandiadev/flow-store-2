@@ -12,6 +12,7 @@ import {
   InlineSepDot,
   PosProductNameWithAttributes,
   POS_INSUFFICIENT_STOCK_SURFACE_CLASS,
+  POS_QUOTATION_LINE_SURFACE_CLASS,
   posCartQuantityExceedsAvailableStock,
   posDisplaySaleUnitSymbol,
   posFormatStockForCard,
@@ -19,6 +20,7 @@ import {
 } from "@/features/pos-products/ui/posProductPreview";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import { Alert, Button, Dialog, TextField } from "@/shared/admin-shared";
+import { listActivePosInventoryReservationsAction } from "@/features/pos-inventory-reservations/actions/list-active-reservations.action";
 
 /**
  * Línea del carrito en el POS. `discount` es opcional y lo asigna el
@@ -43,6 +45,9 @@ export default function PosCartLineCard({
   onRemove,
   onSetQuantity,
   maxQuantity,
+  maxQuantityContext,
+  isQuotationLine = false,
+  readOnly = false,
 }: {
   line: PosCartLine;
   pointOfSaleId: string;
@@ -50,8 +55,14 @@ export default function PosCartLineCard({
   onDecrement: () => void;
   onRemove?: () => void;
   onSetQuantity: (nextQuantity: number) => void;
-  /** Tope de cantidad (p. ej. liquidación de reserva). */
+  /** Tope de cantidad (p. ej. liquidación de reserva o devolución). */
   maxQuantity?: number;
+  /** Contexto del tope para mensajes en el diálogo de cantidad. */
+  maxQuantityContext?: "return" | "backorder" | "quotation";
+  /** Línea incluida en una cotización vinculada (fondo celeste). */
+  isQuotationLine?: boolean;
+  /** Bloquea toda edición de cantidad (modo liquidar encargo). */
+  readOnly?: boolean;
 }) {
   const code = line.barcode?.trim() || line.sku?.trim() || "—";
   const saleUnitLabel = posDisplaySaleUnitSymbol(line);
@@ -65,6 +76,25 @@ export default function PosCartLineCard({
   const [stockError, setStockError] = useState<string | null>(null);
   const [stockBreakdown, setStockBreakdown] = useState<PosVariantStockByStorageRow[]>([]);
   const [stockTrackInventory, setStockTrackInventory] = useState(true);
+  const [reservationsDialogOpen, setReservationsDialogOpen] = useState(false);
+  const [reservationsLoading, setReservationsLoading] = useState(false);
+  const [reservationsError, setReservationsError] = useState<string | null>(null);
+  const [reservationsStorage, setReservationsStorage] = useState<{
+    storageId: string;
+    storageName: string;
+  } | null>(null);
+  const [reservations, setReservations] = useState<
+    Array<{
+      id: string;
+      customerName: string;
+      quantity: number;
+      quantityInBase?: number;
+      createdAt: string;
+      orderReference?: string;
+      notes?: string;
+      isExpired: boolean;
+    }>
+  >([]);
 
   useEffect(() => {
     if (!stockDialogOpen) return;
@@ -87,11 +117,68 @@ export default function PosCartLineCard({
     })();
   }, [stockDialogOpen, line.variantId, pointOfSaleId]);
 
+  useEffect(() => {
+    if (!reservationsDialogOpen || !reservationsStorage) return;
+    setReservationsError(null);
+    setReservations([]);
+    setReservationsLoading(true);
+    void (async () => {
+      const res = await listActivePosInventoryReservationsAction({
+        storageId: reservationsStorage.storageId,
+        variantId: line.variantId,
+      });
+      setReservationsLoading(false);
+      if (!res.success) {
+        setReservationsError(res.message);
+        return;
+      }
+      setReservations(
+        res.reservations.map((r) => ({
+          id: r.id,
+          customerName: r.customerName,
+          quantity: Number(r.quantity) || 0,
+          quantityInBase:
+            r.quantityInBase === null || r.quantityInBase === undefined
+              ? undefined
+              : Number(r.quantityInBase),
+          createdAt: r.createdAt,
+          orderReference: r.orderReference,
+          notes: r.notes,
+          isExpired: r.isExpired,
+        })),
+      );
+    })();
+  }, [reservationsDialogOpen, reservationsStorage, line.variantId]);
+
   const formatBreakdownQty = (row: PosVariantStockByStorageRow): string => {
     const qty = posFormatStockQuantity({
       trackInventory: stockTrackInventory,
       availableStock: row.availableStock,
       availableStockBase: row.availableStockBase,
+      stockBaseQtyPerCountSaleUnit: line.stockBaseQtyPerCountSaleUnit,
+      unitAllowDecimals: line.unitAllowDecimals,
+    });
+    if (!qty) return "—";
+    return saleUnitLabel ? `${qty} ${saleUnitLabel}` : qty;
+  };
+
+  const formatBreakdownReserved = (row: PosVariantStockByStorageRow): string => {
+    const qty = posFormatStockQuantity({
+      trackInventory: stockTrackInventory,
+      availableStock: row.reservedStock,
+      availableStockBase: row.reservedStockBase,
+      stockBaseQtyPerCountSaleUnit: line.stockBaseQtyPerCountSaleUnit,
+      unitAllowDecimals: line.unitAllowDecimals,
+    });
+    if (!qty) return "—";
+    return saleUnitLabel ? `${qty} ${saleUnitLabel}` : qty;
+  };
+
+  const formatBreakdownPhysical = (row: PosVariantStockByStorageRow): string => {
+    const qty = posFormatStockQuantity({
+      trackInventory: stockTrackInventory,
+      availableStock: row.physicalStock,
+      availableStockBase: row.physicalStockBase,
       stockBaseQtyPerCountSaleUnit: line.stockBaseQtyPerCountSaleUnit,
       unitAllowDecimals: line.unitAllowDecimals,
     });
@@ -130,6 +217,23 @@ export default function PosCartLineCard({
       setQtyError(allowDecimals ? "Ingresa una cantidad válida." : "Ingresa una cantidad entera válida.");
       return;
     }
+    if (
+      maxQuantity != null &&
+      Number.isFinite(maxQuantity) &&
+      n > maxQuantity + (allowDecimals ? 0.0001 : 0)
+    ) {
+      const maxLabel = allowDecimals
+        ? String(maxQuantity)
+        : String(Math.round(maxQuantity));
+      setQtyError(
+        maxQuantityContext === "return"
+          ? `No puedes devolver más de ${maxLabel} unidades (máximo según la venta original).`
+          : maxQuantityContext === "quotation"
+            ? `No puedes superar ${maxLabel} unidades (máximo de la cotización).`
+            : `La cantidad no puede superar ${maxLabel}.`,
+      );
+      return;
+    }
     const capped =
       maxQuantity != null && Number.isFinite(maxQuantity) ? Math.min(n, maxQuantity) : n;
     onSetQuantity(capped);
@@ -151,10 +255,13 @@ export default function PosCartLineCard({
       className={`rounded-xl border p-4 shadow-sm ${
         exceedsAvailableStock
           ? POS_INSUFFICIENT_STOCK_SURFACE_CLASS
-          : "border-border bg-surface"
+          : isQuotationLine
+            ? POS_QUOTATION_LINE_SURFACE_CLASS
+            : "border-border bg-surface"
       }`}
       data-test-id="pos-cart-line"
       data-stock-exceeded={exceedsAvailableStock ? "true" : undefined}
+      data-quotation-line={isQuotationLine ? "true" : undefined}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 text-sm">
@@ -229,8 +336,9 @@ export default function PosCartLineCard({
               <div className="flex items-center gap-1 rounded-lg border border-border bg-neutral px-1 py-0.5">
                 <button
                   type="button"
-                  className="rounded px-2 py-1 text-lg leading-none text-foreground hover:bg-background"
+                  className="rounded px-2 py-1 text-lg leading-none text-foreground hover:bg-background disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={onDecrement}
+                  disabled={readOnly}
                   aria-label="Disminuir cantidad"
                 >
                   −
@@ -240,21 +348,23 @@ export default function PosCartLineCard({
                   type="button"
                   className="rounded px-2 py-1 text-lg leading-none text-foreground hover:bg-background disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={onIncrement}
-                  disabled={atMaxQty}
+                  disabled={atMaxQty || readOnly}
                   aria-label="Aumentar cantidad"
                 >
                   +
                 </button>
-                <IconButton
-                  icon="Pencil"
-                  variant="basicSecondary"
-                  size="xs"
-                  ariaLabel="Editar cantidad"
-                  title="Editar cantidad"
-                  onClick={() => setQtyDialogOpen(true)}
-                  data-test-id="pos-cart-line-edit-qty"
-                />
-                {onRemove ? (
+                {!readOnly ? (
+                  <IconButton
+                    icon="Pencil"
+                    variant="basicSecondary"
+                    size="xs"
+                    ariaLabel="Editar cantidad"
+                    title="Editar cantidad"
+                    onClick={() => setQtyDialogOpen(true)}
+                    data-test-id="pos-cart-line-edit-qty"
+                  />
+                ) : null}
+                {onRemove && !readOnly ? (
                   <IconButton
                     icon="Trash2"
                     variant="basicSecondary"
@@ -319,9 +429,118 @@ export default function PosCartLineCard({
                         </p>
                       ) : null}
                     </div>
-                    <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-foreground">
-                      {formatBreakdownQty(row)}
-                    </span>
+                    <div className="grid shrink-0 gap-0.5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="text-[10px] text-muted-foreground">Físico</span>
+                        <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                          {formatBreakdownPhysical(row)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="text-[10px] text-muted-foreground">Reservado</span>
+                        <div className="flex items-center gap-1">
+                          {stockTrackInventory && (Number(row.reservedStock ?? 0) > 0 || Number(row.reservedStockBase ?? 0) > 0) ? (
+                            <IconButton
+                              icon="Info"
+                              variant="ghost"
+                              size="xs"
+                              ariaLabel="Ver detalle de reservas"
+                              title="Ver detalle de reservas"
+                              onClick={() => {
+                                setReservationsStorage({
+                                  storageId: row.storageId,
+                                  storageName: row.storageName || "—",
+                                });
+                                setReservationsDialogOpen(true);
+                              }}
+                              data-test-id={`pos-cart-stock-reserved-detail-${row.storageId}`}
+                            />
+                          ) : null}
+                          <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                            {formatBreakdownReserved(row)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="text-[10px] text-muted-foreground">Disponible</span>
+                        <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                          {formatBreakdownQty(row)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={reservationsDialogOpen}
+        onClose={() => {
+          setReservationsDialogOpen(false);
+          setReservationsStorage(null);
+        }}
+        title={`Reservas — ${reservationsStorage?.storageName ?? "Almacén"}`}
+        size="md"
+        alertArea={
+          reservationsError ? <Alert variant="error">{reservationsError}</Alert> : undefined
+        }
+        actions={
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => {
+              setReservationsDialogOpen(false);
+              setReservationsStorage(null);
+            }}
+          >
+            Cerrar
+          </Button>
+        }
+        actionsJustify="end"
+        data-test-id="pos-cart-line-reservations-dialog"
+      >
+        <div className="grid gap-2 text-sm">
+          {reservationsLoading ? (
+            <p className="text-muted-foreground">Cargando…</p>
+          ) : reservations.length === 0 ? (
+            <p className="text-muted-foreground">Sin reservas activas.</p>
+          ) : (
+            <ul className="max-h-[min(18rem,60vh)] space-y-2 overflow-y-auto pr-1">
+              {reservations.map((r) => (
+                <li
+                  key={r.id}
+                  className={`rounded-lg border px-3 py-2 ${
+                    r.isExpired ? "border-border bg-muted/30 opacity-70" : "border-border"
+                  }`}
+                  data-test-id={`pos-cart-reservation-${r.id}`}
+                  data-expired={r.isExpired ? "true" : undefined}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">{r.customerName || "—"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {r.orderReference ? `Ref: ${r.orderReference}` : "—"}
+                        {r.notes ? ` · ${r.notes}` : ""}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                        {new Intl.NumberFormat("es-CL", { maximumFractionDigits: 3 }).format(r.quantity)}
+                        {saleUnitLabel ? ` ${saleUnitLabel}` : ""}
+                      </p>
+                    {r.quantityInBase != null && line.stockBaseUnitSymbol ? (
+                      <p className="text-[10px] text-muted-foreground">
+                        {new Intl.NumberFormat("es-CL", { maximumFractionDigits: 3 }).format(r.quantityInBase)}{" "}
+                        {line.stockBaseUnitSymbol}
+                      </p>
+                    ) : null}
+                      <p className="text-[10px] text-muted-foreground">
+                        {new Date(r.createdAt).toLocaleString("es-CL")}
+                      </p>
+                    </div>
                   </div>
                 </li>
               ))}
@@ -367,6 +586,16 @@ export default function PosCartLineCard({
             {allowDecimals
               ? "Esta unidad permite decimales."
               : "Esta unidad solo permite cantidades enteras."}
+            {maxQuantity != null && Number.isFinite(maxQuantity) ? (
+              <>
+                {" "}
+                {maxQuantityContext === "return"
+                  ? `Máximo devolvable: ${allowDecimals ? maxQuantity : Math.round(maxQuantity)}.`
+                  : maxQuantityContext === "quotation"
+                    ? `Máximo cotizado: ${allowDecimals ? maxQuantity : Math.round(maxQuantity)}.`
+                    : `Máximo: ${allowDecimals ? maxQuantity : Math.round(maxQuantity)}.`}
+              </>
+            ) : null}
           </p>
         </div>
       </Dialog>

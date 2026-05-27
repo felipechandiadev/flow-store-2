@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, Inject, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, IsNull } from 'typeorm';
+import { Repository, DataSource, IsNull, In } from 'typeorm';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { Product } from '@modules/products/domain/product.entity';
 import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
@@ -40,6 +40,9 @@ export type PosProductSearchResult = {
     attributeName: string;
     attributeValue: string;
   }>;
+  saleUnitSymbol?: string | null;
+  stockBaseUnitSymbol?: string | null;
+  stockBaseQtyPerCountSaleUnit?: number | null;
   metadata: Record<string, unknown> | null;
 };
 
@@ -76,25 +79,7 @@ export class ProductsPosService {
       );
     }
 
-    let resolvedBranchId = branchId;
-    let storageIdsForStock: string[] | null = null;
-    if (pointOfSaleId) {
-      const pos = await this.dataSource.getRepository(PointOfSale).findOne({
-        where: { id: pointOfSaleId, deletedAt: IsNull() },
-      });
-      if (!pos) {
-        throw new NotFoundException(`Punto de venta ${pointOfSaleId} no encontrado`);
-      }
-      if (branchId && pos.branchId && pos.branchId !== branchId) {
-        throw new BadRequestException(
-          'branchId no coincide con la sucursal del punto de venta indicado',
-        );
-      }
-      resolvedBranchId = pos.branchId ?? branchId;
-      if (pos.storageId) {
-        storageIdsForStock = [pos.storageId];
-      }
-    }
+    const scope = await this.resolvePosStockScope({ pointOfSaleId, branchId });
 
     // Construir query base
     const qb = this.variantRepository
@@ -185,7 +170,100 @@ export class ProductsPosService {
       };
     }
 
-    // Cargar stock: almacén del POS (sala de venta) o suma por sucursal si solo viene branchId
+    const products = await this.mapVariantsToPosSearchResults(variants, scope);
+
+    return {
+      query: query || '',
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+        hasNextPage: page < Math.ceil(total / pageSize),
+        hasPreviousPage: page > 1,
+      },
+      products,
+    };
+  }
+
+  /**
+   * Datos POS actuales (stock, atributos, imagen) para variantes conocidas.
+   * No exige lista de precios; los precios en la respuesta pueden ser 0 (el cliente
+   * debe conservar precios congelados, p. ej. desde una cotización).
+   */
+  async lookupVariantsForPos(args: {
+    variantIds: string[];
+    pointOfSaleId?: string;
+    branchId?: string;
+  }): Promise<PosProductSearchResult[]> {
+    const ids = [...new Set(args.variantIds.map((id) => id.trim()).filter(Boolean))];
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const scope = await this.resolvePosStockScope({
+      pointOfSaleId: args.pointOfSaleId,
+      branchId: args.branchId,
+    });
+
+    const variants = await this.variantRepository.find({
+      where: {
+        id: In(ids),
+        deletedAt: IsNull(),
+        isActive: true,
+      },
+      relations: ['product', 'saleUnit', 'stockBaseUnit'],
+    });
+    const activeVariants = variants.filter(
+      (v) =>
+        v.product &&
+        v.product.deletedAt == null &&
+        v.product.isActive === true,
+    );
+
+    return this.mapVariantsToPosSearchResults(activeVariants, scope);
+  }
+
+  private async resolvePosStockScope(args: {
+    pointOfSaleId?: string;
+    branchId?: string;
+  }): Promise<{
+    resolvedBranchId?: string;
+    storageIdsForStock: string[] | null;
+  }> {
+    let resolvedBranchId = args.branchId;
+    let storageIdsForStock: string[] | null = null;
+    if (args.pointOfSaleId) {
+      const pos = await this.dataSource.getRepository(PointOfSale).findOne({
+        where: { id: args.pointOfSaleId, deletedAt: IsNull() },
+      });
+      if (!pos) {
+        throw new NotFoundException(`Punto de venta ${args.pointOfSaleId} no encontrado`);
+      }
+      if (args.branchId && pos.branchId && pos.branchId !== args.branchId) {
+        throw new BadRequestException(
+          'branchId no coincide con la sucursal del punto de venta indicado',
+        );
+      }
+      resolvedBranchId = pos.branchId ?? args.branchId;
+      if (pos.storageId) {
+        storageIdsForStock = [pos.storageId];
+      }
+    }
+    return { resolvedBranchId, storageIdsForStock };
+  }
+
+  private async mapVariantsToPosSearchResults(
+    variants: ProductVariant[],
+    scope: {
+      resolvedBranchId?: string;
+      storageIdsForStock: string[] | null;
+    },
+  ): Promise<PosProductSearchResult[]> {
+    if (!variants.length) {
+      return [];
+    }
+
     const variantIds = variants.map((v) => v.id);
     const productIds = Array.from(
       new Set(variants.map((variant) => variant.productId).filter(Boolean)),
@@ -203,11 +281,11 @@ export class ProductsPosService {
     const multimediaByProduct: Record<string, string | null> = {};
     const attributeNameById: Record<string, string> = {};
 
-    if (storageIdsForStock && storageIdsForStock.length === 1) {
+    if (scope.storageIdsForStock && scope.storageIdsForStock.length === 1) {
       const stockLevels = await this.stockLevelRepository
         .createQueryBuilder('sl')
         .where('sl.productVariantId IN (:...variantIds)', { variantIds })
-        .andWhere('sl.storageId = :storageId', { storageId: storageIdsForStock[0] })
+        .andWhere('sl.storageId = :storageId', { storageId: scope.storageIdsForStock[0] })
         .select('sl.productVariantId', 'variantId')
         .addSelect('COALESCE(SUM(sl.availableStock), 0)', 'stock')
         .groupBy('sl.productVariantId')
@@ -220,12 +298,12 @@ export class ProductsPosService {
         },
         {} as Record<string, number>,
       );
-    } else if (resolvedBranchId) {
+    } else if (scope.resolvedBranchId) {
       const stockLevels = await this.stockLevelRepository
         .createQueryBuilder('sl')
         .innerJoin('sl.storage', 'storage')
         .where('sl.productVariantId IN (:...variantIds)', { variantIds })
-        .andWhere('storage.branchId = :branchId', { branchId: resolvedBranchId })
+        .andWhere('storage.branchId = :branchId', { branchId: scope.resolvedBranchId })
         .andWhere('storage.deletedAt IS NULL')
         .select('sl.productVariantId', 'variantId')
         .addSelect('COALESCE(SUM(sl.availableStock), 0)', 'stock')
@@ -274,31 +352,24 @@ export class ProductsPosService {
       unitsById = new Map(unitRows.map((u) => [u.id, u]));
     }
 
-    // Mapear resultados al formato esperado por el POS
-    const products: PosProductSearchResult[] = variants
-      .filter((variant) => variant.productId) // Filtrar variantes sin productId
+    return variants
+      .filter((variant) => variant.productId)
       .map((variant) => {
         const priceItem = variant.priceListItems?.[0];
         const netPrice = priceItem ? Number(priceItem.netPrice) : 0;
         let grossPrice = priceItem ? Number(priceItem.grossPrice) : 0;
 
-        // HOTFIX: Detect and correct obviously invalid prices
-        // If grossPrice is unreasonably higher than netPrice (e.g., 20x), assume it was multiplied by a factor
         if (netPrice > 0 && grossPrice > 0) {
           const ratio = grossPrice / netPrice;
-          // If ratio > 5, assume grossPrice was mis-calculated and should not exceed 1.5x netPrice (150% with heavy tax)
           if (ratio > 5) {
             console.warn(
               `⚠️ [ProductsPosSvc] Price correction needed for variant ${variant.sku}: ` +
                 `netPrice=${netPrice}, grossPrice=${grossPrice} (ratio=${ratio.toFixed(2)}). ` +
                 `Assuming grossPrice was incorrectly multiplied.`,
             );
-            // Divide grossPrice by 10 if it looks like it was multiplied by 10 or more
             if (ratio >= 19) {
-              // Likely multiplied by 20
               grossPrice = grossPrice / 20;
             } else if (ratio >= 10) {
-              // Likely multiplied by 10
               grossPrice = grossPrice / 10;
             }
             console.log(
@@ -308,13 +379,9 @@ export class ProductsPosService {
         }
 
         const taxAmount = grossPrice - netPrice;
-        // Calculate and clamp taxRate to valid range (0-100)
-        const calculatedTaxRate =
-          netPrice > 0 ? (taxAmount / netPrice) * 100 : 0;
+        const calculatedTaxRate = netPrice > 0 ? (taxAmount / netPrice) * 100 : 0;
         const taxRate = Math.max(0, Math.min(100, calculatedTaxRate));
 
-        // Atributos: `product_variants.attributeValues` es JSON objeto `{ [attributeId]: value }`.
-        // El POS necesita una lista con nombre+valor para mostrar "Producto · Talla · Color".
         const attributes: Array<{
           attributeId: string;
           attributeName: string;
@@ -348,6 +415,9 @@ export class ProductsPosService {
             })
           : null;
 
+        const saleUnitSymbol = (variant as any).saleUnit?.symbol ?? null;
+        const stockBaseUnitSymbol = (variant as any).stockBaseUnit?.symbol ?? null;
+
         return {
           productId: variant.productId!,
           productName: variant.product?.name || 'Producto sin nombre',
@@ -356,7 +426,7 @@ export class ProductsPosService {
           variantId: variant.id,
           sku: variant.sku || null,
           barcode: variant.barcode || null,
-          unitSymbol: (variant as any).saleUnit?.symbol ?? null,
+          unitSymbol: saleUnitSymbol,
           unitId: (variant as any).saleUnitId ?? null,
           unitAllowDecimals: (variant as any).saleUnit?.allowDecimals === true,
           unitPrice: netPrice,
@@ -367,22 +437,13 @@ export class ProductsPosService {
           availableStock,
           availableStockBase,
           attributes,
+          saleUnitSymbol,
+          stockBaseUnitSymbol,
+          stockBaseQtyPerCountSaleUnit:
+            (variant as any).stockBaseQtyPerCountSaleUnit ?? null,
           metadata: null,
         };
       });
-
-    return {
-      query: query || '',
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
-        hasNextPage: page < Math.ceil(total / pageSize),
-        hasPreviousPage: page > 1,
-      },
-      products,
-    };
   }
 
   /**
@@ -548,11 +609,41 @@ export class ProductsPosService {
 
     const breakdown = storages.map((storage) => {
       const sl = levelsByStorageId.get(storage.id) ?? null;
-      const stockBaseQty = Number(sl?.availableStock ?? 0);
-      const availableStockBase = track ? stockBaseQty : null;
+      const physicalBaseQty = Number(sl?.physicalStock ?? 0);
+      const reservedBaseQty = Number(sl?.committedStock ?? 0);
+      const availableBaseQty = Number(sl?.availableStock ?? 0);
+
+      const physicalStockBase = track ? physicalBaseQty : null;
+      const reservedStockBase = track ? reservedBaseQty : null;
+      const availableStockBase = track ? availableBaseQty : null;
+
+      const physicalStock = track
+        ? posDisplayStockInSaleUnits({
+            physicalStockInBase: physicalBaseQty,
+            stockBaseUnitId: variant.stockBaseUnitId,
+            saleUnitId: variant.saleUnitId,
+            stockBaseDimension: (variant as any).stockBaseUnit?.dimension ?? null,
+            saleDimension: (variant as any).saleUnit?.dimension ?? null,
+            stockBaseQtyPerCountSaleUnit: (variant as any).stockBaseQtyPerCountSaleUnit,
+            unitsById,
+          })
+        : null;
+
+      const reservedStock = track
+        ? posDisplayStockInSaleUnits({
+            physicalStockInBase: reservedBaseQty,
+            stockBaseUnitId: variant.stockBaseUnitId,
+            saleUnitId: variant.saleUnitId,
+            stockBaseDimension: (variant as any).stockBaseUnit?.dimension ?? null,
+            saleDimension: (variant as any).saleUnit?.dimension ?? null,
+            stockBaseQtyPerCountSaleUnit: (variant as any).stockBaseQtyPerCountSaleUnit,
+            unitsById,
+          })
+        : null;
+
       const availableStock = track
         ? posDisplayStockInSaleUnits({
-            physicalStockInBase: stockBaseQty,
+            physicalStockInBase: availableBaseQty,
             stockBaseUnitId: variant.stockBaseUnitId,
             saleUnitId: variant.saleUnitId,
             stockBaseDimension: (variant as any).stockBaseUnit?.dimension ?? null,
@@ -566,6 +657,10 @@ export class ProductsPosService {
         storageId: storage.id,
         storageName: storage.name ?? '',
         branchName: storage.branch?.name ?? null,
+        physicalStock,
+        physicalStockBase,
+        reservedStock,
+        reservedStockBase,
         availableStock,
         availableStockBase,
         isPosStorage: posStorageId != null && storage.id === posStorageId,

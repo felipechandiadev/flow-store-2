@@ -2,9 +2,10 @@
  * Contrato de `Transaction.metadata.backorder` cuando
  * `transactionType === BACKORDER`.
  *
- * Modela una **reserva / backorder** de mercadería sin stock: el cliente
- * deja **anticipo** (`depositAmount`) que luego se puede **imputar como medio
- * de pago** al concretar la venta. El detalle comercial va en `transaction_lines`
+ * Modela una **reserva / backorder** de mercadería sin stock: el cliente puede
+ * dejar **anticipo** (`depositAmount`, también `0` si es solo reserva) que luego
+ * se imputa como medio de pago al concretar la venta. El detalle comercial va en
+ * `transaction_lines`
  * (misma forma que venta o cotización); la cabecera lleva `customerId` y montos
  * de documento (`subtotal`, `taxAmount`, `total`, `amountPaid`, etc.).
  */
@@ -74,4 +75,13 @@ export interface TransactionBackorderMetadata {
    * referencia opcional para conciliación.
    */
   depositPaymentTransactionId?: string | null;
+
+  /** NC emitida al anular el encargo (saldo de abono no consumido). */
+  creditNoteTransactionId?: string | null;
+
+  /** ISO 8601 — momento de anulación comercial. */
+  cancelledAt?: string | null;
+
+  /** Motivo opcional registrado desde admin. */
+  cancelReason?: string | null;
 }

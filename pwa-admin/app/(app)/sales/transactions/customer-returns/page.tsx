@@ -48,6 +48,7 @@ export default async function Page({
           rows={rows}
           total={total}
           testIdSuffix="returns"
+          mode="customer-returns"
         />
       </Suspense>
       {!res.success ? (

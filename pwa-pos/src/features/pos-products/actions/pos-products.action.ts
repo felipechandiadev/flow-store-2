@@ -13,6 +13,14 @@ export async function searchPosProductsAction(input: {
   return ProductsPosRequest.search(input);
 }
 
+export async function lookupPosVariantsAction(input: {
+  variantIds: string[];
+  pointOfSaleId?: string | null;
+  branchId?: string | null;
+}) {
+  return ProductsPosRequest.lookupVariants(input);
+}
+
 export async function getPosVariantStockAction(input: { variantId: string; pointOfSaleId: string }) {
   return ProductsPosRequest.getVariantStock(input);
 }

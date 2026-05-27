@@ -37,11 +37,9 @@ export function posResolveAvailableStockInSaleUnits(item: PosStockFields): numbe
   const hasBridge = Number.isFinite(bridge) && bridge > 0;
   const sale = item.availableStock;
 
+  // Puente conteo (p. ej. g por bolsa): siempre mostrar stock en unidad de venta.
   if (hasBridge && base != null) {
-    const fromBase = base / bridge;
-    if (sale == null) return fromBase;
-    if (Math.abs(sale - base) < 1e-9) return fromBase;
-    return sale;
+    return base / bridge;
   }
 
   if (sale != null) return sale;
@@ -81,6 +79,10 @@ export const POS_INSUFFICIENT_STOCK_SURFACE_CLASS =
 
 /** Fondo de alerta en filas de lista (sin borde, para no desalinear el ancho). */
 export const POS_INSUFFICIENT_STOCK_LINE_CLASS = "bg-red-50 dark:bg-red-950/35";
+
+/** Línea del carrito vinculada a una cotización cargada (precio/cantidad del snapshot). */
+export const POS_QUOTATION_LINE_SURFACE_CLASS =
+  "border-sky-300/70 bg-sky-50 dark:border-sky-800/50 dark:bg-sky-950/35";
 
 /** True si la cantidad del carrito supera el stock disponible (unidad de venta). */
 export function posCartQuantityExceedsAvailableStock(

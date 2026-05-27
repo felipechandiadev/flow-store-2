@@ -1,5 +1,3 @@
-import type { CustomerCreditNoteUsageStatus } from "@/features/sales-customers/types/customer-related-documents.types";
-
 export function fmtClp(n: number): string {
   return new Intl.NumberFormat("es-CL", {
     style: "currency",
@@ -30,16 +28,7 @@ export const TX_TYPE_LABEL: Record<string, string> = {
   CUSTOMER_CREDIT_NOTE: "Nota de crédito",
 };
 
-export const CREDIT_NOTE_USAGE_LABEL: Record<CustomerCreditNoteUsageStatus, string> = {
-  available: "Disponible",
-  partially_used: "Utilizada parcialmente",
-  fully_used: "Utilizada",
-};
-
-export function creditNoteUsageVariant(
-  status: CustomerCreditNoteUsageStatus,
-): "success-outlined" | "warning-outlined" | "secondary-outlined" {
-  if (status === "available") return "success-outlined";
-  if (status === "partially_used") return "warning-outlined";
-  return "secondary-outlined";
-}
+export {
+  CREDIT_NOTE_USAGE_LABEL,
+  creditNoteUsageVariant,
+} from "@/features/sales-transactions/lib/credit-note-usage-status";

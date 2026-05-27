@@ -211,6 +211,28 @@ describe('CreateTransactionDto', () => {
       expect(errors.some((e) => e.includes('saleReturnId'))).toBe(true);
     });
 
+    it('should accept CUSTOMER_CREDIT_NOTE with backorderId and totals only', () => {
+      const dto = new CreateTransactionDto();
+      dto.transactionType = TransactionType.CUSTOMER_CREDIT_NOTE;
+      dto.branchId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.userId = '123e4567-e89b-12d3-a456-426614174000';
+      dto.customerId = '123e4567-e89b-12d3-a456-426614174001';
+      dto.relatedTransactionId = '123e4567-e89b-12d3-a456-426614174099';
+      dto.subtotal = 50;
+      dto.taxAmount = 10;
+      dto.total = 60;
+      dto.metadata = {
+        links: {
+          backorderId: '123e4567-e89b-12d3-a456-426614174099',
+          backorderDocumentNumber: 'ENCARGO-1',
+        },
+      };
+
+      const errors = dto.validate();
+
+      expect(errors.length).toBe(0);
+    });
+
     it('should accept CUSTOMER_CREDIT_NOTE with saleReturnId and totals only', () => {
       const dto = new CreateTransactionDto();
       dto.transactionType = TransactionType.CUSTOMER_CREDIT_NOTE;

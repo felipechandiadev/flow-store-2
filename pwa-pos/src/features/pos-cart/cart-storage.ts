@@ -19,6 +19,8 @@ export type LoadedQuotationMeta = {
   documentNumber: string;
   validUntil: string;
   expired: boolean;
+  /** Cantidad máxima por variante según la cotización (no se puede superar al vender). */
+  lineMaxQtyByVariantId: Record<string, number>;
 };
 
 type StoredCart = {
@@ -90,6 +92,26 @@ function parseCartMode(value: unknown): PosCartMode {
   return "sale";
 }
 
+function parseLoadedQuotation(value: unknown): LoadedQuotationMeta | null {
+  if (!value || typeof value !== "object") return null;
+  const o = value as LoadedQuotationMeta;
+  if (typeof o.id !== "string" || typeof o.documentNumber !== "string") return null;
+  const lineMaxQtyByVariantId: Record<string, number> = {};
+  if (o.lineMaxQtyByVariantId && typeof o.lineMaxQtyByVariantId === "object") {
+    for (const [k, v] of Object.entries(o.lineMaxQtyByVariantId)) {
+      const n = Number(v);
+      if (k && Number.isFinite(n) && n > 0) lineMaxQtyByVariantId[k] = n;
+    }
+  }
+  return {
+    id: o.id,
+    documentNumber: o.documentNumber,
+    validUntil: typeof o.validUntil === "string" ? o.validUntil : "",
+    expired: !!o.expired,
+    lineMaxQtyByVariantId,
+  };
+}
+
 function parseLoadedBackorder(value: unknown): LoadedBackorderMeta | null {
   if (!value || typeof value !== "object") return null;
   const o = value as LoadedBackorderMeta;
@@ -115,11 +137,24 @@ function parseLoadedReturnSale(value: unknown): LoadedReturnSaleMeta | null {
   if (!value || typeof value !== "object") return null;
   const o = value as LoadedReturnSaleMeta;
   if (typeof o.id !== "string" || typeof o.documentNumber !== "string") return null;
+  const lineMaxReturnableQtyByVariantId: Record<string, number> = {};
+  if (
+    o.lineMaxReturnableQtyByVariantId &&
+    typeof o.lineMaxReturnableQtyByVariantId === "object"
+  ) {
+    for (const [k, v] of Object.entries(o.lineMaxReturnableQtyByVariantId)) {
+      const n = Number(v);
+      if (k && Number.isFinite(n) && n > 0) {
+        lineMaxReturnableQtyByVariantId[k] = n;
+      }
+    }
+  }
   return {
     id: o.id,
     documentNumber: o.documentNumber,
     total: Number(o.total) || 0,
     createdAt: typeof o.createdAt === "string" ? o.createdAt : "",
+    lineMaxReturnableQtyByVariantId,
   };
 }
 
@@ -186,18 +221,9 @@ export function readCartClient(input: { pointOfSaleId: string; priceListId: stri
           }
         : null;
 
-    const q = parsed.quotation;
-    const quotation: LoadedQuotationMeta | null =
-      q &&
-      typeof q === "object" &&
-      typeof (q as LoadedQuotationMeta).id === "string" &&
-      typeof (q as LoadedQuotationMeta).documentNumber === "string"
-        ? {
-            id: String((q as LoadedQuotationMeta).id),
-            documentNumber: String((q as LoadedQuotationMeta).documentNumber),
-            validUntil: String((q as LoadedQuotationMeta).validUntil ?? ""),
-            expired: !!(q as LoadedQuotationMeta).expired,
-          }
+    const quotation =
+      parsed.v === CART_STORAGE_VERSION
+        ? parseLoadedQuotation(parsed.quotation)
         : null;
 
     const backorderDeposit = parseBackorderDeposit(parsed.backorderDeposit);

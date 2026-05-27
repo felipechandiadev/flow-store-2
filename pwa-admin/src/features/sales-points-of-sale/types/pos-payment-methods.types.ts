@@ -1,7 +1,7 @@
 import {
   COMPANY_PAYMENT_METHOD_LABELS,
   companyPaymentMethodAlwaysRequiresReference,
-  POS_VALID_METHOD_IDS,
+  POS_CONFIGURABLE_METHOD_IDS,
   type CompanyPaymentMethodConfig,
   type CompanyPaymentMethodId,
 } from "@/features/companies/types/company-payment-methods.types";
@@ -49,7 +49,7 @@ export function syncPosPaymentDraftWithCatalog(
 ): PosPaymentMethodConfig[] {
   const byId = new Map(posList.map((p) => [p.companyPaymentMethodId, p]));
   return catalog
-    .filter((c) => c.isActive && (POS_VALID_METHOD_IDS as string[]).includes(c.method))
+    .filter((c) => c.isActive && (POS_CONFIGURABLE_METHOD_IDS as string[]).includes(c.method))
     .slice()
     .sort((a, b) => a.displayOrder - b.displayOrder)
     .map((cmp) => {
@@ -85,7 +85,7 @@ export function buildEnabledPosPaymentDisplayBadges(
     if (!cmp || !cmp.isActive) {
       continue;
     }
-    if (!(POS_VALID_METHOD_IDS as string[]).includes(cmp.method)) {
+    if (!(POS_CONFIGURABLE_METHOD_IDS as string[]).includes(cmp.method)) {
       continue;
     }
     const sortOrder =

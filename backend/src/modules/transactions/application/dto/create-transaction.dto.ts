@@ -544,11 +544,16 @@ export class CreateTransactionDto {
           errors.push('CUSTOMER_CREDIT_NOTE requiere customerId');
         }
         const srId = this.metadata?.links?.saleReturnId;
+        const boId = this.metadata?.links?.backorderId;
         const uuidRe =
           /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        if (!srId || typeof srId !== 'string' || !uuidRe.test(String(srId).trim())) {
+        const srOk =
+          srId && typeof srId === 'string' && uuidRe.test(String(srId).trim());
+        const boOk =
+          boId && typeof boId === 'string' && uuidRe.test(String(boId).trim());
+        if (!srOk && !boOk) {
           errors.push(
-            'CUSTOMER_CREDIT_NOTE requiere metadata.links.saleReturnId (UUID de SALE_RETURN)',
+            'CUSTOMER_CREDIT_NOTE requiere metadata.links.saleReturnId (devolución) o metadata.links.backorderId (anulación de encargo)',
           );
         }
         break;
@@ -636,9 +641,9 @@ export class CreateTransactionDto {
           break;
         }
         const dep = Number((bo as { depositAmount?: unknown }).depositAmount);
-        if (!Number.isFinite(dep) || dep < 0.01) {
+        if (!Number.isFinite(dep) || dep < 0) {
           errors.push(
-            'BACKORDER requiere metadata.backorder.depositAmount (> 0)',
+            'BACKORDER requiere metadata.backorder.depositAmount (>= 0)',
           );
         }
         if (dep > this.total + 0.01) {

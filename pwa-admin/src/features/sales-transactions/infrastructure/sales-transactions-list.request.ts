@@ -5,9 +5,11 @@ import type {
   SalesPaymentStatus,
 } from "@/features/sales-payments/types/sales-payment.types";
 import type {
+  LinkedCreditNoteListSummary,
   SalesTransactionListRow,
   SalesTransactionsListResult,
 } from "../types/sales-transaction-list.types";
+import type { CustomerCreditNoteUsageStatus } from "@/features/sales-customers/types/customer-related-documents.types";
 import { countPaymentSnapshotsFromMetadata } from "../lib/format-sale-payment-method";
 import { resolveSaleCollectionStatus } from "../lib/sale-collection-status";
 import type { RelatedSalePaymentFolio } from "../types/sales-transaction-list.types";
@@ -233,6 +235,31 @@ function userFullNameFromRaw(o: Record<string, unknown>): string | null {
   return full || null;
 }
 
+function parseLinkedCreditNote(
+  raw: unknown,
+): LinkedCreditNoteListSummary | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const id = typeof o.id === "string" ? o.id.trim() : "";
+  if (!id) return null;
+  const usage = String(o.usageStatus ?? "").trim();
+  const usageStatus: CustomerCreditNoteUsageStatus =
+    usage === "fully_used" ||
+    usage === "partially_used" ||
+    usage === "available"
+      ? usage
+      : "available";
+  return {
+    id,
+    documentNumber:
+      typeof o.documentNumber === "string" ? o.documentNumber : id,
+    total: Math.round(toNumber(o.total)),
+    consumedAmount: Math.round(toNumber(o.consumedAmount)),
+    availableAmount: Math.round(toNumber(o.availableAmount)),
+    usageStatus,
+  };
+}
+
 function normalizeRow(raw: unknown): SalesTransactionListRow | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
@@ -285,8 +312,19 @@ function normalizeRow(raw: unknown): SalesTransactionListRow | null {
       bo && Number.isFinite(Number(bo.depositPercent))
         ? Math.round(Number(bo.depositPercent))
         : null,
+    backorderReservationStatus:
+      txType === "BACKORDER" &&
+      bo &&
+      typeof bo.reservationStatus === "string" &&
+      bo.reservationStatus.trim()
+        ? bo.reservationStatus.trim()
+        : txType === "BACKORDER"
+          ? "OPEN"
+          : null,
     paymentMethod: (o.paymentMethod as SalesPaymentMethod) ?? "CASH",
     paymentLinesCount: countPaymentSnapshotsFromMetadata(meta),
+    linkedCreditNote:
+      txType === "SALE_RETURN" ? parseLinkedCreditNote(o.linkedCreditNote) : null,
     branchName:
       branch && typeof branch.name === "string" && branch.name.trim()
         ? branch.name

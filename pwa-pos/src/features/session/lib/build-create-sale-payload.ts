@@ -2,6 +2,7 @@ import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
 import type { PosPaymentLine } from "@/features/pos-cart/pos-payment.types";
 import type { PosSaleCustomer } from "@/features/customers/types/pos-customer.types";
 import type { AppliedSnapshot } from "@/features/promotions/lib/discount-engine.types";
+import type { LoadedQuotationMeta } from "@/features/pos-cart/cart-storage";
 
 /** Cuerpo enviado a `POST /api/cash-sessions/sales` (CreateSaleDto). */
 export type CreateSaleApiBody = {
@@ -141,12 +142,14 @@ export function buildCreateSaleClientPayload(input: {
   overpay: number;
   fulfillBackorderId?: string | null;
   deferPayment?: boolean;
+  loadedQuotation?: LoadedQuotationMeta | null;
 }): CreateSaleClientPayload {
   const deferPayment = input.deferPayment === true;
   const paymentLines = deferPayment
     ? []
     : input.payments.filter((p) => (Number(p.amount) || 0) > 0);
   const promotionSnapshot = buildPromotionSnapshot(input.appliedPromotions);
+  const quotation = input.loadedQuotation;
   return {
     pointOfSaleId: input.pointOfSaleId.trim(),
     cashSessionId: input.cashSessionId.trim(),
@@ -158,6 +161,18 @@ export function buildCreateSaleClientPayload(input: {
     customerId: input.customer?.customerId?.trim() || undefined,
     fulfillBackorderId: input.fulfillBackorderId?.trim() || undefined,
     promotionSnapshot,
+    ...(quotation?.id?.trim()
+      ? {
+          metadata: {
+            quotation: {
+              id: quotation.id.trim(),
+              documentNumber: quotation.documentNumber?.trim() || null,
+              expired: quotation.expired === true,
+              validUntil: quotation.validUntil || null,
+            },
+          },
+        }
+      : {}),
     ...(deferPayment ? { deferPayment: true } : {}),
   };
 }

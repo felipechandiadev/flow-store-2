@@ -1,6 +1,8 @@
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, In, Repository } from 'typeorm';
+import { buildCustomerCreditNoteLinkSummary } from '@modules/transactions/application/read-models/customer-credit-note-link.summary';
+import type { CustomerCreditNoteLinkSummary } from '@modules/transactions/application/read-models/customer-credit-note-link.summary';
 import { SearchTransactionsQuery } from '@modules/transactions/application/queries/search-transactions.query';
 import {
   Transaction,
@@ -125,13 +127,44 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
     const results = await qb.getMany();
 
     const paymentsBySaleId = await this.loadRelatedSalePayments(results);
+    const creditNotesByReturnId =
+      await this.loadLinkedCreditNotesForSaleReturns(results);
 
     return {
-      data: results.map((tx) => this.toApiListRow(tx, paymentsBySaleId)),
+      data: results.map((tx) =>
+        this.toApiListRow(tx, paymentsBySaleId, creditNotesByReturnId),
+      ),
       total,
       page,
       limit,
     };
+  }
+
+  /** NC (`CUSTOMER_CREDIT_NOTE`) emitida por cada `SALE_RETURN` del listado. */
+  private async loadLinkedCreditNotesForSaleReturns(
+    results: Transaction[],
+  ): Promise<Map<string, CustomerCreditNoteLinkSummary>> {
+    const returnIds = results
+      .filter((t) => t.transactionType === TransactionType.SALE_RETURN)
+      .map((t) => t.id)
+      .filter((id) => Boolean(id?.trim()));
+    const byReturnId = new Map<string, CustomerCreditNoteLinkSummary>();
+    if (returnIds.length === 0) return byReturnId;
+
+    const creditNotes = await this.transactionRepository.find({
+      where: {
+        relatedTransactionId: In(returnIds),
+        transactionType: TransactionType.CUSTOMER_CREDIT_NOTE,
+      },
+      order: { createdAt: 'DESC' },
+    });
+
+    for (const nc of creditNotes) {
+      const returnId = nc.relatedTransactionId?.trim();
+      if (!returnId || byReturnId.has(returnId)) continue;
+      byReturnId.set(returnId, buildCustomerCreditNoteLinkSummary(nc));
+    }
+    return byReturnId;
   }
 
   /**
@@ -237,6 +270,7 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
   private toApiListRow(
     tx: Transaction,
     paymentsBySaleId: Map<string, { id: string; documentNumber: string }[]>,
+    creditNotesByReturnId: Map<string, CustomerCreditNoteLinkSummary>,
   ): Record<string, unknown> {
     const relatedSalePayments =
       tx.transactionType === TransactionType.SALE
@@ -269,6 +303,9 @@ export class SearchTransactionsQueryHandler implements IQueryHandler<SearchTrans
           transactionType?: string;
         } | null,
       });
+    }
+    if (tx.transactionType === TransactionType.SALE_RETURN) {
+      row.linkedCreditNote = creditNotesByReturnId.get(tx.id) ?? null;
     }
     return row;
   }

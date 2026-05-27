@@ -6,9 +6,16 @@ import {
   EffectivePaymentMethod,
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHODS_ALWAYS_REQUIRE_REFERENCE,
+  POS_IMPLICIT_PAYMENT_METHODS,
   POS_INVALID_METHODS,
   PosPaymentMethodConfig,
 } from './payment-method-config.types';
+
+function isPosConfigurableCatalogMethod(method: PaymentMethod): boolean {
+  return (
+    !POS_INVALID_METHODS.has(method) && !POS_IMPLICIT_PAYMENT_METHODS.has(method)
+  );
+}
 
 const VALID_METHODS = new Set<string>(Object.values(PaymentMethod));
 
@@ -141,6 +148,11 @@ export function sanitizePosPaymentMethod(
       `Medio de pago POS #${index + 1}: no existe en el catálogo de la empresa`,
     );
   }
+  if (POS_IMPLICIT_PAYMENT_METHODS.has(exists.method)) {
+    throw new Error(
+      `Medio de pago POS #${index + 1}: ${exists.method} es un medio implícito del sistema y no se configura por POS`,
+    );
+  }
   const preloadOrder =
     r.preloadOrder == null
       ? null
@@ -220,7 +232,7 @@ export function syncPosPaymentMethodsWithCatalog(
     posList.map((p) => [p.companyPaymentMethodId, p]),
   );
   const applicable = companyCatalog
-    .filter((c) => !POS_INVALID_METHODS.has(c.method))
+    .filter((c) => isPosConfigurableCatalogMethod(c.method))
     .slice()
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
@@ -262,6 +274,7 @@ export function mergeCompanyAndPos(
     if (!cmp) continue;
     if (!cmp.isActive) continue;
     if (POS_INVALID_METHODS.has(cmp.method)) continue;
+    if (POS_IMPLICIT_PAYMENT_METHODS.has(cmp.method)) continue;
 
     out.push({
       companyPaymentMethodId: cmp.id,
@@ -324,7 +337,7 @@ export function buildDefaultPosList(
   catalog: CompanyPaymentMethodConfig[],
 ): PosPaymentMethodConfig[] {
   return catalog
-    .filter((c) => !POS_INVALID_METHODS.has(c.method))
+    .filter((c) => isPosConfigurableCatalogMethod(c.method))
     .map((c) => ({
       companyPaymentMethodId: c.id,
       isEnabled: true,

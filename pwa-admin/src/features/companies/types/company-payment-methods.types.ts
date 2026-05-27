@@ -56,15 +56,20 @@ export function companyPaymentMethodAlwaysRequiresReference(
   return PAYMENT_METHODS_ALWAYS_REQUIRE_REFERENCE.includes(method);
 }
 
-/** Métodos válidos para POS (caja física). CREDIT/INTERNAL_CREDIT son
- * estados de documento (cuentas por cobrar), no medios tangibles para
- * el cajero, por eso se excluyen. */
-export const POS_VALID_METHOD_IDS: CompanyPaymentMethodId[] = [
+/** Medios implícitos del sistema (NC, abono encargo): no se configuran por POS. */
+export const POS_IMPLICIT_PAYMENT_METHOD_IDS: CompanyPaymentMethodId[] = [
+  "CUSTOMER_CREDIT_NOTE",
+  "ORDER_ADVANCE",
+];
+
+/** Medios configurables por POS en Admin (caja física). */
+export const POS_CONFIGURABLE_METHOD_IDS: CompanyPaymentMethodId[] = [
   "CASH",
   "CREDIT_CARD",
   "DEBIT_CARD",
   "TRANSFER",
   "CHECK",
-  "CUSTOMER_CREDIT_NOTE",
-  "ORDER_ADVANCE",
 ];
+
+/** @deprecated Use POS_CONFIGURABLE_METHOD_IDS */
+export const POS_VALID_METHOD_IDS = POS_CONFIGURABLE_METHOD_IDS;

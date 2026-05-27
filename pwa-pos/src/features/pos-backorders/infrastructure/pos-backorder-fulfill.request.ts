@@ -26,12 +26,16 @@ function apiUrl(path: string): string | null {
 export class PosBackorderFulfillRequest {
   static async findByDocumentNumber(
     documentNumber: string,
+    pointOfSaleId?: string | null,
   ): Promise<
     | { success: true; backorder: PosBackorderForFulfill | null }
     | { success: false; message: string }
   > {
+    const params = new URLSearchParams();
+    if (pointOfSaleId?.trim()) params.set("pointOfSaleId", pointOfSaleId.trim());
+    const qs = params.toString();
     const url = apiUrl(
-      `transactions/backorders/by-document-number/${encodeURIComponent(documentNumber)}`,
+      `transactions/backorders/by-document-number/${encodeURIComponent(documentNumber)}${qs ? `?${qs}` : ""}`,
     );
     if (!url) {
       return { success: false, message: "BACKEND_API_URL no está configurada" };

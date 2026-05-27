@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -328,9 +329,10 @@ export class SalesFromSessionService {
       (acc, p) => acc + (Number(p.amount) || 0),
       0,
     );
-    if (Math.abs(paidTotal - balanceTotal) > 1) {
+    // Cobro AR: debe cubrir al menos el saldo seleccionado; el exceso en efectivo es vuelto.
+    if (paidTotal + 1 < balanceTotal) {
       throw new BadRequestException(
-        `El total de medios (${paidTotal}) no coincide con el saldo seleccionado (${balanceTotal}).`,
+        `El total recibido (${Math.round(paidTotal)}) es menor al saldo a cobrar (${Math.round(balanceTotal)}).`,
       );
     }
 
@@ -1336,6 +1338,15 @@ export class SalesFromSessionService {
             }
           : {};
 
+      const quotationId =
+        metadata && typeof metadata === 'object'
+          ? String((metadata as any)?.quotation?.id ?? '').trim()
+          : '';
+      const quotationDocumentNumber =
+        metadata && typeof metadata === 'object'
+          ? String((metadata as any)?.quotation?.documentNumber ?? '').trim()
+          : '';
+
       const dto = new CreateTransactionDto();
       Object.assign(dto, {
         transactionType: config.transactionType,
@@ -1364,6 +1375,18 @@ export class SalesFromSessionService {
           ...saleReturnMeta,
           ...(deferPayment ? { deferredPayment: true, collectionSource: 'pos_defer' } : {}),
           ...(backorderMeta ? { backorder: backorderMeta } : {}),
+          ...(isSale && quotationId
+            ? {
+                origin: 'SALE_FROM_QUOTATION',
+                links: {
+                  ...((metadata as any)?.links ?? {}),
+                  quotationId,
+                  ...(quotationDocumentNumber
+                    ? { quotationDocumentNumber }
+                    : {}),
+                },
+              }
+            : {}),
           ...buildPaymentsMetadataFields(paymentSnapshots),
           storageId: isBackorder ? undefined : effectiveStorageId || undefined,
           promotionSnapshot:
@@ -1401,6 +1424,39 @@ export class SalesFromSessionService {
           }
         }
         throw err;
+      }
+
+      // Si la venta proviene de una cotización cargada en POS, dejarla como CONVERTED
+      // para que no se pueda reutilizar (independiente de líneas vendidas).
+      if (isSale && quotationId) {
+        const quotationTx = await manager.getRepository(Transaction).findOne({
+          where: { id: quotationId, transactionType: TransactionType.QUOTATION },
+        });
+        if (!quotationTx) {
+          throw new BadRequestException('Cotización no encontrada para convertir');
+        }
+        if (quotationTx.companyId !== pointOfSale.companyId) {
+          throw new ForbiddenException('Cotización no pertenece a la empresa del POS');
+        }
+        if (quotationTx.status === TransactionStatus.COMPLETED) {
+          throw new BadRequestException('La cotización ya fue convertida y no puede reutilizarse');
+        }
+        if (quotationTx.status === TransactionStatus.CANCELLED) {
+          throw new BadRequestException('La cotización está anulada y no puede utilizarse');
+        }
+
+        quotationTx.status = TransactionStatus.COMPLETED;
+        quotationTx.metadata = {
+          ...(quotationTx.metadata ?? {}),
+          quotation: {
+            ...(quotationTx.metadata?.quotation ?? {}),
+            convertedToTransactionId: finalTransaction.id,
+            convertedToDocumentNumber: finalTransaction.documentNumber,
+            convertedAt: new Date().toISOString(),
+            convertedTargetType: TransactionType.SALE,
+          },
+        };
+        await manager.getRepository(Transaction).save(quotationTx);
       }
 
       if (isSale && customerIdTrimmed && paymentsUsed.length > 0) {
@@ -1609,10 +1665,9 @@ export class SalesFromSessionService {
     for (const bl of backorder.lines ?? []) {
       const vid = bl.productVariantId?.trim();
       if (!vid) continue;
-      const qty =
-        Number(bl.quantityInBase) > 0
-          ? Number(bl.quantityInBase)
-          : Number(bl.quantity) || 0;
+      // En POS, al liquidar encargo, la validación de “cantidad distinta” debe ser en **unidad de venta**
+      // (misma unidad que el carrito y boleta). `quantityInBase` puede ser ml/g/cm y NO debe usarse aquí.
+      const qty = Number(bl.quantity) > 0 ? Number(bl.quantity) : Number(bl.quantityInBase) || 0;
       if (qty <= 0) continue;
       expected.set(vid, (expected.get(vid) ?? 0) + qty);
     }
@@ -1751,11 +1806,12 @@ export class SalesFromSessionService {
 
     for (let i = 0; i < inventariable.length; i++) {
       const tl = inventariable[i];
-      const qty =
+      const saleQty = Number(tl.quantity) || 0;
+      const baseQty =
         Number(tl.quantityInBase) > 0
           ? Number(tl.quantityInBase)
-          : Number(tl.quantity) || 0;
-      if (qty <= 0) continue;
+          : saleQty;
+      if (baseQty <= 0) continue;
 
       await manager.getRepository(TransactionLine).save(
         manager.getRepository(TransactionLine).create({
@@ -1764,7 +1820,11 @@ export class SalesFromSessionService {
           productVariantId: tl.productVariantId,
           productName: tl.productName,
           variantName: tl.variantName,
-          quantity: qty,
+          // Para UI/reportes: cantidad en unidad de venta
+          quantity: saleQty > 0 ? saleQty : baseQty,
+          // Para inventario: cantidad en unidad base
+          quantityInBase: baseQty,
+          unitOfMeasure: tl.unitOfMeasure,
           unitPrice: 0,
           subtotal: 0,
           total: 0,
@@ -1777,7 +1837,8 @@ export class SalesFromSessionService {
         companyId: params.companyId,
         variantId: tl.productVariantId as string,
         storageId,
-        qty,
+        // committedStock siempre en unidad base
+        qty: baseQty,
         lastTransactionId: reservationTx.id,
       });
     }

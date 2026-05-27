@@ -1,5 +1,6 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { CurrentCompany } from '@common/tenant';
+import { CurrentUser, CurrentUserPayload } from '@common/tenant';
 import { PosSaleLookupService } from '../application/pos-sale-lookup.service';
 import { PosBackorderLookupService } from '../application/pos-backorder-lookup.service';
 import { PosSaleReceiptPrintService } from '../application/pos-sale-receipt-print.service';
@@ -20,6 +21,8 @@ import {
   TransactionType,
   TransactionStatus,
 } from '../domain/transaction.entity';
+import { CancelBackorderService } from '../application/cancel-backorder.service';
+import { CancelBackorderDto } from '../application/dto/cancel-backorder.dto';
 
 @ApiTags('Transactions')
 @ApiBearerAuth('JWT-auth')
@@ -30,6 +33,7 @@ export class TransactionsController {
     private readonly posSaleLookup: PosSaleLookupService,
     private readonly posBackorderLookup: PosBackorderLookupService,
     private readonly posSaleReceiptPrint: PosSaleReceiptPrintService,
+    private readonly cancelBackorderService: CancelBackorderService,
   ) {}
 
   /**
@@ -194,10 +198,12 @@ export class TransactionsController {
   async getBackorderByDocumentNumber(
     @Param('documentNumber') documentNumber: string,
     @CurrentCompany() companyId: string,
+    @Query('pointOfSaleId') pointOfSaleId?: string,
   ) {
     const backorder = await this.posBackorderLookup.findBackorderByDocumentNumber(
       companyId,
       documentNumber,
+      pointOfSaleId,
     );
     return { success: true, backorder };
   }
@@ -234,6 +240,28 @@ export class TransactionsController {
   })
   async listBackorders(@Query() query: SearchTransactionsDto) {
     return this.executeTransactionSearch(query, [TransactionType.BACKORDER]);
+  }
+
+  @Post('backorders/:id/cancel')
+  @ApiOperation({
+    summary: 'Anular encargo (BACKORDER)',
+    description:
+      'Solo encargos abiertos. Libera stock reservado; si hay abono no consumido, emite CUSTOMER_CREDIT_NOTE.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID del encargo' })
+  async cancelBackorder(
+    @Param('id') id: string,
+    @Body() body: CancelBackorderDto,
+    @CurrentCompany() companyId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    const result = await this.cancelBackorderService.cancel(
+      companyId,
+      user.id,
+      id,
+      body,
+    );
+    return { success: true, ...result };
   }
 
   @Get('journal')

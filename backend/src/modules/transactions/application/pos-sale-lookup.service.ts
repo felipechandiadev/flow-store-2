@@ -15,7 +15,13 @@ export type PosSaleForReturnLineDto = {
   productName: string;
   productSku: string | null;
   variantName: string | null;
+  /** Cantidad vendida en esta línea. */
   quantity: number;
+  /**
+   * Cantidad aún devolvable para la variante (vendido − ya devuelto en otros SALE_RETURN).
+   * Mismo valor en todas las líneas que comparten variante.
+   */
+  returnableQuantity: number;
   unitPrice: number;
   discountAmount: number;
   taxRate: number;
@@ -40,6 +46,8 @@ export type PosSaleForReturnDto = {
   customerDocument: string | null;
   branchName: string | null;
   pointOfSaleName: string | null;
+  /** Tope por variante para devoluciones parciales acumuladas. */
+  lineMaxReturnableQtyByVariantId: Record<string, number>;
   lines: PosSaleForReturnLineDto[];
 };
 
@@ -92,10 +100,60 @@ export class PosSaleLookupService {
       );
     }
 
-    return this.toPosDto(tx);
+    const lineMaxReturnableQtyByVariantId =
+      await this.buildLineMaxReturnableQtyByVariantId(tx.id, tx.lines ?? []);
+
+    return this.toPosDto(tx, lineMaxReturnableQtyByVariantId);
   }
 
-  private toPosDto(tx: Transaction): PosSaleForReturnDto {
+  /**
+   * Cantidad máxima devolvable por variante: vendido en la venta menos devoluciones previas.
+   */
+  private async buildLineMaxReturnableQtyByVariantId(
+    saleId: string,
+    saleLines: Array<{ productVariantId?: string | null; quantity?: number }>,
+  ): Promise<Record<string, number>> {
+    const soldByVariant = new Map<string, number>();
+    for (const sl of saleLines) {
+      const vid = sl.productVariantId?.trim();
+      if (!vid) continue;
+      const q = Number(sl.quantity) || 0;
+      soldByVariant.set(vid, (soldByVariant.get(vid) ?? 0) + q);
+    }
+
+    const priorReturns = await this.transactionRepository.find({
+      where: {
+        relatedTransactionId: saleId,
+        transactionType: TransactionType.SALE_RETURN,
+      },
+      relations: ['lines'],
+    });
+
+    const returnedByVariant = new Map<string, number>();
+    for (const pr of priorReturns) {
+      for (const rl of pr.lines ?? []) {
+        const vid = rl.productVariantId?.trim();
+        if (!vid) continue;
+        const q = Number(rl.quantity) || 0;
+        returnedByVariant.set(vid, (returnedByVariant.get(vid) ?? 0) + q);
+      }
+    }
+
+    const out: Record<string, number> = {};
+    for (const [vid, sold] of soldByVariant) {
+      const already = returnedByVariant.get(vid) ?? 0;
+      const remaining = Math.max(0, sold - already);
+      if (remaining > 0) {
+        out[vid] = remaining;
+      }
+    }
+    return out;
+  }
+
+  private toPosDto(
+    tx: Transaction,
+    lineMaxReturnableQtyByVariantId: Record<string, number>,
+  ): PosSaleForReturnDto {
     const customer = tx.customer as
       | {
           id?: string;
@@ -122,6 +180,10 @@ export class PosSaleLookupService {
     );
     const lines = sortedLines.map((line, index) => {
       const qty = Number(line.quantity) || 0;
+      const vid = line.productVariantId?.trim() ?? '';
+      const returnableQuantity = vid
+        ? Math.max(0, Number(lineMaxReturnableQtyByVariantId[vid]) || 0)
+        : 0;
       const taxRate =
         Number(line.taxRate) ||
         Number((line as { tax?: { rate?: number } }).tax?.rate) ||
@@ -135,6 +197,7 @@ export class PosSaleLookupService {
         productSku: line.productSku ?? null,
         variantName: line.variantName ?? null,
         quantity: qty,
+        returnableQuantity,
         unitPrice: Number(line.unitPrice) || 0,
         discountAmount: Number(line.discountAmount) || 0,
         taxRate,
@@ -163,6 +226,7 @@ export class PosSaleLookupService {
       customerDocument,
       branchName: tx.branch?.name ?? null,
       pointOfSaleName: tx.pointOfSale?.name ?? null,
+      lineMaxReturnableQtyByVariantId,
       lines,
     };
   }

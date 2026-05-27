@@ -7,6 +7,8 @@ export type LoadedReturnSaleMeta = {
   documentNumber: string;
   total: number;
   createdAt: string;
+  /** Cantidad máxima devolvable por variante (vendido − devoluciones previas). */
+  lineMaxReturnableQtyByVariantId: Record<string, number>;
 };
 
 /** Encargo/reserva abierta cargada para liquidar (venta + abono). */

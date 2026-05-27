@@ -14,6 +14,12 @@ export type PosBackorderForFulfillLine = {
   subtotal: number;
   total: number;
   unitOfMeasure: string | null;
+  saleUnitSymbol: string | null;
+  stockBaseUnitSymbol: string | null;
+  stockBaseQtyPerCountSaleUnit: number | null;
+  unitAllowDecimals: boolean;
+  availableStock: number | null;
+  availableStockBase: number | null;
 };
 
 export type PosBackorderForFulfill = {

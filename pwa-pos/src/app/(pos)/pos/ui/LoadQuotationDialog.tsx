@@ -3,13 +3,17 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Dialog, TextField } from "@/shared/admin-shared";
 import { usePosCart } from "@/features/pos-cart/PosCartProvider";
+import type { LoadedQuotationMeta } from "@/features/pos-cart/cart-storage";
 import { findQuotationByDocumentPosAction } from "@/features/quotations/actions/quotations-pos.action";
 import type { QuotationDetail } from "@/features/quotations/types/quotation.types";
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
+import { lookupPosVariantsAction } from "@/features/pos-products/actions/pos-products.action";
+import { enrichQuotationLinesWithPosSnapshot } from "@/features/pos-quotations/lib/enrich-quotation-lines-from-pos";
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  pointOfSaleId?: string | null;
 };
 
 function formatMoney(n: number) {
@@ -33,40 +37,59 @@ function formatDateTime(iso: string | null | undefined) {
   });
 }
 
-/**
- * Convierte líneas de cotización a `PosCartLine`. Como las cotizaciones
- * almacenan snapshots de productos pero no atributos visuales del POS
- * (imagen, stock disponible, etc.), la línea cargada queda con campos
- * mínimos y `unitPriceWithTax` recalculado desde el snapshot. Esto es
- * suficiente para mostrarlas en el carrito y emitir la venta resultante.
- */
+/** Precios desde el snapshot; stock y atributos se enriquecen con lookup POS al cargar. */
 function quotationLinesToCart(detail: QuotationDetail): PosCartLine[] {
-  return detail.lines.map((l) => ({
-    productId: l.productId ?? "",
-    productName: l.productName,
-    productDescription: null,
-    productImageUrl: null,
-    variantId: l.productVariantId ?? l.id,
-    sku: l.productSku ?? null,
-    barcode: null,
-    unitAllowDecimals: false,
-    unitSymbol: null,
-    unitId: null,
-    unitPrice: Number(l.unitPrice) || 0,
-    unitTaxRate: Number(l.taxRate) || 0,
-    unitTaxAmount: Number(l.taxAmount) || 0,
-    unitPriceWithTax:
-      Number(l.quantity) > 0 ? Number(l.total) / Number(l.quantity) : Number(l.unitPrice) || 0,
-    trackInventory: false,
-    availableStock: null,
-    availableStockBase: null,
-    attributes: [],
-    metadata: null,
-    quantity: Number(l.quantity) || 1,
-  }));
+  return detail.lines.map((l) => {
+    const displayName = l.variantName?.trim()
+      ? `${l.productName} — ${l.variantName}`
+      : l.productName;
+    return {
+      productId: l.productId ?? "",
+      productName: displayName,
+      productDescription: null,
+      productImageUrl: null,
+      variantId: l.productVariantId ?? l.id,
+      sku: l.productSku ?? null,
+      barcode: null,
+      unitAllowDecimals: false,
+      unitSymbol: null,
+      unitId: null,
+      unitPrice: Number(l.unitPrice) || 0,
+      unitTaxRate: Number(l.taxRate) || 0,
+      unitTaxAmount: Number(l.taxAmount) || 0,
+      unitPriceWithTax:
+        Number(l.quantity) > 0 ? Number(l.total) / Number(l.quantity) : Number(l.unitPrice) || 0,
+      trackInventory: false,
+      availableStock: null,
+      availableStockBase: null,
+      attributes: [],
+      metadata: { fromQuotation: true },
+      quantity: Number(l.quantity) || 1,
+    };
+  });
 }
 
-export function LoadQuotationDialog({ open, onClose }: Props) {
+function buildQuotationMeta(
+  preview: QuotationDetail,
+  lines: PosCartLine[],
+): LoadedQuotationMeta {
+  const lineMaxQtyByVariantId: Record<string, number> = {};
+  for (const l of lines) {
+    lineMaxQtyByVariantId[l.variantId] = Math.max(
+      1,
+      Math.round(Number(l.quantity) || 1),
+    );
+  }
+  return {
+    id: preview.id,
+    documentNumber: preview.documentNumber,
+    validUntil: preview.validUntil ?? "",
+    expired: preview.effectiveStatus === "EXPIRED",
+    lineMaxQtyByVariantId,
+  };
+}
+
+export function LoadQuotationDialog({ open, onClose, pointOfSaleId }: Props) {
   const cart = usePosCart();
   const [folio, setFolio] = useState("");
   const [busy, setBusy] = useState(false);
@@ -104,7 +127,7 @@ export function LoadQuotationDialog({ open, onClose }: Props) {
     setPreview(res.quotation);
   }
 
-  function handleLoad() {
+  async function handleLoad() {
     if (!preview) return;
     if (
       preview.effectiveStatus === "CONVERTED" ||
@@ -117,22 +140,31 @@ export function LoadQuotationDialog({ open, onClose }: Props) {
       );
       return;
     }
-    const lines = quotationLinesToCart(preview);
-    cart.replaceLines(lines);
-    if (preview.customerName) {
-      cart.setSaleCustomer({
-        customerId: preview.customerId,
-        name: preview.customerName,
-        document: preview.customerDocument ?? "",
-        phone: "",
+    setBusy(true);
+    setError(null);
+    let lines = quotationLinesToCart(preview);
+    const posId = pointOfSaleId?.trim();
+    if (posId) {
+      const variantIds = lines.map((l) => l.variantId).filter(Boolean);
+      const lookup = await lookupPosVariantsAction({
+        variantIds,
+        pointOfSaleId: posId,
       });
+      if (lookup.success) {
+        lines = enrichQuotationLinesWithPosSnapshot(lines, lookup.products);
+      }
     }
-    cart.setLoadedQuotation({
-      id: preview.id,
-      documentNumber: preview.documentNumber,
-      validUntil: preview.validUntil,
-      expired: preview.effectiveStatus === "EXPIRED",
-    });
+    const meta = buildQuotationMeta(preview, lines);
+    const customer = preview.customerName
+      ? {
+          customerId: preview.customerId,
+          name: preview.customerName,
+          document: preview.customerDocument ?? "",
+          phone: "",
+        }
+      : null;
+    cart.loadQuotation(meta, lines, customer);
+    setBusy(false);
     onClose();
   }
 
@@ -158,6 +190,8 @@ export function LoadQuotationDialog({ open, onClose }: Props) {
               type="button"
               variant="primary"
               onClick={handleLoad}
+              loading={busy}
+              disabled={busy}
               data-test-id="pos-load-quotation-confirm"
             >
               Cargar al carrito

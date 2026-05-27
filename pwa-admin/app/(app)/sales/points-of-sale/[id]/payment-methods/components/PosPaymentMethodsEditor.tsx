@@ -11,7 +11,7 @@ import Alert from "@/shared/components/Alert/Alert";
 import {
   COMPANY_PAYMENT_METHOD_LABELS,
   companyPaymentMethodAlwaysRequiresReference,
-  POS_VALID_METHOD_IDS,
+  POS_CONFIGURABLE_METHOD_IDS,
   type CompanyPaymentMethodConfig,
 } from "@/features/companies/types/company-payment-methods.types";
 import {
@@ -51,7 +51,7 @@ export function PosPaymentMethodsEditor({
         .filter(
           (c) =>
             c.isActive &&
-            (POS_VALID_METHOD_IDS as string[]).includes(c.method),
+            (POS_CONFIGURABLE_METHOD_IDS as string[]).includes(c.method),
         )
         .slice()
         .sort((a, b) => a.displayOrder - b.displayOrder),

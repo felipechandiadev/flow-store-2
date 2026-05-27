@@ -1,7 +1,9 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import type {
+  PosProductSearchItem,
   PosProductSearchResponse,
+  PosVariantsLookupResponse,
   PosVariantStockBreakdownResponse,
   PosVariantStockByStorageRow,
 } from "../types/pos-product.types";
@@ -61,6 +63,66 @@ export class ProductsPosRequest {
       }
 
       return data as unknown as PosProductSearchResponse;
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error de red";
+      return { success: false, message: err };
+    }
+  }
+
+  static async lookupVariants(input: {
+    variantIds: string[];
+    pointOfSaleId?: string | null;
+    branchId?: string | null;
+  }): Promise<PosVariantsLookupResponse> {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      return { success: false, message: "BACKEND_API_URL no está configurada" };
+    }
+
+    const ids = [...new Set(input.variantIds.map((id) => id.trim()).filter(Boolean))];
+    if (ids.length === 0) {
+      return { success: true, products: [] };
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as any)?.activeCompanyId as string | null | undefined;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const qs = new URLSearchParams();
+    qs.set("variantIds", ids.join(","));
+    if (input.pointOfSaleId?.trim()) qs.set("pointOfSaleId", input.pointOfSaleId.trim());
+    if (input.branchId?.trim()) qs.set("branchId", input.branchId.trim());
+
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+      if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+      const res = await fetch(`${base}/api/products/pos/variants/lookup?${qs.toString()}`, {
+        method: "GET",
+        headers,
+        cache: "no-store",
+      });
+
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        const msg =
+          (typeof data?.message === "string" && data.message) ||
+          (Array.isArray(data?.message) ? (data.message as string[]).join("; ") : null) ||
+          `HTTP ${res.status}`;
+        return { success: false, message: String(msg), statusCode: res.status };
+      }
+
+      if (data?.success !== true) {
+        return { success: false, message: "Respuesta inválida del servidor", statusCode: res.status };
+      }
+
+      const products = Array.isArray(data.products) ? data.products : [];
+      return { success: true, products: products as PosProductSearchItem[] };
     } catch (e) {
       const err = e instanceof Error ? e.message : "Error de red";
       return { success: false, message: err };
@@ -199,6 +261,22 @@ export class ProductsPosRequest {
               o.branchName != null && String(o.branchName).trim()
                 ? String(o.branchName).trim()
                 : null,
+            physicalStock:
+              o.physicalStock === null || o.physicalStock === undefined
+                ? null
+                : Number(o.physicalStock),
+            physicalStockBase:
+              o.physicalStockBase === null || o.physicalStockBase === undefined
+                ? null
+                : Number(o.physicalStockBase),
+            reservedStock:
+              o.reservedStock === null || o.reservedStock === undefined
+                ? null
+                : Number(o.reservedStock),
+            reservedStockBase:
+              o.reservedStockBase === null || o.reservedStockBase === undefined
+                ? null
+                : Number(o.reservedStockBase),
             availableStock:
               o.availableStock === null || o.availableStock === undefined
                 ? null

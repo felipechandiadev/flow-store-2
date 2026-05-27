@@ -34,7 +34,7 @@ describe('payment-method-config.helpers', () => {
     expect(list[1].requireReference).toBe(true);
   });
 
-  it('syncPosPaymentMethodsWithCatalog adds new company methods as disabled', () => {
+  it('syncPosPaymentMethodsWithCatalog ignores implicit payment methods', () => {
     const cash = sanitizeCompanyPaymentMethod({ method: PaymentMethod.CASH }, 0);
     const advance = sanitizeCompanyPaymentMethod(
       { method: PaymentMethod.ORDER_ADVANCE },
@@ -50,16 +50,36 @@ describe('payment-method-config.helpers', () => {
       },
     ];
     const synced = syncPosPaymentMethodsWithCatalog([cash, advance], existing);
+    expect(synced).toHaveLength(1);
+    expect(synced[0]?.companyPaymentMethodId).toBe(cash.id);
+  });
+
+  it('syncPosPaymentMethodsWithCatalog adds new configurable company methods as disabled', () => {
+    const cash = sanitizeCompanyPaymentMethod({ method: PaymentMethod.CASH }, 0);
+    const transfer = sanitizeCompanyPaymentMethod(
+      { method: PaymentMethod.TRANSFER },
+      1,
+    );
+    const existing: PosPaymentMethodConfig[] = [
+      {
+        companyPaymentMethodId: cash.id,
+        isEnabled: true,
+        preloadOnPaymentScreen: true,
+        preloadOrder: 0,
+        isDefaultForChange: true,
+      },
+    ];
+    const synced = syncPosPaymentMethodsWithCatalog([cash, transfer], existing);
     expect(synced).toHaveLength(2);
-    expect(synced.find((s) => s.companyPaymentMethodId === advance.id)?.isEnabled).toBe(
+    expect(synced.find((s) => s.companyPaymentMethodId === transfer.id)?.isEnabled).toBe(
       false,
     );
   });
 
-  it('mergeCompanyAndPos keeps requireReference true even if POS disables it', () => {
+  it('mergeCompanyAndPos excludes implicit methods from effective catalog', () => {
     const company = [
       sanitizeCompanyPaymentMethod(
-        { method: PaymentMethod.ORDER_ADVANCE, requireReference: true },
+        { method: PaymentMethod.CUSTOMER_CREDIT_NOTE, requireReference: true },
         0,
       ),
     ];
@@ -67,12 +87,12 @@ describe('payment-method-config.helpers', () => {
       {
         companyPaymentMethodId: company[0].id,
         isEnabled: true,
-        preloadOnPaymentScreen: false,
-        preloadOrder: null,
+        preloadOnPaymentScreen: true,
+        preloadOrder: 0,
         isDefaultForChange: false,
         requireReference: false,
       },
     ]);
-    expect(effective[0]?.requireReference).toBe(true);
+    expect(effective).toHaveLength(0);
   });
 });

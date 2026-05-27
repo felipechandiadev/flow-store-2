@@ -13,7 +13,7 @@ import { Button, IconButton } from "@/shared/admin-shared";
 import { ArrowUpFromLine, Package, RotateCcw, ShoppingCart } from "lucide-react";
 import PosProductSearchPanel, { POS_PRODUCT_SEARCH_PANEL_HEIGHT_VH } from "./PosProductSearchPanel";
 import PosCartLineCard from "./PosCartLineCard";
-import { usePosCart } from "@/features/pos-cart/PosCartProvider";
+import { isQuotationCartVariant, usePosCart } from "@/features/pos-cart/PosCartProvider";
 import { LoadQuotationDialog } from "./LoadQuotationDialog";
 import { LoadReturnSaleDialog } from "./LoadReturnSaleDialog";
 import { LoadBackorderDialog } from "./LoadBackorderDialog";
@@ -35,6 +35,7 @@ export default function PosWorkspace() {
   const [loadBackorderOpen, setLoadBackorderOpen] = useState(false);
   const isReturnMode = cart.isReturnMode;
   const isFulfillBackorderMode = cart.isFulfillBackorderMode;
+  const hasLoadedQuotation = cart.loadedQuotation != null;
   const cartLocked = isReturnMode || isFulfillBackorderMode;
 
   const refreshPriceListOptions = useCallback(async (posId: string, currentListId?: string) => {
@@ -285,7 +286,15 @@ export default function PosWorkspace() {
         >
           {cart.lines.length === 0
             ? null
-            : cart.lines.map((line) => (
+            : cart.lines.map((line) => {
+              const isQuotationLine = isQuotationCartVariant(
+                line.variantId,
+                cart.loadedQuotation,
+              );
+              const quotationMax = hasLoadedQuotation
+                ? cart.loadedQuotation?.lineMaxQtyByVariantId[line.variantId]
+                : undefined;
+              return (
               <PosCartLineCard
                 key={line.variantId}
                 line={line}
@@ -296,13 +305,31 @@ export default function PosWorkspace() {
                   isFulfillBackorderMode ? undefined : () => cart.remove(line.variantId)
                 }
                 onSetQuantity={(q) => cart.setQuantity(line.variantId, q)}
+                isQuotationLine={isQuotationLine}
                 maxQuantity={
                   isFulfillBackorderMode
                     ? cart.loadedBackorder?.lineMaxQtyByVariantId[line.variantId]
-                    : undefined
+                    : isReturnMode
+                      ? cart.loadedReturnSale?.lineMaxReturnableQtyByVariantId[
+                          line.variantId
+                        ]
+                      : isQuotationLine && quotationMax != null
+                        ? quotationMax
+                        : undefined
                 }
+                maxQuantityContext={
+                  isReturnMode
+                    ? "return"
+                    : isFulfillBackorderMode
+                      ? "backorder"
+                      : isQuotationLine
+                        ? "quotation"
+                        : undefined
+                }
+                readOnly={isFulfillBackorderMode}
               />
-            ))}
+            );
+            })}
         </div>
 
         <footer className="shrink-0 border-t border-border pt-3" data-test-id="pos-cart-summary">
@@ -339,12 +366,14 @@ export default function PosWorkspace() {
       <LoadQuotationDialog
         open={loadQuotationOpen}
         onClose={() => setLoadQuotationOpen(false)}
+        pointOfSaleId={ctx?.pointOfSaleId ?? null}
       />
 
       <LoadReturnSaleDialog open={loadReturnOpen} onClose={() => setLoadReturnOpen(false)} />
       <LoadBackorderDialog
         open={loadBackorderOpen}
         onClose={() => setLoadBackorderOpen(false)}
+        pointOfSaleId={ctx?.pointOfSaleId ?? null}
       />
     </div>
   );

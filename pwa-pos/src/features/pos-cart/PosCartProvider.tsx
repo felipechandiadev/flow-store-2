@@ -66,6 +66,12 @@ type PosCartContextValue = {
   setLoadedQuotation: React.Dispatch<
     React.SetStateAction<LoadedQuotationMeta | null>
   >;
+  /** Carga cotización con tope de cantidad y precios del snapshot. */
+  loadQuotation: (
+    meta: LoadedQuotationMeta,
+    lines: PosCartLine[],
+    customer?: PosSaleCustomer | null,
+  ) => void;
   /** Abono de encargo (backorder) definido en pantalla de cobro. */
   backorderDeposit: BackorderDepositConfig | null;
   setBackorderDeposit: React.Dispatch<
@@ -129,11 +135,41 @@ function readPosContextFull(): {
 
 function maxQtyForVariant(
   loadedBackorder: LoadedBackorderMeta | null,
+  loadedReturnSale: LoadedReturnSaleMeta | null,
+  loadedQuotation: LoadedQuotationMeta | null,
   variantId: string,
 ): number | null {
-  if (!loadedBackorder) return null;
-  const n = loadedBackorder.lineMaxQtyByVariantId[variantId];
-  return typeof n === "number" && n > 0 ? n : null;
+  if (loadedBackorder) {
+    const n = loadedBackorder.lineMaxQtyByVariantId[variantId];
+    return typeof n === "number" && n > 0 ? n : null;
+  }
+  if (loadedReturnSale) {
+    const n = loadedReturnSale.lineMaxReturnableQtyByVariantId[variantId];
+    return typeof n === "number" && n > 0 ? n : null;
+  }
+  if (loadedQuotation) {
+    const n = loadedQuotation.lineMaxQtyByVariantId[variantId];
+    return typeof n === "number" && n > 0 ? n : null;
+  }
+  return null;
+}
+
+export function isQuotationCartVariant(
+  variantId: string,
+  quotation: LoadedQuotationMeta | null,
+): boolean {
+  if (!quotation) return false;
+  const n = quotation.lineMaxQtyByVariantId[variantId];
+  return typeof n === "number" && n > 0;
+}
+
+/** True si el carrito aún tiene al menos una línea vinculada a la cotización cargada. */
+export function cartHasLoadedQuotationLine(
+  lines: PosCartLine[],
+  quotation: LoadedQuotationMeta | null,
+): boolean {
+  if (!quotation) return false;
+  return lines.some((l) => isQuotationCartVariant(l.variantId, quotation));
 }
 
 export default function PosCartProvider({ children }: { children: React.ReactNode }) {
@@ -272,33 +308,49 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
 
   const itemsCount = useMemo(() => lines.reduce((a, l) => a + (Number(l.quantity) || 0), 0), [lines]);
 
-  const addItem = useCallback((item: PosProductSearchItem, quantity = 1) => {
-    if (cartMode === "return" || cartMode === "fulfill_backorder") return;
-    const q = Math.max(1, Math.round(Number(quantity) || 1));
-    setLines((prev) => {
-      const i = prev.findIndex((l) => l.variantId === item.variantId);
-      if (i >= 0) {
-        const next = [...prev];
-        next[i] = { ...next[i], quantity: next[i].quantity + q };
-        return next;
-      }
-      return [...prev, { ...(item as any), quantity: q } as PosCartLine];
-    });
-  }, [cartMode]);
+  const addItem = useCallback(
+    (item: PosProductSearchItem, quantity = 1) => {
+      if (cartMode === "return" || cartMode === "fulfill_backorder") return;
+      const q = Math.max(1, Math.round(Number(quantity) || 1));
+      setLines((prev) => {
+        const i = prev.findIndex((l) => l.variantId === item.variantId);
+        if (i >= 0) {
+          const max = maxQtyForVariant(
+            loadedBackorder,
+            loadedReturnSale,
+            loadedQuotation,
+            item.variantId,
+          );
+          const nextQty = prev[i].quantity + q;
+          const capped = max != null ? Math.min(nextQty, max) : nextQty;
+          const next = [...prev];
+          next[i] = { ...next[i], quantity: capped };
+          return next;
+        }
+        return [...prev, { ...(item as any), quantity: q } as PosCartLine];
+      });
+    },
+    [cartMode, loadedBackorder, loadedReturnSale, loadedQuotation],
+  );
 
   const increment = useCallback(
     (variantId: string) => {
       setLines((prev) =>
         prev.map((l) => {
           if (l.variantId !== variantId) return l;
-          const max = maxQtyForVariant(loadedBackorder, variantId);
+          const max = maxQtyForVariant(
+            loadedBackorder,
+            loadedReturnSale,
+            loadedQuotation,
+            variantId,
+          );
           const nextQty = l.quantity + 1;
           if (max != null && nextQty > max) return l;
           return { ...l, quantity: nextQty };
         }),
       );
     },
-    [loadedBackorder],
+    [loadedBackorder, loadedReturnSale, loadedQuotation],
   );
 
   const decrement = useCallback((variantId: string) => {
@@ -318,30 +370,65 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     (variantId: string, quantity: number) => {
       const q = Number(quantity);
       if (!Number.isFinite(q) || q <= 0) return;
-      const max = maxQtyForVariant(loadedBackorder, variantId);
+      const max = maxQtyForVariant(
+        loadedBackorder,
+        loadedReturnSale,
+        loadedQuotation,
+        variantId,
+      );
       const capped = max != null ? Math.min(q, max) : q;
       setLines((prev) =>
         prev.map((l) => (l.variantId === variantId ? { ...l, quantity: capped } : l)),
       );
     },
-    [loadedBackorder],
+    [loadedBackorder, loadedReturnSale, loadedQuotation],
+  );
+
+  const loadQuotation = useCallback(
+    (
+      meta: LoadedQuotationMeta,
+      nextLines: PosCartLine[],
+      customer?: PosSaleCustomer | null,
+    ) => {
+      setCartMode("sale");
+      setLoadedReturnSale(null);
+      setLoadedBackorder(null);
+      setLoadedQuotation(meta);
+      setLines(nextLines);
+      setPayments([]);
+      setManualSelections([]);
+      if (customer !== undefined) {
+        setSaleCustomer(customer);
+      }
+    },
+    [],
   );
 
   const replaceLines = useCallback((next: PosCartLine[]) => {
     setCartMode("sale");
     setLoadedReturnSale(null);
     setLoadedBackorder(null);
+    setLoadedQuotation(null);
     setLines(next);
   }, []);
 
   const loadReturnFromSale = useCallback(
     (sale: PosSaleForReturn, nextLines: PosCartLine[]) => {
       setCartMode("return");
+      const lineMaxReturnableQtyByVariantId: Record<string, number> = {
+        ...(sale.lineMaxReturnableQtyByVariantId ?? {}),
+      };
+      for (const l of nextLines) {
+        if (!lineMaxReturnableQtyByVariantId[l.variantId]) {
+          lineMaxReturnableQtyByVariantId[l.variantId] = l.quantity;
+        }
+      }
       setLoadedReturnSale({
         id: sale.id,
         documentNumber: sale.documentNumber,
         total: Number(sale.total) || 0,
         createdAt: sale.createdAt,
+        lineMaxReturnableQtyByVariantId,
       });
       setLoadedQuotation(null);
       setLoadedBackorder(null);
@@ -412,6 +499,22 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
     setOrderDiscount(0);
     setPromotionWarnings([]);
   }, []);
+
+  /** Carrito vacío en devolución = desvincular venta y volver a venta normal. */
+  useEffect(() => {
+    if (!ready) return;
+    if (cartMode !== "return" || !loadedReturnSale) return;
+    if (lines.length > 0) return;
+    exitReturnMode();
+  }, [ready, cartMode, loadedReturnSale, lines.length, exitReturnMode]);
+
+  /** Sin líneas de la cotización en el carrito = desvincular cotización (pueden quedar otros productos). */
+  useEffect(() => {
+    if (!ready) return;
+    if (!loadedQuotation) return;
+    if (cartHasLoadedQuotationLine(lines, loadedQuotation)) return;
+    setLoadedQuotation(null);
+  }, [ready, loadedQuotation, lines]);
 
   const exitFulfillBackorderMode = useCallback(() => {
     setCartMode("sale");
@@ -605,6 +708,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       loadedBackorder,
       loadReturnFromSale,
       loadBackorderForFulfill,
+      loadQuotation,
       exitReturnMode,
       exitFulfillBackorderMode,
       clear,
@@ -644,6 +748,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
       loadedBackorder,
       loadReturnFromSale,
       loadBackorderForFulfill,
+      loadQuotation,
       exitReturnMode,
       exitFulfillBackorderMode,
       clear,

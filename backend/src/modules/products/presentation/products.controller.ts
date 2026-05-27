@@ -13,6 +13,7 @@ import { ProductsPosService } from '../application/products-pos.service';
 import { ProductsServiceAdapter } from '../application/products.service.adapter';
 import { SearchProductsDto } from '../application/dto/search-products.dto';
 import { SearchPosProductsDto } from '../application/dto/search-pos-products.dto';
+import { LookupPosVariantsDto } from '../application/dto/lookup-pos-variants.dto';
 import { CreateProductDto } from '../application/dto/create-product.dto';
 import { UpdateProductDto } from '../application/dto/update-product.dto';
 
@@ -51,6 +52,23 @@ export class ProductsController {
       success: true,
       ...data,
     };
+  }
+
+  /**
+   * Stock, atributos e imagen actuales para un conjunto de variantes (p. ej. al cargar cotización).
+   */
+  @Get('pos/variants/lookup')
+  async lookupPosVariants(@Query() dto: LookupPosVariantsDto) {
+    const variantIds = dto.variantIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const products = await this.productsPosService.lookupVariantsForPos({
+      variantIds,
+      pointOfSaleId: dto.pointOfSaleId,
+      branchId: dto.branchId,
+    });
+    return { success: true, products };
   }
 
   /**

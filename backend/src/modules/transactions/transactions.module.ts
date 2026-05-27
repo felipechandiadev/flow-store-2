@@ -64,6 +64,7 @@ import { InventoryEventHandler } from './application/events/inventory-event.hand
 import { EventStoreModule } from './infrastructure/event-store/event-store.module';
 import { ProductVariantsModule } from '@modules/product-variants/product-variants.module';
 import { StockLevelsModule } from '@modules/stock-levels/stock-levels.module';
+import { CancelBackorderService } from './application/cancel-backorder.service';
 
 @Module({
   imports: [
@@ -106,6 +107,7 @@ import { StockLevelsModule } from '@modules/stock-levels/stock-levels.module';
     PosSaleLookupService,
     PosBackorderLookupService,
     PosSaleReceiptPrintService,
+    CancelBackorderService,
     SupplierFiscalDocumentPaymentAggregateService,
     PurchaseOrdersService,
     TransactionsService, // Adapter for backward compatibility

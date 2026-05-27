@@ -72,6 +72,15 @@ export function LoadReturnSaleDialog({ open, onClose }: Props) {
       setError("La venta no tiene líneas para devolver.");
       return;
     }
+    const returnableTotal = Object.values(
+      res.sale.lineMaxReturnableQtyByVariantId ?? {},
+    ).reduce((a, n) => a + (Number(n) || 0), 0);
+    if (returnableTotal < 0.0001) {
+      setError(
+        "Esta venta ya fue devuelta por completo; no queda cantidad por devolver.",
+      );
+      return;
+    }
     setPreview(res.sale);
   }
 
@@ -79,7 +88,9 @@ export function LoadReturnSaleDialog({ open, onClose }: Props) {
     if (!preview) return;
     const lines = saleLinesToCart(preview);
     if (lines.length === 0) {
-      setError("No hay líneas con cantidad válida para devolver.");
+      setError(
+        "No hay cantidad pendiente por devolver en esta venta (puede estar totalmente devuelta).",
+      );
       return;
     }
     cart.loadReturnFromSale(preview, lines);

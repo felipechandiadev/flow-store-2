@@ -71,8 +71,6 @@ const COMPANY_PAYMENT_METHODS: PaymentMethod[] = [
   PaymentMethod.CREDIT_CARD,
   PaymentMethod.DEBIT_CARD,
   PaymentMethod.TRANSFER,
-  PaymentMethod.CUSTOMER_CREDIT_NOTE,
-  PaymentMethod.ORDER_ADVANCE,
 ];
 
 export function buildSeedCompanyPaymentCatalog(): CompanyPaymentMethodConfig[] {
@@ -111,14 +109,6 @@ const POS_METHOD_SEED: Partial<Record<PaymentMethod, PosMethodSeed>> = {
   [PaymentMethod.TRANSFER]: {
     preloadOnPaymentScreen: true,
     preloadOrder: 3,
-  },
-  [PaymentMethod.CUSTOMER_CREDIT_NOTE]: {
-    preloadOnPaymentScreen: false,
-    preloadOrder: null,
-  },
-  [PaymentMethod.ORDER_ADVANCE]: {
-    preloadOnPaymentScreen: false,
-    preloadOrder: null,
   },
 };
 

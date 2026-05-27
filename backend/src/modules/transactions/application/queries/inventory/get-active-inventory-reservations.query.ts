@@ -21,6 +21,8 @@ export interface InventoryReservationSummary {
   variantId?: string;
   variantName?: string;
   quantity: number;
+  quantityInBase?: number;
+  unitOfMeasure?: string;
   customerId: string;
   customerName: string;
   storageId: string;
@@ -66,6 +68,8 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
         'b.id',
         'b.name',
         'tl.quantity',
+        'tl.quantityInBase',
+        'tl.unitOfMeasure',
         'tl.variantName',
       ])
       .innerJoin('t.lines', 'tl')
@@ -115,6 +119,8 @@ export class GetActiveInventoryReservationsQueryHandler implements IQueryHandler
         variantId: result.pv_id,
         variantName: result.tl_variantName ?? null,
         quantity: result.tl_quantity,
+        quantityInBase: result.tl_quantityInBase ?? null,
+        unitOfMeasure: result.tl_unitOfMeasure ?? null,
         customerId: result.c_id,
         customerName: `${result.cp_firstName || ''} ${result.cp_lastName || ''}`.trim(),
         storageId: result.s_id,

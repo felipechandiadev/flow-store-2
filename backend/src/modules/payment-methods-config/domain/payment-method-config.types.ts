@@ -74,6 +74,16 @@ export const POS_INVALID_METHODS = new Set<PaymentMethod>([
   PaymentMethod.INTERNAL_CREDIT,
 ]);
 
+/**
+ * Medios implícitos del sistema: siempre disponibles en POS vía flujos
+ * contextuales (panel cliente / cumplir encargo), no configurables por POS
+ * ni listados en el catálogo efectivo de caja.
+ */
+export const POS_IMPLICIT_PAYMENT_METHODS = new Set<PaymentMethod>([
+  PaymentMethod.CUSTOMER_CREDIT_NOTE,
+  PaymentMethod.ORDER_ADVANCE,
+]);
+
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   [PaymentMethod.CASH]: 'Efectivo',
   [PaymentMethod.CREDIT_CARD]: 'Tarjeta de crédito',

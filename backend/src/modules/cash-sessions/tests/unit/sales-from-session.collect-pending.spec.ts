@@ -83,7 +83,7 @@ describe('SalesFromSessionService — collectPendingSales', () => {
     };
   }
 
-  it('rejects when payment total does not match sale balance', async () => {
+  it('rejects when payment total is less than sale balance', async () => {
     const { service } = buildService();
     await expect(
       service.collectPendingSales({
@@ -100,12 +100,29 @@ describe('SalesFromSessionService — collectPendingSales', () => {
     expect(res.paymentIn.documentNumber).toBe('COB-1');
     expect(transactionsService.createTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
+        changeAmount: 0,
         metadata: expect.objectContaining({
           source: 'pos_ar_collection',
           allocations: expect.arrayContaining([
             expect.objectContaining({ saleId: 'sale-1', amount: 5000 }),
           ]),
         }),
+      }),
+    );
+  });
+
+  it('allows cash overpay and records changeAmount', async () => {
+    const { service, transactionsService } = buildService();
+    const res = await service.collectPendingSales({
+      ...baseDto,
+      payments: [{ paymentMethod: 'CASH', amount: 10000 }],
+    });
+    expect(res.success).toBe(true);
+    expect(transactionsService.createTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        total: 10000,
+        amountPaid: 10000,
+        changeAmount: 5000,
       }),
     );
   });

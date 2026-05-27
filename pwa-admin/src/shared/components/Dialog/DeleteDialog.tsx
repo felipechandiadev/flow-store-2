@@ -126,9 +126,12 @@ export function DeleteDialog({
               <Trash2 size={24} strokeWidth={1.5} className="text-red-500" />
             </div>
           </div>
-          <p className="text-center text-base leading-relaxed text-foreground" data-test-id={`${dataTestId}-message`}>
+          <div
+            className="text-center text-base leading-relaxed text-foreground"
+            data-test-id={`${dataTestId}-message`}
+          >
             {message}
-          </p>
+          </div>
         </div>
       </form>
     </Dialog>

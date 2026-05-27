@@ -52,10 +52,19 @@ export type PosProductSearchResponse =
     }
   | { success: false; message: string; statusCode?: number };
 
+export type PosVariantsLookupResponse =
+  | { success: true; products: PosProductSearchItem[] }
+  | { success: false; message: string; statusCode?: number };
+
 export type PosVariantStockByStorageRow = {
   storageId: string;
   storageName: string;
   branchName: string | null;
+  physicalStock: number | null;
+  physicalStockBase: number | null;
+  /** Reservado/comprometido (committed) */
+  reservedStock: number | null;
+  reservedStockBase: number | null;
   availableStock: number | null;
   availableStockBase: number | null;
   isPosStorage: boolean;

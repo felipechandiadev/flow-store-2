@@ -16,7 +16,7 @@ import type { CompanyPaymentMethodConfig } from "@/features/companies/types/comp
 import {
   COMPANY_PAYMENT_METHOD_LABELS,
   companyPaymentMethodAlwaysRequiresReference,
-  POS_VALID_METHOD_IDS,
+  POS_CONFIGURABLE_METHOD_IDS,
 } from "@/features/companies/types/company-payment-methods.types";
 import type { PosPaymentMethodConfig } from "@/features/sales-points-of-sale/types/pos-payment-methods.types";
 
@@ -122,7 +122,7 @@ export const PosPaymentMethodsCardsEditor = forwardRef<
 ) {
   const usableCatalog = useMemo(() => {
     return (catalog ?? [])
-      .filter((c) => c.isActive && (POS_VALID_METHOD_IDS as string[]).includes(c.method))
+      .filter((c) => c.isActive && (POS_CONFIGURABLE_METHOD_IDS as string[]).includes(c.method))
       .slice()
       .sort((a, b) => a.displayOrder - b.displayOrder);
   }, [catalog]);
@@ -131,10 +131,27 @@ export const PosPaymentMethodsCardsEditor = forwardRef<
   const [byId, setById] = useState<Record<string, PosPaymentMethodConfig>>({});
   const orderRef = useRef(order);
   const byIdRef = useRef(byId);
+  const usableCatalogRef = useRef(usableCatalog);
+  /** Payload listo para persistir; se actualiza en el mismo tick que el estado local. */
+  const latestPayloadRef = useRef<PosPaymentMethodConfig[]>([]);
   orderRef.current = order;
   byIdRef.current = byId;
+  usableCatalogRef.current = usableCatalog;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+
+  const syncPayloadRef = useCallback(
+    (nextOrder: string[], nextById: Record<string, PosPaymentMethodConfig>) => {
+      orderRef.current = nextOrder;
+      byIdRef.current = nextById;
+      latestPayloadRef.current = buildPayloadFromState(
+        nextOrder,
+        nextById,
+        usableCatalogRef.current,
+      );
+    },
+    [],
+  );
   /** Evita notificar al padre mientras el editor se hidrata desde `value`. */
   const skipParentSyncRef = useRef(true);
   const hydratedKeyRef = useRef<string | null>(null);
@@ -142,9 +159,9 @@ export const PosPaymentMethodsCardsEditor = forwardRef<
   useImperativeHandle(
     ref,
     () => ({
-      getPayload: () => buildPayloadFromState(order, byId, usableCatalog),
+      getPayload: () => latestPayloadRef.current,
     }),
-    [order, byId, usableCatalog],
+    [],
   );
 
   const usableKey = useMemo(() => usableCatalog.map((c) => c.id).join("|"), [usableCatalog]);
@@ -200,13 +217,14 @@ export const PosPaymentMethodsCardsEditor = forwardRef<
       .map((c) => c.id);
 
     const orderedById = computeGlobalOrder(initialOrder, nextById);
+    syncPayloadRef(initialOrder, orderedById);
     setOrder(initialOrder);
     setById(orderedById);
 
     queueMicrotask(() => {
       skipParentSyncRef.current = false;
     });
-  }, [usableKey, valueKey, value, usableCatalog]);
+  }, [usableKey, valueKey, value, usableCatalog, syncPayloadRef]);
 
   const patchRow = useCallback(
     (id: string, patch: Partial<PosPaymentMethodConfig>) => {
@@ -217,11 +235,13 @@ export const PosPaymentMethodsCardsEditor = forwardRef<
           ...patch,
           ...(isDisabling ? { isDefaultForChange: false } : null),
         } as PosPaymentMethodConfig;
-        return computeGlobalOrder(orderRef.current, { ...prev, [id]: nextRow });
+        const nextById = computeGlobalOrder(orderRef.current, { ...prev, [id]: nextRow });
+        syncPayloadRef(orderRef.current, nextById);
+        return nextById;
       });
       scheduleNotifyParent();
     },
-    [scheduleNotifyParent],
+    [scheduleNotifyParent, syncPayloadRef],
   );
 
   const setUniqueDefault = useCallback(
@@ -236,11 +256,13 @@ export const PosPaymentMethodsCardsEditor = forwardRef<
           next[k] = { ...next[k], isDefaultForChange: false };
         }
         next[id] = { ...next[id], isDefaultForChange: isDefault };
-        return computeGlobalOrder(orderRef.current, next);
+        const nextById = computeGlobalOrder(orderRef.current, next);
+        syncPayloadRef(orderRef.current, nextById);
+        return nextById;
       });
       scheduleNotifyParent();
     },
-    [usableCatalog, scheduleNotifyParent],
+    [usableCatalog, scheduleNotifyParent, syncPayloadRef],
   );
 
   const dragIdRef = useRef<string | null>(null);
@@ -260,7 +282,11 @@ export const PosPaymentMethodsCardsEditor = forwardRef<
       const nextOrder = prevOrder.slice();
       nextOrder.splice(from, 1);
       nextOrder.splice(to, 0, activeId);
-      setById((current) => computeGlobalOrder(nextOrder, current));
+      setById((current) => {
+        const nextById = computeGlobalOrder(nextOrder, current);
+        syncPayloadRef(nextOrder, nextById);
+        return nextById;
+      });
       scheduleNotifyParent();
       return nextOrder;
     });

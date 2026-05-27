@@ -7,6 +7,8 @@ export type PosSaleForReturnLine = {
   productSku: string | null;
   variantName: string | null;
   quantity: number;
+  /** Cantidad aún devolvable (tope por variante). */
+  returnableQuantity: number;
   unitPrice: number;
   discountAmount: number;
   taxRate: number;
@@ -31,5 +33,6 @@ export type PosSaleForReturn = {
   customerDocument: string | null;
   branchName: string | null;
   pointOfSaleName: string | null;
+  lineMaxReturnableQtyByVariantId: Record<string, number>;
   lines: PosSaleForReturnLine[];
 };

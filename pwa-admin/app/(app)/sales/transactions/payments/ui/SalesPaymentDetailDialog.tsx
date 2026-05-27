@@ -192,7 +192,7 @@ export default function SalesPaymentDetailDialog({
         !loading && canPrint ? (
           <div className="flex items-center justify-end gap-1">
             <IconButton
-              icon="Receipt"
+              icon="ReceiptText"
               variant="basicSecondary"
               size="sm"
               ariaLabel="Imprimir ticket"

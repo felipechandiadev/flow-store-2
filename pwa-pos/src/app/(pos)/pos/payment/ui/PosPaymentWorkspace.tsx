@@ -20,7 +20,12 @@ import type {
 import {
   isCustomerLinkedPaymentMethod,
 } from "@/features/pos-cart/pos-payment.types";
-import type { CustomerPaymentSources } from "@/features/customers/types/customer-payment-sources.types";
+import type {
+  CustomerCreditNoteSource,
+  CustomerPaymentSources,
+} from "@/features/customers/types/customer-payment-sources.types";
+import { tryBuildCreditNotePaymentLine } from "@/features/pos-payment-methods/lib/apply-customer-linked-payment";
+import { paymentMethodLabelEs } from "@/features/pos-payment-methods/lib/payment-method-label";
 import { getCustomerPosPaymentSourcesAction } from "@/features/customers/actions/customers-pos.action";
 import PosCustomerPaymentSourcesPanel from "@/features/customers/ui/PosCustomerPaymentSourcesPanel";
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
@@ -125,6 +130,8 @@ type PosPaymentMethodCardProps = {
   payment: PosPaymentLine;
   index: number;
   label: string;
+  /** Monto disponible de la NC (saldo a favor del documento) antes de descontar esta línea. */
+  creditNoteSourceBalance?: number | null;
   remaining: number;
   confirmLoading: boolean;
   paymentsCount: number;
@@ -141,6 +148,8 @@ type PosPaymentMethodCardProps = {
     field: keyof NonNullable<PosPaymentLine["checkData"]>,
     value: string,
   ) => void;
+  /** Abono de encargo precargado en liquidar encargo: monto fijo. */
+  amountLocked?: boolean;
 };
 
 /** Card de medio de pago: nombre arriba; monto y acciones en la fila siguiente. */
@@ -148,6 +157,7 @@ function PosPaymentMethodCard({
   payment: p,
   index,
   label,
+  creditNoteSourceBalance = null,
   remaining,
   confirmLoading,
   paymentsCount,
@@ -160,8 +170,14 @@ function PosPaymentMethodCard({
   onUpdateBankAccountKey,
   onUpdateReference,
   onUpdateCheckField,
+  amountLocked = false,
 }: PosPaymentMethodCardProps) {
   const amountValue = String(Math.max(0, Math.round(p.amount)));
+  const appliedNcAmount = Math.max(0, Math.round(p.amount));
+  const creditNoteRemainingSaldo =
+    p.creditNoteTransactionId && creditNoteSourceBalance != null
+      ? Math.max(0, Math.round(creditNoteSourceBalance) - appliedNcAmount)
+      : null;
 
   return (
     <li
@@ -180,7 +196,7 @@ function PosPaymentMethodCard({
             className="shrink-0"
             ariaLabel="Quitar medio de pago"
             title="Quitar medio de pago"
-            disabled={paymentsCount <= 1 || confirmLoading}
+            disabled={paymentsCount <= 1 || confirmLoading || amountLocked}
             onClick={() => onRemove(p.id)}
             data-test-id={`pos-payment-remove-line-${p.id}`}
           />
@@ -191,10 +207,13 @@ function PosPaymentMethodCard({
           name={`pos-payment-line-${index}`}
           value={amountValue}
           onChange={(e) => onUpdateAmount(p.id, e.target.value)}
+          readOnly={amountLocked}
+          title={amountLocked ? "El abono del encargo no se puede modificar al liquidar" : undefined}
           currencySymbol="$"
           alwaysShowLabel
           className="w-full min-w-0"
           endAdornment={
+            amountLocked ? null : (
             <span className="inline-flex items-center">
               {p.type !== "CASH" && remaining > 0.01 ? (
                 <IconButton
@@ -221,6 +240,7 @@ function PosPaymentMethodCard({
                 data-test-id={`pos-payment-clear-amount-${p.id}`}
               />
             </span>
+            )
           }
           data-test-id={
             index === 0 ? "pos-payment-default-cash-amount" : `pos-payment-line-amount-${p.id}`
@@ -241,9 +261,21 @@ function PosPaymentMethodCard({
         </div>
       ) : null}
       {p.creditNoteTransactionId || p.backorderTransactionId ? (
-        <p className="text-xs text-muted-foreground">
-          Folio:{" "}
-          <span className="font-mono text-foreground">{p.reference?.trim() || "—"}</span>
+        <p className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            Folio:{" "}
+            <span className="font-mono text-foreground">{p.reference?.trim() || "—"}</span>
+          </span>
+          {p.creditNoteTransactionId &&
+          creditNoteRemainingSaldo != null &&
+          creditNoteRemainingSaldo > 0 ? (
+            <span className="shrink-0 tabular-nums">
+              Saldo NC:{" "}
+              <span className="font-semibold text-foreground">
+                {formatMoney(creditNoteRemainingSaldo)}
+              </span>
+            </span>
+          ) : null}
         </p>
       ) : null}
       {showRefField ? (
@@ -403,7 +435,6 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const [draftOptionId, setDraftOptionId] = useState<string>("");
   const [draftAmount, setDraftAmount] = useState("");
   const [draftReference, setDraftReference] = useState("");
-  const [draftSourceId, setDraftSourceId] = useState("");
   const [draftBankAccountKey, setDraftBankAccountKey] = useState<string>("");
   const [addAlert, setAddAlert] = useState("");
   const [paymentSources, setPaymentSources] =
@@ -587,50 +618,9 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
 
     return base.filter((opt) => {
       const method = resolveMethodForOption(opt.id);
-      if (method === "CUSTOMER_CREDIT_NOTE") {
-        return (
-          Boolean(saleCustomerId) &&
-          paymentSources.creditNotes.some((nc) => !usedCreditNoteIds.has(nc.id))
-        );
-      }
-      if (method === "ORDER_ADVANCE") {
-        return (
-          Boolean(saleCustomerId) &&
-          paymentSources.orderAdvances.some((bo) => !usedBackorderIds.has(bo.id))
-        );
-      }
-      return true;
+      return !isCustomerLinkedPaymentMethod(method);
     });
-  }, [
-    effectiveMethods,
-    resolveMethodForOption,
-    saleCustomerId,
-    paymentSources,
-    usedCreditNoteIds,
-    usedBackorderIds,
-  ]);
-
-  const draftPaymentMethod = resolveMethodForOption(draftOptionId);
-
-  const draftSourceOptions = useMemo(() => {
-    if (draftPaymentMethod === "CUSTOMER_CREDIT_NOTE") {
-      return paymentSources.creditNotes
-        .filter((nc) => !usedCreditNoteIds.has(nc.id))
-        .map((nc) => ({
-          id: nc.id,
-          label: `${nc.documentNumber} · ${formatMoney(nc.availableAmount)}`,
-        }));
-    }
-    if (draftPaymentMethod === "ORDER_ADVANCE") {
-      return paymentSources.orderAdvances
-        .filter((bo) => !usedBackorderIds.has(bo.id))
-        .map((bo) => ({
-          id: bo.id,
-          label: `${bo.documentNumber} · ${formatMoney(bo.availableAmount)}`,
-        }));
-    }
-    return [];
-  }, [draftPaymentMethod, paymentSources, usedCreditNoteIds, usedBackorderIds]);
+  }, [effectiveMethods, resolveMethodForOption]);
 
   // Si el medio seleccionado es transferencia y el POS configuró una cuenta destino preferente,
   // precárgala en el diálogo (pero sin pisar una selección manual).
@@ -713,6 +703,12 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     : isEncargoMode && backorderDeposit
       ? Math.max(0, Math.round(backorderDeposit.amount))
       : saleTotal;
+  const encargoDepositAmountRounded =
+    isEncargoMode && backorderDeposit != null
+      ? Math.max(0, Math.round(backorderDeposit.amount))
+      : null;
+  const isEncargoZeroDeposit =
+    encargoDepositAmountRounded !== null && encargoDepositAmountRounded <= 0;
 
   const openBackorderDepositDialog = useCallback(() => {
     if (cart.lines.length === 0 || saleTotal <= 0) return;
@@ -814,6 +810,28 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     if (!effectiveLoaded) return;
     setPayments((prev) => {
       if (prev.length > 0) return prev;
+      // Catálogo efectivo: precargar líneas marcadas como `preloadOnPaymentScreen`,
+      // ordenadas por `preloadOrder` (el backend ya las devuelve ordenadas).
+      const preload = effectiveMethods.filter((m) => m.preloadOnPaymentScreen);
+      const preloadLines =
+        preload.length > 0
+          ? preload.map((m) => ({
+              id: makePaymentLineId(),
+              type: m.method as PosPaymentMethodId,
+              amount: 0,
+              reference: "",
+              companyPaymentMethodId: m.companyPaymentMethodId,
+            }))
+          : [
+              {
+                id: makePaymentLineId(),
+                type: "CASH",
+                amount: 0,
+                reference: "",
+                companyPaymentMethodId: null,
+              },
+            ];
+
       if (isFulfillBackorderMode && loadedBackorder) {
         const advance = Math.min(
           Math.round(loadedBackorder.depositAvailable),
@@ -828,31 +846,12 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               reference: loadedBackorder.documentNumber,
               backorderTransactionId: loadedBackorder.id,
             },
+            ...preloadLines,
           ];
         }
       }
-      // Catálogo efectivo: precargar líneas marcadas como `preloadOnPaymentScreen`,
-      // ordenadas por `preloadOrder` (el backend ya las devuelve ordenadas).
-      const preload = effectiveMethods.filter((m) => m.preloadOnPaymentScreen);
-      if (preload.length > 0) {
-        return preload.map((m) => ({
-          id: makePaymentLineId(),
-          type: m.method as PosPaymentMethodId,
-          amount: 0,
-          reference: "",
-          companyPaymentMethodId: m.companyPaymentMethodId,
-        }));
-      }
-      // Fallback: comportamiento previo (línea CASH precargada).
-      return [
-        {
-          id: makePaymentLineId(),
-          type: "CASH",
-          amount: 0,
-          reference: "",
-          companyPaymentMethodId: null,
-        },
-      ];
+
+      return preloadLines;
     });
   }, [
     cart.ready,
@@ -918,81 +917,35 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     setDraftOptionId(initialOptionId);
     setDraftAmount(remaining > 0 ? String(Math.round(remaining)) : "");
     setDraftReference("");
-    setDraftSourceId("");
     setDraftBankAccountKey("");
     setAddAlert("");
     setAddOpen(true);
   }, [remaining, paymentTypeOptions]);
 
-  useEffect(() => {
-    if (!addOpen) return;
-    const method = resolveMethodForOption(draftOptionId);
-    if (method === "CUSTOMER_CREDIT_NOTE") {
-      const opts = paymentSources.creditNotes.filter((nc) => !usedCreditNoteIds.has(nc.id));
-      const pick = opts[0];
-      setDraftSourceId(pick?.id ?? "");
-      if (pick) {
-        const cap = Math.min(
-          pick.availableAmount,
-          remaining > 0 ? Math.round(remaining) : pick.availableAmount,
-        );
-        setDraftAmount(String(cap));
-        setDraftReference(pick.documentNumber);
-      } else {
-        setDraftAmount("");
-        setDraftReference("");
-      }
-      return;
-    }
-    if (method === "ORDER_ADVANCE") {
-      const opts = paymentSources.orderAdvances.filter((bo) => !usedBackorderIds.has(bo.id));
-      const pick = opts[0];
-      setDraftSourceId(pick?.id ?? "");
-      if (pick) {
-        const cap = Math.min(
-          pick.availableAmount,
-          remaining > 0 ? Math.round(remaining) : pick.availableAmount,
-        );
-        setDraftAmount(String(cap));
-        setDraftReference(pick.documentNumber);
-      } else {
-        setDraftAmount("");
-        setDraftReference("");
-      }
-      return;
-    }
-    setDraftSourceId("");
-  }, [addOpen, draftOptionId, resolveMethodForOption, paymentSources, usedCreditNoteIds, usedBackorderIds, remaining]);
-
-  const onDraftSourceChange = useCallback(
-    (sourceId: string) => {
-      setDraftSourceId(sourceId);
-      const method = resolveMethodForOption(draftOptionId);
-      if (method === "CUSTOMER_CREDIT_NOTE") {
-        const row = paymentSources.creditNotes.find((n) => n.id === sourceId);
-        if (!row) return;
-        setDraftReference(row.documentNumber);
-        const avail = getCreditNoteAvailable(sourceId);
-        const cap = Math.min(avail, remaining > 0 ? Math.round(remaining) : avail);
-        setDraftAmount(String(cap));
+  const applyCreditNoteFromPanel = useCallback(
+    (nc: CustomerCreditNoteSource) => {
+      setPaymentMethodsAlert("");
+      const result = tryBuildCreditNotePaymentLine({
+        nc,
+        remaining,
+        amountToPay,
+        nonCashTotal,
+        usedCreditNoteIds,
+        saleCustomerId,
+      });
+      if (!result.ok) {
+        setPaymentMethodsAlert(result.error);
         return;
       }
-      if (method === "ORDER_ADVANCE") {
-        const row = paymentSources.orderAdvances.find((b) => b.id === sourceId);
-        if (!row) return;
-        setDraftReference(row.documentNumber);
-        const avail = getBackorderAvailable(sourceId);
-        const cap = Math.min(avail, remaining > 0 ? Math.round(remaining) : avail);
-        setDraftAmount(String(cap));
-      }
+      setPayments((prev) => [...prev, result.line]);
     },
     [
-      draftOptionId,
-      resolveMethodForOption,
-      paymentSources,
-      getCreditNoteAvailable,
-      getBackorderAvailable,
       remaining,
+      amountToPay,
+      nonCashTotal,
+      usedCreditNoteIds,
+      saleCustomerId,
+      setPayments,
     ],
   );
 
@@ -1020,35 +973,8 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       return;
     }
     if (isCustomerLinkedPaymentMethod(enumType)) {
-      if (!saleCustomerId) {
-        setAddAlert("Selecciona un cliente antes de usar este medio de pago.");
-        return;
-      }
-      const sourceId = draftSourceId.trim();
-      if (!sourceId) {
-        setAddAlert(
-          enumType === "CUSTOMER_CREDIT_NOTE"
-            ? "Selecciona la nota de crédito a aplicar."
-            : "Selecciona el abono de encargo a aplicar.",
-        );
-        return;
-      }
-      if (enumType === "CUSTOMER_CREDIT_NOTE" && usedCreditNoteIds.has(sourceId)) {
-        setAddAlert("Esa nota de crédito ya está en la lista de pagos.");
-        return;
-      }
-      if (enumType === "ORDER_ADVANCE" && usedBackorderIds.has(sourceId)) {
-        setAddAlert("Ese abono de encargo ya está en la lista de pagos.");
-        return;
-      }
-      const maxAvail =
-        enumType === "CUSTOMER_CREDIT_NOTE"
-          ? getCreditNoteAvailable(sourceId)
-          : getBackorderAvailable(sourceId);
-      if (amt > maxAvail + 0.01) {
-        setAddAlert(`El monto supera el saldo disponible (${formatMoney(maxAvail)}).`);
-        return;
-      }
+      setAddAlert("Usa las notas de crédito del panel del cliente para este medio de pago.");
+      return;
     }
     if (enumType !== "CASH" && nonCashTotal + amt > amountToPay + 0.01) {
       setAddAlert(NON_CASH_LIMIT_MSG);
@@ -1068,15 +994,11 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         id: makePaymentLineId(),
         type: enumType,
         amount: amt,
-        reference: isCustomerLinkedPaymentMethod(enumType)
-          ? draftReference.trim()
-          : draftReference.trim(),
+        reference: draftReference.trim(),
         companyPaymentMethodId: cfg?.companyPaymentMethodId ?? null,
         bankAccountKey: enumType === "TRANSFER" ? (bankKey || null) : null,
-        creditNoteTransactionId:
-          enumType === "CUSTOMER_CREDIT_NOTE" ? draftSourceId.trim() || null : null,
-        backorderTransactionId:
-          enumType === "ORDER_ADVANCE" ? draftSourceId.trim() || null : null,
+        creditNoteTransactionId: null,
+        backorderTransactionId: null,
       },
     ]);
     setAddOpen(false);
@@ -1084,7 +1006,6 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     draftAmount,
     draftOptionId,
     draftReference,
-    draftSourceId,
     draftBankAccountKey,
     methodsById,
     remaining,
@@ -1092,18 +1013,25 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     bankAccountOptions.length,
     nonCashTotal,
     amountToPay,
-    saleCustomerId,
-    usedCreditNoteIds,
-    usedBackorderIds,
-    getCreditNoteAvailable,
-    getBackorderAvailable,
   ]);
+
+  const isFulfillBackorderAdvanceLine = useCallback(
+    (line: PosPaymentLine) =>
+      isFulfillBackorderMode &&
+      line.type === "ORDER_ADVANCE" &&
+      Boolean(line.backorderTransactionId?.trim()),
+    [isFulfillBackorderMode],
+  );
 
   const removePayment = useCallback(
     (id: string) => {
-      setPayments((prev) => prev.filter((p) => p.id !== id));
+      setPayments((prev) => {
+        const row = prev.find((p) => p.id === id);
+        if (row && isFulfillBackorderAdvanceLine(row)) return prev;
+        return prev.filter((p) => p.id !== id);
+      });
     },
-    [setPayments],
+    [setPayments, isFulfillBackorderAdvanceLine],
   );
 
   const updatePaymentLineAmount = useCallback(
@@ -1115,6 +1043,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       setPayments((prev) => {
         const row = prev.find((p) => p.id === id);
         if (!row) return prev;
+        if (isFulfillBackorderAdvanceLine(row)) return prev;
         if (row.type === "CASH") {
           return prev.map((p) => (p.id === id ? { ...p, amount: next } : p));
         }
@@ -1146,7 +1075,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         });
       }
     },
-    [amountToPay, setPayments, getCreditNoteAvailable, getBackorderAvailable],
+    [amountToPay, setPayments, getCreditNoteAvailable, getBackorderAvailable, isFulfillBackorderAdvanceLine],
   );
 
   /** Deja el monto en cero (el medio sigue en la lista; no se considera usado hasta cargar monto). */
@@ -1165,6 +1094,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       setPayments((prev) => {
         const row = prev.find((p) => p.id === id);
         if (!row || row.type === "CASH") return prev;
+        if (isFulfillBackorderAdvanceLine(row)) return prev;
         const othersNonCash = prev
           .filter((p) => p.id !== id && p.type !== "CASH")
           .reduce((a, p) => a + p.amount, 0);
@@ -1187,7 +1117,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         return prev.map((p) => (p.id === id ? { ...p, amount: next } : p));
       });
     },
-    [amountToPay, setPayments, getCreditNoteAvailable, getBackorderAvailable],
+    [amountToPay, setPayments, getCreditNoteAvailable, getBackorderAvailable, isFulfillBackorderAdvanceLine],
   );
 
   const updatePaymentLineReference = useCallback(
@@ -1248,26 +1178,28 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   }, [payments.length]);
 
   const paymentStatusLabel = useMemo(() => {
+    if (isEncargoZeroDeposit) return "Encargo sin abono";
     if (amountToPay <= 0) return "Sin total";
     if (payments.length === 0) return "Sin pagos";
     if (overpay > 0) return "Pago con vuelto";
     if (remaining <= 0.01) return "Pago completo";
     return "Monto insuficiente";
-  }, [amountToPay, remaining, overpay, payments.length]);
+  }, [isEncargoZeroDeposit, amountToPay, remaining, overpay, payments.length]);
 
-  const paymentStatusTone =
-    payments.length > 0 && (overpay > 0 || remaining <= 0.01)
-      ? "text-emerald-700 dark:text-emerald-400"
-      : payments.length > 0
-        ? "text-red-700 dark:text-red-400"
-        : "text-muted-foreground";
+  const paymentComplete =
+    isEncargoZeroDeposit || (payments.length > 0 && (overpay > 0 || remaining <= 0.01));
 
-  const paymentStatusBoxTone =
-    payments.length > 0 && (overpay > 0 || remaining <= 0.01)
-      ? "bg-emerald-100/70 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100"
-      : payments.length > 0
-        ? "bg-red-100/70 text-red-900 dark:bg-red-900/30 dark:text-red-100"
-        : "bg-slate-100/80 text-slate-900 dark:bg-slate-800/40 dark:text-slate-100";
+  const paymentStatusTone = paymentComplete
+    ? "text-emerald-700 dark:text-emerald-400"
+    : payments.length > 0
+      ? "text-red-700 dark:text-red-400"
+      : "text-muted-foreground";
+
+  const paymentStatusBoxTone = paymentComplete
+    ? "bg-emerald-100/70 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100"
+    : payments.length > 0
+      ? "bg-red-100/70 text-red-900 dark:bg-red-900/30 dark:text-red-100"
+      : "bg-slate-100/80 text-slate-900 dark:bg-slate-800/40 dark:text-slate-100";
 
   const hasSaleCustomer = Boolean(customer?.customerId?.trim());
   const hasReturnCart =
@@ -1292,17 +1224,29 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     hasSaleCustomer &&
     amountToPay > 0 &&
     payments.length > 0 &&
-    remaining <= 0.01;
+    (remaining <= 0.01 || overpay > 0);
+
+  const canConfirmStandardPayment =
+    amountToPay > 0 && payments.length > 0 && remaining <= 0.01;
+
+  const canConfirmEncargo =
+    isEncargoMode &&
+    hasSaleCustomer &&
+    backorderDeposit != null &&
+    cart.lines.length > 0 &&
+    saleTotal > 0 &&
+    (isEncargoZeroDeposit ? remaining <= 0.01 : canConfirmStandardPayment);
 
   const canConfirmSale =
     !isReturnMode &&
     !isCollectMode &&
     cart.lines.length > 0 &&
-    amountToPay > 0 &&
-    payments.length > 0 &&
-    remaining <= 0.01 &&
     !stockBlocksSalePayment &&
-    ((!isEncargoMode && !isFulfillBackorderMode) || hasSaleCustomer);
+    (isEncargoMode
+      ? canConfirmEncargo
+      : isFulfillBackorderMode
+        ? canConfirmStandardPayment && hasSaleCustomer
+        : canConfirmStandardPayment);
 
   const canConfirm =
     canConfirmReturnDocument ||
@@ -1341,14 +1285,21 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       if (collectSales.length === 0) return "No hay ventas seleccionadas";
       if (!hasSaleCustomer) return "Cliente requerido para el cobro";
       if (payments.length === 0) return "Agrega al menos un método de pago";
-      if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar";
-      return "Confirmar cobro";
+      if (remaining > 0.01 && overpay <= 0) {
+        return "Cubre el saldo restante antes de confirmar";
+      }
+      return overpay > 0 ? "Confirmar cobro (con vuelto)" : "Confirmar cobro";
     }
     if (isFulfillBackorderMode && !hasSaleCustomer) {
       return "Selecciona el cliente del encargo";
     }
-    if (isEncargoMode && !hasSaleCustomer) {
-      return "Selecciona un cliente para confirmar el encargo";
+    if (isEncargoMode) {
+      if (!hasSaleCustomer) return "Selecciona un cliente para confirmar el encargo";
+      if (!backorderDeposit) return "Define el abono de encargo con el botón Encargo.";
+      if (isEncargoZeroDeposit) return "Confirmar encargo";
+      if (payments.length === 0) return "Agrega al menos un método de pago para el abono";
+      if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar";
+      return "Confirmar encargo";
     }
     if (stockBlocksSalePayment) return stockInsufficientSaleMessage;
     return "Confirmar pago";
@@ -1361,7 +1312,9 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       if (!hasSaleCustomer) return "Cliente requerido para el cobro.";
       if (amountToPay <= 0) return "El total a cobrar debe ser mayor que cero.";
       if (payments.length === 0) return "Agrega al menos un método de pago.";
-      if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar.";
+      if (remaining > 0.01 && overpay <= 0) {
+        return "Cubre el saldo restante antes de confirmar.";
+      }
       return "";
     }
 
@@ -1419,6 +1372,10 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     }
     if (isEncargoMode && !backorderDeposit) {
       return "Define el abono de encargo con el botón Encargo.";
+    }
+    if (isEncargoMode && isEncargoZeroDeposit) {
+      if (saleTotal <= 0) return "El total del encargo debe ser mayor que cero.";
+      return "";
     }
     if (amountToPay <= 0) return "El total debe ser mayor que cero.";
     if (payments.length === 0) return "Agrega al menos un método de pago.";
@@ -1485,6 +1442,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           appliedTotal: 0,
           overpay: 0,
           deferPayment: true,
+          loadedQuotation: cart.loadedQuotation,
         }),
       );
       if (!deferRes.success) {
@@ -1668,9 +1626,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
             const cfg = p.companyPaymentMethodId
               ? methodsById.get(p.companyPaymentMethodId)
               : null;
-            const fallbackLabel =
-              FALLBACK_PAYMENT_OPTIONS.find((o) => o.id === p.type)?.label ?? p.type;
-            const label = cfg?.label ?? fallbackLabel;
+            const label = cfg?.label ?? paymentMethodLabelEs(p.type);
             return { label, amount: Math.round(Number(p.amount) || 0) };
           });
         const ncSnapshot = buildCustomerCreditNotePrintSnapshot({
@@ -1787,6 +1743,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
             fulfillBackorderId: isFulfillBackorderMode
               ? loadedBackorder?.id ?? null
               : null,
+            loadedQuotation: cart.loadedQuotation,
           }),
         );
 
@@ -1997,7 +1954,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         {/* Columna 1 — Carrito */}
         <section
           className={`flex min-h-0 w-full min-w-0 flex-col gap-3 rounded-xl border p-4 shadow-sm ${
-            isEncargoMode
+            isEncargoMode || isFulfillBackorderMode
               ? "border-secondary/40 bg-secondary/10"
               : stockBlocksSalePayment
                 ? POS_INSUFFICIENT_STOCK_SURFACE_CLASS
@@ -2179,6 +2136,14 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                 sources={paymentSources}
                 loading={paymentSourcesLoading}
                 error={paymentSourcesError}
+                showOrderAdvances={false}
+                onApplyCreditNote={
+                  showReturnRefundUi && !isReturnMode && !isCollectMode && !isEncargoMode
+                    ? applyCreditNoteFromPanel
+                    : undefined
+                }
+                usedCreditNoteIds={usedCreditNoteIds}
+                disabled={remaining <= 0.01 || stockBlocksSalePayment}
               />
             ) : null
           }
@@ -2225,15 +2190,19 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               const cfg = p.companyPaymentMethodId
                 ? methodsById.get(p.companyPaymentMethodId)
                 : null;
-              const fallbackLabel =
-                FALLBACK_PAYMENT_OPTIONS.find((o) => o.id === p.type)?.label ?? p.type;
-              const label = cfg?.label ?? fallbackLabel;
+              const label = cfg?.label ?? paymentMethodLabelEs(p.type);
+              const ncId = p.creditNoteTransactionId?.trim();
+              const ncRow = ncId
+                ? paymentSources.creditNotes.find((n) => n.id === ncId)
+                : null;
               return (
                 <PosPaymentMethodCard
                   key={p.id}
                   payment={p}
                   index={index}
                   label={label}
+                  creditNoteSourceBalance={ncRow?.availableAmount ?? null}
+                  amountLocked={isFulfillBackorderAdvanceLine(p)}
                   remaining={remaining}
                   confirmLoading={confirmLoading}
                   paymentsCount={payments.length}
@@ -2299,15 +2268,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
             <Button type="button" variant="outlined" onClick={() => setAddOpen(false)}>
               Cancelar
             </Button>
-            <Button
-              type="button"
-              variant="primary"
-              onClick={addPayment}
-              disabled={
-                isCustomerLinkedPaymentMethod(draftPaymentMethod) &&
-                draftSourceOptions.length === 0
-              }
-            >
+            <Button type="button" variant="primary" onClick={addPayment}>
               Agregar
             </Button>
           </>
@@ -2352,41 +2313,14 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               />
             );
           })()}
-          {isCustomerLinkedPaymentMethod(draftPaymentMethod) ? (
-            <>
-              <Select
-                label={
-                  draftPaymentMethod === "CUSTOMER_CREDIT_NOTE"
-                    ? "Nota de crédito"
-                    : "Abono de encargo"
-                }
-                placeholder={
-                  draftSourceOptions.length === 0
-                    ? "Sin documentos disponibles"
-                    : "Seleccionar folio"
-                }
-                value={draftSourceId || null}
-                onChange={(id) => onDraftSourceChange(id != null ? String(id) : "")}
-                options={draftSourceOptions}
-                alwaysShowLabel
-                data-test-id="pos-payment-add-customer-source"
-              />
-              {draftSourceId ? (
-                <p className="text-xs text-muted-foreground">
-                  Folio: <span className="font-mono text-foreground">{draftReference}</span>
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <TextField
-              label="Referencia"
-              name="payment-ref"
-              value={draftReference}
-              onChange={(e) => setDraftReference(e.target.value)}
-              placeholder="Opcional"
-              alwaysShowLabel
-            />
-          )}
+          <TextField
+            label="Referencia"
+            name="payment-ref"
+            value={draftReference}
+            onChange={(e) => setDraftReference(e.target.value)}
+            placeholder="Opcional"
+            alwaysShowLabel
+          />
         </div>
       </Dialog>
 

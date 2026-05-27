@@ -3,6 +3,16 @@ import type {
   SalesPaymentStatus,
 } from "@/features/sales-payments/types/sales-payment.types";
 import type { SaleCollectionStatus } from "@/features/sales-transactions/lib/sale-collection-status";
+import type { CustomerCreditNoteUsageStatus } from "@/features/sales-customers/types/customer-related-documents.types";
+
+export type LinkedCreditNoteListSummary = {
+  id: string;
+  documentNumber: string;
+  total: number;
+  consumedAmount: number;
+  availableAmount: number;
+  usageStatus: CustomerCreditNoteUsageStatus;
+};
 
 export type RelatedSalePaymentFolio = {
   id: string;
@@ -22,9 +32,13 @@ export interface SalesTransactionListRow {
   amountPaid: number;
   backorderDepositAmount: number | null;
   backorderPercent: number | null;
+  /** `metadata.backorder.reservationStatus` (solo encargos). */
+  backorderReservationStatus: string | null;
   paymentMethod: SalesPaymentMethod;
   /** Cantidad de líneas en metadata.payments (0 = desconocido / legacy). */
   paymentLinesCount: number;
+  /** NC vinculada a la devolución (`SALE_RETURN`), con saldo de uso. */
+  linkedCreditNote: LinkedCreditNoteListSummary | null;
   branchName: string | null;
   pointOfSaleName: string | null;
   counterpartyLabel: string | null;

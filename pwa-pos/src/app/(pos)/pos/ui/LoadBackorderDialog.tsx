@@ -10,6 +10,7 @@ import type { PosBackorderForFulfill } from "@/features/pos-backorders/types/pos
 type Props = {
   open: boolean;
   onClose: () => void;
+  pointOfSaleId?: string | null;
 };
 
 function formatMoney(n: number) {
@@ -33,7 +34,7 @@ function formatDateTime(iso: string | null | undefined) {
   });
 }
 
-export function LoadBackorderDialog({ open, onClose }: Props) {
+export function LoadBackorderDialog({ open, onClose, pointOfSaleId }: Props) {
   const cart = usePosCart();
   const [folio, setFolio] = useState("");
   const [busy, setBusy] = useState(false);
@@ -58,7 +59,7 @@ export function LoadBackorderDialog({ open, onClose }: Props) {
       return;
     }
     setBusy(true);
-    const res = await findBackorderForFulfillPosAction(folioTrim);
+    const res = await findBackorderForFulfillPosAction(folioTrim, pointOfSaleId);
     setBusy(false);
     if (!res.success) {
       setError(res.message);

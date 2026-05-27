@@ -10,6 +10,7 @@ import Alert from "@/shared/components/Alert/Alert";
 import {
   COMPANY_PAYMENT_METHOD_LABELS,
   companyPaymentMethodAlwaysRequiresReference,
+  POS_IMPLICIT_PAYMENT_METHOD_IDS,
   type CompanyPaymentMethodConfig,
   type CompanyPaymentMethodId,
 } from "@/features/companies/types/company-payment-methods.types";
@@ -31,7 +32,9 @@ type Props = {
 
 const METHOD_OPTIONS: { id: CompanyPaymentMethodId; label: string }[] = (
   Object.keys(COMPANY_PAYMENT_METHOD_LABELS) as CompanyPaymentMethodId[]
-).map((id) => ({ id, label: `${COMPANY_PAYMENT_METHOD_LABELS[id]} (${id})` }));
+)
+  .filter((id) => !(POS_IMPLICIT_PAYMENT_METHOD_IDS as string[]).includes(id))
+  .map((id) => ({ id, label: `${COMPANY_PAYMENT_METHOD_LABELS[id]} (${id})` }));
 
 function newClientId(): string {
   if (
@@ -82,17 +85,21 @@ export function CompanyPaymentMethodDialog({
     const base = METHOD_OPTIONS.filter(
       (o) => internalCreditEnabled || o.id !== "INTERNAL_CREDIT",
     );
-    if (
-      initial?.method === "INTERNAL_CREDIT" &&
-      !base.some((o) => o.id === "INTERNAL_CREDIT")
-    ) {
+    const ensureOption = (id: CompanyPaymentMethodId) => {
+      if (base.some((o) => o.id === id)) return base;
       return [
         ...base,
-        {
-          id: "INTERNAL_CREDIT" as CompanyPaymentMethodId,
-          label: `${COMPANY_PAYMENT_METHOD_LABELS.INTERNAL_CREDIT} (INTERNAL_CREDIT)`,
-        },
+        { id, label: `${COMPANY_PAYMENT_METHOD_LABELS[id]} (${id})` },
       ];
+    };
+    if (initial?.method === "INTERNAL_CREDIT") {
+      return ensureOption("INTERNAL_CREDIT");
+    }
+    if (
+      initial?.method &&
+      (POS_IMPLICIT_PAYMENT_METHOD_IDS as string[]).includes(initial.method)
+    ) {
+      return ensureOption(initial.method);
     }
     return base;
   }, [internalCreditEnabled, initial?.method]);
