@@ -155,6 +155,7 @@ function parseLoadedReturnSale(value: unknown): LoadedReturnSaleMeta | null {
     total: Number(o.total) || 0,
     createdAt: typeof o.createdAt === "string" ? o.createdAt : "",
     lineMaxReturnableQtyByVariantId,
+    sourceHasCustomer: o.sourceHasCustomer === true,
   };
 }
 

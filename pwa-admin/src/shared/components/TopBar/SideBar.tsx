@@ -6,6 +6,8 @@ import { signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, User, LogOut, ImageOff, Image as ImageIcon } from 'lucide-react';
 import { useImageWithPlaceholder } from '@/shared/hooks/useImageWithPlaceholder';
+import { isCompanyChecksEnabledFromSettings } from '@/features/companies/types/company-checks.types';
+import { useCompany } from '@/providers/CompanyProvider';
 import { Button } from '../Button/Button';
 import IconButton from '../IconButton/IconButton';
 
@@ -22,6 +24,8 @@ export interface SideBarMenuItem {
   requiresRole?: 'SUPER_ADMIN' | 'ADMIN' | 'OPERATOR';
   /** Oculta el ítem en sidebar sin quitarlo del menú (restaurar con `hidden: false`). */
   hidden?: boolean;
+  /** Solo visible si la empresa tiene habilitado el módulo de cheques en tesorería. */
+  requiresChecksEnabled?: boolean;
 }
 
 interface SideBarProps {
@@ -50,14 +54,18 @@ const ROLE_LABELS: Record<string, string> = {
 function filterVisibleMenuItems(
   items: SideBarMenuItem[],
   role: string | null | undefined,
+  checksEnabled: boolean,
 ): SideBarMenuItem[] {
   return items.flatMap((item) => {
     if (item.hidden) return [];
     if (item.requiresRole && item.requiresRole !== role) {
       return [];
     }
+    if (item.requiresChecksEnabled && !checksEnabled) {
+      return [];
+    }
     if (Array.isArray(item.children) && item.children.length > 0) {
-      const visibleChildren = filterVisibleMenuItems(item.children, role);
+      const visibleChildren = filterVisibleMenuItems(item.children, role, checksEnabled);
       if (visibleChildren.length === 0) return [];
       return [{ ...item, children: visibleChildren }];
     }
@@ -86,6 +94,8 @@ const SideBar: React.FC<SideBarProps> = ({
   onOpenChangePassword,
 }) => {
   const { data: session } = useSession();
+  const { company } = useCompany();
+  const checksEnabled = isCompanyChecksEnabledFromSettings(company?.settings);
 
   // Track which parent items are open using their id or label
   const [localOpenIds, setLocalOpenIds] = useState<Record<string, boolean>>({});
@@ -272,6 +282,7 @@ const SideBar: React.FC<SideBarProps> = ({
           {filterVisibleMenuItems(
             menuItems,
             (session?.user?.role as string | undefined) ?? null,
+            checksEnabled,
           ).map((item, idx) => renderMenuItem(item, idx))}
         </ul>
       </nav>

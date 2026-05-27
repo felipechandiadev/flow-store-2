@@ -60,6 +60,8 @@ type Props = {
   selectedCustomer: PosSaleCustomer | null;
   onPick: (row: PosCustomerSearchRow) => void;
   onClearSelected: () => void;
+  /** Bloquea selección/limpieza/creación (p. ej. devolución/encargo/cotización vinculada). */
+  disabled?: boolean;
   /** Alto del panel respecto al viewport (vh). Por defecto coincide con la columna del payment. */
   heightVh?: number;
   /**
@@ -93,6 +95,7 @@ export default function PosCustomerSearchPanel({
   selectedCustomer,
   onPick,
   onClearSelected,
+  disabled = false,
   heightVh = 76,
   variant = "stacked",
   showAddCustomer = false,
@@ -249,6 +252,7 @@ export default function PosCustomerSearchPanel({
             ariaLabel="Volver a la búsqueda y limpiar selección"
             title="Volver a la búsqueda"
             onClick={onClearSelected}
+            disabled={disabled}
             data-test-id="pos-customer-search-detail-back"
           />
           <h2 className="min-w-0 flex-1 text-sm font-semibold text-foreground">Cliente</h2>
@@ -334,6 +338,7 @@ export default function PosCustomerSearchPanel({
               ariaLabel="Crear cliente"
               title="Crear cliente"
               onClick={onAddCustomerClick}
+              disabled={disabled}
               data-test-id="pos-customer-search-add-customer"
             />
           ) : null}
@@ -409,11 +414,12 @@ export default function PosCustomerSearchPanel({
                   key={row.customerId}
                   type="button"
                   onClick={() => onPick(row)}
-                  className={`block w-full rounded-xl border border-border bg-surface p-3 text-left shadow-sm transition hover:border-secondary/60 hover:shadow focus:border-secondary focus:outline-none ${
+                  disabled={disabled}
+                  className={`block w-full rounded-xl border border-border bg-surface p-3 text-left shadow-sm transition focus:outline-none ${
                     picked
                       ? "border-secondary ring-2 ring-secondary/25 dark:border-secondary"
                       : "border-border"
-                  }`}
+                  } ${disabled ? "cursor-not-allowed opacity-60" : "hover:border-secondary/60 hover:shadow focus:border-secondary"}`}
                   data-test-id={`pos-customer-search-pick-${row.customerId}`}
                 >
                   <p className="text-sm font-medium text-foreground">

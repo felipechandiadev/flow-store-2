@@ -26,6 +26,32 @@ export function posDisplaySaleUnitSymbol(
   return sym;
 }
 
+/** Cantidad reservada para liquidar un encargo (`metadata` al cargar reserva). */
+export function posGetReservedQtyForFulfillLine(line: {
+  metadata?: Record<string, unknown> | null;
+}): number | null {
+  const meta = line.metadata;
+  if (!meta || typeof meta !== "object") return null;
+  const fulfillId = meta.fulfillBackorderId;
+  if (fulfillId == null || String(fulfillId).trim() === "") return null;
+  const raw = meta.reservedQty;
+  const n = raw != null && raw !== "" ? Number(raw) : Number.NaN;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+/**
+ * Stock efectivo para validar cantidad en carrito (unidad de venta).
+ * En liquidación de encargo usa lo reservado para esa reserva; en venta normal, lo libre.
+ */
+export function posResolveEffectiveStockInSaleUnits(
+  item: PosStockFields & { metadata?: Record<string, unknown> | null },
+): number | null {
+  const reserved = posGetReservedQtyForFulfillLine(item);
+  if (reserved != null) return reserved;
+  return posResolveAvailableStockInSaleUnits(item);
+}
+
 /** Cantidad de stock en unidades de venta (no en unidad base de inventario). */
 export function posResolveAvailableStockInSaleUnits(item: PosStockFields): number | null {
   if (!item.trackInventory) return null;
@@ -84,23 +110,36 @@ export const POS_INSUFFICIENT_STOCK_LINE_CLASS = "bg-red-50 dark:bg-red-950/35";
 export const POS_QUOTATION_LINE_SURFACE_CLASS =
   "border-sky-300/70 bg-sky-50 dark:border-sky-800/50 dark:bg-sky-950/35";
 
-/** True si la cantidad del carrito supera el stock disponible (unidad de venta). */
+/** True si la cantidad del carrito supera el stock efectivo (unidad de venta). */
 export function posCartQuantityExceedsAvailableStock(
-  line: PosStockFields & { quantity: number },
+  line: PosStockFields & { quantity: number; metadata?: Record<string, unknown> | null },
 ): boolean {
   if (!line.trackInventory) return false;
-  const available = posResolveAvailableStockInSaleUnits(line);
-  if (available == null || !Number.isFinite(available)) return false;
+  const effective = posResolveEffectiveStockInSaleUnits(line);
+  if (effective == null || !Number.isFinite(effective)) return false;
   const qty = Number(line.quantity);
   if (!Number.isFinite(qty) || qty <= 0) return false;
-  return qty > available + 1e-9;
+  return qty > effective + 1e-9;
 }
 
 /** Texto para la fila «Stock: …» en cards (cantidad en unidad de venta). */
 export function posFormatStockForCard(
-  item: PosStockFields & Pick<PosProductSearchItem, "unitSymbol" | "stockBaseUnitSymbol" | "saleUnitSymbol">,
+  item: PosStockFields &
+    Pick<PosProductSearchItem, "unitSymbol" | "stockBaseUnitSymbol" | "saleUnitSymbol"> & {
+      metadata?: Record<string, unknown> | null;
+    },
 ): string {
   if (!item.trackInventory) return "—";
+
+  const reserved = posGetReservedQtyForFulfillLine(item);
+  if (reserved != null) {
+    const allowDecimals = item.unitAllowDecimals === true || stockHasFraction(reserved);
+    const qtyStr = formatStockQuantityNumber(reserved, allowDecimals);
+    const unit = posDisplaySaleUnitSymbol(item);
+    const amount = unit ? `${qtyStr} ${unit}` : qtyStr;
+    return `Reservado: ${amount}`;
+  }
+
   const qty = posFormatStockQuantity(item);
   if (qty == null) return "—";
   const unit = posDisplaySaleUnitSymbol(item);

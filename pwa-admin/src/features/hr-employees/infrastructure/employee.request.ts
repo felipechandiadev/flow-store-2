@@ -52,4 +52,83 @@ export class EmployeeRequest {
     }
     return json.data as EmployeeGridRow[];
   }
+
+  static async createPerson(payload: {
+    firstName: string;
+    lastName?: string;
+    documentType: string;
+    documentNumber: string;
+    email?: string;
+    phone?: string;
+  }): Promise<{ success: true; personId: string } | { success: false; error: string }> {
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl("persons"), {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        type: "NATURAL",
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        documentType: payload.documentType,
+        documentNumber: payload.documentNumber,
+        email: payload.email,
+        phone: payload.phone,
+      }),
+      cache: "no-store",
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      success?: boolean;
+      message?: string;
+      person?: { id?: string };
+    };
+    if (!res.ok) {
+      return {
+        success: false,
+        error: json.message || `No se pudo crear la persona (HTTP ${res.status})`,
+      };
+    }
+    const personId = json.person?.id;
+    if (!json.success || !personId) {
+      return { success: false, error: json.message || "Respuesta inválida al crear persona." };
+    }
+    return { success: true, personId };
+  }
+
+  static async create(payload: {
+    personId: string;
+    branchId?: string | null;
+    employmentType: string;
+    hireDate: string;
+    baseSalary?: string | null;
+  }): Promise<{ success: true; id: string } | { success: false; error: string }> {
+    const headers = await authHeaders();
+    const res = await fetch(apiUrl("employees"), {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        personId: payload.personId,
+        branchId: payload.branchId ?? undefined,
+        employmentType: payload.employmentType,
+        hireDate: payload.hireDate,
+        baseSalary: payload.baseSalary ?? undefined,
+      }),
+      cache: "no-store",
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      success?: boolean;
+      message?: string;
+      data?: { id?: string };
+    };
+    if (!res.ok) {
+      return {
+        success: false,
+        error: json.message || `No se pudo crear el empleado (HTTP ${res.status})`,
+      };
+    }
+    const id = json.data?.id;
+    if (!json.success || !id) {
+      return { success: false, error: json.message || "Respuesta inválida al crear empleado." };
+    }
+    return { success: true, id };
+  }
 }

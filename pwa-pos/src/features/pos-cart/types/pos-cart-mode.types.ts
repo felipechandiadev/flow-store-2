@@ -7,6 +7,8 @@ export type LoadedReturnSaleMeta = {
   documentNumber: string;
   total: number;
   createdAt: string;
+  /** True si la venta origen tenía cliente asociado (bloquea edición de cliente en devolución). */
+  sourceHasCustomer?: boolean;
   /** Cantidad máxima devolvable por variante (vendido − devoluciones previas). */
   lineMaxReturnableQtyByVariantId: Record<string, number>;
 };

@@ -24,3 +24,18 @@ export function defaultCompanyCheckSettings(): CompanyCheckSettings {
     defaultIssueBankAccountKey: null,
   };
 }
+
+function truthy(v: unknown): boolean {
+  return v === true || v === 1 || v === "1" || v === "true";
+}
+
+/** Lee `settings.checks.enabled` del JSON de empresa (misma coerción que el backend). */
+export function isCompanyChecksEnabledFromSettings(
+  settings: Record<string, unknown> | null | undefined,
+): boolean {
+  const checks = settings?.checks;
+  if (checks == null || typeof checks !== "object" || Array.isArray(checks)) {
+    return false;
+  }
+  return truthy((checks as Record<string, unknown>).enabled);
+}

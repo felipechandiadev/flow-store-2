@@ -605,6 +605,14 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   );
 
   const saleCustomerId = customer?.customerId?.trim() ?? "";
+  const hasSaleCustomer = Boolean(saleCustomerId);
+  const isEncargoMode = !isReturnMode && !isFulfillBackorderMode && encargoModeEnabled;
+  const isQuotationMode = Boolean(loadedQuotation?.id?.trim());
+  const customerLocked =
+    (isFulfillBackorderMode && hasSaleCustomer) ||
+    (isEncargoMode && hasSaleCustomer) ||
+    (isQuotationMode && hasSaleCustomer) ||
+    (isReturnMode && hasSaleCustomer && loadedReturnSale?.sourceHasCustomer === true);
 
   /** Opciones del Select del dialog "Agregar método". */
   const paymentTypeOptions = useMemo(() => {
@@ -646,6 +654,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
 
   const pickSearchCustomer = useCallback(
     (row: PosCustomerSearchRow) => {
+      if (customerLocked) return;
       if (!row.customerId) return;
       setCustomer({
         customerId: row.customerId,
@@ -655,12 +664,13 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         email: row.email?.trim() || null,
       });
     },
-    [setCustomer],
+    [setCustomer, customerLocked],
   );
 
   const clearSaleCustomer = useCallback(() => {
+    if (customerLocked) return;
     setCustomer(null);
-  }, [setCustomer]);
+  }, [setCustomer, customerLocked]);
 
   const totals = useMemo(() => {
     return cart.lines.reduce(
@@ -684,7 +694,6 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   );
   const discounts = lineDiscountsTotal + (cart.orderDiscount ?? 0);
   const saleTotal = Math.max(0, totals.gross - discounts);
-  const isEncargoMode = !isReturnMode && !isFulfillBackorderMode && encargoModeEnabled;
   const hasInsufficientStock = useMemo(
     () => cart.lines.some((line) => posCartQuantityExceedsAvailableStock(line)),
     [cart.lines],
@@ -1201,7 +1210,6 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       ? "bg-red-100/70 text-red-900 dark:bg-red-900/30 dark:text-red-100"
       : "bg-slate-100/80 text-slate-900 dark:bg-slate-800/40 dark:text-slate-100";
 
-  const hasSaleCustomer = Boolean(customer?.customerId?.trim());
   const hasReturnCart =
     cart.lines.length > 0 && Boolean(loadedReturnSale?.id?.trim());
 
@@ -1833,16 +1841,18 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         aria-labelledby={saleTitleId}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <IconButton
-            icon="ChevronLeft"
-            variant="outlined"
-            size="md"
-            ariaLabel="Volver al POS"
-            title="Volver al POS"
-            onClick={() => router.push("/pos")}
-            className="shrink-0"
-            data-test-id="pos-payment-back"
-          />
+          {!customerLocked ? (
+            <IconButton
+              icon="ChevronLeft"
+              variant="outlined"
+              size="md"
+              ariaLabel="Volver al POS"
+              title="Volver al POS"
+              onClick={() => router.push("/pos")}
+              className="shrink-0"
+              data-test-id="pos-payment-back"
+            />
+          ) : null}
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <h1 id={saleTitleId} className="text-base font-semibold text-foreground">
               {flowTitle}
@@ -2128,7 +2138,8 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           onPick={pickSearchCustomer}
           onClearSelected={clearSaleCustomer}
           heightVh={POS_PAYMENT_PANEL_HEIGHT_VH}
-          showAddCustomer
+          disabled={customerLocked}
+          showAddCustomer={!customerLocked}
           onAddCustomerClick={() => setCreateCustomerOpen(true)}
           paymentSourcesSlot={
             customer?.customerId?.trim() ? (

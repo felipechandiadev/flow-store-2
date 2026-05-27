@@ -18,13 +18,15 @@ type ExpensesDataGridProps = {
   suppliers: SupplierOption[];
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "Borrador",
-  PENDING_APPROVAL: "Pendiente",
-  APPROVED: "Aprobado",
-  REJECTED: "Rechazado",
-  CANCELLED: "Anulado",
-};
+function fmtClp(n: number | null | undefined): string {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return "—";
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  }).format(v);
+}
 
 export default function ExpensesDataGrid({ rows, total, categories, suppliers }: ExpensesDataGridProps) {
   const router = useRouter();
@@ -70,11 +72,28 @@ export default function ExpensesDataGrid({ rows, total, categories, suppliers }:
         flex: 1,
       },
       {
-        field: "status",
-        headerName: "Estado",
-        sortable: true,
-        width: 130,
-        valueGetter: ({ row }) => STATUS_LABEL[(row as OperationalExpenseGridRow).status] ?? (row as OperationalExpenseGridRow).status,
+        field: "netAmount",
+        headerName: "Neto",
+        sortable: false,
+        width: 120,
+        align: "right",
+        valueGetter: ({ row }) => fmtClp((row as OperationalExpenseGridRow).netAmount),
+      },
+      {
+        field: "taxAmount",
+        headerName: "Impuestos",
+        sortable: false,
+        width: 120,
+        align: "right",
+        valueGetter: ({ row }) => fmtClp((row as OperationalExpenseGridRow).taxAmount),
+      },
+      {
+        field: "totalAmount",
+        headerName: "Total",
+        sortable: false,
+        width: 120,
+        align: "right",
+        valueGetter: ({ row }) => fmtClp((row as OperationalExpenseGridRow).totalAmount),
       },
       {
         field: "description",

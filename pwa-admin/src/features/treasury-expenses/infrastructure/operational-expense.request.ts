@@ -61,6 +61,28 @@ function normalizeExpense(row: unknown): OperationalExpenseGridRow | null {
   const allowed = new Set(["DRAFT", "PENDING_APPROVAL", "APPROVED", "REJECTED", "CANCELLED"]);
   const status = (allowed.has(rawStatus) ? rawStatus : "DRAFT") as OperationalExpenseStatus;
 
+  const metadata = o.metadata;
+  const linked =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>).linkedTributaryDocument
+      : null;
+  const linkedAmounts =
+    linked && typeof linked === "object" && !Array.isArray(linked)
+      ? (linked as Record<string, unknown>)
+      : null;
+  const netAmount =
+    linkedAmounts?.netAmount != null && Number.isFinite(Number(linkedAmounts.netAmount))
+      ? Number(linkedAmounts.netAmount)
+      : undefined;
+  const taxAmount =
+    linkedAmounts?.taxAmount != null && Number.isFinite(Number(linkedAmounts.taxAmount))
+      ? Number(linkedAmounts.taxAmount)
+      : undefined;
+  const totalAmount =
+    linkedAmounts?.totalAmount != null && Number.isFinite(Number(linkedAmounts.totalAmount))
+      ? Number(linkedAmounts.totalAmount)
+      : undefined;
+
   return {
     id,
     companyId,
@@ -74,6 +96,9 @@ function normalizeExpense(row: unknown): OperationalExpenseGridRow | null {
     branchId: o.branchId != null ? String(o.branchId) : null,
     supplierId: o.supplierId != null ? String(o.supplierId) : null,
     employeeId: o.employeeId != null ? String(o.employeeId) : null,
+    netAmount,
+    taxAmount,
+    totalAmount,
     createdAt: o.createdAt != null ? String(o.createdAt) : undefined,
   };
 }

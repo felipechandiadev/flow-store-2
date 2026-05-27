@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { listEmployeesForGridAction } from "@/features/hr-employees/actions/employee.action";
+import { listBranchesForSettingsPage } from "@/features/settings-branches/actions/branch.action";
 import EmployeesDataGrid from "./ui/EmployeesDataGrid";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +19,19 @@ export default async function EmployeesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const t = parseSp(sp, "includeTerminated");
-  const includeTerminated = t === "1" || t === "true";
+  const page = Math.max(1, parseInt(parseSp(sp, "page") || "1", 10) || 1);
+  const limit = Math.min(
+    500,
+    Math.max(1, parseInt(parseSp(sp, "limit") || "25", 10) || 25),
+  );
 
-  const rows = await listEmployeesForGridAction({ includeTerminated });
+  const [allRows, branches] = await Promise.all([
+    listEmployeesForGridAction(),
+    listBranchesForSettingsPage(),
+  ]);
+  const total = allRows.length;
+  const start = (page - 1) * limit;
+  const rows = allRows.slice(start, start + limit);
 
   return (
     <div className="min-h-0 p-0" data-test-id="hr-employees-page-root">
@@ -32,7 +42,7 @@ export default async function EmployeesPage({
           </div>
         }
       >
-        <EmployeesDataGrid rows={rows} includeTerminated={includeTerminated} />
+        <EmployeesDataGrid rows={rows} total={total} branches={branches} />
       </Suspense>
     </div>
   );

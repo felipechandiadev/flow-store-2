@@ -1,14 +1,20 @@
 import { BasicPageLayout } from "@/shared/components/layouts/BasicPageLayout";
+import { getAnalyticsDashboardAction } from "@/features/analytics/actions/analytics.action";
 import { DashboardPanel } from "./ui/DashboardPanel";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const dashboard = await getAnalyticsDashboardAction({
+    compare: "previous_period",
+    trendMonths: 12,
+  });
+
   return (
     <BasicPageLayout
       title="Panel"
-      subtitle="Resumen consolidado del negocio. Las métricas mostradas son simuladas hasta conectar los agregados en vivo."
+      subtitle="Resumen consolidado del negocio según la empresa activa y el período actual."
       data-test-id="dashboard-page"
     >
-      <DashboardPanel />
+      <DashboardPanel data={dashboard} />
     </BasicPageLayout>
   );
 }

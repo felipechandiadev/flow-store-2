@@ -10,23 +10,21 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { AnalyticsTrendPoint } from "@/features/analytics/types/analytics.types";
 
 type Row = { label: string; ventas: number; compras: number };
 
-const DATA: Row[] = [
-  { label: "Ene", ventas: 38.2, compras: 22.1 },
-  { label: "Feb", ventas: 35.4, compras: 20.8 },
-  { label: "Mar", ventas: 41.0, compras: 24.3 },
-  { label: "Abr", ventas: 44.6, compras: 23.7 },
-  { label: "May", ventas: 42.1, compras: 25.2 },
-  { label: "Jun", ventas: 48.3, compras: 27.0 },
-  { label: "Jul", ventas: 46.7, compras: 26.1 },
-  { label: "Ago", ventas: 51.2, compras: 28.4 },
-  { label: "Sep", ventas: 49.8, compras: 27.9 },
-  { label: "Oct", ventas: 54.0, compras: 29.1 },
-  { label: "Nov", ventas: 52.4, compras: 28.6 },
-  { label: "Dic", ventas: 57.1, compras: 30.2 },
-];
+function buildChartRows(
+  sales: AnalyticsTrendPoint[],
+  purchases: AnalyticsTrendPoint[],
+): Row[] {
+  const purchaseByPeriod = new Map(purchases.map((p) => [p.period, p.total]));
+  return sales.map((s) => ({
+    label: s.label,
+    ventas: s.total / 1_000_000,
+    compras: (purchaseByPeriod.get(s.period) ?? 0) / 1_000_000,
+  }));
+}
 
 function fmtMillion(n: number) {
   return `${n.toFixed(1)} M`;
@@ -37,10 +35,14 @@ const secondary = "var(--color-secondary, #04c9e6)";
 const muted = "var(--color-muted, #6b7280)";
 const border = "var(--color-border, #c1c1c2)";
 
-/**
- * Gráfico simulado (ventas vs compras) con gradientes y tipografía alineada al tema admin.
- */
-export function DashboardHeroChart() {
+type Props = {
+  sales: AnalyticsTrendPoint[];
+  purchases: AnalyticsTrendPoint[];
+};
+
+export function DashboardHeroChart({ sales, purchases }: Props) {
+  const data = buildChartRows(sales, purchases);
+
   return (
     <div
       className="overflow-hidden rounded-xl border border-border bg-gradient-to-b from-background to-neutral/30 p-1 shadow-sm dark:from-background dark:to-neutral/20"
@@ -50,14 +52,14 @@ export function DashboardHeroChart() {
         <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-base font-semibold tracking-tight text-foreground">Evolución operativa</h2>
-            <p className="text-sm text-muted-foreground">Ventas netas vs compras</p>
+            <p className="text-sm text-muted-foreground">Ventas vs compras (últimos meses)</p>
           </div>
-          <p className="text-xs text-muted-foreground">Serie anual de demostración</p>
+          <p className="text-xs text-muted-foreground">Montos en millones CLP</p>
         </div>
 
         <div className="fs-chart-surface h-[min(360px,55vh)] min-h-[240px] w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
-            <AreaChart data={DATA} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="fillVentas" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={primary} stopOpacity={0.35} />
@@ -98,13 +100,13 @@ export function DashboardHeroChart() {
                       : value === undefined
                         ? "—"
                         : String(value);
-                  return [v, name === "ventas" ? "Ventas netas" : "Compras"];
+                  return [v, name === "ventas" ? "Ventas" : "Compras"];
                 }}
                 labelFormatter={(label) => `Mes: ${label}`}
               />
               <Legend
                 wrapperStyle={{ fontSize: "12px", paddingTop: "12px" }}
-                formatter={(value) => (value === "ventas" ? "Ventas netas" : "Compras")}
+                formatter={(value) => (value === "ventas" ? "Ventas" : "Compras")}
               />
               <Area
                 type="monotone"

@@ -429,6 +429,7 @@ export default function PosCartProvider({ children }: { children: React.ReactNod
         total: Number(sale.total) || 0,
         createdAt: sale.createdAt,
         lineMaxReturnableQtyByVariantId,
+        sourceHasCustomer: Boolean(sale.customerId?.trim()),
       });
       setLoadedQuotation(null);
       setLoadedBackorder(null);

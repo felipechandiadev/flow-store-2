@@ -1,46 +1,69 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { GetDashboardStatsQueryHandler } from '@modules/analytics/application/handlers/queries/get-dashboard-stats.handler';
-import { GetDashboardStatsQuery } from '@modules/analytics/application/queries/get-dashboard-stats.query';
-import { AnalyticsRepositoryPort } from '@modules/analytics/application/ports/analytics.repository.port';
+import { Test } from '@nestjs/testing';
+import { AnalyticsService } from '@modules/analytics/application/analytics.service';
 
-describe('GetDashboardStatsQueryHandler', () => {
-  let handler: GetDashboardStatsQueryHandler;
-  let repository: jest.Mocked<AnalyticsRepositoryPort>;
+describe('AnalyticsService', () => {
+  let service: AnalyticsService;
+  const analyticsRepository = {
+    getDashboard: jest.fn(),
+    getSalesTrends: jest.fn(),
+    getPurchasesTrends: jest.fn(),
+    getOperationsQueues: jest.fn(),
+  };
 
   beforeEach(async () => {
-    repository = {
-      getDashboardStats: jest.fn(),
-    };
-
-    const module: TestingModule = await Test.createTestingModule({
+    const module = await Test.createTestingModule({
       providers: [
-        GetDashboardStatsQueryHandler,
+        AnalyticsService,
         {
           provide: 'AnalyticsRepositoryPort',
-          useValue: repository,
+          useValue: analyticsRepository,
         },
       ],
     }).compile();
 
-    handler = module.get(GetDashboardStatsQueryHandler);
+    service = module.get(AnalyticsService);
+    jest.clearAllMocks();
   });
 
-  it('should return dashboard stats from repository', async () => {
-    repository.getDashboardStats.mockResolvedValueOnce({
-      salesToday: 150,
-      totalCustomers: 30,
-      lowStockItems: 2,
-      openOrders: 6,
+  it('should attach compare block when requested', async () => {
+    const baseDashboard = {
+      period: { from: '2026-05-01', to: '2026-05-27' },
+      sales: { today: 100, mtd: 5000, mtdCount: 10, mtdAverageTicket: 500 },
+      purchases: { mtd: 2000, openPurchaseOrders: 3 },
+      inventory: { thresholdAlertCount: 4, outOfStockCount: 1 },
+      commercial: {
+        activeCustomers: 20,
+        newCustomersMtd: 5,
+        openQuotations: 2,
+        activeBackorders: 1,
+      },
+      treasury: {
+        openCashSessions: 2,
+        receivablesOutstanding: 1000,
+        overdueInstallments: 1,
+      },
+      hr: { activeEmployees: 8, payrollNetMtd: 900 },
+      expenses: { countMtd: 3, totalMtd: 400, netMtd: 300, pendingApproval: 1 },
+      trends: { sales: [], purchases: [] },
+      operations: [],
+      salesToday: 100,
+      totalCustomers: 20,
+      lowStockItems: 4,
+      openOrders: 3,
+    };
+
+    analyticsRepository.getDashboard
+      .mockResolvedValueOnce(baseDashboard)
+      .mockResolvedValueOnce({
+        ...baseDashboard,
+        sales: { ...baseDashboard.sales, mtd: 4000 },
+      });
+
+    const result = await service.getDashboard('company-1', {
+      compare: 'previous_period',
     });
 
-    const result = await handler.execute(new GetDashboardStatsQuery());
-
-    expect(repository.getDashboardStats).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({
-      salesToday: 150,
-      totalCustomers: 30,
-      lowStockItems: 2,
-      openOrders: 6,
-    });
+    expect(analyticsRepository.getDashboard).toHaveBeenCalledTimes(2);
+    expect(result.compare?.changePct.salesMtd).toBe(25);
   });
 });

@@ -18,6 +18,12 @@ export type OperationalExpenseGridRow = {
   branchId?: string | null;
   supplierId?: string | null;
   employeeId?: string | null;
+  /** Monto neto del documento tributario vinculado (si existe). */
+  netAmount?: number;
+  /** Impuestos del documento tributario vinculado (si existe). */
+  taxAmount?: number;
+  /** Total del documento tributario vinculado (si existe). */
+  totalAmount?: number;
   createdAt?: string;
 };
 

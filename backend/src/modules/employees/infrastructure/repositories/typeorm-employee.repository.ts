@@ -6,21 +6,20 @@ import {
   CreateEmployeePayload,
   UpdateEmployeePayload,
 } from '../../application/ports/employee.repository.port';
-import { Employee } from '../../domain/employee.entity';
 import {
-  EmployeeOrmEntity,
+  Employee,
   EmploymentType,
   EmployeeStatus,
-} from '../orm-mappers/employee.orm-entity';
-import { CompanyOrmEntity } from '@modules/companies/infrastructure/orm-mappers/company.orm-entity';
+} from '../../domain/employee.entity';
+import { Company } from '@modules/companies/domain/company.entity';
 
 @Injectable()
 export class TypeOrmEmployeeRepository implements EmployeeRepositoryPort {
   constructor(
-    @InjectRepository(EmployeeOrmEntity)
-    private readonly employeeRepository: Repository<EmployeeOrmEntity>,
-    @InjectRepository(CompanyOrmEntity)
-    private readonly companyRepository: Repository<CompanyOrmEntity>,
+    @InjectRepository(Employee)
+    private readonly employeeRepository: Repository<Employee>,
+    @InjectRepository(Company)
+    private readonly companyRepository: Repository<Company>,
   ) {}
 
   async createEmployee(payload: CreateEmployeePayload): Promise<Employee> {
@@ -70,7 +69,7 @@ export class TypeOrmEmployeeRepository implements EmployeeRepositoryPort {
   }
 
   async updateEmployee(payload: UpdateEmployeePayload): Promise<Employee> {
-    const updateData: QueryDeepPartialEntity<EmployeeOrmEntity> = {};
+    const updateData: QueryDeepPartialEntity<Employee> = {};
 
     if (payload.branchId !== undefined) updateData.branchId = payload.branchId;
     if (payload.resultCenterId !== undefined)
@@ -170,8 +169,8 @@ export class TypeOrmEmployeeRepository implements EmployeeRepositoryPort {
     return employees.map((emp) => this.toDomain(emp));
   }
 
-  private toDomain(orm: EmployeeOrmEntity): Employee {
-    return {
+  private toDomain(orm: Employee): Employee {
+    const employee = new Employee({
       id: orm.id,
       companyId: orm.companyId,
       personId: orm.personId,
@@ -187,6 +186,14 @@ export class TypeOrmEmployeeRepository implements EmployeeRepositoryPort {
       createdAt: orm.createdAt,
       updatedAt: orm.updatedAt,
       deletedAt: orm.deletedAt,
-    };
+    });
+
+    if (orm.company) employee.company = orm.company;
+    if (orm.person) employee.person = orm.person;
+    if (orm.branch) employee.branch = orm.branch;
+    if (orm.resultCenter) employee.resultCenter = orm.resultCenter;
+    if (orm.organizationalUnit) employee.organizationalUnit = orm.organizationalUnit;
+
+    return employee;
   }
 }

@@ -1,34 +1,31 @@
-import { QueryBus } from '@nestjs/cqrs';
 import { AnalyticsServiceAdapter } from '@modules/analytics/application/analytics.service.adapter';
-import { GetDashboardStatsQuery } from '@modules/analytics/application/queries/get-dashboard-stats.query';
+import { AnalyticsService } from '@modules/analytics/application/analytics.service';
 
 describe('AnalyticsServiceAdapter', () => {
-  let service: AnalyticsServiceAdapter;
-  let queryBus: { execute: jest.Mock };
-
-  beforeEach(() => {
-    queryBus = { execute: jest.fn() };
-
-    service = new AnalyticsServiceAdapter(queryBus as unknown as QueryBus);
-  });
-
-  it('should dispatch GetDashboardStatsQuery', async () => {
-    queryBus.execute.mockResolvedValueOnce({
-      salesToday: 100,
-      totalCustomers: 20,
+  it('should delegate getDashboard to AnalyticsService', async () => {
+    const dashboard = {
+      period: { from: 'a', to: 'b' },
+      salesToday: 1,
+      totalCustomers: 2,
       lowStockItems: 3,
       openOrders: 4,
-    });
+    };
+    const analyticsService = {
+      getDashboard: jest.fn().mockResolvedValue(dashboard),
+      getDashboardStats: jest.fn(),
+      getSalesTrends: jest.fn(),
+      getPurchasesTrends: jest.fn(),
+      getOperationsQueues: jest.fn(),
+    };
+    const adapter = new AnalyticsServiceAdapter(
+      analyticsService as unknown as AnalyticsService,
+    );
 
-    const result = await service.getDashboardStats();
+    const result = await adapter.getDashboard('company-1', { compare: 'previous_period' });
 
-    expect(queryBus.execute).toHaveBeenCalledTimes(1);
-    expect(queryBus.execute.mock.calls[0][0]).toBeInstanceOf(GetDashboardStatsQuery);
-    expect(result).toEqual({
-      salesToday: 100,
-      totalCustomers: 20,
-      lowStockItems: 3,
-      openOrders: 4,
+    expect(analyticsService.getDashboard).toHaveBeenCalledWith('company-1', {
+      compare: 'previous_period',
     });
+    expect(result).toBe(dashboard);
   });
 });

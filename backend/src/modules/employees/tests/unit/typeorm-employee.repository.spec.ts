@@ -2,7 +2,7 @@ import { TypeOrmEmployeeRepository } from '@modules/employees/infrastructure/rep
 import {
   EmployeeStatus,
   EmploymentType,
-} from '@modules/employees/infrastructure/orm-mappers/employee.orm-entity';
+} from '@modules/employees/domain/employee.entity';
 
 describe('TypeOrmEmployeeRepository', () => {
   let repository: TypeOrmEmployeeRepository;

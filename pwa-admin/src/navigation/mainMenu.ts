@@ -81,10 +81,15 @@ export const mainMenuItems: SideBarMenuItem[] = [
     id: 'nav-treasury',
     label: 'Tesorería',
     children: [
-      { id: 'treasury-expenses', label: 'Gastos operativos', url: '/treasury/expenses', hidden: true },
-      { id: 'treasury-expense-categories', label: 'Categorías de gasto', url: '/treasury/expense-categories', hidden: true },
+      { id: 'treasury-expenses', label: 'Gastos operativos', url: '/treasury/expenses' },
+      { id: 'treasury-expense-categories', label: 'Categorías de gasto', url: '/treasury/expense-categories' },
       { id: 'treasury-accounts', label: 'Cuentas bancarias y cajas', url: '/treasury/accounts' },
-      { id: 'treasury-checks', label: 'Cheques', url: '/treasury/checks' },
+      {
+        id: 'treasury-checks',
+        label: 'Cheques',
+        url: '/treasury/checks',
+        requiresChecksEnabled: true,
+      },
       // { id: 'treasury-reconciliations', label: 'Conciliaciones', url: '/treasury/reconciliations' },
       // { id: 'treasury-cash-flow', label: 'Flujo de caja (Cash flow)', url: '/treasury/cash-flow' },
     ],
@@ -110,7 +115,6 @@ export const mainMenuItems: SideBarMenuItem[] = [
   {
     id: 'nav-hr',
     label: 'RRHH',
-    hidden: true,
     children: [
       { id: 'hr-employees', label: 'Empleados', url: '/hr/employees' },
       { id: 'hr-remunerations', label: 'Remuneraciones', url: '/hr/remunerations' },

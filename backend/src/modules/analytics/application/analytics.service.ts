@@ -1,67 +1,127 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, LessThan } from 'typeorm';
-import { DashboardStats } from '../domain/dashboard-stats';
-import { Customer } from '@modules/customers/domain/customer.entity';
+import { Inject, Injectable } from '@nestjs/common';
+import { AnalyticsRepositoryPort } from './ports/analytics.repository.port';
 import {
-  Transaction,
-  TransactionType,
-  TransactionStatus,
-} from '@modules/transactions/domain/transaction.entity';
-import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
+  changePct,
+  resolveAnalyticsPeriod,
+  resolvePreviousPeriod,
+  resolveTrendRange,
+} from './analytics-period.util';
+import type {
+  AnalyticsDashboardResponse,
+  AnalyticsOperationQueueItem,
+  AnalyticsQueryParams,
+  AnalyticsTrendPoint,
+} from '../domain/analytics.types';
+import type { DashboardStats } from '../domain/dashboard-stats';
 
 @Injectable()
 export class AnalyticsService {
   constructor(
-    @InjectRepository(Customer)
-    private readonly customerRepository: Repository<Customer>,
-    @InjectRepository(Transaction)
-    private readonly transactionRepository: Repository<Transaction>,
-    @InjectRepository(StockLevel)
-    private readonly stockLevelRepository: Repository<StockLevel>,
+    @Inject('AnalyticsRepositoryPort')
+    private readonly analyticsRepository: AnalyticsRepositoryPort,
   ) {}
 
-  async getDashboardStats(): Promise<DashboardStats> {
-    return this.computeStats();
+  async getDashboard(
+    companyId: string,
+    params: AnalyticsQueryParams = {},
+  ): Promise<AnalyticsDashboardResponse> {
+    const period = resolveAnalyticsPeriod(params);
+    const dashboard = await this.analyticsRepository.getDashboard(
+      companyId,
+      period,
+      params,
+    );
+
+    if (params.compare !== 'previous_period') {
+      return dashboard;
+    }
+
+    const previous = resolvePreviousPeriod(period);
+    const previousDashboard = await this.analyticsRepository.getDashboard(
+      companyId,
+      previous,
+      params,
+    );
+
+    return {
+      ...dashboard,
+      compare: {
+        from: previous.from.toISOString(),
+        to: previous.to.toISOString(),
+        changePct: {
+          salesMtd: changePct(dashboard.sales.mtd, previousDashboard.sales.mtd),
+          salesToday: changePct(dashboard.sales.today, previousDashboard.sales.today),
+          purchasesMtd: changePct(
+            dashboard.purchases.mtd,
+            previousDashboard.purchases.mtd,
+          ),
+          payrollNetMtd: changePct(
+            dashboard.hr.payrollNetMtd,
+            previousDashboard.hr.payrollNetMtd,
+          ),
+          expensesTotalMtd: changePct(
+            dashboard.expenses.totalMtd,
+            previousDashboard.expenses.totalMtd,
+          ),
+          newCustomersMtd: changePct(
+            dashboard.commercial.newCustomersMtd,
+            previousDashboard.commercial.newCustomersMtd,
+          ),
+        },
+      },
+    };
   }
 
-  /**
-   * Core implementation, shared by both dashboard and report endpoints.
-   */
-  private async computeStats(): Promise<DashboardStats> {
-    // count active customers
-    const totalCustomers = await this.customerRepository.count({
-      where: { isActive: true },
-    });
+  /** Subconjunto legacy para clientes que solo consumen 4 KPIs. */
+  async getDashboardStats(companyId: string): Promise<DashboardStats> {
+    const full = await this.getDashboard(companyId);
+    return {
+      salesToday: full.salesToday,
+      totalCustomers: full.totalCustomers,
+      lowStockItems: full.lowStockItems,
+      openOrders: full.openOrders,
+    };
+  }
 
-    // sum sales for today
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+  async getSalesTrends(
+    companyId: string,
+    params: AnalyticsQueryParams = {},
+  ): Promise<AnalyticsTrendPoint[]> {
+    const period = resolveTrendRange(
+      resolveAnalyticsPeriod(params).to,
+      params.trendMonths ?? 12,
+    );
+    return this.analyticsRepository.getSalesTrends(
+      companyId,
+      period,
+      params.branchId,
+    );
+  }
 
-    const raw = await this.transactionRepository
-      .createQueryBuilder('t')
-      .select('COALESCE(SUM(t.total),0)', 'sum')
-      .where('t.transactionType = :sale', { sale: TransactionType.SALE })
-      .andWhere('t.createdAt >= :today', { today: todayStart })
-      .getRawOne();
+  async getPurchasesTrends(
+    companyId: string,
+    params: AnalyticsQueryParams = {},
+  ): Promise<AnalyticsTrendPoint[]> {
+    const period = resolveTrendRange(
+      resolveAnalyticsPeriod(params).to,
+      params.trendMonths ?? 12,
+    );
+    return this.analyticsRepository.getPurchasesTrends(
+      companyId,
+      period,
+      params.branchId,
+    );
+  }
 
-    const salesToday = Number(raw?.sum || 0);
-
-    // items with low available stock (< threshold)
-    const threshold = 10;
-    // Use FindOptions with LessThan helper to avoid raw SQL string in `where`
-    const lowStockItems = await this.stockLevelRepository.count({
-      where: { availableStock: LessThan(threshold) },
-    });
-
-    // open purchase orders (not cancelled)
-    const openOrders = await this.transactionRepository.count({
-      where: {
-        transactionType: TransactionType.PURCHASE_ORDER,
-        status: Not(TransactionStatus.CANCELLED),
-      },
-    });
-
-    return { salesToday, totalCustomers, lowStockItems, openOrders };
+  async getOperationsQueues(
+    companyId: string,
+    params: AnalyticsQueryParams = {},
+  ): Promise<AnalyticsOperationQueueItem[]> {
+    const period = resolveAnalyticsPeriod(params);
+    return this.analyticsRepository.getOperationsQueues(
+      companyId,
+      period,
+      params.branchId,
+    );
   }
 }

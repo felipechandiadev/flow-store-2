@@ -1,13 +1,46 @@
 import { Injectable } from '@nestjs/common';
-import { QueryBus } from '@nestjs/cqrs';
-import { GetDashboardStatsQuery } from './queries/get-dashboard-stats.query';
-import { DashboardStats } from '../domain/dashboard-stats';
+import { AnalyticsService } from './analytics.service';
+import type {
+  AnalyticsDashboardResponse,
+  AnalyticsOperationQueueItem,
+  AnalyticsQueryParams,
+  AnalyticsTrendPoint,
+} from '../domain/analytics.types';
+import type { DashboardStats } from '../domain/dashboard-stats';
 
 @Injectable()
 export class AnalyticsServiceAdapter {
-  constructor(private readonly queryBus: QueryBus) {}
+  constructor(private readonly analyticsService: AnalyticsService) {}
 
-  async getDashboardStats(): Promise<DashboardStats> {
-    return this.queryBus.execute(new GetDashboardStatsQuery());
+  getDashboard(
+    companyId: string,
+    params?: AnalyticsQueryParams,
+  ): Promise<AnalyticsDashboardResponse> {
+    return this.analyticsService.getDashboard(companyId, params ?? {});
+  }
+
+  getDashboardStats(companyId: string): Promise<DashboardStats> {
+    return this.analyticsService.getDashboardStats(companyId);
+  }
+
+  getSalesTrends(
+    companyId: string,
+    params?: AnalyticsQueryParams,
+  ): Promise<AnalyticsTrendPoint[]> {
+    return this.analyticsService.getSalesTrends(companyId, params ?? {});
+  }
+
+  getPurchasesTrends(
+    companyId: string,
+    params?: AnalyticsQueryParams,
+  ): Promise<AnalyticsTrendPoint[]> {
+    return this.analyticsService.getPurchasesTrends(companyId, params ?? {});
+  }
+
+  getOperationsQueues(
+    companyId: string,
+    params?: AnalyticsQueryParams,
+  ): Promise<AnalyticsOperationQueueItem[]> {
+    return this.analyticsService.getOperationsQueues(companyId, params ?? {});
   }
 }

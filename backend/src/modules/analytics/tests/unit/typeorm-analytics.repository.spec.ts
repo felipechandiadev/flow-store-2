@@ -1,85 +1,135 @@
-import { LessThan, Not } from 'typeorm';
 import { TypeOrmAnalyticsRepository } from '@modules/analytics/infrastructure/repositories/typeorm-analytics.repository';
 import {
   TransactionStatus,
   TransactionType,
 } from '@modules/transactions/domain/transaction.entity';
+import { CashSessionStatus } from '@modules/cash-sessions/domain/cash-session.entity';
+import { EmployeeStatus } from '@modules/employees/domain/employee.entity';
+import { OperationalExpenseStatus } from '@modules/operational-expenses/domain/operational-expense.entity';
+import { InstallmentStatus } from '@modules/installments/domain/installment.entity';
 
 describe('TypeOrmAnalyticsRepository', () => {
   let repository: TypeOrmAnalyticsRepository;
-  let customerRepository: { count: jest.Mock };
+  let customerRepository: { count: jest.Mock; createQueryBuilder: jest.Mock };
   let transactionRepository: { count: jest.Mock; createQueryBuilder: jest.Mock };
-  let stockLevelRepository: { count: jest.Mock };
-  let queryBuilder: {
-    select: jest.Mock;
-    where: jest.Mock;
-    andWhere: jest.Mock;
-    getRawOne: jest.Mock;
+  let stockLevelRepository: { count: jest.Mock; createQueryBuilder: jest.Mock };
+  let cashSessionRepository: { count: jest.Mock; createQueryBuilder: jest.Mock };
+  let employeeRepository: { count: jest.Mock };
+  let operationalExpenseRepository: { count: jest.Mock; createQueryBuilder: jest.Mock };
+  let installmentRepository: { count: jest.Mock; createQueryBuilder: jest.Mock };
+  let dataSource: { query: jest.Mock };
+  let txQb: Record<string, jest.Mock>;
+  let customerQb: Record<string, jest.Mock>;
+  let stockQb: Record<string, jest.Mock>;
+  let expenseQb: Record<string, jest.Mock>;
+  let installmentQb: Record<string, jest.Mock>;
+
+  const companyId = 'company-1';
+  const period = {
+    from: new Date('2026-05-01T00:00:00.000Z'),
+    to: new Date('2026-05-27T23:59:59.999Z'),
   };
 
   beforeEach(() => {
-    queryBuilder = {
+    txQb = {
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      innerJoin: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue({ sum: '1000', total: '5000', count: '10' }),
+      getRawMany: jest.fn().mockResolvedValue([]),
+      getCount: jest.fn().mockResolvedValue(3),
+    };
+    customerQb = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getCount: jest.fn().mockResolvedValue(2),
+    };
+    stockQb = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getCount: jest.fn().mockResolvedValue(1),
+    };
+    expenseQb = {
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue({ count: '4', total: '800', net: '600' }),
+    };
+    installmentQb = {
       select: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
-      getRawOne: jest.fn(),
+      getRawOne: jest.fn().mockResolvedValue({ sum: '1200' }),
     };
 
-    customerRepository = { count: jest.fn() };
-    transactionRepository = {
-      count: jest.fn(),
-      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+    customerRepository = {
+      count: jest.fn().mockResolvedValue(15),
+      createQueryBuilder: jest.fn().mockReturnValue(customerQb),
     };
-    stockLevelRepository = { count: jest.fn() };
+    transactionRepository = {
+      count: jest.fn().mockResolvedValue(7),
+      createQueryBuilder: jest.fn().mockReturnValue(txQb),
+    };
+    stockLevelRepository = {
+      count: jest.fn(),
+      createQueryBuilder: jest.fn().mockReturnValue(stockQb),
+    };
+    cashSessionRepository = {
+      count: jest.fn().mockResolvedValue(2),
+      createQueryBuilder: jest.fn().mockReturnValue(txQb),
+    };
+    employeeRepository = { count: jest.fn().mockResolvedValue(8) };
+    operationalExpenseRepository = {
+      count: jest.fn().mockResolvedValue(1),
+      createQueryBuilder: jest.fn().mockReturnValue(expenseQb),
+    };
+    installmentRepository = {
+      count: jest.fn().mockResolvedValue(5),
+      createQueryBuilder: jest.fn().mockReturnValue(installmentQb),
+    };
+    dataSource = { query: jest.fn().mockResolvedValue([{ cnt: 4 }]) };
 
     repository = new TypeOrmAnalyticsRepository(
-      customerRepository as any,
-      transactionRepository as any,
-      stockLevelRepository as any,
+      customerRepository as never,
+      transactionRepository as never,
+      stockLevelRepository as never,
+      cashSessionRepository as never,
+      employeeRepository as never,
+      operationalExpenseRepository as never,
+      installmentRepository as never,
+      dataSource as never,
     );
   });
 
-  it('should aggregate dashboard stats', async () => {
-    customerRepository.count.mockResolvedValueOnce(15);
-    queryBuilder.getRawOne.mockResolvedValueOnce({ sum: '2450' });
-    stockLevelRepository.count.mockResolvedValueOnce(4);
-    transactionRepository.count.mockResolvedValueOnce(7);
+  it('should build dashboard with company filter and legacy fields', async () => {
+    const result = await repository.getDashboard(companyId, period, {});
 
-    const result = await repository.getDashboardStats();
-
-    expect(customerRepository.count).toHaveBeenCalledWith({ where: { isActive: true } });
-    expect(transactionRepository.createQueryBuilder).toHaveBeenCalledWith('t');
-    expect(queryBuilder.where).toHaveBeenCalledWith('t.transactionType = :sale', {
-      sale: TransactionType.SALE,
+    expect(dataSource.query).toHaveBeenCalledWith(
+      expect.stringContaining('stock_levels'),
+      [companyId],
+    );
+    expect(customerRepository.count).toHaveBeenCalledWith({
+      where: { companyId, isActive: true },
     });
-    expect(queryBuilder.andWhere).toHaveBeenCalledWith('t.createdAt >= :today', {
-      today: expect.any(Date),
-    });
-    expect(stockLevelRepository.count).toHaveBeenCalledWith({
-      where: { availableStock: LessThan(10) },
-    });
-    expect(transactionRepository.count).toHaveBeenCalledWith({
-      where: {
-        transactionType: TransactionType.PURCHASE_ORDER,
-        status: Not(TransactionStatus.CANCELLED),
-      },
-    });
-    expect(result).toEqual({
-      salesToday: 2450,
-      totalCustomers: 15,
-      lowStockItems: 4,
-      openOrders: 7,
-    });
+    expect(transactionRepository.createQueryBuilder).toHaveBeenCalled();
+    expect(result.salesToday).toBe(1000);
+    expect(result.totalCustomers).toBe(15);
+    expect(result.lowStockItems).toBe(4);
+    expect(result.openOrders).toBe(7);
+    expect(result.sales.mtd).toBe(5000);
+    expect(result.sales.mtdCount).toBe(10);
+    expect(result.commercial.activeCustomers).toBe(15);
   });
 
-  it('should default salesToday to zero when aggregate returns null', async () => {
-    customerRepository.count.mockResolvedValueOnce(0);
-    queryBuilder.getRawOne.mockResolvedValueOnce(null);
-    stockLevelRepository.count.mockResolvedValueOnce(0);
-    transactionRepository.count.mockResolvedValueOnce(0);
+  it('should return operation queue items', async () => {
+    const ops = await repository.getOperationsQueues(companyId, period);
 
-    const result = await repository.getDashboardStats();
-
-    expect(result.salesToday).toBe(0);
+    expect(ops.length).toBeGreaterThan(0);
+    expect(ops.some((o) => o.key === 'open_purchase_orders')).toBe(true);
   });
 });
