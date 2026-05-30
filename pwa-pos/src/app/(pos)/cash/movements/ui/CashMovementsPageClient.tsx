@@ -271,7 +271,7 @@ export default function CashMovementsPageClient() {
                 <>
                   <IconButton
                     icon="Receipt"
-                    variant="basicSecondary"
+                    variant="action"
                     size="sm"
                     ariaLabel="Reimprimir ticket"
                     title="Reimprimir ticket (80 mm)"
@@ -282,7 +282,7 @@ export default function CashMovementsPageClient() {
                   />
                   <IconButton
                     icon="FileText"
-                    variant="basicSecondary"
+                    variant="action"
                     size="sm"
                     ariaLabel="Imprimir documento"
                     title="Imprimir documento (hoja)"
@@ -296,7 +296,7 @@ export default function CashMovementsPageClient() {
               {isSale ? (
                 <IconButton
                   icon="MoreHorizontal"
-                  variant="basicSecondary"
+                  variant="action"
                   size="sm"
                   ariaLabel="Ver detalle de la venta"
                   title="Detalle de la venta"

@@ -99,7 +99,7 @@ const DATAGRID_COLUMN_PROPS: PropRow[] = [
   { prop: 'headerAlign', type: "'left' | 'right' | 'center' (opcional)", default: "—", desc: "Alineación del texto de la cabecera (donde aplica)." },
   { prop: 'hide', type: "boolean (opcional)", default: "—", desc: "Si `true`, la columna no se renderiza (pero puede seguir en el array para lógica externa)." },
   { prop: 'sticky', type: "boolean (opcional)", default: "—", desc: "Compat: “pegado” a la derecha; preferir `pinActionsColumn` + `actionComponent` en la columna de acciones." },
-  { prop: 'actionComponent', type: "ComponentType<{row, column}> (opcional)", default: "—", desc: "Componente para celdas de acciones. Norma: header vacío, IconButton `basicSecondary` `sm` (ver `RowActions` y `.instructions/webadmin.instruction`)." },
+  { prop: 'actionComponent', type: "ComponentType<{row, column}> (opcional)", default: "—", desc: "Componente para celdas de acciones. Norma: header vacío, IconButton `action` `sm` (ver `RowActions` y `.instructions/webadmin.instruction`)." },
 ];
 
 const COLUMNS: DataGridColumn[] = [
@@ -337,7 +337,7 @@ export default function DataGridPage() {
               <code className="rounded bg-gray-100 px-1">field: &apos;actions&apos;</code>,{' '}
               <code className="rounded bg-gray-100 px-1">headerName: &apos;&apos;</code> y{' '}
               <code className="rounded bg-gray-100 px-1">actionComponent: RowActions</code> (IconButtons{' '}
-              <code className="rounded bg-gray-100 px-1">basicSecondary</code>). Varias columnas a la izquierda
+              <code className="rounded bg-gray-100 px-1">action</code>). Varias columnas a la izquierda
               para scroll; la columna de acciones queda fija a la derecha.
             </p>
             <DataGridPinnedActionsDemo />

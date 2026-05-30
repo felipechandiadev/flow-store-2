@@ -13,7 +13,7 @@ export function BrandsCollectionAddAction() {
     <>
       <IconButton
         icon="Plus"
-        variant="basicSecondary"
+        variant="action"
         size="md"
         ariaLabel="Crear marca"
         onClick={() => setOpen(true)}

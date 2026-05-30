@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { Product, ProductType } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { attachProductVariantMultimedia } from '../../helpers/attach-product-variant-multimedia';
+import { attachProductMultimedia } from '../../helpers/attach-product-multimedia';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 import { applyProductCatalogTextSearch } from '../../product-catalog-search.util';
 import { TenantContext } from '@common/tenant/tenant.context';
@@ -20,6 +21,7 @@ export interface SearchProductsResult {
   categoryId?: string | null;
   categoryName?: string | null;
   isActive?: boolean;
+  visibleInEShop?: boolean;
   variants: Array<{
     id: string;
     productId?: string;
@@ -42,6 +44,14 @@ export interface SearchProductsResult {
     }>;
   }>;
   variantCount: number;
+  primaryImageUrl?: string | null;
+  mediaAssets?: Array<{
+    id: string;
+    publicUrl: string;
+    mimeType: string;
+    kind: string;
+    isPrimary?: boolean;
+  }>;
 }
 
 @QueryHandler(SearchProductsQuery)
@@ -145,9 +155,16 @@ export class SearchProductsQueryHandler implements IQueryHandler<
       categoryId: p.categoryId ?? null,
       categoryName: p.category?.name ?? null,
       isActive: p.isActive,
+      visibleInEShop: p.visibleInEShop === true,
       variants: variantsByProduct[p.id] ?? [],
       variantCount: (variantsByProduct[p.id] ?? []).length,
     }));
+
+    await attachProductMultimedia(
+      this.multimediaService,
+      enriched,
+      productIds,
+    );
 
     return enriched;
   }

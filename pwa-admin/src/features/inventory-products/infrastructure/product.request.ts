@@ -72,6 +72,32 @@ function formatUnitRelation(u: unknown): string | null {
   return sym || nm || null;
 }
 
+function normalizeMediaAssets(raw: unknown): ProductVariantMediaAsset[] | undefined {
+  if (!Array.isArray(raw)) {
+    return undefined;
+  }
+  const mediaAssets = raw
+    .map((m): ProductVariantMediaAsset | null => {
+      if (!m || typeof m !== "object") {
+        return null;
+      }
+      const x = m as Record<string, unknown>;
+      const mid = x.id != null ? String(x.id) : "";
+      const url = x.publicUrl != null ? String(x.publicUrl) : "";
+      if (!mid || !url) {
+        return null;
+      }
+      return {
+        id: mid,
+        publicUrl: resolveMultimediaPublicUrl(url),
+        mimeType: x.mimeType != null ? String(x.mimeType) : "",
+        kind: x.kind != null ? String(x.kind) : "",
+      };
+    })
+    .filter((x): x is ProductVariantMediaAsset => x != null);
+  return mediaAssets.length > 0 ? mediaAssets : undefined;
+}
+
 function normalizeVariant(v: unknown): ProductVariantGridRow | null {
   if (!v || typeof v !== "object") {
     return null;
@@ -126,28 +152,7 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
         })
         .filter((x): x is ProductPriceListItemRow => x != null)
     : [];
-  const mediaRaw = o.mediaAssets;
-  const mediaAssets: ProductVariantMediaAsset[] | undefined = Array.isArray(mediaRaw)
-    ? mediaRaw
-        .map((m): ProductVariantMediaAsset | null => {
-          if (!m || typeof m !== "object") {
-            return null;
-          }
-          const x = m as Record<string, unknown>;
-          const mid = x.id != null ? String(x.id) : "";
-          const url = x.publicUrl != null ? String(x.publicUrl) : "";
-          if (!mid || !url) {
-            return null;
-          }
-          return {
-            id: mid,
-            publicUrl: resolveMultimediaPublicUrl(url),
-            mimeType: x.mimeType != null ? String(x.mimeType) : "",
-            kind: x.kind != null ? String(x.kind) : "",
-          };
-        })
-        .filter((x): x is ProductVariantMediaAsset => x != null)
-    : undefined;
+  const mediaAssets = normalizeMediaAssets(o.mediaAssets);
   const parseOptQty = (raw: unknown): number | null | undefined => {
     if (raw === undefined) {
       return undefined;
@@ -199,6 +204,7 @@ function normalizeVariant(v: unknown): ProductVariantGridRow | null {
     purchaseUnitLabel,
     unitOfMeasure,
     isActive: o.isActive !== false,
+    visibleInEShop: o.visibleInEShop === true,
     basePrice: typeof o.basePrice === "number" ? o.basePrice : o.basePrice != null ? Number(o.basePrice) : undefined,
     baseCost: typeof o.baseCost === "number" ? o.baseCost : o.baseCost != null ? Number(o.baseCost) : undefined,
     pmp:
@@ -287,6 +293,8 @@ function normalizeProduct(row: unknown): ProductGridRow | null {
   const brandId =
     brandIdRaw != null && String(brandIdRaw).trim() ? String(brandIdRaw).trim() : null;
 
+  const productMediaAssets = normalizeMediaAssets(o.mediaAssets);
+
   return {
     id,
     name,
@@ -297,8 +305,14 @@ function normalizeProduct(row: unknown): ProductGridRow | null {
     categoryId,
     categoryName,
     isActive: o.isActive !== false,
+    visibleInEShop: o.visibleInEShop === true,
     variantCount,
     variants,
+    primaryImageUrl:
+      o.primaryImageUrl != null && String(o.primaryImageUrl).trim()
+        ? resolveMultimediaPublicUrl(String(o.primaryImageUrl).trim())
+        : productMediaAssets?.[0]?.publicUrl ?? null,
+    mediaAssets: productMediaAssets,
   };
 }
 
@@ -364,11 +378,13 @@ export class ProductRequest {
     productType?: string;
     metadata?: Record<string, unknown>;
     isActive?: boolean;
+    visibleInEShop?: boolean;
   }): Promise<{ success: true; id: string } | { success: false; error: string }> {
     const headers = await authHeaders();
     const payload: Record<string, unknown> = {
       name: body.name.trim(),
       isActive: body.isActive !== false,
+      visibleInEShop: body.visibleInEShop === true,
     };
     if (body.categoryId?.trim()) {
       payload.categoryId = body.categoryId.trim();
@@ -427,12 +443,14 @@ export class ProductRequest {
       productType?: string;
       metadata?: Record<string, unknown>;
       isActive?: boolean;
+      visibleInEShop?: boolean;
     },
   ): Promise<{ success: true } | { success: false; error: string }> {
     const headers = await authHeaders();
     const payload: Record<string, unknown> = {
       name: body.name.trim(),
       isActive: body.isActive !== false,
+      visibleInEShop: body.visibleInEShop === true,
     };
     if (body.categoryId?.trim()) {
       payload.categoryId = body.categoryId.trim();
@@ -451,6 +469,48 @@ export class ProductRequest {
     }
     if (body.metadata && typeof body.metadata === "object") {
       payload.metadata = body.metadata;
+    }
+    try {
+      const res = await fetch(apiUrl(`products/${encodeURIComponent(id)}`), {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        const m = data.message;
+        const msg = Array.isArray(m)
+          ? m.map(String).join("; ")
+          : typeof m === "string" && m.trim()
+            ? m.trim()
+            : res.statusText;
+        return { success: false, error: msg };
+      }
+      return { success: true };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al actualizar producto";
+      return { success: false, error: err };
+    }
+  }
+
+  static async patchFields(
+    id: string,
+    body: {
+      isActive?: boolean;
+      visibleInEShop?: boolean;
+    },
+  ): Promise<{ success: true } | { success: false; error: string }> {
+    const headers = await authHeaders();
+    const payload: Record<string, unknown> = {};
+    if (body.isActive !== undefined) {
+      payload.isActive = body.isActive;
+    }
+    if (body.visibleInEShop !== undefined) {
+      payload.visibleInEShop = body.visibleInEShop;
+    }
+    if (Object.keys(payload).length === 0) {
+      return { success: false, error: "Sin campos para actualizar" };
     }
     try {
       const res = await fetch(apiUrl(`products/${encodeURIComponent(id)}`), {
@@ -512,6 +572,7 @@ export class ProductRequest {
     stockBaseQtyPerCountSaleUnit?: number;
     stockBaseQtyPerCountPurchaseUnit?: number;
     isActive?: boolean;
+    visibleInEShop?: boolean;
     priceListItems: Array<{
       priceListId: string;
       netPrice: number;
@@ -537,6 +598,7 @@ export class ProductRequest {
       stockBaseUnitId: body.stockBaseUnitId,
       purchaseUnitId: body.purchaseUnitId,
       isActive: body.isActive !== false,
+      visibleInEShop: body.visibleInEShop === true,
       priceListItems: body.priceListItems.map((item) => ({
         priceListId: item.priceListId,
         netPrice: Math.round(Number(item.netPrice)) || 0,

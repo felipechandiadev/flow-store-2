@@ -195,7 +195,7 @@ export class CompaniesRequest {
   }
 
   /**
-   * Cambia la empresa activa (solo ADMIN).
+   * Cambia la empresa activa (solo SUPER_ADMIN).
    */
   static async switchCompany(companyId: string): Promise<
     | { success: true; activeCompanyId: string; company: CompanyOption }

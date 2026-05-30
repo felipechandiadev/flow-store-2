@@ -23,6 +23,7 @@ export class ListMultimediaAssetsQueryHandler
       entityType: query.entityType,
       entityId: query.entityId,
       usageType: query.usageType,
+      attributeId: query.attributeId,
     });
   }
 }

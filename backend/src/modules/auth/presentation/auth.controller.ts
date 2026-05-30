@@ -25,6 +25,7 @@ import { LoginResponseDto } from '../application/dto/login-response.dto';
 import { LogoutDto } from '../application/dto/logout.dto';
 import { LogoutResponseDto } from '../application/dto/logout-response.dto';
 import { Company } from '@modules/companies/domain/company.entity';
+import { UserRole } from '@modules/users/domain/user.entity';
 import {
   AdminOnly,
   AllowAdminWithoutCompany,
@@ -167,9 +168,8 @@ export class AuthController {
   }
 
   /**
-   * ADMIN: cambia la empresa activa. El cliente debe enviar el nuevo companyId
-   * y, en requests subsecuentes, el header X-Active-Company-Id con ese valor.
-   * Devuelve la company para que el cliente persista el contexto.
+   * SUPER_ADMIN: cambia la empresa activa. El cliente persiste `activeCompanyId`
+   * y envía `X-Active-Company-Id` en requests subsecuentes.
    */
   @Post('switch-company')
   @HttpCode(HttpStatus.OK)
@@ -177,14 +177,16 @@ export class AuthController {
   @AllowAdminWithoutCompany()
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
-    summary: 'Cambiar empresa activa (solo ADMIN)',
+    summary: 'Cambiar empresa activa (solo SUPER_ADMIN)',
   })
   async switchCompany(
     @Body() body: { companyId: string },
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    if (user.rol !== 'ADMIN') {
-      throw new ForbiddenException('Solo administradores pueden cambiar de empresa');
+    if (user.rol !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException(
+        'Solo super-administradores pueden cambiar de empresa',
+      );
     }
     const id = String(body?.companyId || '').trim();
     if (!isUUID(id)) {

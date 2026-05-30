@@ -55,13 +55,26 @@ function normalizeAsset(raw: unknown): MultimediaAssetListItem | null {
     mimeType: o.mimeType != null ? String(o.mimeType) : "",
     kind: o.kind != null ? String(o.kind) : "",
     isPrimary: o.isPrimary === true,
+    sortOrder: typeof o.sortOrder === "number" ? o.sortOrder : Number(o.sortOrder) || 0,
+    linkId: o.linkId != null ? String(o.linkId) : undefined,
   };
+}
+
+function attributeIdQueryParam(attributeId?: string | null): string {
+  const trimmed = attributeId?.trim();
+  return trimmed ? `?attributeId=${encodeURIComponent(trimmed)}` : "";
+}
+
+function attributeIdBodyField(attributeId?: string | null): { attributeId?: string } {
+  const trimmed = attributeId?.trim();
+  return trimmed ? { attributeId: trimmed } : {};
 }
 
 export class MultimediaRequest {
   static async listByEntity(
     entityType: string,
     entityId: string,
+    attributeId?: string | null,
   ): Promise<{ success: true; assets: MultimediaAssetListItem[] } | { success: false; error: string }> {
     const et = entityType.trim();
     const eid = entityId.trim();
@@ -70,7 +83,7 @@ export class MultimediaRequest {
     }
     try {
       const headers = await authHeadersJson();
-      const path = `multimedia/entities/${encodeURIComponent(et)}/${encodeURIComponent(eid)}/assets`;
+      const path = `multimedia/entities/${encodeURIComponent(et)}/${encodeURIComponent(eid)}/assets${attributeIdQueryParam(attributeId)}`;
       const res = await fetch(apiUrl(path), {
         method: "GET",
         headers,
@@ -102,6 +115,7 @@ export class MultimediaRequest {
     entityType: string;
     entityId: string;
     isPrimary: boolean;
+    attributeId?: string | null;
   }): Promise<
     { success: true; asset: MultimediaAssetListItem } | { success: false; error: string }
   > {
@@ -119,6 +133,10 @@ export class MultimediaRequest {
     form.append("entityId", eid);
     form.append("usageType", "default");
     form.append("isPrimary", input.isPrimary ? "true" : "false");
+    const aid = input.attributeId?.trim();
+    if (aid) {
+      form.append("attributeId", aid);
+    }
     try {
       const headers = await authHeadersMultipart();
       const res = await fetch(apiUrl("multimedia/assets"), {
@@ -154,6 +172,7 @@ export class MultimediaRequest {
     entityType: string;
     entityId: string;
     usageType?: string;
+    attributeId?: string | null;
   }): Promise<{ success: true } | { success: false; error: string }> {
     const aid = input.assetId.trim();
     const et = input.entityType.trim();
@@ -166,6 +185,10 @@ export class MultimediaRequest {
     q.set("entityId", eid);
     if (input.usageType?.trim()) {
       q.set("usageType", input.usageType.trim());
+    }
+    const attrId = input.attributeId?.trim();
+    if (attrId) {
+      q.set("attributeId", attrId);
     }
     try {
       const headers = await authHeadersMultipart();
@@ -192,10 +215,55 @@ export class MultimediaRequest {
     }
   }
 
+  static async reorderForEntity(input: {
+    entityType: string;
+    entityId: string;
+    assetIds: string[];
+    attributeId?: string | null;
+  }): Promise<{ success: true } | { success: false; error: string }> {
+    const et = input.entityType.trim();
+    const eid = input.entityId.trim();
+    if (!et || !eid || input.assetIds.length === 0) {
+      return { success: false, error: "Datos no válidos" };
+    }
+    try {
+      const headers = await authHeadersJson();
+      const res = await fetch(
+        apiUrl(
+          `multimedia/entities/${encodeURIComponent(et)}/${encodeURIComponent(eid)}/order`,
+        ),
+        {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({
+            assetIds: input.assetIds,
+            ...attributeIdBodyField(input.attributeId),
+          }),
+          cache: "no-store",
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        const m = data.message;
+        const msg = Array.isArray(m)
+          ? m.map(String).join("; ")
+          : typeof m === "string" && m.trim()
+            ? m.trim()
+            : res.statusText;
+        return { success: false, error: msg };
+      }
+      return { success: true };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : "Error al reordenar multimedia";
+      return { success: false, error: err };
+    }
+  }
+
   static async setPrimaryForEntity(input: {
     entityType: string;
     entityId: string;
     assetId: string;
+    attributeId?: string | null;
   }): Promise<{ success: true } | { success: false; error: string }> {
     const et = input.entityType.trim();
     const eid = input.entityId.trim();
@@ -212,7 +280,10 @@ export class MultimediaRequest {
         {
           method: "PUT",
           headers,
-          body: JSON.stringify({ assetId: aid }),
+          body: JSON.stringify({
+            assetId: aid,
+            ...attributeIdBodyField(input.attributeId),
+          }),
           cache: "no-store",
         },
       );

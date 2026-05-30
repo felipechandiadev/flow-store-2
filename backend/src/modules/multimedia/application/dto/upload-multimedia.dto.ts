@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsUUID, ValidateIf } from 'class-validator';
 
 const toBoolean = ({ value }: { value: unknown }) => {
   if (typeof value === 'boolean') {
@@ -36,4 +36,9 @@ export class UploadMultimediaDto {
   @Transform(toBoolean)
   @IsBoolean()
   isPrimary?: boolean;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsUUID()
+  attributeId?: string;
 }

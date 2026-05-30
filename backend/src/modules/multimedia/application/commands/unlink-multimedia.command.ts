@@ -6,6 +6,7 @@ export class UnlinkMultimediaCommand extends BaseCommand {
     public readonly entityType: string,
     public readonly entityId: string,
     public readonly usageType?: string,
+    public readonly attributeId?: string | null,
   ) {
     super();
   }

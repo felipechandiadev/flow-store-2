@@ -67,7 +67,7 @@ export default function QuotationsDataGrid({
         >
           <IconButton
             icon="MoreHorizontal"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             ariaLabel="Ver detalle"
             onClick={() => onView(r)}

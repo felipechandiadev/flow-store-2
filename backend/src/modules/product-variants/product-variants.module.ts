@@ -16,6 +16,7 @@ import { PRODUCT_VARIANTS_REPOSITORY } from './application/ports/product-variant
 import { MultimediaModule } from '@modules/multimedia/multimedia.module';
 import { PriceListItemsModule } from '@modules/price-list-items/price-list-items.module';
 import { AttributesModule } from '@modules/attributes/attributes.module';
+import { ProductsModule } from '@modules/products/products.module';
 import { VariantQuantityConversionService } from './application/variant-quantity-conversion.service';
 import { ProductVariantShippingSchemaBootstrap } from './application/product-variant-shipping-schema.bootstrap';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
@@ -37,6 +38,7 @@ import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
     MultimediaModule,
     PriceListItemsModule,
     AttributesModule,
+    ProductsModule,
   ],
   providers: [
     ProductVariantShippingSchemaBootstrap,

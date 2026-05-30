@@ -166,7 +166,7 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
           {allowClear && value !== null && value !== undefined && (
             <IconButton
               icon="X"
-              variant="basicSecondary"
+              variant="action"
               className="absolute right-10 top-1/2 -translate-y-1/2 z-20 w-6 h-6 min-w-6 min-h-6 p-0"
               onClick={() => onChange?.(null)}
               aria-label="Limpiar selección"
@@ -274,7 +274,7 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
           {allowClear && value !== null && value !== undefined && (
             <IconButton
               icon="X"
-              variant="basicSecondary"
+              variant="action"
               className="absolute right-10 top-1/2 -translate-y-1/2 z-20 w-6 h-6 min-w-6 min-h-6 p-0"
               onClick={() => onChange?.(null)}
               aria-label="Limpiar selección"
@@ -286,7 +286,7 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
         
           <IconButton
             icon="ChevronDown"
-            variant="basicSecondary"
+            variant="action"
             className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 min-w-6 min-h-6 p-0"
             tabIndex={-1}
             aria-label="Desplegar opciones"

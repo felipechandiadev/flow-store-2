@@ -40,6 +40,7 @@ export class CreateProductCommandHandler implements ICommandHandler<
       brandId,
       description: command.description,
       isActive: command.isActive,
+      visibleInEShop: command.visibleInEShop,
       productType: command.productType ?? ProductType.PHYSICAL,
     });
 
@@ -66,6 +67,7 @@ export class CreateProductCommandHandler implements ICommandHandler<
       brandId: saved.brandId ?? null,
       description: saved.description,
       isActive: saved.isActive,
+      visibleInEShop: saved.visibleInEShop,
       productType: saved.productType,
       taxIds: saved.taxIds,
       resultCenterId: saved.resultCenterId ?? null,

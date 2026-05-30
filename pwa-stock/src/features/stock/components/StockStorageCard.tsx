@@ -134,7 +134,7 @@ export function StockStorageCard({
           {interactive && actions && b.reservedStock > 0 ? (
             <IconButton
               icon="Info"
-              variant="ghost"
+              variant="neutral"
               size="xs"
               ariaLabel="Ver detalle de reservas"
               title="Ver detalle de reservas"
@@ -179,7 +179,7 @@ export function StockStorageCard({
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-0.5">
             <IconButton
               icon="RefreshCcw"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Reconteo"
               disabled={actions.busy}
@@ -195,7 +195,7 @@ export function StockStorageCard({
             />
             <IconButton
               icon="Minus"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Disminuir stock"
               disabled={actions.busy || b.quantity <= 0}
@@ -211,7 +211,7 @@ export function StockStorageCard({
             />
             <IconButton
               icon="Plus"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Aumentar stock"
               disabled={actions.busy}
@@ -227,7 +227,7 @@ export function StockStorageCard({
             />
             <IconButton
               icon="ArrowLeftRight"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Transferir stock"
               disabled={actions.busy || !actions.canTransfer}

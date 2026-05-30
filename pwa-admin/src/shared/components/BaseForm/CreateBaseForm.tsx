@@ -11,7 +11,7 @@ import Select from "../Select/Select";
 import RangeSlider from "../RangeSlider/RangeSlider";
 import NumberStepper from "../NumberStepper/NumberStepper";
 import LocationPickerWrapper from "../LocationPicker/LocationPickerWrapper";
-import MultimediaUploader from "../FileUploader/MultimediaUploader";
+import { MultimediaField } from "@/shared/components/Multimedia";
 
 export interface BaseFormField {
 	name: string;
@@ -180,16 +180,17 @@ const CreateBaseForm: React.FC<CreateBaseFormProps> = ({
 					<label className="block text-sm font-medium text-foreground mb-2">
 						{field.label}
 					</label>
-					<MultimediaUploader
-						variant={field.type === 'avatar' ? 'avatar' : 'collection'}
+					<MultimediaField
+						mode="staging"
+						layout={field.type === 'avatar' ? 'single' : 'collection'}
+						singleVariant={field.type === 'avatar' ? 'avatar' : undefined}
 						onChange={(files) => {
 							if (files.length > 0) {
 								onChange(field.name, files[0]);
 							}
 						}}
 						accept={field.acceptedTypes?.join(',') || (field.type === 'video' ? 'video/*' : 'image/*')}
-						maxSize={field.maxSize || (field.type === 'avatar' ? 2 : 5)}
-						uploadPath={field.uploadPath || '/uploads'}
+						maxSizeMb={field.maxSize || (field.type === 'avatar' ? 2 : 5)}
 					/>
 				</div>
 			) : (

@@ -14,6 +14,23 @@ export class ProductCatalogSearchBootstrap implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.ensureExtension('unaccent');
+    await this.ensureProductVisibleInEShopColumn();
+  }
+
+  /** Columna de migración 1756430000000; evita 500 si `migration:run` no llegó a aplicarla. */
+  private async ensureProductVisibleInEShopColumn(): Promise<void> {
+    try {
+      await this.dataSource.query(`
+        ALTER TABLE "products"
+        ADD COLUMN IF NOT EXISTS "visible_in_e_shop" boolean NOT NULL DEFAULT false;
+      `);
+    } catch (err) {
+      this.logger.error(
+        `No se pudo asegurar products.visible_in_e_shop: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   private async ensureExtension(name: string): Promise<void> {

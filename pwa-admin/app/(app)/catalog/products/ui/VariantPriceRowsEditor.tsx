@@ -169,7 +169,7 @@ export function VariantPriceRowsEditor({
           type="button"
           icon="Plus"
           ariaLabel="Agregar precio"
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           onClick={addRow}
           data-test-id="variant-price-add-row"
@@ -203,7 +203,7 @@ export function VariantPriceRowsEditor({
                     type="button"
                     icon="Trash2"
                     ariaLabel="Eliminar fila"
-                    variant="basicSecondary"
+                    variant="action"
                     size="sm"
                     disabled={rows.length <= 1}
                     onClick={() => removeRow(row.key)}
@@ -215,7 +215,7 @@ export function VariantPriceRowsEditor({
                     type="button"
                     icon="Calculator"
                     ariaLabel="Calculadora precio de venta para esta lista"
-                    variant="basicSecondary"
+                    variant="action"
                     size="sm"
                     onClick={() => onOpenPmpCalculator(row.key)}
                     data-test-id={`variant-pmp-calculator-open-${row.key}`}

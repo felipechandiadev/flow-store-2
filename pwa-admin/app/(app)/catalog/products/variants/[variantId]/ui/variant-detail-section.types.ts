@@ -5,6 +5,7 @@ export const VARIANT_DETAIL_SECTION_IDS = [
   "inventario",
   "despacho",
   "multimedia",
+  "eshop",
   "receta",
 ] as const;
 
@@ -22,6 +23,7 @@ export const VARIANT_DETAIL_TABS: VariantDetailTabItem[] = [
   { id: "inventario", label: "Inventario" },
   { id: "despacho", label: "Despacho" },
   { id: "multimedia", label: "Multimedia" },
+  { id: "eshop", label: "eShop" },
   { id: "receta", label: "Receta" },
 ];
 

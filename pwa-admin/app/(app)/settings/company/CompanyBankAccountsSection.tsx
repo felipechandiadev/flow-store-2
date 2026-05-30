@@ -77,7 +77,7 @@ export function CompanyBankAccountsSection({ company }: Props) {
           <h2 className="text-lg font-semibold tracking-tight text-foreground">Cuentas bancarias</h2>
           <IconButton
             icon="Plus"
-            variant="basicSecondary"
+            variant="action"
             size="md"
             ariaLabel="Agregar cuenta bancaria"
             disabled={!canAdd}

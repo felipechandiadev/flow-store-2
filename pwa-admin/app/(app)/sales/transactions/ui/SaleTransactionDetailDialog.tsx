@@ -179,7 +179,7 @@ export default function SaleTransactionDetailDialog({
           <div className="flex items-center justify-end gap-1">
             <IconButton
               icon="ReceiptText"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Reimprimir ticket"
               title="Reimprimir ticket (80 mm)"
@@ -190,7 +190,7 @@ export default function SaleTransactionDetailDialog({
             />
             <IconButton
               icon="FileText"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Imprimir documento"
               title="Imprimir documento (hoja)"

@@ -18,7 +18,7 @@ export function UnitsCollectionAddAction({ allUnits }: Props) {
     <>
       <IconButton
         icon="Plus"
-        variant="basicSecondary"
+        variant="action"
         size="md"
         ariaLabel="Crear unidad"
         onClick={() => setOpen(true)}

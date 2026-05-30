@@ -6,12 +6,22 @@ export class RemoveProductVariantLegacyWeight1756220000000
   name = 'RemoveProductVariantLegacyWeight1756220000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
-      UPDATE "product_variants"
-      SET "net_weight_kg" = "weight"
-      WHERE "net_weight_kg" IS NULL
-        AND "weight" IS NOT NULL;
+    const hasWeight = await queryRunner.query(`
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'product_variants'
+        AND column_name = 'weight'
+      LIMIT 1;
     `);
+    if (Array.isArray(hasWeight) && hasWeight.length > 0) {
+      await queryRunner.query(`
+        UPDATE "product_variants"
+        SET "net_weight_kg" = "weight"
+        WHERE "net_weight_kg" IS NULL
+          AND "weight" IS NOT NULL;
+      `);
+    }
     await queryRunner.query(`
       ALTER TABLE "product_variants" DROP COLUMN IF EXISTS "weight";
     `);

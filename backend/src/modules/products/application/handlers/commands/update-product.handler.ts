@@ -6,6 +6,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '../../../domain/product.entity';
 import { BrandsService } from '@modules/brands/application/brands.service';
+import { ProductEshopVisibilitySyncService } from '../../services/product-eshop-visibility-sync.service';
 
 @CommandHandler(UpdateProductCommand)
 export class UpdateProductCommandHandler implements ICommandHandler<
@@ -19,6 +20,7 @@ export class UpdateProductCommandHandler implements ICommandHandler<
     private readonly productRepository: Repository<Product>,
     private readonly eventBus: EventBus,
     private readonly brandsService: BrandsService,
+    private readonly eshopVisibilitySync: ProductEshopVisibilitySyncService,
   ) {}
 
   async execute(command: UpdateProductCommand): Promise<Product> {
@@ -40,6 +42,9 @@ export class UpdateProductCommandHandler implements ICommandHandler<
     if (command.categoryId !== undefined)
       product.categoryId = command.categoryId;
     if (command.isActive !== undefined) product.isActive = command.isActive;
+    if (command.visibleInEShop !== undefined) {
+      product.visibleInEShop = command.visibleInEShop;
+    }
     if (command.productType !== undefined) product.productType = command.productType;
 
     if (command.brandId !== undefined) {
@@ -57,6 +62,13 @@ export class UpdateProductCommandHandler implements ICommandHandler<
     }
 
     const updated = await this.productRepository.save(product);
+
+    if (command.visibleInEShop === true) {
+      await this.eshopVisibilitySync.afterProductEshopVisibilitySet(
+        updated.id,
+        true,
+      );
+    }
 
     const event = new ProductUpdatedEvent(
       updated.id,
@@ -84,6 +96,7 @@ export class UpdateProductCommandHandler implements ICommandHandler<
       brandId: updated.brandId ?? null,
       description: updated.description,
       isActive: updated.isActive,
+      visibleInEShop: updated.visibleInEShop,
       productType: updated.productType,
       taxIds: updated.taxIds,
       resultCenterId: updated.resultCenterId ?? null,

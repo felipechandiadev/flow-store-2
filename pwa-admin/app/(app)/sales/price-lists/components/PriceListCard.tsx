@@ -55,8 +55,15 @@ export function PriceListCard({ priceList, "data-test-id": dataTestId }: PriceLi
   const updatedLabel = formatShortDate(priceList.updatedAt);
   const validityLabel = formatValidityLabel(priceList.validFrom, priceList.validUntil);
 
+  const deleteLocked = priceList.nonDeletable === true;
+
   const headerEnd = (
-    <span data-test-id="price-list-card-active-label" className="shrink-0">
+    <span data-test-id="price-list-card-active-label" className="flex shrink-0 flex-wrap justify-end gap-1">
+      {deleteLocked ? (
+        <Badge variant="secondary-outlined" className="text-[10px]">
+          Sistema
+        </Badge>
+      ) : null}
       <Badge variant={priceList.isActive ? "success" : "secondary-outlined"}>
         {priceList.isActive ? "Activa" : "Inactiva"}
       </Badge>
@@ -160,17 +167,21 @@ export function PriceListCard({ priceList, "data-test-id": dataTestId }: PriceLi
               onClick: () => setUpdateOpen(true),
               "data-test-id": "price-list-card-update",
             },
-            {
-              id: "delete",
-              icon: "Trash2",
-              ariaLabel: "Eliminar lista de precio",
-              disabled: isDeleting,
-              onClick: () => {
-                setDeleteErrors([]);
-                setDeleteOpen(true);
-              },
-              "data-test-id": "price-list-card-delete",
-            },
+            ...(deleteLocked
+              ? []
+              : [
+                  {
+                    id: "delete",
+                    icon: "Trash2" as const,
+                    ariaLabel: "Eliminar lista de precio",
+                    disabled: isDeleting,
+                    onClick: () => {
+                      setDeleteErrors([]);
+                      setDeleteOpen(true);
+                    },
+                    "data-test-id": "price-list-card-delete",
+                  },
+                ]),
           ]}
         />
       </div>

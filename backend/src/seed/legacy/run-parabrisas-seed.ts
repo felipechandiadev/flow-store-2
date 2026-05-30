@@ -5,7 +5,7 @@ import { DataSource, DeepPartial, IsNull, Not } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
-import { MinimalSeedModule } from './minimal-seed.module';
+import { MinimalSeedModule } from '../minimal-seed.module';
 import { User, UserRole } from '@modules/users/domain/user.entity';
 import {
   Person,
@@ -69,6 +69,8 @@ import {
   buildSeedCompanySettings,
   buildSeedPosPaymentList,
 } from './seed-parabrisas-config';
+
+/** Seed legacy Parabrisas / vidrios — usar `npm run seed:legacy`. */
 
 const SEED_IVA_DESCRIPTION =
   'Impuesto al Valor Agregado sobre ventas, servicios e importaciones.';

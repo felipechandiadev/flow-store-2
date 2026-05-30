@@ -38,6 +38,20 @@ flow-store-2/
    npm run dev  # Puerto 3031
    ```
 
+3. **KaiStore eShop** (tienda pública):
+   ```bash
+   cd pwa-eshop
+   npm install
+   npm run dev  # Puerto 3034
+   ```
+
+4. **Seed base de datos** (desde `backend/`):
+   ```bash
+   cd backend
+   npm run seed   # Mi Empresa — desarrollo
+   # npm run seed:legacy   # Parabrisas / vidrios (opcional)
+   ```
+
 ## 📖 Instrucciones para Agentes de Copilot
 - **Siempre** lee y sigue `.instructions/backend.instruction` para desarrollo backend.
 - **Siempre** lee y sigue `.instructions/webadmin.instruction` para desarrollo frontend.

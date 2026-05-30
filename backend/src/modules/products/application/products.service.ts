@@ -23,6 +23,7 @@ import { SearchProductsDto } from './dto/search-products.dto';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 import { attachProductVariantMultimedia } from './helpers/attach-product-variant-multimedia';
 import { applyProductCatalogTextSearch } from './product-catalog-search.util';
+import { ProductEshopVisibilitySyncService } from './services/product-eshop-visibility-sync.service';
 
 type MovementDirection = 'IN' | 'OUT';
 
@@ -86,6 +87,7 @@ export class ProductsService {
     private readonly priceListItemRepository: PriceListItemsRepositoryPort,
     private readonly dataSource: DataSource,
     private readonly multimediaService: MultimediaServiceAdapter,
+    private readonly eshopVisibilitySync: ProductEshopVisibilitySyncService,
   ) {}
 
   private resolveDirection(type: TransactionType): MovementDirection | null {
@@ -170,6 +172,7 @@ export class ProductsService {
     product.taxIds = Array.isArray(data.taxIds) ? data.taxIds : undefined;
     product.isActive =
       typeof data.isActive === 'boolean' ? data.isActive : true;
+    product.visibleInEShop = data.visibleInEShop === true;
     product.baseUnitId = data.baseUnitId || undefined;
     try {
       const saved = await this.productRepository.save(product as any);
@@ -227,10 +230,15 @@ export class ProductsService {
     if (data.isActive !== undefined)
       updateData.isActive =
         typeof data.isActive === 'boolean' ? data.isActive : true;
+    if (data.visibleInEShop !== undefined)
+      updateData.visibleInEShop = data.visibleInEShop === true;
     if (data.baseUnitId !== undefined)
       updateData.baseUnitId = data.baseUnitId || null;
 
     await this.productRepository.update(id, updateData);
+    if (data.visibleInEShop === true) {
+      await this.eshopVisibilitySync.afterProductEshopVisibilitySet(id, true);
+    }
     const updated = await this.productRepository.findOne({ where: { id } });
     if (!updated)
       return { success: false, message: 'Product not found', statusCode: 404 };

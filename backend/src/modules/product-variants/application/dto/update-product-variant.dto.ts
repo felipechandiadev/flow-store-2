@@ -148,6 +148,11 @@ export class UpdateProductVariantDto {
   isActive?: boolean;
 
   @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  visibleInEShop?: boolean;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PriceListItemInputDto)

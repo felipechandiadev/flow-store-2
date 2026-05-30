@@ -13,6 +13,7 @@ export class UploadMultimediaCommand extends BaseCommand {
     public readonly usageType: string = 'default',
     public readonly isPrimary: boolean = false,
     public readonly metadata?: Record<string, unknown>,
+    public readonly attributeId?: string | null,
   ) {
     super();
   }

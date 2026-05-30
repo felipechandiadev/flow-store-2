@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import { ChevronRight, User, LogOut, ImageOff, Image as ImageIcon } from 'lucide-react';
 import { useImageWithPlaceholder } from '@/shared/hooks/useImageWithPlaceholder';
 import { isCompanyChecksEnabledFromSettings } from '@/features/companies/types/company-checks.types';
+import { isEShopModuleEnabled } from '@/config/eshop-module.config';
+import { isEShopEnabledFromSettings } from '@/features/companies/types/company-eshop.types';
 import { useCompany } from '@/providers/CompanyProvider';
 import { Button } from '../Button/Button';
 import IconButton from '../IconButton/IconButton';
@@ -26,6 +28,8 @@ export interface SideBarMenuItem {
   hidden?: boolean;
   /** Solo visible si la empresa tiene habilitado el módulo de cheques en tesorería. */
   requiresChecksEnabled?: boolean;
+  /** Solo visible si el módulo eShop está activo en env y `settings.eShopEnabled` es true. */
+  requiresEShopEnabled?: boolean;
 }
 
 interface SideBarProps {
@@ -55,6 +59,7 @@ function filterVisibleMenuItems(
   items: SideBarMenuItem[],
   role: string | null | undefined,
   checksEnabled: boolean,
+  eShopEnabled: boolean,
 ): SideBarMenuItem[] {
   return items.flatMap((item) => {
     if (item.hidden) return [];
@@ -64,8 +69,16 @@ function filterVisibleMenuItems(
     if (item.requiresChecksEnabled && !checksEnabled) {
       return [];
     }
+    if (item.requiresEShopEnabled && !eShopEnabled) {
+      return [];
+    }
     if (Array.isArray(item.children) && item.children.length > 0) {
-      const visibleChildren = filterVisibleMenuItems(item.children, role, checksEnabled);
+      const visibleChildren = filterVisibleMenuItems(
+        item.children,
+        role,
+        checksEnabled,
+        eShopEnabled,
+      );
       if (visibleChildren.length === 0) return [];
       return [{ ...item, children: visibleChildren }];
     }
@@ -96,6 +109,9 @@ const SideBar: React.FC<SideBarProps> = ({
   const { data: session } = useSession();
   const { company } = useCompany();
   const checksEnabled = isCompanyChecksEnabledFromSettings(company?.settings);
+  const eShopEnabled =
+    isEShopModuleEnabled() &&
+    isEShopEnabledFromSettings(company?.settings as Record<string, unknown> | undefined);
 
   // Track which parent items are open using their id or label
   const [localOpenIds, setLocalOpenIds] = useState<Record<string, boolean>>({});
@@ -267,7 +283,7 @@ const SideBar: React.FC<SideBarProps> = ({
               <IconButton
                 className="shrink-0 self-center"
                 icon="KeyRound"
-                variant="basicSecondary"
+                variant="action"
                 size="sm"
                 onClick={onOpenChangePassword}
                 title="Cambiar contraseña"
@@ -283,6 +299,7 @@ const SideBar: React.FC<SideBarProps> = ({
             menuItems,
             (session?.user?.role as string | undefined) ?? null,
             checksEnabled,
+            eShopEnabled,
           ).map((item, idx) => renderMenuItem(item, idx))}
         </ul>
       </nav>

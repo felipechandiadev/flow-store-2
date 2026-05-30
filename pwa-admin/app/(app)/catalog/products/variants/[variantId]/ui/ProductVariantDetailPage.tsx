@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Badge from "@/shared/components/Badge/Badge";
 import type { ProductVariantGridRow } from "@/features/inventory-products/types/product-grid.types";
 import { CreateRecipeDialog } from "../../../ui/CreateRecipeDialog";
@@ -17,6 +17,7 @@ import { VariantDetailStockValueSection } from "./VariantDetailStockValueSection
 import { VariantDetailLogisticsSection } from "./VariantDetailLogisticsSection";
 import { VariantDetailMultimediaSection } from "./VariantDetailMultimediaSection";
 import { VariantDetailRecipeSection } from "./VariantDetailRecipeSection";
+import { VariantDetailEShopSection } from "./VariantDetailEShopSection";
 import { VariantDetailPurchasesSection } from "./VariantDetailPurchasesSection";
 import { VariantDetailSectionNav } from "./VariantDetailSectionNav";
 import {
@@ -48,6 +49,7 @@ type Props = {
 
 export default function ProductVariantDetailPage({ product, variant: initialVariant }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [variant, setVariant] = useState(initialVariant);
   const [bomOpen, setBomOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<VariantDetailSectionId>("identidad");
@@ -87,6 +89,17 @@ export default function ProductVariantDetailPage({ product, variant: initialVari
 
   const headerAttributeBadges = useMemo(() => variantAttributeValueBadges(variant), [variant]);
 
+  const goBackToProducts = useCallback(() => {
+    const returnTo = searchParams.get("returnTo")?.trim();
+    if (returnTo && returnTo.startsWith("/catalog/products")) {
+      router.push(returnTo);
+      return;
+    }
+    const qs = new URLSearchParams();
+    qs.set("expandProduct", product.id);
+    router.push(`/catalog/products?${qs.toString()}`);
+  }, [router, searchParams, product.id]);
+
   const sectionProps = {
     productId: product.id,
     productType: product.productType,
@@ -101,9 +114,9 @@ export default function ProductVariantDetailPage({ product, variant: initialVari
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2 sm:gap-x-3">
           <IconButton
             icon="ArrowLeft"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
-            onClick={() => router.back()}
+            onClick={goBackToProducts}
             ariaLabel="Volver a la página anterior"
             data-test-id="product-variant-detail-back"
           />
@@ -164,7 +177,8 @@ export default function ProductVariantDetailPage({ product, variant: initialVari
           </div>
         ) : null}
         {activeSection === "despacho" ? <VariantDetailLogisticsSection variant={variant} /> : null}
-        {activeSection === "multimedia" ? <VariantDetailMultimediaSection variantId={variant.id} /> : null}
+        {activeSection === "multimedia" ? <VariantDetailMultimediaSection variant={variant} /> : null}
+        {activeSection === "eshop" ? <VariantDetailEShopSection variant={variant} /> : null}
         {activeSection === "receta" && showRecipe ? (
           <VariantDetailRecipeSection onAddRecipe={() => setBomOpen(true)} />
         ) : null}

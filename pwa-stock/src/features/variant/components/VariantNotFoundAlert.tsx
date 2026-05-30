@@ -28,7 +28,7 @@ export default function VariantNotFoundAlert({
       <div className="absolute inset-x-0 bottom-2 flex items-center justify-between px-2">
         <IconButton
           icon="X"
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           ariaLabel="Cerrar"
           disabled={pending}

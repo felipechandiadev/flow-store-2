@@ -8,6 +8,7 @@ import { TextField } from "@/shared/components/TextField/TextField";
 import Switch from "@/shared/components/Switch/Switch";
 import type { BrandListItem } from "@/features/catalog-brands/types/brand.types";
 import { updateBrandAction } from "@/features/catalog-brands/actions/brand.action";
+import { EntityMultimediaPanel } from "../../products/ui/EntityMultimediaPanel";
 
 export type UpdateBrandDialogProps = {
   open: boolean;
@@ -113,6 +114,12 @@ export function UpdateBrandDialog({ open, onClose, brand, onSuccess }: UpdateBra
             data-test-id="brand-update-active"
           />
         </div>
+        <EntityMultimediaPanel
+          entityType="brand"
+          entityId={brand.id}
+          title="Logo / imagen de marca"
+          collectionOnly
+        />
       </div>
     </Dialog>
   );

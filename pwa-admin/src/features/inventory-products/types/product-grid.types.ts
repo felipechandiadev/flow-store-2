@@ -46,6 +46,7 @@ export type ProductVariantGridRow = {
   purchaseUnitLabel?: string | null;
   unitOfMeasure?: string | null;
   isActive?: boolean;
+  visibleInEShop?: boolean;
   basePrice?: number;
   baseCost?: number;
   /** Precio medio ponderado (inventario); 0 si no aplica. */
@@ -87,6 +88,9 @@ export type ProductGridRow = {
   categoryId: string | null;
   categoryName: string | null;
   isActive: boolean;
+  visibleInEShop?: boolean;
   variantCount: number;
   variants: ProductVariantGridRow[];
+  primaryImageUrl?: string | null;
+  mediaAssets?: ProductVariantMediaAsset[];
 };

@@ -307,7 +307,7 @@ export default function TreasuryCashTabContent({
           <div className="flex items-center gap-2">
             <IconButton
               icon="Plus"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Crear centro de efectivo"
               onClick={() => openDialog("createHub")}
@@ -353,7 +353,7 @@ export default function TreasuryCashTabContent({
                     >
                       <IconButton
                         icon="Pencil"
-                        variant="basicSecondary"
+                        variant="action"
                         size="sm"
                         ariaLabel="Editar centro de efectivo"
                         onClick={() => openEditHub(h)}
@@ -375,7 +375,7 @@ export default function TreasuryCashTabContent({
                     >
                       <IconButton
                         icon="TrendingUp"
-                        variant="basicSecondary"
+                        variant="action"
                         size="sm"
                         ariaLabel="Aporte de capital en efectivo desde un socio"
                         onClick={() => {
@@ -390,7 +390,7 @@ export default function TreasuryCashTabContent({
                       />
                       <IconButton
                         icon="Landmark"
-                        variant="basicSecondary"
+                        variant="action"
                         size="sm"
                         ariaLabel="Depositar a banco desde este centro"
                         onClick={() => {

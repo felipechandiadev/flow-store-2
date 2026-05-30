@@ -59,6 +59,7 @@ export class GetAllProductsQueryHandler implements IQueryHandler<
           brandId: e.brandId ?? null,
           description: e.description,
           isActive: e.isActive,
+          visibleInEShop: e.visibleInEShop === true,
           productType: e.productType,
           taxIds: e.taxIds,
           primaryImageUrl: assets[0]?.publicUrl ?? null,

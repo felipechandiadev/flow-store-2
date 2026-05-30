@@ -162,5 +162,17 @@ export function buildSeedCompanySettings(
     internalCustomerCredit: {
       enabled: false,
     },
+    eShopEnabled: true,
+    eShopPublicSlug: 'demo',
+    eShopFeaturedProductVariantIds: [],
+    eShopFreeShippingThreshold: 50_000,
+    eShopShippingMode: 'disabled',
+    eShopDefaultBranchId: null,
+    companyTagline: 'Tu tienda en línea KaiStore',
+    publicContact: {
+      email: 'contacto@ejemplo.cl',
+      instagram: null,
+      tiktok: null,
+    },
   };
 }

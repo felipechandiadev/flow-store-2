@@ -1,14 +1,11 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { Inject } from '@nestjs/common';
+import { Inject, NotFoundException } from '@nestjs/common';
 import { DeleteMultimediaCommand } from '../../commands/delete-multimedia.command';
 import {
   MULTIMEDIA_REPOSITORY,
   MultimediaRepositoryPort,
 } from '../../ports/multimedia.repository.port';
-import {
-  STORAGE_PROVIDER,
-  StorageProviderPort,
-} from '../../ports/storage-provider.port';
+import { MultimediaAssetPurgeService } from '../../services/multimedia-asset-purge.service';
 
 @CommandHandler(DeleteMultimediaCommand)
 export class DeleteMultimediaCommandHandler
@@ -17,8 +14,7 @@ export class DeleteMultimediaCommandHandler
   constructor(
     @Inject(MULTIMEDIA_REPOSITORY)
     private readonly repository: MultimediaRepositoryPort,
-    @Inject(STORAGE_PROVIDER)
-    private readonly storageProvider: StorageProviderPort,
+    private readonly assetPurge: MultimediaAssetPurgeService,
   ) {}
 
   async execute(
@@ -27,7 +23,7 @@ export class DeleteMultimediaCommandHandler
     const asset = await this.repository.findAssetById(command.assetId);
 
     if (!asset) {
-      throw new Error('Multimedia asset not found');
+      throw new NotFoundException('Multimedia asset not found');
     }
 
     const linkCount = await this.repository.countLinksForAsset(command.assetId);
@@ -36,8 +32,8 @@ export class DeleteMultimediaCommandHandler
       throw new Error('Cannot delete a multimedia asset linked to multiple entities');
     }
 
-    await this.storageProvider.delete(asset.storageKey);
-    await this.repository.deleteAsset(command.assetId);
+    await this.repository.removeAllLinksForAsset(command.assetId);
+    await this.assetPurge.purgeAsset(asset);
 
     return { success: true };
   }

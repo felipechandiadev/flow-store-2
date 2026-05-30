@@ -73,7 +73,7 @@ export default function LoginPageClient() {
   const settingsButton = (
     <IconButton
       icon="Settings"
-      variant="basicSecondary"
+      variant="action"
       size="md"
       className="fixed bottom-4 right-4 z-40 rounded-full border border-border bg-surface"
       onClick={() => router.push("/setup")}

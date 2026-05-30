@@ -79,7 +79,7 @@ export function PosSetupClient({
         <div className="fs-dialog__header flex items-start gap-2 border-b border-border/70 px-4 pb-3 pt-4">
           <IconButton
             icon="ArrowLeft"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             onClick={handleCancel}
             ariaLabel="Volver al login"

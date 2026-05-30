@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Not, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { AnalyticsRepositoryPort } from '../../application/ports/analytics.repository.port';
 import {
   resolveTrendRange,
@@ -74,7 +74,6 @@ export class TypeOrmAnalyticsRepository implements AnalyticsRepositoryPort {
     private readonly operationalExpenseRepository: Repository<OperationalExpense>,
     @InjectRepository(Installment)
     private readonly installmentRepository: Repository<Installment>,
-    private readonly dataSource: DataSource,
   ) {}
 
   async getDashboard(
@@ -392,26 +391,17 @@ export class TypeOrmAnalyticsRepository implements AnalyticsRepositoryPort {
   }
 
   private async countThresholdAlerts(companyId: string): Promise<number> {
-    const rows = await this.dataSource.query(
-      `
-      SELECT COUNT(*)::int AS cnt
-      FROM stock_levels sl
-      INNER JOIN product_variants pv ON pv.id = sl."productVariantId"
-      WHERE sl.company_id = $1
-        AND (
-          (
-            COALESCE(sl.minimum_stock_enabled, pv."minimumStockEnabled", false) = true
-            AND sl.available_stock < COALESCE(
-              NULLIF(sl.minimum_stock, 0),
-              NULLIF(pv."minimumStock", 0),
-              999999999
-            )
-          )
-        )
-      `,
-      [companyId],
-    );
-    return Number(rows?.[0]?.cnt ?? 0);
+    return this.stockLevelRepository
+      .createQueryBuilder('sl')
+      .innerJoin('sl.variant', 'pv')
+      .where('sl.companyId = :companyId', { companyId })
+      .andWhere(
+        'COALESCE(sl.minimumStockEnabled, pv.minimumStockEnabled, false) = true',
+      )
+      .andWhere(
+        `sl.availableStock < COALESCE(NULLIF(sl.minimumStock, 0), NULLIF(pv.minimumStock, 0), 999999999)`,
+      )
+      .getCount();
   }
 
   private async countActiveCustomers(companyId: string): Promise<number> {

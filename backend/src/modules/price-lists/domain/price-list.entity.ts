@@ -49,6 +49,10 @@ export class PriceList {
   @Column({ type: 'boolean', default: true })
   isActive!: boolean;
 
+  /** Lista de sistema (p. ej. eShop): no se puede eliminar. */
+  @Column({ type: 'boolean', default: false, name: 'non_deletable' })
+  nonDeletable!: boolean;
+
   @Column({ type: 'text', nullable: true })
   description?: string;
 

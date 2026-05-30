@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Min, ValidateIf } from 'class-validator';
 
 const toBoolean = ({ value }: { value: unknown }) => {
   if (typeof value === 'boolean') {
@@ -52,4 +52,9 @@ export class LinkMultimediaDto {
   @Transform(toBoolean)
   @IsBoolean()
   isPrimary?: boolean;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsUUID()
+  attributeId?: string;
 }

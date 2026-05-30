@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { MultimediaBannerSize } from "@/shared/components/FileUploader/multimedia-banner-size";
+import { MultimediaField } from "@/shared/components/Multimedia";
 import { MultimediaUploader } from "@/shared/components/FileUploader/MultimediaUploader";
 import MultimediaUpdater from "@/shared/components/FileUploader/MultimediaUpdater";
 
@@ -47,12 +48,29 @@ export default function MultimediaUiComponentsPage() {
         </Link>
         <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground">Multimedia</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Casos de uso de <code className="rounded bg-muted px-1 py-0.5 text-xs">MultimediaUploader</code> (variante{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">collection</code>: varios archivos, rejilla) y{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">MultimediaUpdater</code> (un
-          archivo, reemplazo / banner / logo / avatar). Aquí solo hay vista previa local; en productos el envío va al API.
+          Preferir <code className="rounded bg-muted px-1 py-0.5 text-xs">MultimediaField</code> (colección con rejilla,
+          principal, galería y reorden). Abajo: wrappers legacy de{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">MultimediaUploader</code> /{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">MultimediaUpdater</code>.
         </p>
       </div>
+
+      <section className="space-y-4 rounded-xl border border-primary/30 bg-primary/5 p-6">
+        <h2 className="text-xl font-semibold text-foreground">MultimediaField (recomendado)</h2>
+        <p className="text-xs text-muted-foreground">Staging: varios archivos, icono +, rejilla y arrastre.</p>
+        <MultimediaField
+          mode="staging"
+          layout="collection"
+          title="Demo colección"
+          value={uploaderDefaultFiles}
+          onChange={setUploaderDefaultFiles}
+          pickButton="icon"
+          allowPrimary
+          allowDragDrop
+          maxFiles={6}
+        />
+        <FileListHint files={uploaderDefaultFiles} />
+      </section>
 
       {/* ——— MultimediaUploader ——— */}
       <section className="space-y-6 border-t border-border pt-10">

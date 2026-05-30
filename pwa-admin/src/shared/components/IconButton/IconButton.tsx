@@ -5,9 +5,25 @@ import './icon-button.css';
 type IconButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number;
 type LucideIconName = keyof typeof Icons;
 
+export type IconButtonVariant =
+	| 'action'
+	| 'primary'
+	| 'secondary'
+	| 'neutral'
+	| 'text'
+	| 'outlined';
+
+/** @deprecated Use IconButtonVariant names (action, primary, secondary, neutral). */
+type IconButtonVariantLegacy =
+	| 'containedPrimary'
+	| 'containedSecondary'
+	| 'basic'
+	| 'basicSecondary'
+	| 'ghost';
+
 interface IconButtonProps {
 	icon: LucideIconName;
-	variant?: 'containedPrimary' | 'containedSecondary' | 'text' | 'basic' | 'basicSecondary' | 'outlined' | 'ghost';
+	variant?: IconButtonVariant | IconButtonVariantLegacy;
 	size?: IconButtonSize;
 	/** Grosor del trazo del icono Lucide (por defecto 2). Valores mayores = icono más “fuerte”. */
 	strokeWidth?: number;
@@ -19,15 +35,30 @@ interface IconButtonProps {
 	[key: string]: any;
 }
 
-const variantClassNames: Record<NonNullable<IconButtonProps['variant']>, string> = {
-	containedPrimary: 'fs-icon-button fs-icon-button--contained-primary',
-	containedSecondary: 'fs-icon-button fs-icon-button--contained-secondary',
+const variantClassNames: Record<IconButtonVariant, string> = {
+	action: 'fs-icon-button fs-icon-button--action',
+	primary: 'fs-icon-button fs-icon-button--primary',
+	secondary: 'fs-icon-button fs-icon-button--secondary',
+	neutral: 'fs-icon-button fs-icon-button--neutral',
 	text: 'fs-icon-button fs-icon-button--text',
-	basic: 'fs-icon-button fs-icon-button--basic',
-	basicSecondary: 'fs-icon-button fs-icon-button--basic-secondary',
 	outlined: 'fs-icon-button fs-icon-button--outlined',
-	ghost: 'fs-icon-button fs-icon-button--ghost',
 };
+
+const legacyVariantMap: Record<IconButtonVariantLegacy, IconButtonVariant> = {
+	containedPrimary: 'primary',
+	containedSecondary: 'secondary',
+	basic: 'neutral',
+	basicSecondary: 'action',
+	ghost: 'neutral',
+};
+
+function resolveVariantClass(variant: IconButtonProps['variant']): string {
+	const key = variant ?? 'action';
+	if (key in legacyVariantMap) {
+		return variantClassNames[legacyVariantMap[key as IconButtonVariantLegacy]];
+	}
+	return variantClassNames[key as IconButtonVariant] ?? variantClassNames.action;
+}
 
 const sizeMap: Record<Exclude<IconButtonSize, number>, string> = {
 	xs: 'w-5 h-5',
@@ -47,7 +78,7 @@ const iconSizeMap: Record<Exclude<IconButtonSize, number>, number> = {
 
 const IconButton: React.FC<IconButtonProps> = ({
 	icon,
-	variant = 'containedPrimary',
+	variant = 'action',
 	size = 'md',
 	strokeWidth = 2,
 	disabled = false,
@@ -60,8 +91,8 @@ const IconButton: React.FC<IconButtonProps> = ({
 	const sizeClass = typeof size === 'number' ? '' : sizeMap[size] || sizeMap['md'];
 	const iconSize = typeof size === 'number' ? size : iconSizeMap[size] || 24;
 	const effectiveDisabled = disabled || isLoading;
+	const variantClass = resolveVariantClass(variant);
 
-	// Get the icon component
 	const IconComponent = Icons[icon] as React.ComponentType<any>;
 
 	if (!IconComponent) {
@@ -69,7 +100,7 @@ const IconButton: React.FC<IconButtonProps> = ({
 		return (
 			<button
 				type="button"
-				className={`${variantClassNames[variant] ?? variantClassNames.containedPrimary} inline-flex items-center justify-center ${sizeClass} ${
+				className={`${variantClass} inline-flex items-center justify-center ${sizeClass} ${
 					effectiveDisabled ? 'opacity-50' : ''
 				} ${className}`}
 				data-test-id="icon-button-root"
@@ -86,7 +117,7 @@ const IconButton: React.FC<IconButtonProps> = ({
 	return (
 		<button
 			type="button"
-			className={`${variantClassNames[variant] ?? variantClassNames.containedPrimary} inline-flex items-center justify-center ${sizeClass} ${
+			className={`${variantClass} inline-flex items-center justify-center ${sizeClass} ${
 				effectiveDisabled ? 'opacity-50' : ''
 			} ${className}`}
 			data-test-id="icon-button-root"

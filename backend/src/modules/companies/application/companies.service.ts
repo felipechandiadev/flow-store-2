@@ -28,6 +28,26 @@ import {
   buildDefaultInternalCustomerCreditSettings,
   sanitizeInternalCustomerCreditSettings,
 } from '../domain/company-internal-customer-credit.types';
+import {
+  CompanyPublicContactSettings,
+  buildDefaultCompanyPublicContact,
+  sanitizeCompanyPublicContact,
+} from '../domain/company-public-contact.types';
+import {
+  resolveCompanyContactEmail,
+  resolveCompanyContactPhone,
+  resolveCompanyPublicContact,
+} from '../domain/company-contact-resolve.util';
+import {
+  CompanyEShopFlatSettings,
+  buildDefaultCompanyEShopFlatSettings,
+  sanitizeCompanyEShopFlatSettings,
+} from '../domain/company-eshop-flat.types';
+import {
+  CompanyIdentitySettings,
+  resolveCompanyIdentity,
+  sanitizeCompanyIdentity,
+} from '../domain/company-identity.types';
 import { PaymentMethod } from '@modules/transactions/domain/transaction.entity';
 import { PointOfSale } from '@modules/points-of-sale/domain/point-of-sale.entity';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -128,6 +148,15 @@ export class CompaniesService {
       phone: data.phone?.trim() ? data.phone.trim() : null,
     });
     const saved = await this.companyRepository.save(company);
+    if (data.mail?.trim() || data.phone?.trim()) {
+      const settings = { ...(saved.settings ?? {}) };
+      settings.publicContact = sanitizeCompanyPublicContact({
+        email: data.mail?.trim(),
+        phone: data.phone?.trim(),
+      });
+      saved.settings = settings;
+      await this.companyRepository.save(saved);
+    }
     return this.toDetail(saved);
   }
 
@@ -165,13 +194,19 @@ export class CompaniesService {
       const v = data.address.trim();
       company.address = v === '' ? null : v;
     }
-    if (data.mail !== undefined) {
-      const v = data.mail.trim();
-      company.mail = v === '' ? null : v;
-    }
-    if (data.phone !== undefined) {
-      const v = data.phone.trim();
-      company.phone = v === '' ? null : v;
+    if (data.mail !== undefined || data.phone !== undefined) {
+      const settings = { ...(company.settings ?? {}) };
+      const current = resolveCompanyPublicContact(company);
+      settings.publicContact = sanitizeCompanyPublicContact({
+        ...current,
+        ...(data.mail !== undefined
+          ? { email: data.mail.trim() || undefined }
+          : {}),
+        ...(data.phone !== undefined
+          ? { phone: data.phone.trim() || undefined }
+          : {}),
+      });
+      company.settings = settings;
     }
     if ((data as any).isActive !== undefined) {
       company.isActive = !!(data as any).isActive;
@@ -499,6 +534,123 @@ export class CompaniesService {
     return validated;
   }
 
+  async findByEShopPublicSlug(slug: string): Promise<Company | null> {
+    const normalized = slug.trim().toLowerCase();
+    if (!normalized) return null;
+    return this.companyRepository
+      .createQueryBuilder('c')
+      .where("LOWER(TRIM(c.settings->>'eShopPublicSlug')) = :slug", {
+        slug: normalized,
+      })
+      .andWhere('c.isActive = :active', { active: true })
+      .getOne();
+  }
+
+  async getPublicContactSettings(
+    companyId: string,
+  ): Promise<CompanyPublicContactSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    return resolveCompanyPublicContact(company);
+  }
+
+  async replacePublicContactSettings(
+    companyId: string,
+    raw: unknown,
+  ): Promise<CompanyPublicContactSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    const validated = sanitizeCompanyPublicContact(raw);
+    const settings = { ...(company.settings ?? {}) };
+    settings.publicContact = validated;
+    company.settings = settings;
+    await this.companyRepository.save(company);
+    return validated;
+  }
+
+  async getCompanyIdentitySettings(
+    companyId: string,
+  ): Promise<CompanyIdentitySettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    return resolveCompanyIdentity(company.settings as Record<string, unknown>);
+  }
+
+  async replaceCompanyIdentitySettings(
+    companyId: string,
+    raw: unknown,
+  ): Promise<CompanyIdentitySettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    const validated = sanitizeCompanyIdentity(raw);
+    const settings = { ...(company.settings ?? {}) };
+    const hasValues = validated.tagline || validated.brandManifest;
+    if (hasValues) {
+      settings.companyIdentity = validated;
+    } else {
+      delete settings.companyIdentity;
+    }
+    delete settings.companyTagline;
+    company.settings = settings;
+    await this.companyRepository.save(company);
+    return validated;
+  }
+
+  async getEShopFlatSettings(companyId: string): Promise<CompanyEShopFlatSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    return sanitizeCompanyEShopFlatSettings(
+      company.settings as Record<string, unknown>,
+    );
+  }
+
+  async replaceEShopFlatSettings(
+    companyId: string,
+    raw: Partial<CompanyEShopFlatSettings>,
+  ): Promise<CompanyEShopFlatSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    const current = sanitizeCompanyEShopFlatSettings(
+      company.settings as Record<string, unknown>,
+    );
+    const merged: CompanyEShopFlatSettings = {
+      ...current,
+      ...raw,
+      eShopFeaturedProductVariantIds:
+        raw.eShopFeaturedProductVariantIds ?? current.eShopFeaturedProductVariantIds,
+      eShopFeaturedProductIds:
+        raw.eShopFeaturedProductIds ?? current.eShopFeaturedProductIds,
+    };
+    const settings = { ...(company.settings ?? {}) };
+    settings.eShopEnabled = merged.eShopEnabled;
+    settings.eShopPublicSlug = merged.eShopPublicSlug;
+    settings.eShopFeaturedProductVariantIds = merged.eShopFeaturedProductVariantIds;
+    settings.eShopFeaturedProductIds = merged.eShopFeaturedProductIds;
+    settings.eShopFreeShippingThreshold = merged.eShopFreeShippingThreshold;
+    settings.eShopShippingMode = merged.eShopShippingMode;
+    settings.eShopDefaultBranchId = merged.eShopDefaultBranchId;
+    settings.eShopDefaultPriceListId = merged.eShopDefaultPriceListId;
+    settings.eShopDefaultStorageId = merged.eShopDefaultStorageId;
+    settings.eShopHeroSliderAutoplaySeconds = merged.eShopHeroSliderAutoplaySeconds;
+    company.settings = settings;
+    await this.companyRepository.save(company);
+    return sanitizeCompanyEShopFlatSettings(
+      company.settings as Record<string, unknown>,
+    );
+  }
+
   async addBankAccount(
     companyId: string | null,
     accountData: PersonBankAccountDto,
@@ -541,8 +693,8 @@ export class CompaniesService {
       businessActivity: company.businessActivity ?? null,
       rut: company.rut,
       address: company.address?.trim() ? company.address.trim() : null,
-      mail: company.mail?.trim() ? company.mail.trim() : null,
-      phone: company.phone?.trim() ? company.phone.trim() : null,
+      mail: resolveCompanyContactEmail(company),
+      phone: resolveCompanyContactPhone(company),
       defaultCurrency: company.defaultCurrency,
       fiscalYearStart: company.fiscalYearStart,
       isActive: company.isActive,

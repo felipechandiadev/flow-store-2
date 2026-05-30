@@ -306,21 +306,21 @@ export function PromotionsPageContent({
                       <div className="flex justify-end gap-1">
                         <IconButton
                           icon={p.isActive ? "Eye" : "EyeOff"}
-                          variant="basicSecondary"
+                          variant="action"
                           size="sm"
                           ariaLabel={p.isActive ? "Desactivar" : "Activar"}
                           onClick={() => handleToggleActive(p)}
                         />
                         <IconButton
                           icon="Edit"
-                          variant="basicSecondary"
+                          variant="action"
                           size="sm"
                           ariaLabel="Editar"
                           onClick={() => openEdit(p)}
                         />
                         <IconButton
                           icon="Trash"
-                          variant="basicSecondary"
+                          variant="action"
                           size="sm"
                           ariaLabel="Eliminar"
                           onClick={() => handleDelete(p)}

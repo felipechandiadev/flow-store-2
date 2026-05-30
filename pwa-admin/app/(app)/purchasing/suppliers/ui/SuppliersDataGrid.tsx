@@ -70,7 +70,7 @@ export default function SuppliersDataGrid({ rows, total }: SuppliersDataGridProp
         <div className="flex items-center justify-center" data-test-id={`suppliers-row-actions-${r.id}`}>
           <IconButton
             icon="MoreHorizontal"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             ariaLabel="Ver detalle del proveedor"
             onClick={() => setDetailSupplierId(r.id)}

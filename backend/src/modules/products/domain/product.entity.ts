@@ -39,6 +39,7 @@ export interface ProductChangeHistoryEntry {
 }
 
 export interface ProductMediaAsset {
+  isPrimary?: boolean;
   id: string;
   publicUrl: string;
   mimeType: string;
@@ -103,6 +104,9 @@ export class Product {
 
   @Column({ type: 'boolean', default: true })
   isActive!: boolean;
+
+  @Column({ name: 'visible_in_e_shop', type: 'boolean', default: false })
+  visibleInEShop!: boolean;
 
   @Column({ type: 'uuid', nullable: true })
   resultCenterId?: string | null;

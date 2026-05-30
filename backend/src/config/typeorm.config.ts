@@ -70,6 +70,8 @@ import { NotificationDelivery } from '@modules/notifications/domain/notification
 import { NotificationAudience } from '@modules/notifications/domain/notification-audience.entity';
 import { NotificationPreference } from '@modules/notifications/domain/notification-preference.entity';
 import { NotificationRetentionPolicy } from '@modules/notifications/domain/notification-retention-policy.entity';
+import { EShopTestimonial } from '@modules/e-shop/domain/e-shop-testimonial.entity';
+import { EShopHeroSlide } from '@modules/e-shop/domain/e-shop-hero-slide.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
 import { TenantSubscriber } from '../common/tenant/tenant.subscriber';
 
@@ -153,6 +155,8 @@ export const typeOrmConfig = (
       NotificationAudience,
       NotificationPreference,
       NotificationRetentionPolicy,
+      EShopTestimonial,
+      EShopHeroSlide,
     ],
 
     // Register subscribers (TypeORM EventSubscribers)

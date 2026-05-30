@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsUUID, ValidateIf } from 'class-validator';
 
 export class UnlinkMultimediaDto {
   @IsString()
@@ -10,4 +10,9 @@ export class UnlinkMultimediaDto {
   @IsOptional()
   @IsString()
   usageType?: string;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsUUID()
+  attributeId?: string;
 }

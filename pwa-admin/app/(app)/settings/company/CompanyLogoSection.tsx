@@ -118,7 +118,7 @@ export function CompanyLogoSection({ companyId, embedded = false }: Props) {
 
   return (
     <div
-      className="mx-auto flex w-full max-w-xl flex-col items-center gap-2"
+      className={`flex w-full flex-col items-center gap-2 ${embedded ? "max-w-full" : "mx-auto max-w-xl"}`}
       data-test-id="settings-company-logo-section"
     >
       {embedded ? null : (
@@ -129,7 +129,7 @@ export function CompanyLogoSection({ companyId, embedded = false }: Props) {
           {error}
         </Alert>
       ) : null}
-      <div className={`w-full max-w-xl ${loading || busy ? "pointer-events-none opacity-60" : ""}`}>
+      <div className={`w-full ${embedded ? "" : "max-w-xl"} ${loading || busy ? "pointer-events-none opacity-60" : ""}`}>
         <MultimediaUpdater
           key={`${updaterKey}-${currentUrl ?? "none"}`}
           currentUrl={currentUrl}

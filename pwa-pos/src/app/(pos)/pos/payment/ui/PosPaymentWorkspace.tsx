@@ -191,7 +191,7 @@ function PosPaymentMethodCard({
           </p>
           <IconButton
             icon="Trash2"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             className="shrink-0"
             ariaLabel="Quitar medio de pago"
@@ -218,7 +218,7 @@ function PosPaymentMethodCard({
               {p.type !== "CASH" && remaining > 0.01 ? (
                 <IconButton
                   icon="ArrowDownToLine"
-                  variant="ghost"
+                  variant="neutral"
                   size="xs"
                   ariaLabel="Rellenar con saldo pendiente"
                   title="Rellenar con saldo pendiente"
@@ -230,7 +230,7 @@ function PosPaymentMethodCard({
               ) : null}
               <IconButton
                 icon="X"
-                variant="ghost"
+                variant="neutral"
                 size="xs"
                 ariaLabel="Limpiar monto"
                 title="Limpiar monto"
@@ -1934,7 +1934,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           ) : null}
           <IconButton
             icon={confirmCtaIcon}
-            variant="containedPrimary"
+            variant="primary"
             size="lg"
             className="shrink-0"
             ariaLabel={confirmCtaAriaLabel}
@@ -2170,7 +2170,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           <div className="flex shrink-0 items-center gap-2">
             <IconButton
               icon="Plus"
-              variant="basicSecondary"
+              variant="action"
               size="md"
               ariaLabel="Agregar método de pago"
               onClick={openAddPayment}
@@ -2252,7 +2252,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         ) : null}
         <IconButton
           icon={confirmCtaIcon}
-          variant="containedPrimary"
+          variant="primary"
           size="lg"
           className="shrink-0"
           ariaLabel={confirmCtaAriaLabel}

@@ -187,7 +187,7 @@ export default function VariantSearchPanel({
         <div className="flex min-w-0 items-center gap-1.5">
           <IconButton
             icon="Settings"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             title="Configuración del buscador"
             ariaLabel="Abrir configuración del buscador de productos"
@@ -201,7 +201,7 @@ export default function VariantSearchPanel({
         <div className="flex shrink-0 gap-1">
           <IconButton
             icon="ChevronLeft"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             disabled={urlPage <= 1}
             title="Anterior"
@@ -211,7 +211,7 @@ export default function VariantSearchPanel({
           />
           <IconButton
             icon="ChevronRight"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             disabled={urlPage >= totalPages}
             title="Siguiente"

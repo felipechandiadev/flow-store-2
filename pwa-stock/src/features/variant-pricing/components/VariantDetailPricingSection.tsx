@@ -245,7 +245,7 @@ export function VariantDetailPricingSection({ variant, onPricingChanged }: Props
         {canAddPrice ? (
           <IconButton
             icon="Plus"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             ariaLabel="Agregar precio en lista"
             disabled={pending || !catalogLoaded || Boolean(loadError) || Boolean(editingListId)}

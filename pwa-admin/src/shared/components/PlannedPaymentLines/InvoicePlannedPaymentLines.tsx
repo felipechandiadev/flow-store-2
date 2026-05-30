@@ -107,7 +107,7 @@ export function InvoicePlannedPaymentLines({
                   <IconButton
                     type="button"
                     icon="Trash2"
-                    variant="basicSecondary"
+                    variant="action"
                     size="sm"
                     ariaLabel="Quitar línea de pago"
                     disabled={disabled}

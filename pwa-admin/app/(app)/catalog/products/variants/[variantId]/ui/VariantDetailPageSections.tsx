@@ -525,7 +525,7 @@ export function VariantDetailIdentitySection({
           {editing && selectableAttributes.length > 0 ? (
             <IconButton
               icon="Plus"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Agregar atributo"
               title="Agregar atributo"
@@ -605,7 +605,7 @@ export function VariantDetailIdentitySection({
                 <div className="flex shrink-0 justify-end pb-0.5 sm:pb-1">
                   <IconButton
                     icon="Trash2"
-                    variant="basicSecondary"
+                    variant="action"
                     size="sm"
                     ariaLabel="Quitar fila"
                     title="Quitar fila"
@@ -622,7 +622,7 @@ export function VariantDetailIdentitySection({
       <div className="absolute bottom-2 right-2">
         <IconButton
           icon={editing ? "Save" : "Pencil"}
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           ariaLabel={editing ? "Guardar identidad" : "Editar identidad"}
           onClick={toggleEditOrSave}
@@ -885,7 +885,7 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
       <div className="absolute bottom-2 right-2">
         <IconButton
           icon={editing ? "Save" : "Pencil"}
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           ariaLabel={editing ? "Guardar precios" : "Editar precios"}
           onClick={toggleEditOrSave}
@@ -1132,7 +1132,7 @@ export function VariantDetailInventorySection({ productType, variant }: SectionP
       <div className="absolute bottom-2 right-2">
         <IconButton
           icon={editing ? "Save" : "Pencil"}
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           ariaLabel={editing ? "Guardar inventario" : "Editar inventario"}
           onClick={toggleEditOrSave}

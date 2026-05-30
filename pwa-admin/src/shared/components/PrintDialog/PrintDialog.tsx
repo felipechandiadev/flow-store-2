@@ -57,7 +57,7 @@ export const PrintDialog: React.FC<PrintDialogProps> = ({
             (printIconButton ? (
               <IconButton
                 icon="Printer"
-                variant="basicSecondary"
+                variant="action"
                 size="md"
                 disabled={disablePrint}
                 isLoading={printLoading}

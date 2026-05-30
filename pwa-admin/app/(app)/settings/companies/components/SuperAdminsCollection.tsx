@@ -48,7 +48,7 @@ export function SuperAdminsCollection({
         addAction={
           <IconButton
             icon="Plus"
-            variant="basicSecondary"
+            variant="action"
             size="md"
             ariaLabel="Agregar super-administrador"
             onClick={() => setCreateOpen(true)}

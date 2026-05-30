@@ -215,7 +215,7 @@ const Select: React.FC<SelectProps> = ({
         {allowClear && value !== null && value !== undefined && (
           <IconButton
             icon="X"
-            variant="basicSecondary"
+            variant="action"
             size={isCompact ? "xs" : "sm"}
             className={`absolute top-1/2 z-20 -translate-y-1/2 ${clearBtnRight} ${iconBtnBase}`}
             onClick={() => onChange?.(null)}
@@ -228,7 +228,7 @@ const Select: React.FC<SelectProps> = ({
 
         <IconButton
           icon="ChevronDown"
-          variant="basicSecondary"
+          variant="action"
           size={isCompact ? "xs" : "sm"}
           className={`absolute right-1.5 top-1/2 z-20 -translate-y-1/2 ${iconBtnBase}`}
           tabIndex={-1}
@@ -362,7 +362,7 @@ const Select: React.FC<SelectProps> = ({
             {allowClear && value !== null && value !== undefined && (
               <IconButton
                 icon="X"
-                variant="basicSecondary"
+                variant="action"
                 size={isCompact ? "xs" : "sm"}
                 className={`absolute top-1/2 z-20 -translate-y-1/2 ${clearBtnRight} ${iconBtnBase}`}
                 onClick={() => onChange?.(null)}

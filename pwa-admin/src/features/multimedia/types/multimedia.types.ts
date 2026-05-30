@@ -1,4 +1,10 @@
-export type MultimediaEntityType = "product" | "product-variant" | "company";
+export type MultimediaEntityType =
+  | "product"
+  | "product-variant"
+  | "company"
+  | "brand"
+  | "e-shop-testimonial"
+  | "e-shop-hero-slide";
 
 export type MultimediaAssetListItem = {
   id: string;
@@ -7,4 +13,6 @@ export type MultimediaAssetListItem = {
   kind: string;
   /** Solo si el backend envía el flag (links por entidad). */
   isPrimary?: boolean;
+  sortOrder?: number;
+  linkId?: string;
 };

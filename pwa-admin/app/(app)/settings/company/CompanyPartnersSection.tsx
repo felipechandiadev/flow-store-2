@@ -38,7 +38,7 @@ export function CompanyPartnersSection({ companyId, shareholders }: Props) {
           <h2 className="text-lg font-semibold tracking-tight text-foreground">Socios</h2>
           <IconButton
             icon="Plus"
-            variant="basicSecondary"
+            variant="action"
             ariaLabel="Agregar socio"
             onClick={() => setDialogOpen(true)}
             data-test-id="settings-company-partners-add"
@@ -58,7 +58,7 @@ export function CompanyPartnersSection({ companyId, shareholders }: Props) {
                   <span className="font-medium text-foreground">{partnerLabel(row)}</span>
                   <IconButton
                     icon="Trash2"
-                    variant="basicSecondary"
+                    variant="action"
                     size="sm"
                     ariaLabel="Eliminar socio"
                     onClick={() => {

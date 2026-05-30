@@ -67,6 +67,11 @@ export class CreateProductDto {
   isActive?: boolean;
 
   @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  visibleInEShop?: boolean;
+
+  @IsOptional()
   @IsUUID()
   resultCenterId?: string;
 

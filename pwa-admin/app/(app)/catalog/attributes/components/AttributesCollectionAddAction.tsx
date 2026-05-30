@@ -13,7 +13,7 @@ export function AttributesCollectionAddAction() {
     <>
       <IconButton
         icon="Plus"
-        variant="basicSecondary"
+        variant="action"
         size="md"
         ariaLabel="Crear atributo"
         onClick={() => setOpen(true)}

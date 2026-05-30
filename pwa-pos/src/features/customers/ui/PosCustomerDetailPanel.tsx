@@ -291,7 +291,7 @@ function BackordersSection({ rows }: { rows?: PosCustomerBackorderRow[] }) {
                 <td className="px-2 py-2">
                   <IconButton
                     icon="MoreHorizontal"
-                    variant="ghost"
+                    variant="neutral"
                     size="sm"
                     ariaLabel="Ver productos del encargo"
                     title="Ver productos del encargo"

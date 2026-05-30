@@ -13,7 +13,8 @@ import type { CatalogProductType, ProductGridRow } from "@/features/inventory-pr
 import { CATALOG_PRODUCT_TYPE_SELECT_OPTIONS, normalizeCatalogProductType } from "./catalog-product-type-options";
 import { listCategoriesForPage } from "@/features/inventory-categories/actions/category.action";
 import { listBrandsForPage } from "@/features/catalog-brands/actions/brand.action";
-import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
+import { MultimediaField } from "@/shared/components/Multimedia";
+import { isEShopModuleEnabled } from "@/config/eshop-module.config";
 
 export type EditProductDialogProps = {
   open: boolean;
@@ -29,6 +30,8 @@ export function EditProductDialog({ open, product, onClose, onSuccess }: EditPro
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
+  const [visibleInEShop, setVisibleInEShop] = useState(false);
+  const eshopModuleOn = isEShopModuleEnabled();
   const [categoryOptions, setCategoryOptions] = useState<Option[]>([]);
   const [brandOptions, setBrandOptions] = useState<Option[]>([]);
   const [productType, setProductType] = useState<CatalogProductType>("PHYSICAL");
@@ -44,6 +47,7 @@ export function EditProductDialog({ open, product, onClose, onSuccess }: EditPro
     setDescription(product.description ?? "");
     setCategoryId(product.categoryId);
     setIsActive(product.isActive !== false);
+    setVisibleInEShop(product.visibleInEShop === true);
     setProductType(normalizeCatalogProductType(product.productType));
     setError(null);
   }, [open, product]);
@@ -94,6 +98,7 @@ export function EditProductDialog({ open, product, onClose, onSuccess }: EditPro
           categoryId: categoryId?.trim() || undefined,
           productType,
           isActive,
+          visibleInEShop: eshopModuleOn ? visibleInEShop : false,
         });
         if (r.success) {
           await onSuccess?.();
@@ -190,7 +195,7 @@ export function EditProductDialog({ open, product, onClose, onSuccess }: EditPro
           rows={3}
           data-test-id="product-edit-description"
         />
-        <div className="pt-1">
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3 pt-1">
           <Switch
             checked={isActive}
             onChange={setIsActive}
@@ -198,12 +203,25 @@ export function EditProductDialog({ open, product, onClose, onSuccess }: EditPro
             labelPosition="right"
             data-test-id="product-edit-active"
           />
+          {eshopModuleOn ? (
+            <Switch
+              checked={visibleInEShop}
+              onChange={setVisibleInEShop}
+              label="Activo en eShop"
+              labelPosition="right"
+              data-test-id="product-edit-eshop"
+            />
+          ) : null}
         </div>
         {product ? (
-          <EntityMultimediaPanel
+          <MultimediaField
+            mode="persisted"
+            layout="collection"
             entityType="product"
             entityId={product.id}
             title="Imágenes del producto (catálogo)"
+            allowPrimary
+            allowReorder
             onChanged={() => router.refresh()}
           />
         ) : null}

@@ -121,12 +121,12 @@ export default function CardsShowcasePage() {
         />
       </div>
 
-      {/* Acciones: IconButton (basicSecondary fijo) + opcional mezclar con Button */}
+      {/* Acciones: IconButton (action fijo) + opcional mezclar con Button */}
       <div>
         <h2 className="text-2xl font-semibold mb-2">Card with actions (IconButton)</h2>
         <p className="mb-4 text-sm text-gray-600">
           En <code>actions</code>, las entradas con <code>icon</code> + <code>ariaLabel</code> se renderizan como <code>IconButton</code> (siempre{' '}
-          <code>basicSecondary</code> y <code>size=sm</code> — norma del proyecto). Se pueden mezclar con acciones de texto.
+          <code>action</code> y <code>size=sm</code> — norma del proyecto). Se pueden mezclar con acciones de texto.
         </p>
         <Card
           title="Inbox item"
@@ -189,7 +189,7 @@ export default function CardsShowcasePage() {
             <code>onClick</code>).
           </li>
           <li>
-            <strong>IconButton en cards</strong> (p. ej. vía <code>actions</code> con <code>icon</code>): siempre <code>variant=&quot;basicSecondary&quot;</code> (aplicado en <code>Card</code>).
+            <strong>IconButton en cards</strong> (p. ej. vía <code>actions</code> con <code>icon</code>): siempre <code>variant=&quot;action&quot;</code> (aplicado en <code>Card</code>).
             Manualmente en composiciones custom, mismo criterio — ver instrucciones webadmin.
           </li>
           <li>

@@ -393,7 +393,7 @@ const AutoComplete = <T = Option,>({
         {value && !disabled && (
           <IconButton
             icon="X"
-            variant="basicSecondary"
+            variant="action"
             className="absolute right-10 top-1/2 z-20 flex h-6 w-6 min-h-6 min-w-6 -translate-y-1/2 items-center justify-center p-0"
             onMouseDown={handleChromeMouseDown}
             onClick={handleClear}
@@ -407,7 +407,7 @@ const AutoComplete = <T = Option,>({
         {!disabled && (
           <IconButton
             icon="ChevronDown"
-            variant="basicSecondary"
+            variant="action"
             className="absolute right-2 top-1/2 z-20 flex h-6 w-6 min-h-6 min-w-6 -translate-y-1/2 items-center justify-center p-0"
             tabIndex={-1}
             aria-label="Desplegar opciones"

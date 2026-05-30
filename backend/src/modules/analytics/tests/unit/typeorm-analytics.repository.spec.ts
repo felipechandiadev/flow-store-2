@@ -17,7 +17,6 @@ describe('TypeOrmAnalyticsRepository', () => {
   let employeeRepository: { count: jest.Mock };
   let operationalExpenseRepository: { count: jest.Mock; createQueryBuilder: jest.Mock };
   let installmentRepository: { count: jest.Mock; createQueryBuilder: jest.Mock };
-  let dataSource: { query: jest.Mock };
   let txQb: Record<string, jest.Mock>;
   let customerQb: Record<string, jest.Mock>;
   let stockQb: Record<string, jest.Mock>;
@@ -49,9 +48,10 @@ describe('TypeOrmAnalyticsRepository', () => {
       getCount: jest.fn().mockResolvedValue(2),
     };
     stockQb = {
+      innerJoin: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
-      getCount: jest.fn().mockResolvedValue(1),
+      getCount: jest.fn().mockResolvedValue(4),
     };
     expenseQb = {
       select: jest.fn().mockReturnThis(),
@@ -92,8 +92,6 @@ describe('TypeOrmAnalyticsRepository', () => {
       count: jest.fn().mockResolvedValue(5),
       createQueryBuilder: jest.fn().mockReturnValue(installmentQb),
     };
-    dataSource = { query: jest.fn().mockResolvedValue([{ cnt: 4 }]) };
-
     repository = new TypeOrmAnalyticsRepository(
       customerRepository as never,
       transactionRepository as never,
@@ -102,17 +100,14 @@ describe('TypeOrmAnalyticsRepository', () => {
       employeeRepository as never,
       operationalExpenseRepository as never,
       installmentRepository as never,
-      dataSource as never,
     );
   });
 
   it('should build dashboard with company filter and legacy fields', async () => {
     const result = await repository.getDashboard(companyId, period, {});
 
-    expect(dataSource.query).toHaveBeenCalledWith(
-      expect.stringContaining('stock_levels'),
-      [companyId],
-    );
+    expect(stockLevelRepository.createQueryBuilder).toHaveBeenCalled();
+    expect(stockQb.getCount).toHaveBeenCalled();
     expect(customerRepository.count).toHaveBeenCalledWith({
       where: { companyId, isActive: true },
     });

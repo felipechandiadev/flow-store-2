@@ -10,7 +10,7 @@ interface RowActionsProps {
 
 /**
  * Acciones de fila del DataGrid — referencia de norma (ver `.instructions/webadmin.instruction`):
- * - Cada `IconButton`: `variant="basicSecondary"` y `size="sm"` (no usar `text` u otros con colores sueltos).
+ * - Cada `IconButton`: `variant="action"` y `size="sm"` (no usar `text` u otros con colores sueltos).
  * - En la columna, `headerName: ''` (título de encabezado vacío) y `filterable: false` si aplica.
  */
 export const RowActions: React.FC<RowActionsProps> = ({ row, column: _column }) => {
@@ -30,7 +30,7 @@ export const RowActions: React.FC<RowActionsProps> = ({ row, column: _column }) 
     <div className="flex items-center gap-1 justify-center" data-test-id={`data-grid-row-actions-${row.id ?? row._id ?? row.key ?? row.index}`}>
       <IconButton
         icon="Eye"
-        variant="basicSecondary"
+        variant="action"
         size="sm"
         title="Ver detalles"
         ariaLabel="Ver detalles"
@@ -38,7 +38,7 @@ export const RowActions: React.FC<RowActionsProps> = ({ row, column: _column }) 
       />
       <IconButton
         icon="Pencil"
-        variant="basicSecondary"
+        variant="action"
         size="sm"
         title="Editar"
         ariaLabel="Editar"
@@ -46,7 +46,7 @@ export const RowActions: React.FC<RowActionsProps> = ({ row, column: _column }) 
       />
       <IconButton
         icon="Trash2"
-        variant="basicSecondary"
+        variant="action"
         size="sm"
         title="Eliminar"
         ariaLabel="Eliminar"

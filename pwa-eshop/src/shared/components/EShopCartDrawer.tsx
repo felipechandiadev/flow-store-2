@@ -1,0 +1,101 @@
+"use client";
+
+import Link from "next/link";
+import { Button, IconButton } from "@/shared/admin-shared";
+import { useEShopCart } from "@/features/e-shop-cart/EShopCartProvider";
+import { EShopFreeShippingProgress } from "./EShopFreeShippingProgress";
+import "./eshop-cart-drawer.css";
+
+function fmt(n: number) {
+  return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n);
+}
+
+export function EShopCartDrawer() {
+  const { lines, subtotal, drawerOpen, closeDrawer, removeItem, crossSell, addItem } = useEShopCart();
+
+  const suggestions = crossSell.filter(
+    (p) =>
+      p.defaultVariantId &&
+      !lines.some((l) => l.productVariantId === p.defaultVariantId) &&
+      p.inStock !== false,
+  ).slice(0, 3);
+
+  return (
+    <div
+      className={`eshop-cart-shell ${drawerOpen ? "open" : ""}`}
+      aria-hidden={!drawerOpen}
+    >
+      <div className="eshop-cart-overlay" onClick={closeDrawer} role="presentation" />
+      <aside className="eshop-cart-drawer">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <h2 className="font-semibold">Tu carrito</h2>
+          <IconButton icon="X" variant="neutral" ariaLabel="Cerrar carrito" onClick={closeDrawer} />
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <EShopFreeShippingProgress />
+          {lines.length === 0 ? (
+            <p className="text-sm text-muted-foreground">El carrito está vacío.</p>
+          ) : (
+            lines.map((l) => (
+              <div key={l.productVariantId} className="flex gap-3 border-b border-border pb-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{l.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {l.quantity} × {fmt(l.unitPrice)}
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-1 text-xs text-destructive"
+                    onClick={() => removeItem(l.productVariantId)}
+                  >
+                    Quitar
+                  </button>
+                </div>
+                <p className="text-sm font-semibold tabular-nums">{fmt(l.unitPrice * l.quantity)}</p>
+              </div>
+            ))
+          )}
+        </div>
+        {suggestions.length > 0 ? (
+          <div className="border-t border-border p-4 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              También te puede interesar
+            </p>
+            {suggestions.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="flex w-full items-center justify-between gap-2 text-left text-sm"
+                onClick={() => {
+                  if (!p.defaultVariantId) {
+                    return;
+                  }
+                  addItem({
+                    productVariantId: p.defaultVariantId,
+                    unitPrice: p.basePrice,
+                    name: p.name,
+                    imageUrl: p.imageUrl,
+                  });
+                }}
+              >
+                <span className="line-clamp-1">{p.name}</span>
+                <span className="shrink-0 text-primary">+ Agregar</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="border-t border-border p-4 space-y-3">
+          <div className="flex justify-between text-sm font-semibold">
+            <span>Subtotal</span>
+            <span>{fmt(subtotal)}</span>
+          </div>
+          <Link href="/checkout" onClick={closeDrawer}>
+            <Button variant="primary" className="w-full">
+              Ir a checkout
+            </Button>
+          </Link>
+        </div>
+      </aside>
+    </div>
+  );
+}

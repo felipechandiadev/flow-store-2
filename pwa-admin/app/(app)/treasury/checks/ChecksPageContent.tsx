@@ -250,7 +250,7 @@ export function ChecksPageContent({
                     <td className="px-3 py-2 text-right">
                       <IconButton
                         icon="Eye"
-                        variant="basicSecondary"
+                        variant="action"
                         size="sm"
                         ariaLabel="Ver detalle"
                         onClick={() => setSelected(c)}

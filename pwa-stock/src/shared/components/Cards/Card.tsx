@@ -168,7 +168,7 @@ export function Card({
                 <IconButton
                   key={a.id ?? `card-action-icon-${i}`}
                   icon={a.icon}
-                  variant="basicSecondary"
+                  variant="action"
                   size="sm"
                   ariaLabel={a.ariaLabel}
                   onClick={a.onClick}

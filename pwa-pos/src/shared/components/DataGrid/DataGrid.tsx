@@ -49,7 +49,7 @@ export interface DataGridColumn {
   sticky?: boolean; // Fijar columna al lado derecho (compatibilidad hacia atrás)
   /**
    * Acciones de fila. Norma: columna con `field` típ. `'actions'`, `headerName: ''`, `filterable: false`, `sortable: false`;
-   * en el componente, IconButtons con `variant="basicSecondary"` y `size="sm"`.
+   * en el componente, IconButtons con `variant="action"` y `size="sm"`.
    */
   actionComponent?: React.ComponentType<{ row: any; column: DataGridColumn }>;
 }

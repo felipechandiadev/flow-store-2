@@ -124,7 +124,7 @@ const TopBar: React.FC<TopBarProps & { className?: string }> = ({
           <div className="flex items-center gap-3">
             <IconButton
               icon="Menu"
-              variant="basicSecondary"
+              variant="action"
               size="md"
               strokeWidth={2.5}
               onClick={open}

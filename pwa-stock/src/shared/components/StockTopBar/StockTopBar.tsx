@@ -22,7 +22,7 @@ export default function StockTopBar() {
         <div className="mx-auto flex w-full max-w-md items-center justify-between gap-3 px-4 py-2">
           <IconButton
             icon="Menu"
-            variant="basicSecondary"
+            variant="action"
             size="md"
             strokeWidth={2.5}
             onClick={() => setShowSidebar(true)}

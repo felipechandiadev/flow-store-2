@@ -286,4 +286,80 @@ export class CompaniesController {
       );
     return { success: true, internalCustomerCredit };
   }
+
+  @Get('companies/:id/public-contact-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async getCompanyPublicContactSettings(@Param('id') id: string) {
+    const publicContact =
+      await this.companiesService.getPublicContactSettings(id);
+    return { success: true, publicContact };
+  }
+
+  @Put('companies/:id/public-contact-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async replaceCompanyPublicContactSettings(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const incoming =
+      body && typeof body === 'object' && 'publicContact' in (body as object)
+        ? (body as { publicContact: unknown }).publicContact
+        : body;
+    const publicContact =
+      await this.companiesService.replacePublicContactSettings(id, incoming);
+    return { success: true, publicContact };
+  }
+
+  @Get('companies/:id/company-identity-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async getCompanyIdentitySettings(@Param('id') id: string) {
+    const companyIdentity =
+      await this.companiesService.getCompanyIdentitySettings(id);
+    return { success: true, companyIdentity };
+  }
+
+  @Put('companies/:id/company-identity-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async replaceCompanyIdentitySettings(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const incoming =
+      body && typeof body === 'object' && 'companyIdentity' in (body as object)
+        ? (body as { companyIdentity: unknown }).companyIdentity
+        : body;
+    const companyIdentity =
+      await this.companiesService.replaceCompanyIdentitySettings(id, incoming);
+    return { success: true, companyIdentity };
+  }
+
+  @Get('companies/:id/e-shop-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async getCompanyEShopSettings(@Param('id') id: string) {
+    const eShopSettings = await this.companiesService.getEShopFlatSettings(id);
+    return { success: true, eShopSettings };
+  }
+
+  @Put('companies/:id/e-shop-settings')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async replaceCompanyEShopSettings(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const incoming =
+      body && typeof body === 'object' && 'eShopSettings' in (body as object)
+        ? (body as { eShopSettings: Record<string, unknown> }).eShopSettings
+        : (body as Record<string, unknown>);
+    const eShopSettings = await this.companiesService.replaceEShopFlatSettings(
+      id,
+      incoming as unknown as import('../domain/company-eshop-flat.types').CompanyEShopFlatSettings,
+    );
+    return { success: true, eShopSettings };
+  }
 }

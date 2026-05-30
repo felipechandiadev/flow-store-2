@@ -15,6 +15,11 @@ export function resolveCompanyPhoneFromSettings(settings: unknown): string | nul
   if (!settings || typeof settings !== "object") return null;
   const s = settings as Record<string, unknown>;
   const pick = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const pc = s.publicContact;
+  if (pc && typeof pc === "object" && !Array.isArray(pc)) {
+    const phone = pick((pc as Record<string, unknown>).phone);
+    if (phone) return phone;
+  }
   return pick(s.phone) ?? pick(s.telefono) ?? pick(s.companyPhone);
 }
 

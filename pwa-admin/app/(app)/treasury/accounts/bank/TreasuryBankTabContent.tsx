@@ -82,7 +82,7 @@ function TreasuryTransactionCard({
           <div className="col-start-2 row-span-2 row-start-1 flex shrink-0 items-start justify-end self-start pt-0.5">
             <IconButton
               icon={icon}
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel={ariaLabel}
               onClick={onOpen}

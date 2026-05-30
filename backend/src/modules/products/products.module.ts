@@ -28,6 +28,7 @@ import { GetProductQueryHandler } from './application/handlers/queries/get-produ
 import { GetAllProductsQueryHandler } from './application/handlers/queries/get-all-products.handler';
 import { SearchProductsQueryHandler } from './application/handlers/queries/search-products.handler';
 import { ProductCatalogSearchBootstrap } from './application/product-catalog-search.bootstrap';
+import { ProductEshopVisibilitySyncService } from './application/services/product-eshop-visibility-sync.service';
 
 @Module({
   imports: [
@@ -70,7 +71,8 @@ import { ProductCatalogSearchBootstrap } from './application/product-catalog-sea
     GetProductQueryHandler,
     GetAllProductsQueryHandler,
     SearchProductsQueryHandler,
+    ProductEshopVisibilitySyncService,
   ],
-  exports: [ProductsServiceAdapter, ProductsService],
+  exports: [ProductsServiceAdapter, ProductsService, ProductEshopVisibilitySyncService],
 })
 export class ProductsModule {}

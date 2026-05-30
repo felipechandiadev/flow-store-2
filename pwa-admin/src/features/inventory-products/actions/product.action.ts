@@ -17,6 +17,7 @@ export type CreateProductFormInput = {
   productType?: CatalogProductType;
   metadata?: Record<string, unknown>;
   isActive?: boolean;
+  visibleInEShop?: boolean;
 };
 
 export type UpdateProductFormInput = {
@@ -30,6 +31,7 @@ export type UpdateProductFormInput = {
   productType?: CatalogProductType;
   metadata?: Record<string, unknown>;
   isActive?: boolean;
+  visibleInEShop?: boolean;
 };
 
 export type UpdateProductResult = { success: true } | { success: false; error: string };
@@ -55,6 +57,7 @@ export type CreateProductVariantFormInput = {
   stockBaseUnitId?: string;
   purchaseUnitId?: string;
   isActive?: boolean;
+  visibleInEShop?: boolean;
   priceListItems: CreateProductVariantPriceListItemInput[];
   /** Ignorado: el PMP lo asigna el backend con la primera compra valorada. */
   pmp?: number;
@@ -173,6 +176,10 @@ export async function listProductsForGrid(input: ListProductsForGridInput): Prom
         va = r1.isActive;
         vb = r2.isActive;
         break;
+      case "visibleInEShop":
+        va = r1.visibleInEShop === true;
+        vb = r2.visibleInEShop === true;
+        break;
       default:
         va = r1.name;
         vb = r2.name;
@@ -202,6 +209,33 @@ export async function createProductAction(input: CreateProductFormInput): Promis
     productType: input.productType,
     metadata: input.metadata,
     isActive: input.isActive !== false,
+    visibleInEShop: input.visibleInEShop === true,
+  });
+  if (r.success) {
+    revalidatePath(PRODUCTS_PATH, "page");
+  }
+  return r;
+}
+
+export type PatchProductGridFlagsResult =
+  | { success: true }
+  | { success: false; error: string };
+
+export async function patchProductGridFlagsAction(input: {
+  id: string;
+  isActive?: boolean;
+  visibleInEShop?: boolean;
+}): Promise<PatchProductGridFlagsResult> {
+  const id = input.id?.trim() ?? "";
+  if (!id) {
+    return { success: false, error: "Producto no válido" };
+  }
+  if (input.isActive === undefined && input.visibleInEShop === undefined) {
+    return { success: false, error: "Sin campos para actualizar" };
+  }
+  const r = await ProductRequest.patchFields(id, {
+    isActive: input.isActive,
+    visibleInEShop: input.visibleInEShop,
   });
   if (r.success) {
     revalidatePath(PRODUCTS_PATH, "page");
@@ -227,6 +261,7 @@ export async function updateProductAction(input: UpdateProductFormInput): Promis
     productType: input.productType,
     metadata: input.metadata,
     isActive: input.isActive !== false,
+    visibleInEShop: input.visibleInEShop === true,
   });
   if (r.success) {
     revalidatePath(PRODUCTS_PATH, "page");
@@ -321,6 +356,7 @@ export async function createProductVariantAction(
     stockBaseQtyPerCountSaleUnit: input.stockBaseQtyPerCountSaleUnit,
     stockBaseQtyPerCountPurchaseUnit: input.stockBaseQtyPerCountPurchaseUnit,
     isActive: input.isActive !== false,
+    visibleInEShop: input.visibleInEShop === true,
     priceListItems: items,
     attributeValues: attributeValuesToSend,
     trackInventory: input.trackInventory,

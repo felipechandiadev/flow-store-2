@@ -122,6 +122,37 @@ export const mainMenuItems: SideBarMenuItem[] = [
     ],
   },
   {
+    id: 'nav-eshop',
+    label: 'eShop',
+    requiresEShopEnabled: true,
+    children: [
+      {
+        id: 'eshop-hero',
+        label: 'Hero / Slider',
+        url: '/e-shop/hero-slides',
+        requiresEShopEnabled: true,
+      },
+      {
+        id: 'eshop-testimonials',
+        label: 'Testimonios',
+        url: '/e-shop/testimonials',
+        requiresEShopEnabled: true,
+      },
+      {
+        id: 'eshop-featured',
+        label: 'Productos destacados',
+        url: '/e-shop/featured',
+        requiresEShopEnabled: true,
+      },
+      {
+        id: 'eshop-shipping',
+        label: 'Envíos',
+        url: '/e-shop/shipping',
+        requiresEShopEnabled: true,
+      },
+    ],
+  },
+  {
     id: 'nav-settings',
     label: 'Configuración',
     children: [
@@ -130,6 +161,8 @@ export const mainMenuItems: SideBarMenuItem[] = [
         label: 'Empresas',
         url: '/settings/companies',
         requiresRole: 'SUPER_ADMIN',
+        /** Empresas se provisionan por seed; no listar en sidebar. */
+        hidden: true,
       },
       {
         id: 'settings-company-super',

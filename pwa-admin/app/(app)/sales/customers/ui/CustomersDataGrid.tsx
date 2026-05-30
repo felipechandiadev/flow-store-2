@@ -40,7 +40,7 @@ export default function CustomersDataGrid({
         <div className="flex items-center justify-center" data-test-id={`customers-row-actions-${r.customerId}`}>
           <IconButton
             icon="MoreHorizontal"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             ariaLabel="Ver detalle del cliente"
             onClick={() => setDetailCustomerId(r.customerId)}

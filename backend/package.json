@@ -19,7 +19,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "migration:run": "npm run build && typeorm migration:run -d dist/config/data-source.js --transaction each",
-    "seed": "ts-node -r tsconfig-paths/register src/seed/run-minimal-seed.ts"
+    "seed": "ts-node -r tsconfig-paths/register src/seed/run-dev-seed.ts",
+    "seed:legacy": "ts-node -r tsconfig-paths/register src/seed/legacy/run-parabrisas-seed.ts",
+    "eshop:enable-demo": "ts-node -r tsconfig-paths/register src/scripts/enable-eshop-demo.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.901.0",

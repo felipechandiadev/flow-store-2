@@ -1,5 +1,5 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { Inject } from '@nestjs/common';
+import { BadRequestException, Inject } from '@nestjs/common';
 import { LinkMultimediaCommand } from '../../commands/link-multimedia.command';
 import {
   MULTIMEDIA_REPOSITORY,
@@ -17,6 +17,14 @@ export class LinkMultimediaCommandHandler
   ) {}
 
   async execute(command: LinkMultimediaCommand): Promise<MultimediaLink> {
+    if (
+      command.entityType === 'product-variant' &&
+      (command.attributeId == null || !String(command.attributeId).trim())
+    ) {
+      throw new BadRequestException(
+        'Las variantes solo admiten multimedia por atributo (attributeId requerido)',
+      );
+    }
     const asset = await this.repository.findAssetById(command.assetId);
 
     if (!asset) {
@@ -31,6 +39,7 @@ export class LinkMultimediaCommandHandler
       sortOrder: command.sortOrder,
       isPrimary: command.isPrimary,
       metadata: command.metadata ?? null,
+      attributeId: command.attributeId,
     });
   }
 }

@@ -67,7 +67,7 @@ export function VariantPriceListCard({
           <div className="mt-2 flex justify-end">
             <IconButton
               icon="Calculator"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Calculadora precio de venta"
               disabled={fieldsDisabled}
@@ -81,7 +81,7 @@ export function VariantPriceListCard({
       <div className="absolute right-2 top-2">
         <IconButton
           icon={editing ? "Save" : "Pencil"}
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           ariaLabel={editing ? "Guardar precio" : "Editar precio"}
           disabled={controlsDisabled && !editing}

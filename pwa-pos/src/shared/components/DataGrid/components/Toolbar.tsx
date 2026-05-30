@@ -83,7 +83,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
       {/* Quick sort button: sets sort=asc and sortField=first visible column */}
       {showSortButton && firstVisible ? (
         <IconButton
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           title="Ordenar por primer campo (asc)"
           onClick={handleQuickSort}
@@ -96,7 +96,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
       {/* Material Symbols filter icon - cambia según filterMode */}
       {showFilterButton ? (
         <IconButton
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           title={filterMode ? 'Desactivar filtros' : 'Filtrar'}
           onClick={() => {
@@ -121,7 +121,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
       {/* Excel export icon - using Material Symbol for perfect alignment */}
       {showExportButton ? (
         <IconButton
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           title="Exportar a Excel"
           onClick={handleExportExcel}

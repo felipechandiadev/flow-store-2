@@ -21,6 +21,7 @@ import { LinkMultimediaDto } from '../application/dto/link-multimedia.dto';
 import { UnlinkMultimediaDto } from '../application/dto/unlink-multimedia.dto';
 import { ListMultimediaAssetsDto } from '../application/dto/list-multimedia-assets.dto';
 import { SetPrimaryMultimediaDto } from '../application/dto/set-primary-multimedia.dto';
+import { ReorderMultimediaDto } from '../application/dto/reorder-multimedia.dto';
 import { Response } from 'express';
 import * as path from 'path';
 
@@ -52,6 +53,7 @@ export class MultimediaController {
       entityId: body?.entityId,
       usageType: body?.usageType,
       isPrimary: body?.isPrimary,
+      attributeId: body?.attributeId,
     });
 
     return {
@@ -117,11 +119,30 @@ export class MultimediaController {
       entityType,
       entityId,
       query.usageType,
+      query.attributeId,
     );
 
     return {
       success: true,
       data: assets,
+    };
+  }
+
+  @Put('entities/:entityType/:entityId/order')
+  async reorderAssets(
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+    @Body() body: ReorderMultimediaDto,
+  ) {
+    await this.multimediaService.reorderForEntity({
+      entityType,
+      entityId,
+      assetIds: body.assetIds,
+      attributeId: body.attributeId,
+    });
+
+    return {
+      success: true,
     };
   }
 
@@ -135,6 +156,7 @@ export class MultimediaController {
       assetId: body.assetId,
       entityType,
       entityId,
+      attributeId: body.attributeId,
     });
 
     return {
@@ -154,6 +176,7 @@ export class MultimediaController {
       usageType: body.usageType,
       sortOrder: body.sortOrder ?? 0,
       isPrimary: body.isPrimary,
+      attributeId: body.attributeId,
     });
 
     return {
@@ -172,6 +195,7 @@ export class MultimediaController {
       entityType: query.entityType,
       entityId: query.entityId,
       usageType: query.usageType,
+      attributeId: query.attributeId,
     });
 
     return {

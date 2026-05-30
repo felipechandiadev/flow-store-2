@@ -30,84 +30,80 @@
   cursor: not-allowed;
 }
 
-/* Contained (relleno) */
-.fs-icon-button--contained-primary {
+/* Primary (relleno) */
+.fs-icon-button--primary {
   background-color: var(--color-primary, #002b59);
   color: var(--color-background, #ffffff);
   border-color: transparent;
 }
-.fs-icon-button--contained-primary:hover:not(:disabled) {
+.fs-icon-button--primary:hover:not(:disabled) {
   background-color: var(--color-accent, #0a7cad);
 }
-.fs-icon-button--contained-primary:active:not(:disabled) {
+.fs-icon-button--primary:active:not(:disabled) {
   background-color: var(--color-primary, #002b59);
   filter: brightness(0.92);
 }
 
-.fs-icon-button--contained-secondary {
+/* Secondary (relleno) */
+.fs-icon-button--secondary {
   background-color: var(--color-secondary, #04c9e6);
   color: var(--color-background, #ffffff);
   border-color: transparent;
 }
-.fs-icon-button--contained-secondary:hover:not(:disabled) {
+.fs-icon-button--secondary:hover:not(:disabled) {
   background-color: var(--color-accent, #0a7cad);
 }
-.fs-icon-button--contained-secondary:active:not(:disabled) {
+.fs-icon-button--secondary:active:not(:disabled) {
   filter: brightness(0.95);
 }
 
-/* Text: icono a color de marca, hover suave */
+/* Text: icono primary, sin borde; hover solo cambia color a active */
 .fs-icon-button--text {
   background-color: transparent;
   color: var(--color-primary, #002b59);
   border-color: transparent;
 }
 .fs-icon-button--text:hover:not(:disabled) {
-  background-color: color-mix(
-    in srgb,
-    var(--color-primary, #002b59) 12%,
-    var(--color-background, #ffffff) 88%
-  );
+  background-color: transparent;
+  color: var(--color-active, #0a7cad);
 }
 .fs-icon-button--text:active:not(:disabled) {
-  background-color: color-mix(
-    in srgb,
-    var(--color-primary, #002b59) 20%,
-    var(--color-background, #ffffff) 80%
-  );
+  background-color: transparent;
+  color: var(--color-active, #0a7cad);
+  opacity: 0.88;
 }
 
-/* Basic: default UI */
-.fs-icon-button--basic {
+/* Action (toolbars, grids, cards): hover solo color */
+.fs-icon-button--action {
+  background-color: transparent;
+  color: var(--color-secondary, #04c9e6);
+  border-color: transparent;
+}
+.fs-icon-button--action:hover:not(:disabled) {
+  color: var(--color-primary, #002b59);
+  background-color: transparent;
+}
+.fs-icon-button--action:active:not(:disabled) {
+  color: var(--color-primary, #002b59);
+  background-color: transparent;
+  opacity: 0.88;
+}
+
+/* Neutral: icono foreground, hover suave */
+.fs-icon-button--neutral {
   background-color: transparent;
   color: var(--color-foreground, #131615);
   border-color: transparent;
 }
-.fs-icon-button--basic:hover:not(:disabled) {
+.fs-icon-button--neutral:hover:not(:disabled) {
   background-color: var(--color-hover, #f1f1f1);
 }
-.fs-icon-button--basic:active:not(:disabled) {
+.fs-icon-button--neutral:active:not(:disabled) {
   background-color: color-mix(
     in srgb,
     var(--color-foreground, #131615) 8%,
     var(--color-background, #ffffff) 92%
   );
-}
-
-/* Basic secondary (tablas, cards, acciones secundarias): hover sin fondo, solo color */
-.fs-icon-button--basic-secondary {
-  background-color: transparent;
-  color: var(--color-secondary, #04c9e6);
-  border-color: transparent;
-}
-.fs-icon-button--basic-secondary:hover:not(:disabled) {
-  color: var(--color-primary, #002b59);
-  background-color: transparent;
-}
-.fs-icon-button--basic-secondary:active:not(:disabled) {
-  color: var(--color-primary, #002b59);
-  background-color: transparent;
-  opacity: 0.88;
 }
 
 /* Outlined */
@@ -131,19 +127,14 @@
   );
 }
 
-/* Ghost: solo sutil (sin default text color en el diseño antiguo) */
-.fs-icon-button--ghost {
+/** Sin resalte hover/active (p. ej. top bar POS). */
+.fs-icon-button--no-hover:hover:not(:disabled),
+.fs-icon-button--no-hover:active:not(:disabled) {
   background-color: transparent;
-  color: var(--color-foreground, #131615);
-  border-color: transparent;
+  filter: none;
+  opacity: 1;
 }
-.fs-icon-button--ghost:hover:not(:disabled) {
-  background-color: var(--color-hover, #f1f1f1);
-}
-.fs-icon-button--ghost:active:not(:disabled) {
-  background-color: color-mix(
-    in srgb,
-    var(--color-foreground, #131615) 6%,
-    var(--color-background, #ffffff) 94%
-  );
+.fs-icon-button--text.fs-icon-button--no-hover:hover:not(:disabled),
+.fs-icon-button--text.fs-icon-button--no-hover:active:not(:disabled) {
+  color: var(--color-primary, #002b59);
 }

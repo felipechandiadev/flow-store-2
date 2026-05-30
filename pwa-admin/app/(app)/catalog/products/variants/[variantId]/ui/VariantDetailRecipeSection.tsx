@@ -12,7 +12,7 @@ export function VariantDetailRecipeSection({ onAddRecipe }: VariantDetailRecipeS
       <div className="flex items-start gap-2">
         <IconButton
           icon="Plus"
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           className="mt-0.5 shrink-0"
           ariaLabel="Nueva receta"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Barcode, Check, X } from "lucide-react";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
@@ -8,22 +8,85 @@ import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import Badge from "@/shared/components/Badge/Badge";
 import { DeleteDialog } from "@/shared/components/Dialog/DeleteDialog";
-import type { ProductGridRow, ProductVariantGridRow } from "@/features/inventory-products/types/product-grid.types";
+import type { ProductGridRow, ProductVariantGridRow, ProductVariantMediaAsset } from "@/features/inventory-products/types/product-grid.types";
 import { Button } from "@/shared/components/Button";
 import { CreateProductDialog } from "./CreateProductDialog";
 import { EditProductDialog } from "./EditProductDialog";
 import { CreateProductVariantDialog } from "./CreateProductVariantDialog";
-import { deleteProductAction, deleteProductVariantAction } from "@/features/inventory-products/actions/product.action";
+import { ProductEShopPreviewDialog } from "./ProductEShopPreviewDialog";
+import {
+  deleteProductAction,
+  deleteProductVariantAction,
+  patchProductGridFlagsAction,
+} from "@/features/inventory-products/actions/product.action";
+import Switch from "@/shared/components/Switch/Switch";
 import { Select, type Option } from "@/shared/components/Select";
+import { MultimediaLightbox } from "@/shared/components/Multimedia";
+import type { MultimediaLightboxItem } from "@/shared/components/Multimedia/types";
 import {
   CATALOG_PRODUCT_TYPE_SELECT_OPTIONS,
   normalizeCatalogProductType,
 } from "./catalog-product-type-options";
+import { isEShopModuleEnabled } from "@/config/eshop-module.config";
 
 type ProductsDataGridProps = {
   rows: ProductGridRow[];
   total: number;
 };
+
+function ProductGridFlagSwitch({
+  productId,
+  field,
+  checked,
+  "data-test-id": dataTestId,
+}: {
+  productId: string;
+  field: "isActive" | "visibleInEShop";
+  checked: boolean;
+  "data-test-id"?: string;
+}) {
+  const router = useRouter();
+  const [value, setValue] = useState(checked);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setValue(checked);
+  }, [checked, productId]);
+
+  const onChange = (next: boolean) => {
+    const previous = value;
+    setValue(next);
+    startTransition(() => {
+      void patchProductGridFlagsAction({
+        id: productId,
+        ...(field === "isActive" ? { isActive: next } : { visibleInEShop: next }),
+      }).then((result) => {
+        if (!result.success) {
+          setValue(previous);
+          return;
+        }
+        router.refresh();
+      });
+    });
+  };
+
+  return (
+    <div
+      className="flex w-full items-center justify-start"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+      data-test-id={dataTestId}
+    >
+      <Switch
+        checked={value}
+        onChange={onChange}
+        disabled={pending}
+        density="compact"
+        aria-label={field === "isActive" ? "Producto activo" : "Visible en eShop"}
+      />
+    </div>
+  );
+}
 
 function ProductTypeFilter() {
   const router = useRouter();
@@ -123,6 +186,173 @@ function formatCatalogMoney(amount: number, currency = "CLP"): string {
   }
 }
 
+function isVideoMediaAsset(asset: ProductVariantMediaAsset): boolean {
+  return asset.kind === "video" || asset.mimeType.startsWith("video/");
+}
+
+function variantMediaAssets(v: ProductVariantGridRow): ProductVariantMediaAsset[] {
+  if (v.mediaAssets?.length) {
+    return v.mediaAssets;
+  }
+  if (v.primaryImageUrl?.trim()) {
+    return [
+      {
+        id: `${v.id}-primary`,
+        publicUrl: v.primaryImageUrl.trim(),
+        mimeType: "image/*",
+        kind: "image",
+      },
+    ];
+  }
+  return [];
+}
+
+function mediaAssetsToLightboxItems(assets: ProductVariantMediaAsset[]): MultimediaLightboxItem[] {
+  return assets.map((asset) => ({
+    url: asset.publicUrl,
+    mimeType: asset.mimeType,
+    kind: asset.kind,
+  }));
+}
+
+function formatVariantLightboxLabel(v: ProductVariantGridRow): string {
+  const displayName = v.displayName?.trim();
+  if (displayName) {
+    return displayName;
+  }
+  const attrs = formatVariantAttributeEntries(v).map((entry) => entry.value);
+  if (attrs.length > 0) {
+    return `${v.sku} · ${attrs.join(" / ")}`;
+  }
+  return v.sku;
+}
+
+function formatMediaLightboxTitleBase(
+  productName: string,
+  variant?: ProductVariantGridRow | null,
+): string {
+  const name = productName.trim();
+  if (!name) {
+    return variant ? formatVariantLightboxLabel(variant) : "";
+  }
+  if (variant) {
+    return `${name} — ${formatVariantLightboxLabel(variant)}`;
+  }
+  return name;
+}
+
+function ExpandMediaThumbnails({
+  assets,
+  className = "",
+  emptyPlaceholder,
+  productName,
+  variant,
+  "data-test-id": dataTestId,
+  maxVisible = 6,
+}: {
+  assets: ProductVariantMediaAsset[];
+  className?: string;
+  emptyPlaceholder?: ReactNode;
+  productName?: string;
+  variant?: ProductVariantGridRow | null;
+  "data-test-id"?: string;
+  maxVisible?: number;
+}) {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const lightboxItems = useMemo(() => mediaAssetsToLightboxItems(assets), [assets]);
+  const lightboxTitleBase = useMemo(() => {
+    if (!productName?.trim()) {
+      return undefined;
+    }
+    return formatMediaLightboxTitleBase(productName, variant);
+  }, [productName, variant]);
+
+  const openAt = useCallback(
+    (index: number, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (lightboxItems.length === 0) {
+        return;
+      }
+      setLightboxIndex(Math.min(Math.max(0, index), lightboxItems.length - 1));
+      setLightboxOpen(true);
+    },
+    [lightboxItems.length],
+  );
+
+  if (assets.length === 0) {
+    return emptyPlaceholder ?? null;
+  }
+  const visible = assets.slice(0, maxVisible);
+  const overflow = assets.length - visible.length;
+
+  return (
+    <>
+      <div
+        className={`flex min-w-0 max-w-full flex-wrap items-center gap-1 ${className}`.trim()}
+        data-test-id={dataTestId}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        {visible.map((asset, index) => (
+          <button
+            key={asset.id}
+            type="button"
+            className="relative h-8 w-12 shrink-0 cursor-pointer overflow-hidden rounded border border-border bg-background transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+            title={isVideoMediaAsset(asset) ? "Ver video" : "Ver imagen"}
+            aria-label={isVideoMediaAsset(asset) ? "Abrir video en visor" : "Abrir imagen en visor"}
+            onClick={(e) => openAt(index, e)}
+            data-test-id={dataTestId ? `${dataTestId}-thumb-${index}` : undefined}
+          >
+            {isVideoMediaAsset(asset) ? (
+              <video src={asset.publicUrl} className="h-full w-full bg-background object-cover" muted playsInline />
+            ) : (
+              <img src={asset.publicUrl} alt="" className="h-full w-full bg-background object-cover" loading="lazy" />
+            )}
+          </button>
+        ))}
+        {overflow > 0 ? (
+          <button
+            type="button"
+            className="shrink-0 cursor-pointer rounded px-0.5 text-[10px] font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+            title={`Ver ${assets.length} archivos`}
+            aria-label={`Ver galería completa (${assets.length} archivos)`}
+            onClick={(e) => openAt(maxVisible, e)}
+            data-test-id={dataTestId ? `${dataTestId}-overflow` : undefined}
+          >
+            +{overflow}
+          </button>
+        ) : null}
+      </div>
+      <MultimediaLightbox
+        open={lightboxOpen}
+        items={lightboxItems}
+        initialIndex={lightboxIndex}
+        titleBase={lightboxTitleBase}
+        onClose={() => setLightboxOpen(false)}
+      />
+    </>
+  );
+}
+
+function ProductExpandMediaThumbnails({
+  assets,
+  productName,
+}: {
+  assets: ProductVariantMediaAsset[];
+  productName: string;
+}) {
+  return (
+    <ExpandMediaThumbnails
+      assets={assets}
+      productName={productName}
+      className="min-w-0 max-w-full shrink"
+      data-test-id="products-expand-product-media"
+    />
+  );
+}
+
 function VariantExpandSection({
   title,
   children,
@@ -169,11 +399,15 @@ function VariantFlagBadge({
 
 function ProductVariantExpandCard({
   v,
+  productId,
+  productName,
   onOpenVariant,
   onDelete,
 }: {
   v: ProductVariantGridRow;
-  onOpenVariant: (variantId: string) => void;
+  productId: string;
+  productName: string;
+  onOpenVariant: (variantId: string, productId: string) => void;
   onDelete?: () => void;
 }) {
   const attributeEntries = formatVariantAttributeEntries(v);
@@ -183,22 +417,22 @@ function ProductVariantExpandCard({
 
   return (
     <div
-      className="flex min-w-0 cursor-pointer items-start justify-between gap-2 rounded-md border border-border bg-muted/15 px-2 py-1.5 transition-colors hover:bg-muted/30"
+      className="flex min-w-0 max-w-full cursor-pointer items-start justify-between gap-2 overflow-hidden rounded-md border border-border bg-muted/15 px-2 py-1.5 transition-colors hover:bg-muted/30"
       data-test-id={`products-expand-variant-row-${v.id}`}
       role="button"
       tabIndex={0}
       aria-label={`Ver variante ${v.sku}`}
       title="Ver ficha de variante"
-      onClick={() => onOpenVariant(v.id)}
+      onClick={() => onOpenVariant(v.id, productId)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onOpenVariant(v.id);
+          onOpenVariant(v.id, productId);
         }
       }}
     >
       <div
-        className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        className="grid min-w-0 max-w-full flex-1 grid-cols-[repeat(auto-fit,minmax(min(100%,8.5rem),1fr))] gap-3"
         data-test-id={`products-expand-variant-meta-${v.id}`}
       >
         <VariantExpandSection title="SKU / código" testId={`products-expand-variant-ids-${v.id}`}>
@@ -213,6 +447,16 @@ function ProductVariantExpandCard({
               Código: <span className="font-mono font-medium text-foreground">{barcode || "—"}</span>
             </span>
           </div>
+        </VariantExpandSection>
+
+        <VariantExpandSection title="Multimedia" testId={`products-expand-variant-media-${v.id}`}>
+          <ExpandMediaThumbnails
+            assets={variantMediaAssets(v)}
+            productName={productName}
+            variant={v}
+            emptyPlaceholder={<span className="text-[10px] text-muted-foreground">—</span>}
+            data-test-id={`products-expand-variant-media-thumbs-${v.id}`}
+          />
         </VariantExpandSection>
 
         <VariantExpandSection title="Atributos" testId={`products-expand-variant-attrs-${v.id}`}>
@@ -281,7 +525,7 @@ function ProductVariantExpandCard({
         <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
           <IconButton
             icon="Trash2"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             ariaLabel="Eliminar variante"
             title="Eliminar variante"
@@ -302,35 +546,38 @@ function ProductExpandPanel({
 }: {
   row: ProductGridRow;
   onAddVariant: (r: ProductGridRow) => void;
-  onOpenVariant: (variantId: string) => void;
+  onOpenVariant: (variantId: string, productId: string) => void;
   onDeleteVariant?: (product: ProductGridRow, variant: ProductVariantGridRow) => void;
 }) {
   const hasVariants = Boolean(row.variants?.length);
 
   return (
-    <div className="relative w-full min-w-0 max-w-none" data-test-id="products-expand-panel">
-      <div className="mb-3 flex w-full min-w-0 items-center gap-2">
+    <div className="relative box-border w-full min-w-0 max-w-full overflow-x-hidden" data-test-id="products-expand-panel">
+      <div className="mb-3 flex w-full min-w-0 max-w-full flex-wrap items-center gap-2">
         <IconButton
           icon="Plus"
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           ariaLabel="Agregar variante"
           title="Agregar variante"
           onClick={() => onAddVariant(row)}
           data-test-id="products-expand-add-variant"
         />
-        <h3 className="text-sm font-semibold text-foreground">Variantes</h3>
+        <h3 className="shrink-0 text-sm font-semibold text-foreground">Variantes</h3>
+        <ProductExpandMediaThumbnails assets={row.mediaAssets ?? []} productName={row.name} />
       </div>
 
       {hasVariants ? (
         <div
-          className="flex w-full min-w-0 flex-col gap-1.5"
+          className="flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-x-hidden"
           data-test-id="products-expand-variant-cards"
         >
           {row.variants!.map((v) => (
             <ProductVariantExpandCard
               key={v.id}
               v={v}
+              productId={row.id}
+              productName={row.name}
               onOpenVariant={onOpenVariant}
               onDelete={onDeleteVariant ? () => onDeleteVariant(row, v) : undefined}
             />
@@ -369,6 +616,8 @@ function ProductExpandPanel({
 
 export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const expandProductId = searchParams.get("expandProduct")?.trim() || null;
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<ProductGridRow | null>(null);
   const [deleteRow, setDeleteRow] = useState<ProductGridRow | null>(null);
@@ -386,6 +635,7 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
   } | null>(null);
   const [deleteVariantError, setDeleteVariantError] = useState<string | null>(null);
   const [isDeleteVariantPending, startDeleteVariantTransition] = useTransition();
+  const [previewRow, setPreviewRow] = useState<ProductGridRow | null>(null);
 
   const openVariantDialog = useCallback((r: ProductGridRow) => {
     setVariantDialog({
@@ -397,14 +647,20 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
   }, []);
 
   const onOpenVariantPage = useCallback(
-    (variantId: string) => {
-      const id = variantId?.trim();
-      if (!id) {
+    (variantId: string, productId: string) => {
+      const vid = variantId?.trim();
+      const pid = productId?.trim();
+      if (!vid || !pid) {
         return;
       }
-      router.push(`/catalog/products/variants/${encodeURIComponent(id)}`);
+      const qs = new URLSearchParams(searchParams.toString());
+      qs.set("expandProduct", pid);
+      const returnTo = `/catalog/products?${qs.toString()}`;
+      router.push(
+        `/catalog/products/variants/${encodeURIComponent(vid)}?returnTo=${encodeURIComponent(returnTo)}`,
+      );
     },
-    [router],
+    [router, searchParams],
   );
 
   const onEditProduct = useCallback((r: ProductGridRow) => {
@@ -416,6 +672,12 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
     setDeleteRow(r);
   }, []);
 
+  const onPreviewProduct = useCallback((r: ProductGridRow) => {
+    setPreviewRow(r);
+  }, []);
+
+  const eshopModuleOn = isEShopModuleEnabled();
+
   const columns: DataGridColumn[] = useMemo(() => {
     function ProductActionsCell({ row, column: _column }: { row: any; column: DataGridColumn }) {
       const r = row as ProductGridRow;
@@ -424,9 +686,20 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
           className="flex items-center justify-center gap-1"
           data-test-id={`products-row-actions-${r.id}`}
         >
+          {eshopModuleOn && r.visibleInEShop === true ? (
+            <IconButton
+              icon="Eye"
+              variant="action"
+              size="sm"
+              title="Vista previa eShop"
+              ariaLabel="Vista previa eShop"
+              onClick={() => onPreviewProduct(r)}
+              data-test-id={`products-row-eshop-preview-${r.id}`}
+            />
+          ) : null}
           <IconButton
             icon="Pencil"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             title="Editar"
             ariaLabel="Editar producto"
@@ -435,7 +708,7 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
           />
           <IconButton
             icon="Trash2"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             title="Eliminar"
             ariaLabel="Eliminar producto"
@@ -446,7 +719,7 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
       );
     }
 
-    return [
+    const cols: DataGridColumn[] = [
       {
         field: "name",
         headerName: "Nombre",
@@ -491,26 +764,54 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
       {
         field: "isActive",
         headerName: "Activo",
-        width: 100,
+        width: 88,
+        align: "left",
         sortable: true,
-        renderCell: ({ value }) => (
-          <span className={value ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}>
-            {value ? "Sí" : "No"}
-          </span>
-        ),
-      },
-      {
-        field: "actions",
-        headerName: "",
-        width: 96,
-        minWidth: 96,
-        align: "center",
-        sortable: false,
-        filterable: false,
-        actionComponent: ProductActionsCell,
+        renderCell: ({ row }) => {
+          const r = row as ProductGridRow;
+          return (
+            <ProductGridFlagSwitch
+              productId={r.id}
+              field="isActive"
+              checked={r.isActive !== false}
+              data-test-id={`products-row-active-${r.id}`}
+            />
+          );
+        },
       },
     ];
-  }, [onEditProduct, onDeleteProduct]);
+    if (eshopModuleOn) {
+      cols.push({
+        field: "visibleInEShop",
+        headerName: "eShop",
+        width: 88,
+        align: "left",
+        sortable: true,
+        renderCell: ({ row }) => {
+          const r = row as ProductGridRow;
+          return (
+            <ProductGridFlagSwitch
+              productId={r.id}
+              field="visibleInEShop"
+              checked={r.visibleInEShop === true}
+              data-test-id={`products-row-eshop-${r.id}`}
+            />
+          );
+        },
+      });
+    }
+    cols.push({
+      field: "actions",
+      headerName: "",
+      width: eshopModuleOn ? 128 : 96,
+      minWidth: eshopModuleOn ? 128 : 96,
+      align: "center",
+      sortable: false,
+      filterable: false,
+      actionComponent: ProductActionsCell,
+    });
+    return cols;
+  }, [eshopModuleOn, onEditProduct, onDeleteProduct, onPreviewProduct]);
 
   const onDeleteVariantClick = useCallback((product: ProductGridRow, variant: ProductVariantGridRow) => {
     setDeleteVariantError(null);
@@ -542,6 +843,7 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
         actionsColumnField="actions"
         expandable
         expandableRowContent={(row) => expandableRowContent(row as ProductGridRow)}
+        defaultExpandedRowIds={expandProductId ? [expandProductId] : []}
         headerActions={<ProductTypeFilter />}
         onAddClick={() => setCreateOpen(true)}
         data-test-id="products-data-grid"
@@ -560,6 +862,11 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
         onSuccess={async () => {
           await router.refresh();
         }}
+      />
+      <ProductEShopPreviewDialog
+        open={previewRow != null}
+        product={previewRow}
+        onClose={() => setPreviewRow(null)}
       />
       <DeleteDialog
         open={deleteRow != null}

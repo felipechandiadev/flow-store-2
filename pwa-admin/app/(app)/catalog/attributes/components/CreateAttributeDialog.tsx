@@ -146,7 +146,7 @@ export function CreateAttributeDialog({ open, onClose, onSuccess }: CreateAttrib
             <div className="flex shrink-0 justify-end sm:justify-start sm:pb-1">
               <IconButton
                 icon="Plus"
-                variant="ghost"
+                variant="neutral"
                 size="md"
                 ariaLabel="Agregar opción"
                 onClick={handleAddOption}

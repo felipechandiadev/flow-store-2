@@ -4,6 +4,7 @@ import { GetProductQuery } from '../../queries/get-product.query';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '../../../domain/product.entity';
+import { resolvePrimaryMultimediaPublicUrl } from '@modules/multimedia/application/utils/resolve-primary-multimedia.util';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 
 @QueryHandler(GetProductQuery)
@@ -42,14 +43,16 @@ export class GetProductQueryHandler implements IQueryHandler<
       brandId: product.brandId ?? null,
       description: product.description,
       isActive: product.isActive,
+      visibleInEShop: product.visibleInEShop === true,
       productType: product.productType,
       taxIds: product.taxIds,
-      primaryImageUrl: assets[0]?.publicUrl ?? null,
+      primaryImageUrl: resolvePrimaryMultimediaPublicUrl(assets),
       mediaAssets: assets.map((asset) => ({
         id: asset.id,
         publicUrl: asset.publicUrl,
         mimeType: asset.mimeType,
         kind: asset.kind,
+        isPrimary: asset.isPrimary === true,
       })),
       resultCenterId: product.resultCenterId ?? null,
       baseUnitId: product.baseUnitId,

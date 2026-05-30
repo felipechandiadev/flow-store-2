@@ -32,7 +32,6 @@ export function UpdateCompanyDialog({
   const [rut, setRut] = useState(company.rut);
   const [isActive, setIsActive] = useState(company.isActive);
   const [address, setAddress] = useState(company.address ?? "");
-  const [mail, setMail] = useState(company.mail ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -44,7 +43,6 @@ export function UpdateCompanyDialog({
     setRut(company.rut);
     setIsActive(company.isActive);
     setAddress(company.address ?? "");
-    setMail(company.mail ?? "");
     setError(null);
   }, [open, company]);
 
@@ -64,7 +62,6 @@ export function UpdateCompanyDialog({
           rut: rut.trim(),
           isActive,
           address: address.trim() || null,
-          mail: mail.trim() || null,
         });
         if (r.success) {
           onSuccess?.();
@@ -141,13 +138,6 @@ export function UpdateCompanyDialog({
           value={rut}
           onChange={(e) => setRut(e.target.value)}
           required
-        />
-        <TextField
-          label="Correo (opcional)"
-          name="company-mail"
-          type="email"
-          value={mail}
-          onChange={(e) => setMail(e.target.value)}
         />
         <TextField
           label="Dirección (opcional)"

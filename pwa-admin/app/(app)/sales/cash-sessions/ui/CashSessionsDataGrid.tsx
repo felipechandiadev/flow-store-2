@@ -64,7 +64,7 @@ export default function CashSessionsDataGrid({
         >
           <IconButton
             icon="MoreHorizontal"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             ariaLabel="Ver movimientos de la sesión"
             onClick={() => openTransactions(r)}

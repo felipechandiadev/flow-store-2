@@ -1,0 +1,30 @@
+export type EShopCartLine = {
+  productVariantId: string;
+  quantity: number;
+  unitPrice: number;
+  name: string;
+  imageUrl: string | null;
+};
+
+export type EShopCartState = {
+  lines: EShopCartLine[];
+};
+
+const CART_STORAGE_KEY = "kaistore-eshop-cart";
+
+export function loadCart(): EShopCartState {
+  if (typeof window === "undefined") return { lines: [] };
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return { lines: [] };
+    const parsed = JSON.parse(raw) as EShopCartState;
+    return { lines: Array.isArray(parsed.lines) ? parsed.lines : [] };
+  } catch {
+    return { lines: [] };
+  }
+}
+
+export function saveCart(state: EShopCartState): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(state));
+}

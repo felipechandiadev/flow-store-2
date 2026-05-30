@@ -308,7 +308,7 @@ export function PurchaseDocumentVariantSearchPanel({
               >
                 <IconButton
                   icon="MoreHorizontal"
-                  variant="basicSecondary"
+                  variant="action"
                   size="sm"
                   title="Ver evolución PMP y compras"
                   ariaLabel="Ver evolución del PMP y últimas compras"
@@ -320,7 +320,7 @@ export function PurchaseDocumentVariantSearchPanel({
                 />
                 <IconButton
                   icon="Plus"
-                  variant="basicSecondary"
+                  variant="action"
                   size="sm"
                   title="Agregar a la lista"
                   ariaLabel="Agregar variante al documento"
@@ -336,7 +336,7 @@ export function PurchaseDocumentVariantSearchPanel({
         <div className="flex min-w-0 items-center gap-1.5">
           <IconButton
             icon="Settings"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             title="Configuración del buscador"
             ariaLabel="Abrir configuración del buscador de productos"
@@ -350,7 +350,7 @@ export function PurchaseDocumentVariantSearchPanel({
         <div className="flex shrink-0 gap-1">
           <IconButton
             icon="ChevronLeft"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             disabled={urlPage <= 1}
             title="Anterior"
@@ -360,7 +360,7 @@ export function PurchaseDocumentVariantSearchPanel({
           />
           <IconButton
             icon="ChevronRight"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             disabled={urlPage >= totalPages}
             title="Siguiente"

@@ -32,11 +32,11 @@ function roleLabel(role: string): string {
   return role.trim();
 }
 
-type TopBarNavIconVariant = "text" | "basicSecondary";
+type TopBarNavIconVariant = "text" | "action";
 
-/** Primary por defecto; secondary cuando la ruta coincide (sección activa). */
+/** Primary por defecto; action cuando la ruta coincide (sección activa). */
 function topBarNavIconVariant(active: boolean): TopBarNavIconVariant {
-  return active ? "basicSecondary" : "text";
+  return active ? "action" : "text";
 }
 
 function pathnameMatchesRoute(pathname: string, routePrefix: string): boolean {
@@ -161,7 +161,7 @@ function PosTopBarNav({
         unreadCount={printService.unreadCount}
         markNotificationsRead={printService.markNotificationsRead}
         clearNotifications={printService.clearNotifications}
-        triggerClassName={`fs-icon-button fs-icon-button--basic-secondary inline-flex items-center justify-center w-10 h-10 shrink-0 ${
+        triggerClassName={`fs-icon-button fs-icon-button--action inline-flex items-center justify-center w-10 h-10 shrink-0 ${
           printService.connected
             ? "text-emerald-600 dark:text-emerald-400"
             : "text-red-600 dark:text-red-400"
@@ -544,7 +544,7 @@ export default function PosTopBar({
           <div className="mt-auto flex w-full flex-col items-center gap-1 pb-2">
             <IconButton
               icon="CircleUser"
-              variant="basicSecondary"
+              variant="action"
               size="md"
               ariaLabel="Ver información de usuario"
               title="Usuario"
@@ -553,7 +553,7 @@ export default function PosTopBar({
             />
             <IconButton
               icon="LogOut"
-              variant="basicSecondary"
+              variant="action"
               size="md"
               ariaLabel="Cerrar sesión"
               title="Cerrar sesión"

@@ -57,6 +57,7 @@ import {
   computeVariantStockAlertKinds,
   stockLevelToThresholdSlice,
 } from '@modules/stock-realtime/variant-stock-alert.util';
+import { ProductEshopVisibilitySyncService } from '@modules/products/application/services/product-eshop-visibility-sync.service';
 
 /** PMP en API: `null` si no hubo primera compra; nunca forzar 0 por defecto. */
 function pmpForApi(value: unknown): number | null {
@@ -101,6 +102,7 @@ export class ProductVariantsService {
     @InjectRepository(StockLevel)
     private readonly stockLevelOrm: Repository<StockLevel>,
     private readonly conversion: VariantQuantityConversionService,
+    private readonly eshopVisibilitySync: ProductEshopVisibilitySyncService,
   ) {}
 
   private purchasingStockBreakdownForVariant(
@@ -235,6 +237,7 @@ export class ProductVariantsService {
           categoryId: product?.categoryId || null,
           categoryName: product?.category?.name || null,
           isActive: product?.isActive ?? true,
+          visibleInEShop: product?.visibleInEShop === true,
           isMultiVariant: false,
           variantCount: 0,
           variants: [],
@@ -284,6 +287,7 @@ export class ProductVariantsService {
         trackInventory: variant.trackInventory,
         allowNegativeStock: variant.allowNegativeStock,
         isActive: variant.isActive,
+        visibleInEShop: Boolean((variant as any).visibleInEShop),
         netWeightKg:
           (variant as any).netWeightKg != null
             ? Number((variant as any).netWeightKg)
@@ -454,11 +458,14 @@ export class ProductVariantsService {
         ? await (this.variantRepository as any).findById(id)
         : null;
     if (!v) throw new NotFoundException('Product variant not found');
-    const assets = await this.multimediaService.listByEntity(
+    const mediaMap = await this.multimediaService.listByEntityIds(
       'product-variant',
-      v.id,
+      [v.id],
+      undefined,
+      'all',
     );
-    (v as any).primaryImageUrl = assets[0]?.publicUrl ?? null;
+    const assets = mediaMap[v.id] ?? [];
+    (v as any).primaryImageUrl = null;
     (v as any).mediaAssets = assets.map((asset) => ({
       id: asset.id,
       publicUrl: asset.publicUrl,
@@ -581,6 +588,12 @@ export class ProductVariantsService {
         typeof sanitizedData.isActive === 'boolean'
           ? sanitizedData.isActive
           : true,
+      visibleInEShop: Object.prototype.hasOwnProperty.call(
+        sanitizedData,
+        'visibleInEShop',
+      )
+        ? sanitizedData.visibleInEShop === true
+        : product.visibleInEShop === true,
     } as any;
 
     try {
@@ -791,6 +804,12 @@ export class ProductVariantsService {
     }
 
     await this.syncMediaLinks(saved.id, multimediaAssetIds);
+
+    if (Object.prototype.hasOwnProperty.call(sanitizedData, 'visibleInEShop')) {
+      await this.eshopVisibilitySync.afterVariantEshopVisibilityChanged(
+        saved.productId,
+      );
+    }
 
     const enriched = await this.findOne(saved.id);
 
@@ -1174,6 +1193,10 @@ export class ProductVariantsService {
       await this.variantRepository.save(v);
     }
 
+    await this.eshopVisibilitySync.afterVariantEshopVisibilityChanged(
+      (v as ProductVariant).productId,
+    );
+
     return { success: true };
   }
 
@@ -1226,40 +1249,13 @@ export class ProductVariantsService {
   }
 
   private async syncMediaLinks(
-    variantId: string,
+    _variantId: string,
     multimediaAssetIds?: string[],
   ): Promise<void> {
-    if (!Array.isArray(multimediaAssetIds)) {
+    if (!Array.isArray(multimediaAssetIds) || multimediaAssetIds.length === 0) {
       return;
     }
-
-    const existingAssets = await this.multimediaService.listByEntity(
-      'product-variant',
-      variantId,
-    );
-
-    await Promise.all(
-      existingAssets.map((asset) =>
-        this.multimediaService.unlink({
-          assetId: asset.id,
-          entityType: 'product-variant',
-          entityId: variantId,
-        }),
-      ),
-    );
-
-    await Promise.all(
-      multimediaAssetIds.map((assetId, index) =>
-        this.multimediaService.link({
-          assetId,
-          entityType: 'product-variant',
-          entityId: variantId,
-          usageType: 'primary-image',
-          sortOrder: index,
-          isPrimary: index === 0,
-        }),
-      ),
-    );
+    // Galería general de variantes eliminada; multimedia solo por atributo en admin.
   }
 
   private formatSalePriceHistoryUserName(user: User): string {

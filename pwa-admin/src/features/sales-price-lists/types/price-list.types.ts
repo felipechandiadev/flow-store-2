@@ -11,6 +11,7 @@ export type PriceListListItem = {
   priority: number;
   isDefault: boolean;
   isActive: boolean;
+  nonDeletable?: boolean;
   description: string | null;
   createdAt?: string | Date;
   updatedAt?: string | Date;

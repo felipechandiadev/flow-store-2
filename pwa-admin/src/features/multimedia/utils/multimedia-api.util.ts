@@ -32,6 +32,8 @@ export function normalizeMultimediaAsset(raw: unknown): MultimediaAssetListItem 
     mimeType: o.mimeType != null ? String(o.mimeType) : "",
     kind: o.kind != null ? String(o.kind) : "",
     isPrimary: o.isPrimary === true,
+    sortOrder: typeof o.sortOrder === "number" ? o.sortOrder : Number(o.sortOrder) || 0,
+    linkId: o.linkId != null ? String(o.linkId) : undefined,
   };
 }
 

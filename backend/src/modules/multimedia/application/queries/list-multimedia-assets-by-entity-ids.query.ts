@@ -8,6 +8,7 @@ export class ListMultimediaAssetsByEntityIdsQuery extends BaseQuery<MultimediaAs
     public readonly entityType: string,
     public readonly entityIds: string[],
     public readonly usageType?: string,
+    public readonly attributeScope: 'general' | 'all' = 'general',
   ) {
     super();
   }

@@ -20,7 +20,7 @@ export function DocumentPrintTestButton({
     <IconButton
       type="button"
       icon="Printer"
-      variant="basicSecondary"
+      variant="action"
       size="sm"
       className="mt-0.5 shrink-0"
       ariaLabel="Imprimir documento de prueba"

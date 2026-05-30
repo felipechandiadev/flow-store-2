@@ -18,7 +18,7 @@ export function CategoriesCollectionAddAction({ allCategories }: Props) {
     <>
       <IconButton
         icon="Plus"
-        variant="basicSecondary"
+        variant="action"
         size="md"
         ariaLabel="Crear categoría"
         onClick={() => setOpen(true)}

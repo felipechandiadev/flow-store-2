@@ -269,7 +269,7 @@ export default function PosCartLineCard({
             {line.trackInventory ? (
               <IconButton
                 icon="Info"
-                variant="ghost"
+                variant="neutral"
                 size="xs"
                 className="shrink-0"
                 ariaLabel="Ver stock por almacén"
@@ -356,7 +356,7 @@ export default function PosCartLineCard({
                 {!readOnly ? (
                   <IconButton
                     icon="Pencil"
-                    variant="basicSecondary"
+                    variant="action"
                     size="xs"
                     ariaLabel="Editar cantidad"
                     title="Editar cantidad"
@@ -367,7 +367,7 @@ export default function PosCartLineCard({
                 {onRemove && !readOnly ? (
                   <IconButton
                     icon="Trash2"
-                    variant="basicSecondary"
+                    variant="action"
                     size="xs"
                     ariaLabel="Eliminar producto del carrito"
                     title="Eliminar"
@@ -442,7 +442,7 @@ export default function PosCartLineCard({
                           {stockTrackInventory && (Number(row.reservedStock ?? 0) > 0 || Number(row.reservedStockBase ?? 0) > 0) ? (
                             <IconButton
                               icon="Info"
-                              variant="ghost"
+                              variant="neutral"
                               size="xs"
                               ariaLabel="Ver detalle de reservas"
                               title="Ver detalle de reservas"

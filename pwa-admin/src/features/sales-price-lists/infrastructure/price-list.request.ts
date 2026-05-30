@@ -44,6 +44,7 @@ function normalizeItem(row: unknown): PriceListListItem | null {
     priority: typeof o.priority === "number" ? o.priority : Number(o.priority) || 0,
     isDefault: o.isDefault === true,
     isActive: o.isActive !== false,
+    nonDeletable: o.nonDeletable === true,
     description: o.description != null && String(o.description) ? String(o.description) : null,
     createdAt: o.createdAt as PriceListListItem["createdAt"],
     updatedAt: o.updatedAt as PriceListListItem["updatedAt"],

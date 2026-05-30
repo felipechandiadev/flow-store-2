@@ -13,7 +13,7 @@ export function CompaniesCollectionAddAction() {
     <>
       <IconButton
         icon="Plus"
-        variant="basicSecondary"
+        variant="action"
         size="md"
         ariaLabel="Crear empresa"
         onClick={() => setOpen(true)}

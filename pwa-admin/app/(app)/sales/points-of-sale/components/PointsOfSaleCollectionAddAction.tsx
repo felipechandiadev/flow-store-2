@@ -31,7 +31,7 @@ export function PointsOfSaleCollectionAddAction({
     <>
       <IconButton
         icon="Plus"
-        variant="basicSecondary"
+        variant="action"
         size="md"
         ariaLabel="Crear punto de venta"
         onClick={() => setOpen(true)}

@@ -147,7 +147,7 @@ const Header: React.FC<HeaderProps> = ({
             ) : (
               <IconButton
                 icon="Plus"
-                variant="basicSecondary"
+                variant="action"
                 size="md"
                 onClick={onAddClick || (() => setIsCreateModalOpen(true))}
                 disabled={addDisabled}

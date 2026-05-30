@@ -135,3 +135,14 @@ aside[data-test-id="side-bar-root"].fs-app-sidebar {
   -webkit-backdrop-filter: blur(var(--sidebar-backdrop-blur));
   backdrop-filter: blur(var(--sidebar-backdrop-blur));
 }
+
+.eshop-hero-section-shadow {
+  box-shadow: 0 10px 32px -12px rgba(0, 0, 0, 0.18);
+}
+
+.eshop-hero-text-shadow {
+  text-shadow:
+    0 1px 2px rgba(255, 255, 255, 0.95),
+    0 2px 14px rgba(255, 255, 255, 0.8),
+    0 1px 5px rgba(0, 0, 0, 0.14);
+}

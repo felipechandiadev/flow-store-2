@@ -27,6 +27,7 @@ export class ListMultimediaAssetsByEntityIdsQueryHandler
       entityType: query.entityType,
       entityIds: query.entityIds,
       usageType: query.usageType,
+      attributeScope: query.attributeScope,
     });
   }
 }

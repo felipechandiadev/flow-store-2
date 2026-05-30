@@ -19,6 +19,7 @@ export interface CreateMultimediaLinkPayload {
   entityType: string;
   entityId: string;
   usageType: string;
+  attributeId?: string | null;
   sortOrder?: number;
   isPrimary?: boolean;
   metadata?: Record<string, unknown> | null;
@@ -35,17 +36,35 @@ export interface MultimediaRepositoryPort {
     entityType: string;
     entityId: string;
     usageType?: string;
+    attributeId?: string | null;
   }): Promise<void>;
   listAssetsByEntity(params: {
     entityType: string;
     entityId: string;
     usageType?: string;
-  }): Promise<Array<MultimediaAsset & { isPrimary: boolean }>>;
-  /** Dentro del mismo `usageType`, solo un link puede ser principal. */
+    attributeId?: string | null;
+  }): Promise<
+    Array<
+      MultimediaAsset & {
+        isPrimary: boolean;
+        sortOrder: number;
+        linkId: string;
+      }
+    >
+  >;
+  reorderLinksForEntity(params: {
+    entityType: string;
+    entityId: string;
+    assetIds: string[];
+    usageType?: string;
+    attributeId?: string | null;
+  }): Promise<void>;
+  /** Dentro del mismo ámbito (usageType + attributeId), solo un link puede ser principal. */
   setPrimaryAssetForEntity(params: {
     assetId: string;
     entityType: string;
     entityId: string;
+    attributeId?: string | null;
   }): Promise<void>;
   /**
    * Misma orden que `listAssetsByEntity` por entidad: isPrimary DESC, sortOrder, createdAt.
@@ -55,8 +74,12 @@ export interface MultimediaRepositoryPort {
     entityType: string;
     entityIds: string[];
     usageType?: string;
+    attributeId?: string | null;
+    /** `general` (default): solo galería sin atributo; `all`: incluye multimedia por atributo. */
+    attributeScope?: 'general' | 'all';
   }): Promise<Record<string, MultimediaAsset[]>>;
   countLinksForAsset(assetId: string): Promise<number>;
+  removeAllLinksForAsset(assetId: string): Promise<void>;
 }
 
 export const MULTIMEDIA_REPOSITORY = 'MultimediaRepositoryPort';

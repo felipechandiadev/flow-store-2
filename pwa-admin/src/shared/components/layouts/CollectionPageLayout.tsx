@@ -265,7 +265,7 @@ function CollectionPageLayoutView({
                     ) : hasDefaultAdd ? (
                       <IconButton
                         icon="Plus"
-                        variant="basicSecondary"
+                        variant="action"
                         size="md"
                         ariaLabel={addButtonAriaLabel}
                         onClick={onAddClick!}

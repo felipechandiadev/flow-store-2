@@ -38,7 +38,16 @@ export { Stepper } from './Stepper';
 export type { StepperProps, StepperStepItem } from './Stepper';
 export { default as LocationPickerWrapper } from './LocationPicker';
 
-// File Upload
+// Multimedia
+export {
+  MultimediaField,
+  MultimediaCollectionGrid,
+  MultimediaLightbox,
+  multimediaDefaultsForEntity,
+} from './Multimedia';
+export type { MultimediaFieldProps } from './Multimedia';
+
+// File Upload (legacy)
 export { MultimediaUploader, MultimediaUpdater } from './FileUploader';
 export type { MultimediaBannerSize, MultimediaLogoSize } from './FileUploader';
 export { default as FileUploader } from './FileUploader/MultimediaUpdater';

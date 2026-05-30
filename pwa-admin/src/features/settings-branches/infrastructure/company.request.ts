@@ -85,8 +85,6 @@ export type UpdateCompanyGeneralInput = {
   businessActivity?: string;
   rut?: string;
   address?: string | null;
-  mail?: string | null;
-  phone?: string | null;
 };
 
 export type AddCompanyBankAccountInput = {

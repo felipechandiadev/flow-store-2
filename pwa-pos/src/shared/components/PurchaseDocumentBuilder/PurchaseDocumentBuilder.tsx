@@ -1525,7 +1525,7 @@ export function PurchaseDocumentBuilder({
                     <td className="py-1.5 align-middle text-center">
                       <IconButton
                         icon="Trash2"
-                        variant="basicSecondary"
+                        variant="action"
                         size="sm"
                         title="Quitar línea"
                         ariaLabel="Quitar línea"
@@ -1600,7 +1600,7 @@ export function PurchaseDocumentBuilder({
                   {backToListHref ? (
                     <IconButton
                       icon="ArrowLeft"
-                      variant="basicSecondary"
+                      variant="action"
                       size="md"
                       title={
                         mode === "reception"
@@ -1624,7 +1624,7 @@ export function PurchaseDocumentBuilder({
                   {mode === "purchase_return" && resolveReceptionForReturn ? (
                     <IconButton
                       icon="Upload"
-                      variant="basicSecondary"
+                      variant="action"
                       size="md"
                       title="Cargar devolución"
                       ariaLabel="Cargar devolución"
@@ -1639,7 +1639,7 @@ export function PurchaseDocumentBuilder({
                   {mode === "reception" && (fetchPurchaseOrderDetail || searchPurchaseOrders) ? (
                     <IconButton
                       icon="Upload"
-                      variant="basicSecondary"
+                      variant="action"
                       size="md"
                       title="Asociar orden de compra"
                       ariaLabel="Asociar orden de compra"
@@ -1654,7 +1654,7 @@ export function PurchaseDocumentBuilder({
                   {mode !== "purchase_return" ? (
                     <IconButton
                       icon="Printer"
-                      variant="basicSecondary"
+                      variant="action"
                       size="md"
                       title="Vista previa de impresión"
                       ariaLabel="Vista previa de impresión"
@@ -1666,7 +1666,7 @@ export function PurchaseDocumentBuilder({
                   {showReceptionPaymentUi ? (
                     <IconButton
                       icon="CircleDollarSign"
-                      variant="basicSecondary"
+                      variant="action"
                       size="md"
                       title="Planificar pago del documento"
                       ariaLabel="Planificar pago del documento"

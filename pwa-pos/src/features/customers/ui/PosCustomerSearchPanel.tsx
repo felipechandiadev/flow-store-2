@@ -247,7 +247,7 @@ export default function PosCustomerSearchPanel({
         <div className="shrink-0 flex w-full items-center gap-2">
           <IconButton
             icon="ArrowLeft"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             ariaLabel="Volver a la búsqueda y limpiar selección"
             title="Volver a la búsqueda"
@@ -332,7 +332,7 @@ export default function PosCustomerSearchPanel({
           {showAddCustomer && onAddCustomerClick ? (
             <IconButton
               icon="Plus"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               className="shrink-0"
               ariaLabel="Crear cliente"
@@ -440,7 +440,7 @@ export default function PosCustomerSearchPanel({
         <div className="flex min-w-0 items-center gap-1.5">
           <IconButton
             icon="Settings"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             title="Configuración del buscador"
             ariaLabel="Abrir configuración del buscador de clientes"
@@ -454,7 +454,7 @@ export default function PosCustomerSearchPanel({
         <div className="flex shrink-0 gap-1">
           <IconButton
             icon="ChevronLeft"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             disabled={initial.page <= 1 || showLoading}
             title="Anterior"
@@ -464,7 +464,7 @@ export default function PosCustomerSearchPanel({
           />
           <IconButton
             icon="ChevronRight"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             disabled={initial.page >= totalPages || showLoading}
             title="Siguiente"

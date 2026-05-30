@@ -4,7 +4,7 @@
  * Modo compuesto: `media`, `title`, `subtitle`, `content` / `children`, `actions` (con callbacks);
  * modo legado: solo `children` con padding.
  *
- * En `actions`, `IconButton` se fuerza a `variant="basicSecondary"` (norma de diseño).
+ * En `actions`, `IconButton` se fuerza a `variant="action"` (norma de diseño).
  */
 
 import React from 'react';
@@ -26,7 +26,7 @@ export type CardTextAction = {
   'data-test-id'?: string;
 };
 
-/** Acción con icono: siempre `IconButton` con `variant="basicSecondary"` y `size="sm"`. */
+/** Acción con icono: siempre `IconButton` con `variant="action"` y `size="sm"`. */
 export type CardIconAction = {
   id?: string;
   icon: LucideIconName;
@@ -53,7 +53,7 @@ export type CardProps = {
   children?: React.ReactNode;
   /**
    * Pie: botones con texto o acciones con icono (`icon` + `ariaLabel`).
-   * Los iconos usan `IconButton` fijo a `basicSecondary` (ver instrucciones webadmin).
+   * Los iconos usan `IconButton` fijo a `action` (ver instrucciones webadmin).
    */
   actions?: CardAction[];
   /**
@@ -189,7 +189,7 @@ export function Card({
                 <IconButton
                   key={a.id ?? `card-action-icon-${i}`}
                   icon={a.icon}
-                  variant="basicSecondary"
+                  variant="action"
                   size="sm"
                   ariaLabel={a.ariaLabel}
                   onClick={a.onClick}

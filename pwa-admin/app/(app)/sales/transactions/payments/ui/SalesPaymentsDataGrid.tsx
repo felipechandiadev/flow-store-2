@@ -78,7 +78,7 @@ export default function SalesPaymentsDataGrid({
         >
           <IconButton
             icon="MoreHorizontal"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             ariaLabel="Ver detalle del cobro"
             onClick={() => openPaymentDetail(r)}

@@ -167,7 +167,7 @@ export default function StockDataGrid({
           >
             <IconButton
               icon="MoreHorizontal"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Ver movimientos de stock"
               onClick={() => setMovementsRow(r)}
@@ -175,7 +175,7 @@ export default function StockDataGrid({
             />
             <IconButton
               icon="Pencil"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Editar configuración de stock"
               onClick={() => setConfigRow(r)}

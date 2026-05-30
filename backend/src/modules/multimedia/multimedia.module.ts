@@ -14,6 +14,8 @@ import { STORAGE_PROVIDER } from './application/ports/storage-provider.port';
 import { TypeOrmMultimediaRepository } from './infrastructure/repositories/typeorm-multimedia.repository';
 import { LocalStorageAdapter } from './infrastructure/adapters/local-storage.adapter';
 import { CloudflareR2Adapter } from './infrastructure/adapters/cloudflare-r2.adapter';
+import { MultimediaStorageRegistry } from './application/services/multimedia-storage.registry';
+import { MultimediaAssetPurgeService } from './application/services/multimedia-asset-purge.service';
 import { UploadMultimediaCommandHandler } from './application/handlers/commands/upload-multimedia.handler';
 import { DeleteMultimediaCommandHandler } from './application/handlers/commands/delete-multimedia.handler';
 import { LinkMultimediaCommandHandler } from './application/handlers/commands/link-multimedia.handler';
@@ -22,6 +24,7 @@ import { GetMultimediaAssetQueryHandler } from './application/handlers/queries/g
 import { ListMultimediaAssetsQueryHandler } from './application/handlers/queries/list-multimedia-assets.handler';
 import { ListMultimediaAssetsByEntityIdsQueryHandler } from './application/handlers/queries/list-multimedia-assets-by-entity-ids.handler';
 import { SetPrimaryMultimediaLinkCommandHandler } from './application/handlers/commands/set-primary-multimedia-link.handler';
+import { ReorderMultimediaLinksCommandHandler } from './application/handlers/commands/reorder-multimedia-links.handler';
 
 @Module({
   imports: [
@@ -40,20 +43,29 @@ import { SetPrimaryMultimediaLinkCommandHandler } from './application/handlers/c
     ListMultimediaAssetsQueryHandler,
     ListMultimediaAssetsByEntityIdsQueryHandler,
     SetPrimaryMultimediaLinkCommandHandler,
+    ReorderMultimediaLinksCommandHandler,
+    LocalStorageAdapter,
+    CloudflareR2Adapter,
+    MultimediaStorageRegistry,
+    MultimediaAssetPurgeService,
     {
       provide: MULTIMEDIA_REPOSITORY,
       useClass: TypeOrmMultimediaRepository,
     },
     {
       provide: STORAGE_PROVIDER,
-      useFactory: (configService: AppConfigService) => {
+      useFactory: (
+        configService: AppConfigService,
+        localStorage: LocalStorageAdapter,
+        cloudflareStorage: CloudflareR2Adapter,
+      ) => {
         if (configService.storage.strategy === 'cloudflare') {
-          return new CloudflareR2Adapter(configService);
+          return cloudflareStorage;
         }
 
-        return new LocalStorageAdapter(configService);
+        return localStorage;
       },
-      inject: [AppConfigService],
+      inject: [AppConfigService, LocalStorageAdapter, CloudflareR2Adapter],
     },
   ],
   exports: [MultimediaServiceAdapter],

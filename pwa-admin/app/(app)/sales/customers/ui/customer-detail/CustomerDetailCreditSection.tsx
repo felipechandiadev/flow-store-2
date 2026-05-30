@@ -128,7 +128,7 @@ export function CustomerDetailCreditSection({
         <div className="absolute right-0 top-0 z-[1]">
           <IconButton
             type="button"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             icon={editing ? "Check" : "Pencil"}
             ariaLabel={editing ? "Guardar cambios" : "Editar datos de crédito"}

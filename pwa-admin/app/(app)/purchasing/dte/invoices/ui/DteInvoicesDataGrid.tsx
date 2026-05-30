@@ -54,7 +54,7 @@ export default function DteInvoicesDataGrid({ rows, total }: DteInvoicesDataGrid
         >
           <IconButton
             icon="MoreHorizontal"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             ariaLabel="Ver detalle de factura y recepción"
             onClick={() => openDetail(r)}

@@ -147,6 +147,7 @@ import { PromotionsModule } from './modules/promotions/promotions.module';
     InstallmentsModule,
     // analytics dashboard module
     require('./modules/analytics/analytics.module').AnalyticsModule,
+    require('./modules/e-shop/e-shop.module').EShopModule,
     ObservabilityModule,
     CacheModule,
   ],

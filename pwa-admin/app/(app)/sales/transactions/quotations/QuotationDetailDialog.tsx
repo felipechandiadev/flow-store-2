@@ -201,7 +201,7 @@ export function QuotationDetailDialog({
             <div className="flex items-center gap-1">
               <IconButton
                 icon="ReceiptText"
-                variant="basicSecondary"
+                variant="action"
                 size="sm"
                 ariaLabel="Imprimir ticket"
                 title="Imprimir ticket (80 mm)"
@@ -212,7 +212,7 @@ export function QuotationDetailDialog({
               />
               <IconButton
                 icon="FileText"
-                variant="basicSecondary"
+                variant="action"
                 size="sm"
                 ariaLabel="Imprimir documento"
                 title="Imprimir documento (hoja)"

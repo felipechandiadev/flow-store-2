@@ -60,7 +60,7 @@ export default function PurchaseReturnsDataGrid({ rows, total }: PurchaseReturns
           >
             <IconButton
               icon="MoreHorizontal"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Ver detalle de la devolución"
               onClick={() => openDetail(r)}

@@ -211,7 +211,7 @@ export default function LoginPage() {
 
       <IconButton
         icon="Settings"
-        variant="basicSecondary"
+        variant="action"
         size="md"
         className="fixed bottom-4 right-4 z-10 rounded-full border border-border bg-background shadow-sm"
         onClick={() => router.push("/setup")}

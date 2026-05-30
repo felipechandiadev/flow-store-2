@@ -114,6 +114,7 @@ describe('MultimediaServiceAdapter', () => {
       entityType: 'product-variant',
       entityIds: ['var-1', 'var-2'],
       usageType: undefined,
+      attributeScope: 'general',
     });
     expect(map).toEqual({ 'var-1': [{ id: 'a1', publicUrl: '/x', mimeType: 'image/png', kind: 'image' }] });
   });

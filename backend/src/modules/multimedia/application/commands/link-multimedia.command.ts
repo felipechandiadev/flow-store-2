@@ -9,6 +9,7 @@ export class LinkMultimediaCommand extends BaseCommand {
     public readonly sortOrder: number = 0,
     public readonly isPrimary: boolean = false,
     public readonly metadata?: Record<string, unknown>,
+    public readonly attributeId?: string | null,
   ) {
     super();
   }

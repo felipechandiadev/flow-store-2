@@ -193,7 +193,7 @@ export default function SalesPaymentDetailDialog({
           <div className="flex items-center justify-end gap-1">
             <IconButton
               icon="ReceiptText"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Imprimir ticket"
               title="Imprimir ticket (80 mm)"
@@ -204,7 +204,7 @@ export default function SalesPaymentDetailDialog({
             />
             <IconButton
               icon="FileText"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Imprimir documento de cobro"
               title="Imprimir documento de cobro (hoja)"

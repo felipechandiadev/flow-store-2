@@ -222,7 +222,7 @@ export const ColHeader: React.FC<ColHeaderProps> = ({
           <div className="flex-shrink-0 flex h-full items-center justify-center" style={{ width: '28px' }}>
             <IconButton
               icon={iconName}
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               title={isThisColumnSorted ? 
                 (currentSort === 'asc' ? 'Cambiar a descendente' : 'Cambiar a ascendente') : 

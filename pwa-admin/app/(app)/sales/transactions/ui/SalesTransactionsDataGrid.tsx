@@ -146,7 +146,7 @@ export default function SalesTransactionsDataGrid({
         >
           <IconButton
             icon="MoreHorizontal"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             ariaLabel="Ver detalle de la transacción"
             onClick={() => openDetail(r)}
@@ -155,7 +155,7 @@ export default function SalesTransactionsDataGrid({
           {canCancelBackorder ? (
             <IconButton
               icon="Trash2"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Anular encargo"
               onClick={() => openCancelDialog(r)}

@@ -18,7 +18,7 @@ export function StoragesCollectionAddAction({ branches }: Props) {
     <>
       <IconButton
         icon="Plus"
-        variant="basicSecondary"
+        variant="action"
         size="md"
         ariaLabel="Crear almacén"
         onClick={() => setOpen(true)}

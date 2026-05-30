@@ -13,7 +13,7 @@ export function UsersCollectionAddAction() {
     <>
       <IconButton
         icon="Plus"
-        variant="basicSecondary"
+        variant="action"
         size="md"
         ariaLabel="Crear usuario"
         onClick={() => setOpen(true)}

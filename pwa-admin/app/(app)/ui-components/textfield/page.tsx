@@ -390,7 +390,7 @@ export default function TextFieldPage() {
               {compactInsetLogoFile ? (
                 <IconButton
                   icon="X"
-                  variant="basicSecondary"
+                  variant="action"
                   size="xs"
                   className="min-h-5 min-w-5 p-0"
                   ariaLabel="Quitar logo"
@@ -401,7 +401,7 @@ export default function TextFieldPage() {
               ) : null}
               <IconButton
                 icon="FolderOpen"
-                variant="basicSecondary"
+                variant="action"
                 size="xs"
                 className="min-h-5 min-w-5 p-0"
                 ariaLabel="Seleccionar imagen"

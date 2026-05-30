@@ -23,8 +23,6 @@ export function CompanyGeneralSection({ company, onSaved }: Props) {
   const [rut, setRut] = useState(company.rut ?? "");
   const [businessActivity, setBusinessActivity] = useState(company.businessActivity ?? "");
   const [address, setAddress] = useState(company.address ?? "");
-  const [mail, setMail] = useState(company.mail ?? "");
-  const [phone, setPhone] = useState(company.phone ?? "");
 
   const syncFromCompany = useCallback(() => {
     setRazonSocial(company.razonSocial);
@@ -32,8 +30,6 @@ export function CompanyGeneralSection({ company, onSaved }: Props) {
     setRut(company.rut ?? "");
     setBusinessActivity(company.businessActivity ?? "");
     setAddress(company.address ?? "");
-    setMail(company.mail ?? "");
-    setPhone(company.phone ?? "");
   }, [company]);
 
   useEffect(() => {
@@ -56,8 +52,6 @@ export function CompanyGeneralSection({ company, onSaved }: Props) {
         rut: rut.trim(),
         businessActivity: businessActivity.trim(),
         address: address.trim() || null,
-        mail: mail.trim() || null,
-        phone: phone.trim() || null,
       });
       if (!r.success) {
         setError(r.error);
@@ -144,29 +138,6 @@ export function CompanyGeneralSection({ company, onSaved }: Props) {
           className="min-w-0"
           data-test-id="settings-company-field-business-activity"
         />
-        <TextField
-          label="Correo"
-          placeholder="contacto@empresa.cl"
-          type="email"
-          name="company-mail"
-          value={mail}
-          onChange={(e) => setMail(e.target.value)}
-          readOnly={readOnly}
-          disabled={busy}
-          className="min-w-0"
-          data-test-id="settings-company-field-mail"
-        />
-        <TextField
-          label="Teléfono"
-          placeholder="+56 2 2345 6789"
-          name="company-phone"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          readOnly={readOnly}
-          disabled={busy}
-          className="min-w-0"
-          data-test-id="settings-company-field-phone"
-        />
         <div className="min-w-0 md:col-span-2">
           <TextField
             label="Dirección"
@@ -187,7 +158,7 @@ export function CompanyGeneralSection({ company, onSaved }: Props) {
       <div className="mt-6 flex justify-end">
         <IconButton
           icon={editing ? "Save" : "Pencil"}
-          variant="basicSecondary"
+          variant="action"
           size="md"
           ariaLabel={editing ? "Guardar cambios" : "Editar información general"}
           disabled={busy || (!editing && !hasCompanyRow)}

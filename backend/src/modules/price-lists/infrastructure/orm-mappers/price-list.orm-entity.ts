@@ -44,6 +44,9 @@ export class PriceListOrmEntity {
   @Column({ type: 'boolean', default: true })
   isActive!: boolean;
 
+  @Column({ type: 'boolean', default: false, name: 'non_deletable' })
+  nonDeletable!: boolean;
+
   @Column({ type: 'text', nullable: true })
   description?: string;
 

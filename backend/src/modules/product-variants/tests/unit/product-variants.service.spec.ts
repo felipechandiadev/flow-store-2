@@ -18,6 +18,7 @@ describe('ProductVariantsService', () => {
   };
   let multimediaService: {
     listByEntity: jest.Mock;
+    listByEntityIds: jest.Mock;
     unlink: jest.Mock;
     link: jest.Mock;
   };
@@ -45,6 +46,7 @@ describe('ProductVariantsService', () => {
     };
     multimediaService = {
       listByEntity: jest.fn(),
+      listByEntityIds: jest.fn(),
       unlink: jest.fn(),
       link: jest.fn(),
     };
@@ -108,7 +110,7 @@ describe('ProductVariantsService', () => {
     );
   });
 
-  it('should create variant, persist price list items, and link multimedia assets', async () => {
+  it('should create variant, persist price list items, and ignore legacy multimediaAssetIds', async () => {
     variantRepository.save.mockResolvedValueOnce({ id: 'variant-1' });
     priceListItemRepository.save.mockResolvedValue({ id: 'pli-1' });
     variantRepository.findById.mockResolvedValueOnce({
@@ -116,16 +118,7 @@ describe('ProductVariantsService', () => {
       productId: 'product-1',
       priceListItems: [],
     });
-    multimediaService.listByEntity
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: 'asset-1',
-          publicUrl: '/multimedia/files/asset-1',
-          mimeType: 'image/png',
-          kind: 'image',
-        },
-      ]);
+    multimediaService.listByEntityIds.mockResolvedValueOnce({});
     multimediaService.link.mockResolvedValue(undefined);
 
     const result = await service.create({
@@ -157,32 +150,18 @@ describe('ProductVariantsService', () => {
         productVariantId: 'variant-1',
       }),
     );
-    expect(multimediaService.link).toHaveBeenCalledWith({
-      assetId: 'asset-1',
-      entityType: 'product-variant',
-      entityId: 'variant-1',
-      usageType: 'primary-image',
-      sortOrder: 0,
-      isPrimary: true,
-    });
+    expect(multimediaService.link).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       success: true,
       variant: {
         id: 'variant-1',
-        primaryImageUrl: '/multimedia/files/asset-1',
-        mediaAssets: [
-          {
-            id: 'asset-1',
-            publicUrl: '/multimedia/files/asset-1',
-            mimeType: 'image/png',
-            kind: 'image',
-          },
-        ],
+        primaryImageUrl: null,
+        mediaAssets: [],
       },
     });
   });
 
-  it('should update variant and replace linked multimedia assets', async () => {
+  it('should update variant and ignore legacy multimediaAssetIds', async () => {
     variantRepository.findById
       .mockResolvedValueOnce({
         id: 'variant-1',
@@ -206,16 +185,16 @@ describe('ProductVariantsService', () => {
     });
     priceListItemRepository.deleteByVariantId.mockResolvedValue(undefined);
     priceListItemRepository.save.mockResolvedValue({ id: 'pli-9' });
-    multimediaService.listByEntity
-      .mockResolvedValueOnce([{ id: 'old-asset' }])
-      .mockResolvedValueOnce([
+    multimediaService.listByEntityIds.mockResolvedValueOnce({
+      'variant-1': [
         {
           id: 'asset-9',
           publicUrl: '/multimedia/files/asset-9',
           mimeType: 'image/jpeg',
           kind: 'image',
         },
-      ]);
+      ],
+    });
     multimediaService.unlink.mockResolvedValue(undefined);
     multimediaService.link.mockResolvedValue(undefined);
 
@@ -232,24 +211,13 @@ describe('ProductVariantsService', () => {
     });
 
     expect(priceListItemRepository.deleteByVariantId).toHaveBeenCalledWith('variant-1');
-    expect(multimediaService.unlink).toHaveBeenCalledWith({
-      assetId: 'old-asset',
-      entityType: 'product-variant',
-      entityId: 'variant-1',
-    });
-    expect(multimediaService.link).toHaveBeenCalledWith({
-      assetId: 'asset-9',
-      entityType: 'product-variant',
-      entityId: 'variant-1',
-      usageType: 'primary-image',
-      sortOrder: 0,
-      isPrimary: true,
-    });
+    expect(multimediaService.unlink).not.toHaveBeenCalled();
+    expect(multimediaService.link).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       success: true,
       variant: {
         id: 'variant-1',
-        primaryImageUrl: '/multimedia/files/asset-9',
+        primaryImageUrl: null,
       },
     });
   });

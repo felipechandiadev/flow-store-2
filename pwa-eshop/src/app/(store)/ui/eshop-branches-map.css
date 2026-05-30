@@ -1,0 +1,28 @@
+@import "leaflet/dist/leaflet.css";
+
+.eshop-branches-map .leaflet-container {
+  height: 100%;
+  width: 100%;
+  cursor: grab;
+  font-family: inherit;
+}
+
+.eshop-branches-map .leaflet-container:active,
+.eshop-branches-map .leaflet-container.leaflet-drag-target {
+  cursor: grabbing;
+}
+
+.eshop-branches-map .leaflet-control-attribution {
+  display: none !important;
+}
+
+.eshop-branches-map .leaflet-popup-content-wrapper {
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.eshop-branches-map .leaflet-popup-content {
+  margin: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}

@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+/**
+ * Fuentes sin descarga en build (evita fallar si no hay red).
+ */
+:root {
+  --font-geist-sans:
+    ui-sans-serif, system-ui, sans-serif, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
+    "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  --font-geist-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+
+  color-scheme: light;
+
+  /* Fuente de verdad (cambia en @media dark); @theme referencia var(--fs-*) */
+  --fs-primary: #002b59;
+  --fs-background: #ffffff;
+  --fs-surface: #ffffff;
+  --fs-foreground: #131615;
+  --fs-border: #c1c1c2;
+  --fs-active: #0a7cad;
+  --fs-accent: #0a7cad;
+  --fs-secondary: #04c9e6;
+  --fs-muted: #6b7280;
+  --fs-muted-foreground: #6b7280;
+  --fs-success: #4caf50;
+  --fs-info: #2196f3;
+  --fs-warning: #ffc107;
+  --fs-error: #f44336;
+  --fs-destructive: #dc2626;
+  --fs-destructive-foreground: #ffffff;
+  --fs-neutral: #f3f4f6;
+
+  /* Aliases para CSS de componentes (textfield, dialog, etc.) */
+  --color-primary: var(--fs-primary);
+  --color-background: var(--fs-background);
+  --color-surface: var(--fs-surface);
+  --color-foreground: var(--fs-foreground);
+  --color-border: var(--fs-border);
+  --color-active: var(--fs-active);
+  --color-accent: var(--fs-accent);
+  --color-secondary: var(--fs-secondary);
+  --color-muted: var(--fs-muted);
+  --color-muted-foreground: var(--fs-muted-foreground);
+  --color-success: var(--fs-success);
+  --color-info: var(--fs-info);
+  --color-warning: var(--fs-warning);
+  --color-error: var(--fs-error);
+  --color-destructive: var(--fs-destructive);
+  --color-destructive-foreground: var(--fs-destructive-foreground);
+  --color-neutral: var(--fs-neutral);
+  --color-hover: color-mix(in srgb, var(--fs-neutral) 65%, var(--fs-background));
+
+  --app-topbar-height: 3.75rem;
+  --app-sidebar-width: 3.5rem;
+  --color-sidebar-bg: rgba(255, 255, 255, 0.2);
+  --sidebar-backdrop-blur: 7px;
+  --color-sidebar-overlay: rgba(0, 43, 89, 0.25);
+}
+
+/**
+ * Tailwind v4: utilidades apuntan a --fs-* para que dark mode en :root las actualice.
+ */
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --app-topbar-height: 3.75rem;
+  --app-sidebar-width: 3.5rem;
+
+  --color-primary: var(--fs-primary);
+  --color-background: var(--fs-background);
+  --color-surface: var(--fs-surface);
+  --color-foreground: var(--fs-foreground);
+  --color-border: var(--fs-border);
+  --color-active: var(--fs-active);
+  --color-accent: var(--fs-accent);
+  --color-secondary: var(--fs-secondary);
+  --color-muted: var(--fs-muted);
+  --color-muted-foreground: var(--fs-muted-foreground);
+  --color-success: var(--fs-success);
+  --color-info: var(--fs-info);
+  --color-warning: var(--fs-warning);
+  --color-error: var(--fs-error);
+  --color-destructive: var(--fs-destructive);
+  --color-destructive-foreground: var(--fs-destructive-foreground);
+  --color-neutral: var(--fs-neutral);
+  --color-hover: color-mix(in srgb, var(--fs-neutral) 65%, var(--fs-background));
+}
+
+@layer base {
+  html {
+    font-family: var(--font-geist-sans);
+  }
+
+  body {
+    font-family: var(--font-geist-sans);
+    background-color: var(--fs-background);
+    color: var(--fs-foreground);
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+}
+
+.fs-app-sidebar {
+  background-color: var(--color-sidebar-bg);
+  color: var(--color-foreground);
+  border-right: 1px solid var(--color-border);
+  -webkit-backdrop-filter: blur(var(--sidebar-backdrop-blur));
+  backdrop-filter: blur(var(--sidebar-backdrop-blur));
+}
+
+/* ==========================================================================
+   MODO OSCURO — al final para no ser pisado por @theme
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --fs-primary: #0a7cad;
+    --fs-background: #121212;
+    --fs-surface: #1e1e1e;
+    --fs-foreground: #f3f4f6;
+    --fs-border: #374151;
+    --fs-muted: #9ca3af;
+    --fs-muted-foreground: #9ca3af;
+    --fs-neutral: #1f2937;
+    --fs-success: #81c784;
+    --fs-info: #64b5f6;
+    --fs-warning: #ffd54f;
+    --fs-error: #e57373;
+    --fs-secondary: #04c9e6;
+
+    --color-hover: color-mix(in srgb, var(--fs-neutral) 40%, var(--fs-background));
+
+    --color-sidebar-bg: rgba(18, 18, 18, 0.3);
+    --sidebar-backdrop-blur: 7px;
+    --color-sidebar-overlay: rgba(0, 32, 66, 0.3);
+  }
+}
+
+/** Hero: separación del contenido y legibilidad del texto sobre imagen */
+.eshop-hero-section-shadow {
+  box-shadow: 0 10px 32px -12px rgba(0, 0, 0, 0.18);
+}
+
+.eshop-hero-text-shadow {
+  text-shadow:
+    0 1px 2px rgba(255, 255, 255, 0.95),
+    0 2px 14px rgba(255, 255, 255, 0.8),
+    0 1px 5px rgba(0, 0, 0, 0.14);
+}
+
+/** Puntos y barra del slide activo en el carrusel hero */
+.eshop-hero-carousel-indicator-shadow {
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.35),
+    0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/** Flechas anterior / siguiente del carrusel hero */
+.eshop-hero-carousel-nav-shadow {
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.28),
+    0 2px 6px rgba(0, 0, 0, 0.18);
+}

@@ -45,7 +45,7 @@ export default function UpdateBarcodePage() {
       <div className="flex items-center gap-1">
         <IconButton
           icon="ArrowLeft"
-          variant="ghost"
+          variant="neutral"
           size="md"
           ariaLabel="Volver"
           onClick={() => router.push(variantDetailPath(variantId))}

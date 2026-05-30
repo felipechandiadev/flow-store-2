@@ -353,7 +353,7 @@ export function CreateRecipeDialog({
                       </div>
                       <IconButton
                         icon="Plus"
-                        variant="basicSecondary"
+                        variant="action"
                         size="sm"
                         title={isOutput ? "No disponible" : "Agregar a la receta"}
                         ariaLabel="Agregar variante a la receta"
@@ -374,7 +374,7 @@ export function CreateRecipeDialog({
             <div className="flex gap-1">
               <IconButton
                 icon="ChevronLeft"
-                variant="basicSecondary"
+                variant="action"
                 size="sm"
                 disabled={searchPage <= 1}
                 title="Anterior"
@@ -384,7 +384,7 @@ export function CreateRecipeDialog({
               />
               <IconButton
                 icon="ChevronRight"
-                variant="basicSecondary"
+                variant="action"
                 size="sm"
                 disabled={searchPage >= totalPages}
                 title="Siguiente"
@@ -473,7 +473,7 @@ export function CreateRecipeDialog({
                       <td className="py-2 text-center">
                         <IconButton
                           icon="Trash2"
-                          variant="basicSecondary"
+                          variant="action"
                           size="sm"
                           title="Quitar"
                           ariaLabel="Quitar línea"

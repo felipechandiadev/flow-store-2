@@ -78,7 +78,7 @@ function MethodCard({
       <div className="mt-1 flex justify-end gap-1">
         <IconButton
           icon="Pencil"
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           ariaLabel="Editar medio de pago"
           disabled={busy}
@@ -87,7 +87,7 @@ function MethodCard({
         />
         <IconButton
           icon="Trash2"
-          variant="basic"
+          variant="neutral"
           size="sm"
           ariaLabel="Eliminar medio de pago"
           disabled={busy}
@@ -213,7 +213,7 @@ export function CompanyPaymentMethodsSection({ companyId }: Props) {
           </h2>
           <IconButton
             icon="Plus"
-            variant="basicSecondary"
+            variant="action"
             size="md"
             ariaLabel="Agregar medio de pago"
             disabled={busy || loading}

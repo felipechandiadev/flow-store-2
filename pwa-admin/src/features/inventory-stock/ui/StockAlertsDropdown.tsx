@@ -36,7 +36,7 @@ export function StockAlertsDropdown() {
       <div className="relative inline-flex shrink-0">
         <IconButton
           icon="Bell"
-          variant="basicSecondary"
+          variant="action"
           size="md"
           strokeWidth={2.5}
           ariaLabel={`Alertas de stock${stockAlertCount > 0 ? `: ${stockAlertCount} nuevas` : ""}`}

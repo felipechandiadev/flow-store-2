@@ -273,7 +273,7 @@ export function VariantDetailLogisticsSection({ variant }: VariantDetailLogistic
         ) : null}
         <IconButton
           icon={editing ? "Save" : "Pencil"}
-          variant="basicSecondary"
+          variant="action"
           size="sm"
           ariaLabel={editing ? "Guardar despacho" : "Editar despacho"}
           onClick={toggleEditOrSave}

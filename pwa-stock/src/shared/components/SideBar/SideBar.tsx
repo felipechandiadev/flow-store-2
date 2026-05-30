@@ -249,7 +249,7 @@ export default function SideBar({
                     <IconButton
                       className="shrink-0 self-center"
                       icon="KeyRound"
-                      variant="basicSecondary"
+                      variant="action"
                       size="sm"
                       onClick={onOpenChangePassword}
                       ariaLabel="Cambiar contraseña"

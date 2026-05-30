@@ -9,6 +9,7 @@ import { GetMultimediaAssetQuery } from '../queries/get-multimedia-asset.query';
 import { ListMultimediaAssetsQuery } from '../queries/list-multimedia-assets.query';
 import { ListMultimediaAssetsByEntityIdsQuery } from '../queries/list-multimedia-assets-by-entity-ids.query';
 import { SetPrimaryMultimediaLinkCommand } from '../commands/set-primary-multimedia-link.command';
+import { ReorderMultimediaLinksCommand } from '../commands/reorder-multimedia-links.command';
 
 @Injectable()
 export class MultimediaServiceAdapter {
@@ -29,6 +30,7 @@ export class MultimediaServiceAdapter {
     usageType?: string;
     isPrimary?: boolean;
     metadata?: Record<string, unknown>;
+    attributeId?: string | null;
   }) {
     return this.commandBus.execute(
       new UploadMultimediaCommand(
@@ -38,6 +40,7 @@ export class MultimediaServiceAdapter {
         params.usageType,
         params.isPrimary,
         params.metadata,
+        params.attributeId,
       ),
     );
   }
@@ -54,6 +57,7 @@ export class MultimediaServiceAdapter {
     sortOrder?: number;
     isPrimary?: boolean;
     metadata?: Record<string, unknown>;
+    attributeId?: string | null;
   }) {
     return this.commandBus.execute(
       new LinkMultimediaCommand(
@@ -64,6 +68,7 @@ export class MultimediaServiceAdapter {
         params.sortOrder,
         params.isPrimary,
         params.metadata,
+        params.attributeId,
       ),
     );
   }
@@ -73,6 +78,7 @@ export class MultimediaServiceAdapter {
     entityType: string;
     entityId: string;
     usageType?: string;
+    attributeId?: string | null;
   }) {
     return this.commandBus.execute(
       new UnlinkMultimediaCommand(
@@ -80,6 +86,7 @@ export class MultimediaServiceAdapter {
         params.entityType,
         params.entityId,
         params.usageType,
+        params.attributeId,
       ),
     );
   }
@@ -88,9 +95,14 @@ export class MultimediaServiceAdapter {
     return this.queryBus.execute(new GetMultimediaAssetQuery(assetId));
   }
 
-  listByEntity(entityType: string, entityId: string, usageType?: string) {
+  listByEntity(
+    entityType: string,
+    entityId: string,
+    usageType?: string,
+    attributeId?: string | null,
+  ) {
     return this.queryBus.execute(
-      new ListMultimediaAssetsQuery(entityType, entityId, usageType),
+      new ListMultimediaAssetsQuery(entityType, entityId, usageType, attributeId),
     );
   }
 
@@ -99,9 +111,15 @@ export class MultimediaServiceAdapter {
     entityType: string,
     entityIds: string[],
     usageType?: string,
+    attributeScope: 'general' | 'all' = 'general',
   ): Promise<Record<string, MultimediaAsset[]>> {
     return this.queryBus.execute(
-      new ListMultimediaAssetsByEntityIdsQuery(entityType, entityIds, usageType),
+      new ListMultimediaAssetsByEntityIdsQuery(
+        entityType,
+        entityIds,
+        usageType,
+        attributeScope,
+      ),
     );
   }
 
@@ -109,12 +127,32 @@ export class MultimediaServiceAdapter {
     assetId: string;
     entityType: string;
     entityId: string;
+    attributeId?: string | null;
   }) {
     return this.commandBus.execute(
       new SetPrimaryMultimediaLinkCommand(
         params.assetId,
         params.entityType,
         params.entityId,
+        params.attributeId,
+      ),
+    );
+  }
+
+  reorderForEntity(params: {
+    entityType: string;
+    entityId: string;
+    assetIds: string[];
+    usageType?: string;
+    attributeId?: string | null;
+  }) {
+    return this.commandBus.execute(
+      new ReorderMultimediaLinksCommand(
+        params.entityType,
+        params.entityId,
+        params.assetIds,
+        params.usageType,
+        params.attributeId,
       ),
     );
   }

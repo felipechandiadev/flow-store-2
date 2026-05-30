@@ -13,7 +13,7 @@ export function BranchesCollectionAddAction() {
     <>
       <IconButton
         icon="Plus"
-        variant="basicSecondary"
+        variant="action"
         size="md"
         ariaLabel="Crear sucursal"
         onClick={() => setOpen(true)}

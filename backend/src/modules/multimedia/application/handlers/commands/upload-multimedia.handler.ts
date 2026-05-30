@@ -1,9 +1,5 @@
-import {
-  CommandHandler,
-  EventBus,
-  ICommandHandler,
-} from '@nestjs/cqrs';
-import { Inject, Logger } from '@nestjs/common';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
+import { BadRequestException, Inject, Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { UploadMultimediaCommand } from '../../commands/upload-multimedia.command';
 import {
@@ -34,6 +30,14 @@ export class UploadMultimediaCommandHandler
 
   async execute(command: UploadMultimediaCommand): Promise<MultimediaAsset> {
     const { file } = command;
+    if (
+      command.entityType === 'product-variant' &&
+      (command.attributeId == null || !String(command.attributeId).trim())
+    ) {
+      throw new BadRequestException(
+        'Las variantes solo admiten multimedia por atributo (attributeId requerido)',
+      );
+    }
     const { maxFileSize, allowedMimeTypes, strategy } = this.configService.storage;
 
     if (file.size > maxFileSize) {
@@ -73,6 +77,7 @@ export class UploadMultimediaCommandHandler
         usageType: command.usageType,
         isPrimary: command.isPrimary,
         metadata: command.metadata ?? null,
+        attributeId: command.attributeId,
       });
     }
 

@@ -32,31 +32,6 @@ import {
 } from "./VariantPriceRowsEditor";
 import { VariantPmpPriceCalculatorDialog } from "./VariantPmpPriceCalculatorDialog";
 import { VariantAttributesPickerDialog } from "./VariantAttributesPickerDialog";
-import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
-import { MultimediaUploader } from "@/shared/components/FileUploader/MultimediaUploader";
-import { revalidateMultimediaCachesAction } from "@/features/multimedia/actions/multimedia.action";
-import { uploadMultimediaFilesForEntity } from "@/features/multimedia/infrastructure/multimedia.client";
-import type { MultimediaEntityType } from "@/features/multimedia/types/multimedia.types";
-import { useSession } from "next-auth/react";
-
-async function uploadFilesToEntity(
-  files: File[],
-  entityType: MultimediaEntityType,
-  entityId: string,
-  auth: { accessToken?: string | null; activeCompanyId?: string | null },
-): Promise<string | null> {
-  const r = await uploadMultimediaFilesForEntity({
-    files,
-    entityType,
-    entityId,
-    ...auth,
-  });
-  if (!r.success) {
-    return r.error;
-  }
-  await revalidateMultimediaCachesAction(entityType, entityId);
-  return null;
-}
 
 /** IVA marcado como predeterminado en catálogo; si no hay ninguno, se usa el primer IVA activo. */
 function catalogDefaultIvaTaxIds(taxes: TaxListItem[]): string[] {
@@ -89,13 +64,6 @@ export function CreateProductVariantDialog({
   onSuccess,
 }: CreateProductVariantDialogProps) {
   const router = useRouter();
-  const { data: session } = useSession();
-  const multimediaAuth = {
-    accessToken: session?.user?.accessToken,
-    activeCompanyId: (session?.user as { activeCompanyId?: string | null } | undefined)?.activeCompanyId,
-  };
-  const [phase, setPhase] = useState<"form" | "media">("form");
-  const [newVariantId, setNewVariantId] = useState<string | null>(null);
   const [sku, setSku] = useState("");
   const [barcode, setBarcode] = useState("");
   const [unitId, setUnitId] = useState<string | null>(null);
@@ -124,10 +92,6 @@ export function CreateProductVariantDialog({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  /** Archivos elegidos antes de crear la variante (se suben al crear el SKU). */
-  const [stagedVariantFiles, setStagedVariantFiles] = useState<File[]>([]);
-  const [mediaStagingKey, setMediaStagingKey] = useState(0);
-  const [postCreateUploadError, setPostCreateUploadError] = useState<string | null>(null);
   const [attributesPickerOpen, setAttributesPickerOpen] = useState(false);
 
   const ivaTaxes = useMemo(
@@ -261,21 +225,12 @@ export function CreateProductVariantDialog({
   }, [open]);
 
   const handleClose = () => {
-    setPhase("form");
-    setNewVariantId(null);
     setError(null);
-    setStagedVariantFiles([]);
-    setMediaStagingKey((k) => k + 1);
-    setPostCreateUploadError(null);
     onClose();
   };
 
   const handleSubmit = () => {
-    if (phase !== "form") {
-      return;
-    }
     setError(null);
-    setPostCreateUploadError(null);
     if (!productId.trim()) {
       setError("Producto no válido");
       return;
@@ -387,27 +342,12 @@ export function CreateProductVariantDialog({
           stockBaseQtyPerCountPurchaseUnit: stockBaseQtyPerCountPurchaseUnitOut,
         });
         if (r.success) {
-          setNewVariantId(r.id);
-          if (stagedVariantFiles.length > 0) {
-            const upErr = await uploadFilesToEntity(stagedVariantFiles, "product-variant", r.id, multimediaAuth);
-            if (upErr) {
-              setPostCreateUploadError(upErr);
-            }
-          }
           await router.refresh();
-          setPhase("media");
+          await onSuccess?.();
+          handleClose();
         } else {
           setError(r.error);
         }
-      })();
-    });
-  };
-
-  const handleFinalizeMedia = () => {
-    startTransition(() => {
-      void (async () => {
-        await onSuccess?.();
-        handleClose();
       })();
     });
   };
@@ -426,7 +366,6 @@ export function CreateProductVariantDialog({
   };
 
   const canSubmit =
-    phase === "form" &&
     Boolean(productId.trim()) &&
     Boolean(sku.trim()) &&
     Boolean(unitId) &&
@@ -438,14 +377,12 @@ export function CreateProductVariantDialog({
     priceRows.length > 0 &&
     derivedBasePrice !== null;
 
-  const canFinalizeMedia = phase === "media" && !isPending;
-
   return (
     <>
     <Dialog
       open={open}
       onClose={handleClose}
-      title={phase === "media" ? "Imágenes de la variante" : "Crear variante"}
+      title="Crear variante"
       size="lg"
       scroll="paper"
       maxHeight="min(90vh, 720px)"
@@ -462,36 +399,9 @@ export function CreateProductVariantDialog({
                 {error}
               </Alert>
             ) : null}
-            {phase === "media" && postCreateUploadError ? (
-              <Alert variant="warning" data-test-id="product-variant-create-upload-warning">
-                No se pudieron subir todos los archivos elegidos en el formulario: {postCreateUploadError}
-              </Alert>
-            ) : null}
           </>
         }
       actions={
-        phase === "media" ? (
-          <>
-            <Button
-              variant="outlined"
-              size="md"
-              onClick={handleClose}
-              disabled={isPending}
-              data-test-id="product-variant-create-cancel"
-            >
-              Cerrar
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleFinalizeMedia}
-              disabled={!canFinalizeMedia}
-              data-test-id="product-variant-create-finish-media"
-            >
-              Listo
-            </Button>
-          </>
-        ) : (
           <>
             <Button
               variant="outlined"
@@ -512,23 +422,8 @@ export function CreateProductVariantDialog({
               Crear variante
             </Button>
           </>
-        )
       }
     >
-        {phase === "media" && newVariantId ? (
-          <div className="flex w-full min-w-0 flex-col gap-3">
-            <p className="text-sm text-muted-foreground">
-              Variante creada. Las imágenes aquí son específicas de este SKU (operativas / vitrina por variante).
-            </p>
-            <EntityMultimediaPanel
-              entityType="product-variant"
-              entityId={newVariantId}
-              title="Imágenes de la variante"
-              collectionOnly
-              onChanged={() => router.refresh()}
-            />
-          </div>
-        ) : (
         <div className="flex w-full min-w-0 flex-col gap-4">
           <p className="text-sm text-muted-foreground" data-test-id="product-variant-create-product">
             Producto: <span className="font-medium text-foreground">{productName || "—"}</span>
@@ -711,27 +606,6 @@ export function CreateProductVariantDialog({
             />
           </div>
 
-          <div
-            className="rounded-lg border border-border bg-muted/10 p-3"
-            data-test-id="product-variant-create-form-multimedia"
-          >
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Multimedia</p>
-            <MultimediaUploader
-              key={`pv-create-staged-${mediaStagingKey}`}
-              uploadPath="create-variant:staging"
-              variant="collection"
-              label=""
-              buttonType="icon"
-              accept="image/*,video/*"
-              maxFiles={12}
-              maxSize={9}
-              aspectRatio="16:9"
-              previewSize="sm"
-              disabled={isPending}
-              onChange={setStagedVariantFiles}
-            />
-          </div>
-
           <div className="pt-1">
             <Switch
               checked={isActive}
@@ -742,7 +616,6 @@ export function CreateProductVariantDialog({
             />
           </div>
         </div>
-        )}
       </Dialog>
       <VariantPmpPriceCalculatorDialog
         open={pmpCalculatorRowKey != null}

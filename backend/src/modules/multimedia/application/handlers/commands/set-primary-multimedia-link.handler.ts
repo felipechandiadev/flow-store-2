@@ -20,6 +20,7 @@ export class SetPrimaryMultimediaLinkCommandHandler
       assetId: command.assetId,
       entityType: command.entityType,
       entityId: command.entityId,
+      attributeId: command.attributeId,
     });
   }
 }

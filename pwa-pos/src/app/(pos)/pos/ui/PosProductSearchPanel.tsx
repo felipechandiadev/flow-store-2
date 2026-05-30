@@ -408,7 +408,7 @@ export default function PosProductSearchPanel({
         <div className="flex min-w-0 items-center gap-1.5">
           <IconButton
             icon="Settings"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             title="Configuración del buscador"
             ariaLabel="Abrir configuración del buscador de productos"
@@ -422,7 +422,7 @@ export default function PosProductSearchPanel({
         <div className="flex shrink-0 gap-1">
           <IconButton
             icon="ChevronLeft"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             disabled={page <= 1 || loading}
             title="Anterior"
@@ -432,7 +432,7 @@ export default function PosProductSearchPanel({
           />
           <IconButton
             icon="ChevronRight"
-            variant="basicSecondary"
+            variant="action"
             size="sm"
             disabled={page >= totalPages || loading}
             title="Siguiente"

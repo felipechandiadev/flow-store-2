@@ -52,7 +52,7 @@ export default function ReceptionsDataGrid({ rows, total }: ReceptionsDataGridPr
           >
             <IconButton
               icon="MoreHorizontal"
-              variant="basicSecondary"
+              variant="action"
               size="sm"
               ariaLabel="Ver detalle de la recepción"
               onClick={() => openDetail(r)}

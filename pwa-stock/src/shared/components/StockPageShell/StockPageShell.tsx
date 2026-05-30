@@ -33,7 +33,7 @@ function StockBrandBlock() {
 }
 
 const stockNavIconProps = {
-  variant: "basicSecondary" as const,
+  variant: "action" as const,
   size: "md" as const,
   strokeWidth: 2.5,
 };
@@ -143,7 +143,7 @@ export default function StockPageShell({ children }: StockPageShellProps) {
           <div className="flex shrink-0 items-center gap-1">
             <IconButton
               icon="Menu"
-              variant="basicSecondary"
+              variant="action"
               size="md"
               strokeWidth={2.5}
               onClick={openSidebar}

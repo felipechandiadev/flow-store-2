@@ -106,7 +106,7 @@ const Body: React.FC<BodyProps> = ({
                 >
                   <IconButton
                     icon="ChevronDown"
-                    variant="basicSecondary"
+                    variant="action"
                     size="sm"
                     onClick={() => onToggleExpand?.(rowId)}
                     className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}

@@ -93,10 +93,25 @@ export class PriceListsService {
   }
 
   async deletePriceList(id: string) {
+    const priceList = await this.priceListRepository.findById(id);
+    if (!priceList) {
+      return {
+        success: false,
+        message: 'Price list not found',
+        statusCode: 404,
+      };
+    }
+    if (priceList.nonDeletable) {
+      return {
+        success: false,
+        message: 'This price list cannot be deleted',
+        statusCode: 403,
+      };
+    }
     try {
       await this.priceListRepository.delete(id);
       return { success: true };
-    } catch (error) {
+    } catch {
       return {
         success: false,
         message: 'Price list not found',
@@ -116,6 +131,7 @@ export class PriceListsService {
       priority: priceList.priority,
       isDefault: priceList.isDefault,
       isActive: priceList.isActive,
+      nonDeletable: priceList.nonDeletable === true,
       description: priceList.description ?? null,
       createdAt: priceList.createdAt,
       updatedAt: priceList.updatedAt,

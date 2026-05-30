@@ -19,13 +19,14 @@ import type { TaxListItem } from "@/features/accounting-taxes/types/tax.types";
 import { deriveBasePriceFromPriceRows, roundMoneyInt } from "@/features/inventory-products/domain/price-tax-math";
 import { createVariantPriceRow } from "./VariantPriceRowsEditor";
 import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
-import { MultimediaUploader } from "@/shared/components/FileUploader/MultimediaUploader";
+import { MultimediaField } from "@/shared/components/Multimedia";
 import { revalidateMultimediaCachesAction } from "@/features/multimedia/actions/multimedia.action";
 import { uploadMultimediaFilesForEntity } from "@/features/multimedia/infrastructure/multimedia.client";
 import type { MultimediaEntityType } from "@/features/multimedia/types/multimedia.types";
 import { useSession } from "next-auth/react";
 import type { CatalogProductType } from "@/features/inventory-products/types/product-grid.types";
 import { CATALOG_PRODUCT_TYPE_SELECT_OPTIONS, normalizeCatalogProductType } from "./catalog-product-type-options";
+import { isEShopModuleEnabled } from "@/config/eshop-module.config";
 
 async function uploadFilesToEntity(
   files: File[],
@@ -95,6 +96,8 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
   const [brandOptions, setBrandOptions] = useState<Option[]>([]);
   const [productType, setProductType] = useState<CatalogProductType>("PHYSICAL");
   const [isActive, setIsActive] = useState(true);
+  const [visibleInEShop, setVisibleInEShop] = useState(false);
+  const eshopModuleOn = isEShopModuleEnabled();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [variantPrepLoading, setVariantPrepLoading] = useState(false);
@@ -157,6 +160,7 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
           basePrice,
           unitId: defaultUnit.id,
           isActive: true,
+          visibleInEShop,
           priceListItems,
           trackInventory: !isService,
           allowNegativeStock: false,
@@ -174,7 +178,7 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
         return null;
       }
     },
-    [],
+    [visibleInEShop],
   );
 
   useEffect(() => {
@@ -194,6 +198,7 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
     setCategoryId(null);
     setProductType("PHYSICAL");
     setIsActive(true);
+    setVisibleInEShop(false);
     setError(null);
   }, [open]);
 
@@ -230,6 +235,7 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
     setCategoryId(null);
     setProductType("PHYSICAL");
     setIsActive(true);
+    setVisibleInEShop(false);
     setError(null);
     onClose();
   };
@@ -249,6 +255,7 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
           description: description.trim() || undefined,
           productType,
           isActive,
+          visibleInEShop: eshopModuleOn ? visibleInEShop : false,
         });
         if (!r.success) {
           setError(r.error);
@@ -427,23 +434,23 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
           data-test-id="product-create-form-multimedia"
         >
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Multimedia</p>
-          <MultimediaUploader
-            key={`create-staged-product-${mediaStagingKey}`}
-            uploadPath="create-product:staging-product"
-            variant="collection"
-            label=""
-            buttonType="icon"
+          <MultimediaField
+            mode="staging"
+            layout="collection"
+            value={stagedProductFiles}
+            onChange={setStagedProductFiles}
+            stagingResetKey={mediaStagingKey}
+            pickButton="icon"
             accept="image/*,video/*"
             maxFiles={12}
-            maxSize={9}
-            aspectRatio="16:9"
-            previewSize="sm"
+            maxSizeMb={9}
+            allowPrimary
             disabled={isPending}
-            onChange={setStagedProductFiles}
+            data-test-id="product-create-form-multimedia-field"
           />
         </div>
 
-        <div className="pt-1">
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3 pt-1">
           <Switch
             checked={isActive}
             onChange={setIsActive}
@@ -451,6 +458,15 @@ export function CreateProductDialog({ open, onClose, onSuccess }: CreateProductD
             labelPosition="right"
             data-test-id="product-create-active"
           />
+          {eshopModuleOn ? (
+            <Switch
+              checked={visibleInEShop}
+              onChange={setVisibleInEShop}
+              label="Activo en eShop"
+              labelPosition="right"
+              data-test-id="product-create-eshop"
+            />
+          ) : null}
         </div>
       </div>
       )}

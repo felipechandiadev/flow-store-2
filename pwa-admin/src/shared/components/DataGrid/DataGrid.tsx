@@ -55,7 +55,7 @@ export interface DataGridColumn {
   sticky?: boolean; // Fijar columna al lado derecho (compatibilidad hacia atrás)
   /**
    * Acciones de fila. Norma: columna con `field` típ. `'actions'`, `headerName: ''`, `filterable: false`, `sortable: false`;
-   * en el componente, IconButtons con `variant="basicSecondary"` y `size="sm"`.
+   * en el componente, IconButtons con `variant="action"` y `size="sm"`.
    */
   actionComponent?: React.ComponentType<{ row: any; column: DataGridColumn }>;
 }
@@ -211,6 +211,13 @@ const DataGrid: React.FC<DataGridProps> = ({
   const [data, setData] = useState<any[]>(rows || []);
   const [total, setTotal] = useState(totalRows || (rows ? rows.length : 0));
   const [expandedRowIds, setExpandedRowIds] = useState<Set<string | number>>(new Set(defaultExpandedRowIds));
+
+  useEffect(() => {
+    if (defaultExpandedRowIds.length === 0) {
+      return;
+    }
+    setExpandedRowIds(new Set(defaultExpandedRowIds));
+  }, [defaultExpandedRowIds.join("|")]);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const columnHeaderRowRef = useRef<HTMLDivElement>(null);

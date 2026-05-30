@@ -117,7 +117,7 @@ const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center shrink-0">
             <IconButton
               icon="Plus"
-              variant="basicSecondary"
+              variant="action"
               size="md"
               onClick={onAddClick || (() => setIsCreateModalOpen(true))}
               disabled={addDisabled}

@@ -13,6 +13,7 @@ export async function uploadMultimediaForEntityClient(input: {
   entityType: string;
   entityId: string;
   isPrimary: boolean;
+  attributeId?: string | null;
   accessToken?: string | null;
   activeCompanyId?: string | null;
 }): Promise<
@@ -33,6 +34,10 @@ export async function uploadMultimediaForEntityClient(input: {
   form.append("entityId", eid);
   form.append("usageType", "default");
   form.append("isPrimary", input.isPrimary ? "true" : "false");
+  const aid = input.attributeId?.trim();
+  if (aid) {
+    form.append("attributeId", aid);
+  }
 
   try {
     const headers = multimediaAuthHeaders({

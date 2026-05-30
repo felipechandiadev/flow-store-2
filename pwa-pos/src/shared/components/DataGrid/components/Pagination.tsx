@@ -53,13 +53,13 @@ const Pagination: React.FC<PaginationProps> = ({ total, totalGeneral, mobileMode
   if (mobileMode) {
     return (
       <div className="flex items-center gap-2 text-xs text-foreground" data-test-id="data-grid-pagination">
-        <IconButton icon="ChevronsLeft" variant="basicSecondary" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(1)} aria-label="Primera página" />
-        <IconButton icon="ChevronLeft" variant="basicSecondary" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(Math.max(1, page - 1))} aria-label="Anterior" />
+        <IconButton icon="ChevronsLeft" variant="action" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(1)} aria-label="Primera página" />
+        <IconButton icon="ChevronLeft" variant="action" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(Math.max(1, page - 1))} aria-label="Anterior" />
         <div className="px-3 py-1 text-xs font-normal text-foreground w-16 text-center">
           {page} <span className="text-muted">/ {totalPages}</span>
         </div>
-        <IconButton icon="ChevronRight" variant="basicSecondary" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(Math.min(totalPages, page + 1))} aria-label="Siguiente" />
-        <IconButton icon="ChevronsRight" variant="basicSecondary" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(totalPages)} aria-label="Última página" />
+        <IconButton icon="ChevronRight" variant="action" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(Math.min(totalPages, page + 1))} aria-label="Siguiente" />
+        <IconButton icon="ChevronsRight" variant="action" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(totalPages)} aria-label="Última página" />
       </div>
     );
   }
@@ -88,13 +88,13 @@ const Pagination: React.FC<PaginationProps> = ({ total, totalGeneral, mobileMode
 
       {/* Derecha: Información de paginación y botones */}
       <div className="flex items-center gap-2 text-xs text-foreground">
-        <IconButton icon="ChevronsLeft" variant="basicSecondary" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(1)} aria-label="Primera página" />
-        <IconButton icon="ChevronLeft" variant="basicSecondary" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(Math.max(1, page - 1))} aria-label="Anterior" />
+        <IconButton icon="ChevronsLeft" variant="action" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(1)} aria-label="Primera página" />
+        <IconButton icon="ChevronLeft" variant="action" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(Math.max(1, page - 1))} aria-label="Anterior" />
         <div className="px-3 py-1 text-xs font-normal text-foreground w-16 text-center">
           {page} <span className="text-muted">/ {totalPages}</span>
         </div>
-        <IconButton icon="ChevronRight" variant="basicSecondary" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(Math.min(totalPages, page + 1))} aria-label="Siguiente" />
-        <IconButton icon="ChevronsRight" variant="basicSecondary" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(totalPages)} aria-label="Última página" />
+        <IconButton icon="ChevronRight" variant="action" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(Math.min(totalPages, page + 1))} aria-label="Siguiente" />
+        <IconButton icon="ChevronsRight" variant="action" size="sm" className="p-1 cursor-pointer" onClick={() => handlePageChange(totalPages)} aria-label="Última página" />
       </div>
     </div>
   )

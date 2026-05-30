@@ -18,7 +18,7 @@ export function ExpenseCategoriesCollectionAddAction({ groupOptions }: Props) {
     <>
       <IconButton
         icon="Plus"
-        variant="basicSecondary"
+        variant="action"
         size="md"
         ariaLabel="Crear categoría de gasto"
         onClick={() => setOpen(true)}

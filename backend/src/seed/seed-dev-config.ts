@@ -1,0 +1,272 @@
+import { createHash } from 'node:crypto';
+import { AccountTypeName, BankName } from '@modules/persons/domain/person.entity';
+import type { CompanyBankAccount } from '@modules/companies/domain/company.entity';
+import { PaymentMethod } from '@modules/transactions/domain/transaction.entity';
+import type {
+  CompanyPaymentMethodConfig,
+  PosPaymentMethodConfig,
+} from '@modules/payment-methods-config/domain/payment-method-config.types';
+import { DocumentType } from '@modules/persons/domain/person.entity';
+
+/** Empresa genérica de desarrollo — «Mi Empresa». */
+export const SEED_DEV_COMPANY = {
+  razonSocial: 'Mi Empresa SpA',
+  nombreFantasia: 'Mi Empresa',
+  rut: '76.000.000-0',
+  mail: 'contacto@miempresa.cl',
+  phone: '+56 2 2000 0000',
+  address: 'Av. Libertador Bernardo O\'Higgins 1234, Santiago',
+  businessActivity: 'Comercio minorista multi-rubro',
+  defaultCurrency: 'CLP',
+} as const;
+
+/** Segunda empresa (multi-RUT / CompanySwitcher) — solo datos maestros + settings en seed. */
+export const SEED_DEV_COMPANY_SECOND = {
+  razonSocial: 'Segunda Empresa SpA',
+  nombreFantasia: 'Segunda Empresa',
+  rut: '76.999.999-K',
+  mail: 'contacto@segunda-empresa.cl',
+  phone: '+56 2 2000 0001',
+  address: 'Av. Providencia 2000, Providencia, Santiago',
+  businessActivity: 'Comercio desarrollo multi-tenant',
+  defaultCurrency: 'CLP',
+} as const;
+
+/** Slug eShop público de la segunda empresa (distinto de `demo`). */
+export const SEED_DEV_COMPANY_SECOND_ESHOP_SLUG = 'demo-2';
+
+/** Contacto público eShop (footer, documentos, pestaña Contacto en admin). */
+export const SEED_DEV_ESHOP_PUBLIC_CONTACT = {
+  email: 'tienda@miempresa.cl',
+  phone: SEED_DEV_COMPANY.phone,
+  instagram: 'https://www.instagram.com/kaistore.cl/',
+  tiktok: 'https://www.tiktok.com/@kaistore.cl',
+} as const;
+
+export const SEED_DEV_ESHOP_PUBLIC_CONTACT_SECOND = {
+  email: 'tienda@segunda-empresa.cl',
+  phone: SEED_DEV_COMPANY_SECOND.phone,
+  instagram: 'https://www.instagram.com/segunda.empresa.demo/',
+  tiktok: 'https://www.tiktok.com/@segunda.empresa.demo',
+} as const;
+
+function normalizeInstagramProfileUrl(value: string): string {
+  const v = value.trim();
+  if (!v) return v;
+  if (/^https?:\/\//i.test(v)) return v;
+  const handle = v.replace(/^@/, '').replace(/^instagram\.com\//i, '');
+  return `https://www.instagram.com/${handle}/`;
+}
+
+function normalizeTiktokProfileUrl(value: string): string {
+  const v = value.trim();
+  if (!v) return v;
+  if (/^https?:\/\//i.test(v)) return v;
+  const handle = v
+    .replace(/^@/, '')
+    .replace(/^tiktok\.com\/@?/i, '');
+  return `https://www.tiktok.com/@${handle}`;
+}
+
+export function buildSeedEshopPublicContact(
+  eShopPublicSlug: string,
+  fallbackEmail: string,
+  fallbackPhone?: string,
+): { email: string; phone: string; instagram: string; tiktok: string } {
+  const source =
+    eShopPublicSlug === SEED_DEV_COMPANY_SECOND_ESHOP_SLUG
+      ? SEED_DEV_ESHOP_PUBLIC_CONTACT_SECOND
+      : SEED_DEV_ESHOP_PUBLIC_CONTACT;
+
+  return {
+    email: source.email || fallbackEmail,
+    phone: source.phone || fallbackPhone || '',
+    instagram: normalizeInstagramProfileUrl(source.instagram),
+    tiktok: normalizeTiktokProfileUrl(source.tiktok),
+  };
+}
+
+export const SEED_BRANCH_NAME = 'Casa matriz';
+export const SEED_BRANCH_ADDRESS = SEED_DEV_COMPANY.address;
+export const SEED_BRANCH_PHONE = '+56 9 8000 0000';
+export const SEED_BRANCH_LOCATION = { lat: -33.4489, lng: -70.6693 };
+
+export const SEED_STORAGE_NAME = 'Bodega principal';
+export const SEED_STORAGE_CODE = 'SEED-BODEGA-01';
+
+export const SEED_PRICE_LIST_RETAIL_NAME = 'Minorista';
+export const SEED_PRICE_LIST_WHOLESALE_NAME = 'Mayorista';
+/** Lista de precios de catálogo eShop (no eliminable). */
+export const SEED_PRICE_LIST_ESHOP_NAME = 'eShop';
+
+export const SEED_POS_NAMES = ['Caja 1', 'Caja 2'] as const;
+
+export const SEED_CASH_HUBS = [
+  { code: 'CEV-00001', name: 'Principal' },
+  { code: 'CEV-00002', name: 'Secundario' },
+] as const;
+
+const SEED_PM_NAMESPACE = 'flowstore-seed-pm-dev-v1';
+
+export function seedPaymentMethodId(method: PaymentMethod): string {
+  const h = createHash('sha256').update(`${SEED_PM_NAMESPACE}:${method}`).digest('hex');
+  return [
+    h.slice(0, 8),
+    h.slice(8, 12),
+    `4${h.slice(13, 16)}`,
+    h.slice(16, 20),
+    h.slice(20, 32),
+  ].join('-');
+}
+
+export function buildSeedCompanyBankAccounts(
+  accountHolderName: string,
+): CompanyBankAccount[] {
+  return [
+    {
+      accountKey: 'seed-dev-banco-estado-cc',
+      bankName: BankName.BANCO_ESTADO,
+      accountType: AccountTypeName.CUENTA_CORRIENTE,
+      accountNumber: '12345678901',
+      accountHolderName,
+      isPrimary: true,
+    },
+    {
+      accountKey: 'seed-dev-santander-cc',
+      bankName: BankName.BANCO_SANTANDER,
+      accountType: AccountTypeName.CUENTA_CORRIENTE,
+      accountNumber: '98765432109',
+      accountHolderName,
+      isPrimary: false,
+    },
+  ];
+}
+
+const COMPANY_PAYMENT_METHODS: PaymentMethod[] = [
+  PaymentMethod.CASH,
+  PaymentMethod.CREDIT_CARD,
+  PaymentMethod.DEBIT_CARD,
+  PaymentMethod.TRANSFER,
+];
+
+export function buildSeedCompanyPaymentCatalog(): CompanyPaymentMethodConfig[] {
+  return COMPANY_PAYMENT_METHODS.map((method, displayOrder) => ({
+    id: seedPaymentMethodId(method),
+    method,
+    alias: null,
+    displayOrder,
+    isActive: true,
+    requireReference: false,
+    bankAccountKey: null,
+    metadata: null,
+  }));
+}
+
+type PosMethodSeed = {
+  preloadOnPaymentScreen: boolean;
+  preloadOrder: number | null;
+  isDefaultForChange?: boolean;
+};
+
+const POS_METHOD_SEED: Partial<Record<PaymentMethod, PosMethodSeed>> = {
+  [PaymentMethod.CASH]: {
+    preloadOnPaymentScreen: true,
+    preloadOrder: 0,
+    isDefaultForChange: true,
+  },
+  [PaymentMethod.CREDIT_CARD]: { preloadOnPaymentScreen: true, preloadOrder: 1 },
+  [PaymentMethod.DEBIT_CARD]: { preloadOnPaymentScreen: true, preloadOrder: 2 },
+  [PaymentMethod.TRANSFER]: { preloadOnPaymentScreen: true, preloadOrder: 3 },
+};
+
+export function buildSeedPosPaymentList(
+  catalog: CompanyPaymentMethodConfig[],
+): PosPaymentMethodConfig[] {
+  return catalog.map((cmp) => {
+    const cfg = POS_METHOD_SEED[cmp.method] ?? {
+      preloadOnPaymentScreen: false,
+      preloadOrder: null,
+    };
+    return {
+      companyPaymentMethodId: cmp.id,
+      isEnabled: true,
+      preloadOnPaymentScreen: cfg.preloadOnPaymentScreen,
+      preloadOrder: cfg.preloadOrder,
+      isDefaultForChange:
+        cmp.method === PaymentMethod.CASH && cfg.isDefaultForChange === true,
+      bankAccountKey: cmp.bankAccountKey ?? null,
+      requireReference: null,
+    };
+  });
+}
+
+export function buildSeedCompanySettings(
+  existing: Record<string, unknown> | null | undefined,
+  paymentMethods: CompanyPaymentMethodConfig[],
+): Record<string, unknown> {
+  const base =
+    existing && typeof existing === 'object' ? { ...existing } : {};
+
+  return {
+    ...base,
+    paymentMethods,
+    checks: {
+      enabled: false,
+      receiveChecks: false,
+      issueChecks: false,
+      allowPostdatedReceived: false,
+      allowPostdatedIssued: false,
+      defaultDepositBankAccountKey: null,
+      defaultIssueBankAccountKey: null,
+    },
+    quotations: {
+      enabled: true,
+      defaultValidityDays: 10,
+      maxValidityDays: 20,
+      allowCustomValidity: true,
+      defaultTerms: null,
+    },
+    internalCustomerCredit: { enabled: false },
+    eShopEnabled: true,
+    eShopPublicSlug: 'demo',
+    eShopFeaturedProductVariantIds: [],
+    eShopFeaturedProductIds: [],
+    eShopFreeShippingThreshold: 50_000,
+    eShopShippingMode: 'disabled',
+    eShopDefaultBranchId: null,
+    eShopDefaultPriceListId: null,
+    eShopDefaultStorageId: null,
+    companyIdentity: {
+      tagline: 'Tu tienda en línea',
+      brandManifest:
+        'Productos seleccionados, atención cercana y compra con confianza. Retiro en sucursal o despacho según tu zona.',
+    },
+    publicContact: buildSeedEshopPublicContact(
+      typeof base.eShopPublicSlug === 'string' ? base.eShopPublicSlug : 'demo',
+      SEED_DEV_ESHOP_PUBLIC_CONTACT.email,
+      SEED_DEV_ESHOP_PUBLIC_CONTACT.phone,
+    ),
+  };
+}
+
+/** Dos socios genéricos (sin datos Parabrisas). */
+export const SEED_DEV_SHAREHOLDERS = [
+  {
+    firstName: 'Ana',
+    lastName: 'García López',
+    documentType: DocumentType.RUN,
+    documentNumber: '12.345.678-5',
+    ownershipPercentage: 60,
+    partnerType: 'FOUNDING_PARTNER',
+    joinDate: '2019-03-01',
+  },
+  {
+    firstName: 'Luis',
+    lastName: 'Morales Ríos',
+    documentType: DocumentType.RUN,
+    documentNumber: '15.987.654-3',
+    ownershipPercentage: 40,
+    partnerType: 'PARTNER',
+    joinDate: '2020-06-15',
+  },
+] as const;
