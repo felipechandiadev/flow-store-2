@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog/Dialog";
@@ -96,7 +97,7 @@ export default function ReceptionDetailDialog({ receptionId, open, onClose }: Pr
       actionsJustify="end"
     >
       {loading ? (
-        <p className="text-sm text-muted-foreground">Cargando recepción…</p>
+        <LoadingState className="flex items-center justify-center py-4" label="Cargando recepción" />
       ) : null}
       {error ? <Alert variant="error">{error}</Alert> : null}
       {detail && !loading ? (

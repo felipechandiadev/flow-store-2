@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -435,7 +436,7 @@ export function MultimediaField(props: MultimediaFieldProps) {
       ) : null}
 
       {mode === "persisted" && loading ? (
-        <p className="text-xs text-muted-foreground">Cargando…</p>
+        <LoadingState className="flex items-center justify-center py-4" size={12} />
       ) : null}
 
       <div

@@ -1,11 +1,10 @@
 import dynamic from 'next/dynamic';
+import LoadingState from '@/shared/components/LoadingState';
 
 const LocationPickerComponent = dynamic(() => import('./LocationPicker'), {
   ssr: false,
   loading: () => (
-    <div className="p-4 text-center text-muted">
-      Cargando mapa...
-    </div>
+    <LoadingState className="flex items-center justify-center p-4" label="Cargando mapa" />
   ),
 });
 

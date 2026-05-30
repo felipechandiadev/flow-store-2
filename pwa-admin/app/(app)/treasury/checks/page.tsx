@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import LoadingState from '@/shared/components/LoadingState';
 import { listChecksAction } from "@/features/treasury-checks/actions/checks.action";
 import type {
   CheckDirection,
@@ -57,9 +58,7 @@ export default async function Page({
   return (
     <Suspense
       fallback={
-        <div className="p-4 text-sm text-muted-foreground md:p-6">
-          Cargando…
-        </div>
+        <LoadingState className="flex items-center justify-center p-4 md:p-6 py-4" />
       }
     >
       <ChecksPageContent

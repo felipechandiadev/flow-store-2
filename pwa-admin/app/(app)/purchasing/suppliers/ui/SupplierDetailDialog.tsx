@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog";
@@ -103,7 +104,7 @@ export function SupplierDetailDialog({ open, supplierId, onClose }: SupplierDeta
               {error}
             </p>
           ) : loading ? (
-            <p className="text-sm text-muted-foreground">Cargando ficha…</p>
+            <LoadingState className="flex items-center justify-center py-4" label="Cargando ficha" />
           ) : detail ? (
             <div className="flex flex-col gap-2.5" data-test-id="supplier-detail-dialog-header">
               <h2 className="text-lg font-semibold leading-tight text-foreground">{supplierDisplayName(detail)}</h2>

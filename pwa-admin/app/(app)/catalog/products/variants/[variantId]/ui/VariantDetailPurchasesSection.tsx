@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -153,9 +154,7 @@ export function VariantDetailPurchasesSection({ variant }: VariantDetailPurchase
   return (
     <div className="space-y-4" data-test-id="pv-section-compras">
       {loading ? (
-        <p className="text-sm text-muted-foreground" data-test-id="pv-compras-loading">
-          Cargando compras…
-        </p>
+        <LoadingState className="flex items-center justify-center py-4" label="Cargando compras" data-test-id="pv-compras-loading" />
       ) : null}
 
       {error ? (

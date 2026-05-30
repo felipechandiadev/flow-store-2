@@ -7,6 +7,7 @@ import { TreasuryBankMovementsRequest } from "@/features/treasury-bank-operation
 import TreasuryBankTabContent from "./TreasuryBankTabContent";
 import { resolveTreasuryBankAccountSelection } from "./treasury-bank-accounts";
 import { mapApiTxToMovementGridRow, type TreasuryMovementGridRow } from "./treasury-movements-mapper";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -49,9 +50,7 @@ export default async function TreasuryBankPage({
   return (
     <Suspense
       fallback={
-        <div className="p-4 text-sm text-muted-foreground" data-test-id="treasury-bank-page-suspense">
-          Cargando…
-        </div>
+        <LoadingState className="flex items-center justify-center p-4 py-4" data-test-id="treasury-bank-page-suspense" />
       }
     >
       <TreasuryBankTabContent

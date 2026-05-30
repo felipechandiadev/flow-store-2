@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog/Dialog";
@@ -76,7 +77,7 @@ export function ProductEShopPreviewDialog({ open, product, onClose }: Props) {
       }
     >
       {loading ? (
-        <p className="text-sm text-muted-foreground">Cargando vista previa…</p>
+        <LoadingState className="flex items-center justify-center py-4" label="Cargando vista previa" />
       ) : detail ? (
         <EShopProductDetailPreview detail={detail} />
       ) : null}

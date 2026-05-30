@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/shared/admin-shared";
+import { IconButton } from "@/shared/admin-shared";
 import { useEShopCart } from "@/features/e-shop-cart/EShopCartProvider";
 import type { EShopProductCard as Product } from "@/features/e-shop-storefront/types/storefront.types";
 
@@ -38,26 +38,27 @@ export function EShopProductCard({ product }: Props) {
         <Link href={href} className="text-sm font-medium hover:text-primary">
           {product.name}
         </Link>
-        <p className="text-sm font-semibold">{fmt(product.basePrice)}</p>
-        <Button
-          variant="primary"
-          size="sm"
-          className="mt-auto min-h-[40px]"
-          disabled={!canAddToCart}
-          onClick={() => {
-            if (!canAddToCart || !product.defaultVariantId) {
-              return;
-            }
-            addItem({
-              productVariantId: product.defaultVariantId,
-              unitPrice: product.basePrice,
-              name: product.name,
-              imageUrl: product.imageUrl,
-            });
-          }}
-        >
-          {product.inStock ? "Agregar" : "Agotado"}
-        </Button>
+        <div className="mt-auto flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">{fmt(product.basePrice)}</p>
+          <IconButton
+            icon="Plus"
+            variant="secondaryCircle"
+            size="sm"
+            ariaLabel={product.inStock ? "Agregar al carrito" : "Agotado"}
+            disabled={!canAddToCart}
+            onClick={() => {
+              if (!canAddToCart || !product.defaultVariantId) {
+                return;
+              }
+              addItem({
+                productVariantId: product.defaultVariantId,
+                unitPrice: product.basePrice,
+                name: product.name,
+                imageUrl: product.imageUrl,
+              });
+            }}
+          />
+        </div>
       </div>
     </article>
   );

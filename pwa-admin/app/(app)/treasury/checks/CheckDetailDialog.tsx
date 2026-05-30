@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog";
@@ -292,7 +293,7 @@ export function CheckDetailDialog({ check, onClose, onChanged }: Props) {
             Historial
           </h3>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Cargando…</p>
+            <LoadingState className="flex items-center justify-center py-4" />
           ) : detail && detail.events.length > 0 ? (
             <ol className="flex flex-col gap-1 text-sm">
               {detail.events.map((ev) => (

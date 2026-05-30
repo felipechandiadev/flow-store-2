@@ -51,11 +51,7 @@ export function EShopTopBar({ companyName, companyLogoUrl }: Props) {
               onError={() => setLogoFailed(true)}
             />
           ) : null}
-          {showLogo ? (
-            <span className="sr-only">{companyName}</span>
-          ) : (
-            <span className="truncate text-sm font-semibold text-primary">{companyName}</span>
-          )}
+          <span className="truncate text-sm font-semibold text-primary">{companyName}</span>
         </Link>
         <nav className="hidden items-center gap-6 md:flex">
           {NAV.map((item) => (
@@ -69,9 +65,9 @@ export function EShopTopBar({ companyName, companyLogoUrl }: Props) {
           ))}
         </nav>
         <div className="relative">
-          <IconButton icon="ShoppingCart" variant="action" ariaLabel="Abrir carrito" onClick={openDrawer} />
+          <IconButton icon="ShoppingCart" variant="outlined" ariaLabel="Abrir carrito" onClick={openDrawer} />
           {itemCount > 0 ? (
-            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1 text-[10px] font-bold text-primary">
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 translate-x-[7px] items-center justify-center rounded-full bg-secondary px-1 text-[10px] font-bold text-primary">
               {itemCount > 99 ? "99+" : itemCount}
             </span>
           ) : null}

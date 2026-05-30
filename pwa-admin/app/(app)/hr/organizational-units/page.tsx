@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listOrganizationalUnitsAction } from "@/features/hr-organizational-units/actions/organizational-unit.action";
 import { OrganizationalUnitsCollection } from "./ui/OrganizationalUnitsCollection";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,7 @@ export default async function OrganizationalUnitsPage({
     <div className="min-h-0 p-0" data-test-id="organizational-units-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="organizational-units-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="organizational-units-skeleton" />
         }
       >
         <OrganizationalUnitsCollection initialUnits={units} includeInactive={includeInactive} />

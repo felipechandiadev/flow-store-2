@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useState } from "react";
 import type { CustomerDetailView, UpdateCustomerPayload } from "@/features/sales-customers/types/customer.types";
@@ -125,7 +126,7 @@ export function CustomerDetailSummarySection({
   }, [customerId, detail, draft, onDetailUpdated]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Cargando…</p>;
+    return <LoadingState className="flex items-center justify-center py-4" />;
   }
   if (!detail) {
     return <p className="text-sm text-muted-foreground">Sin datos.</p>;

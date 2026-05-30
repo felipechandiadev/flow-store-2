@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useEffect, useState } from "react";
 import Badge from "@/shared/components/Badge/Badge";
@@ -108,7 +109,7 @@ export function VariantDetailStorageThresholdsBlock({
 
       {loadError ? <p className="text-xs text-destructive">{loadError}</p> : null}
       {loading ? (
-        <p className="text-xs text-muted-foreground">Cargando almacenes…</p>
+        <LoadingState className="flex items-center justify-center py-4" label="Cargando almacenes" size={12} />
       ) : editing ? (
         storageDrafts.length === 0 ? (
           <p className="text-xs text-muted-foreground">No hay almacenes activos.</p>

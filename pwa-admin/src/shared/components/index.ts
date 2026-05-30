@@ -54,6 +54,8 @@ export { default as FileUploader } from './FileUploader/MultimediaUpdater';
 
 // Feedback & Progress
 export { default as DotProgress } from './DotProgress';
+export { default as LoadingState } from './LoadingState';
+export type { LoadingStateProps } from './LoadingState';
 export { default as SplashScreen } from './SplashScreen';
 
 // Layout

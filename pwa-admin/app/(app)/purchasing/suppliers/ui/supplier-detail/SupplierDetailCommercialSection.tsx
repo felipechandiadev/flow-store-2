@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useState } from "react";
 import type { SupplierDetailView, UpdateSupplierPayload } from "@/features/purchasing-suppliers/types/supplier.types";
@@ -85,7 +86,7 @@ export function SupplierDetailCommercialSection({
   }, [supplierId, detail, draft, onDetailUpdated]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Cargando…</p>;
+    return <LoadingState className="flex items-center justify-center py-4" />;
   }
   if (!detail) {
     return <p className="text-sm text-muted-foreground">Sin datos.</p>;

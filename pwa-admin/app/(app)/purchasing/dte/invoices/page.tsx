@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listSupplierInvoicesForPage } from "@/features/purchasing-invoices/actions/supplier-invoice.action";
 import DteInvoicesDataGrid from "./ui/DteInvoicesDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +29,7 @@ export default async function DteInvoicesPage({
     <div className="min-h-0 min-w-0 p-0" data-test-id="dte-invoices-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="dte-invoices-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="dte-invoices-skeleton" />
         }
       >
         <DteInvoicesDataGrid rows={res.data} total={res.total} />

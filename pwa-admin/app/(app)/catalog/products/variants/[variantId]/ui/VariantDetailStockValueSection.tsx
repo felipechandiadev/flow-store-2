@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ProductVariantGridRow } from "@/features/inventory-products/types/product-grid.types";
@@ -120,7 +121,7 @@ export function VariantDetailStockValueSection({ variant, refreshKey = 0 }: Prop
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Cargando valor del stock…</p>
+        <LoadingState className="flex items-center justify-center py-4" label="Cargando valor del stock" />
       ) : (
         <>
           <dl className="grid gap-3 sm:grid-cols-3">

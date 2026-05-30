@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listProductsForGrid } from "@/features/inventory-products/actions/product.action";
 import ProductsDataGrid from "./ui/ProductsDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +40,7 @@ export default async function Page({
     <div className="min-h-0 p-0" data-test-id="products-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="products-page-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="products-page-skeleton" />
         }
       >
         <ProductsDataGrid rows={result.rows} total={result.total} />

@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -127,9 +128,7 @@ export function PurchaseVariantPurchaseInsightsDialog({
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground" data-test-id="purchase-variant-insights-loading">
-            Cargando…
-          </p>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="purchase-variant-insights-loading" />
         ) : null}
 
         {error ? (

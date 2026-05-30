@@ -57,6 +57,35 @@
   filter: brightness(0.95);
 }
 
+/* Primary circle (relleno, circular) */
+.fs-icon-button--primary-circle {
+  border-radius: 9999px;
+  background-color: var(--color-primary, #002b59);
+  color: var(--color-background, #ffffff);
+  border-color: transparent;
+}
+.fs-icon-button--primary-circle:hover:not(:disabled) {
+  background-color: var(--color-accent, #0a7cad);
+}
+.fs-icon-button--primary-circle:active:not(:disabled) {
+  background-color: var(--color-primary, #002b59);
+  filter: brightness(0.92);
+}
+
+/* Secondary circle (relleno, circular) */
+.fs-icon-button--secondary-circle {
+  border-radius: 9999px;
+  background-color: var(--color-secondary, #04c9e6);
+  color: var(--color-background, #ffffff);
+  border-color: transparent;
+}
+.fs-icon-button--secondary-circle:hover:not(:disabled) {
+  background-color: var(--color-accent, #0a7cad);
+}
+.fs-icon-button--secondary-circle:active:not(:disabled) {
+  filter: brightness(0.95);
+}
+
 /* Text: icono primary, sin borde; hover solo cambia color a active */
 .fs-icon-button--text {
   background-color: transparent;

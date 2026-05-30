@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import LoadingState from '@/shared/components/LoadingState';
 import {
   listPurchaseReturnsForPage,
   loadReceptionFoliosByIdsAction,
@@ -65,9 +66,7 @@ export default async function PurchaseReturnsListPage({
     <div className="min-h-0 p-0" data-test-id="purchase-returns-list-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="purchase-returns-list-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="purchase-returns-list-skeleton" />
         }
       >
         <PurchaseReturnsDataGrid rows={rows} total={res.total} />

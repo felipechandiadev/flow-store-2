@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -136,7 +137,7 @@ export function StockReservationsDialog({
       }
       data-test-id="stock-reservations-dialog"
     >
-      {loading ? <p className="text-sm text-muted-foreground">Cargando…</p> : null}
+      {loading ? <LoadingState className="flex items-center justify-center py-4" /> : null}
 
       {!loading && items.length === 0 ? (
         <p className="text-sm text-muted-foreground">No hay reservas activas para esta variante en este almacén.</p>

@@ -59,9 +59,11 @@ import {
   SEED_COMPANY_LOGO_FILE,
   seedDevCatalogMultimedia,
   seedDevEshopHeroSlides,
+  seedDevEshopTestimonials,
   seedMultimediaFileLink,
 } from './seed-multimedia.util';
 import { EShopHeroSlide } from '@modules/e-shop/domain/e-shop-hero-slide.entity';
+import { EShopTestimonial } from '@modules/e-shop/domain/e-shop-testimonial.entity';
 import type { CompanyPaymentMethodConfig } from '@modules/payment-methods-config/domain/payment-method-config.types';
 import {
   SEED_BRANCH_ADDRESS,
@@ -2468,6 +2470,11 @@ async function bootstrap() {
 
     await seedDevEshopHeroSlides({
       heroSlideRepo: dataSource.getRepository(EShopHeroSlide),
+      ...seedMultimediaParams,
+    });
+
+    await seedDevEshopTestimonials({
+      testimonialRepo: dataSource.getRepository(EShopTestimonial),
       ...seedMultimediaParams,
     });
 

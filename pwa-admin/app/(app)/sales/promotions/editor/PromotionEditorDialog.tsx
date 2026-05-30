@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog/Dialog";
@@ -222,7 +223,7 @@ export function PromotionEditorDialog({
     >
       <div className="flex flex-col gap-4">
         {loading ? (
-          <p className="text-sm text-muted-foreground">Cargando…</p>
+          <LoadingState className="flex items-center justify-center py-4" />
         ) : (
           <>
             <PromotionEditorWizard

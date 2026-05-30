@@ -14,17 +14,25 @@ export function EShopFooter({ storefront }: Props) {
   return (
     <footer className="mt-16 bg-primary text-white">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 md:grid-cols-3">
-        <div>
-          <EShopCompanyLogo
-            companyName={storefront.companyName}
-            logoUrl={storefront.companyLogoUrl}
-            size="md"
-            onPrimary
-            className="mb-3"
-          />
-          <p className="font-semibold">{storefront.companyName}</p>
-          {storefront.tagline ? (
-            <p className="mt-2 text-sm text-white/85">{storefront.tagline}</p>
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <EShopCompanyLogo
+              companyName={storefront.companyName}
+              logoUrl={storefront.companyLogoUrl}
+              size="md"
+              className="shrink-0"
+            />
+            <div className="min-w-0">
+              <p className="font-semibold">{storefront.companyName}</p>
+              {storefront.tagline ? (
+                <p className="mt-1 text-sm text-white/85">{storefront.tagline}</p>
+              ) : null}
+            </div>
+          </div>
+          {storefront.brandManifest ? (
+            <p className="text-sm leading-relaxed text-white/85 whitespace-pre-line">
+              {storefront.brandManifest}
+            </p>
           ) : null}
         </div>
         <div>

@@ -9,7 +9,7 @@ import {
 } from "@/features/e-shop-storefront/actions/storefront.action";
 import Link from "next/link";
 import { BranchesMap } from "./ui/BranchesMap";
-import { TestimonialCard } from "./ui/TestimonialCard";
+import { EShopTestimonialsCarousel } from "@/shared/components/EShopTestimonialsCarousel";
 
 export default async function HomePage() {
   const [hero, featured, testimonials, branches] = await Promise.all([
@@ -38,13 +38,8 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section id="testimonios" className="scroll-mt-20 space-y-6">
-          <h2 className="text-xl font-semibold">Qué dicen nuestros clientes</h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {testimonials.map((t) => (
-              <TestimonialCard key={t.id} testimonial={t} />
-            ))}
-          </div>
+        <section id="testimonios" className="scroll-mt-20">
+          <EShopTestimonialsCarousel testimonials={testimonials} />
         </section>
 
         <section id="donde-estamos" className="scroll-mt-20 space-y-4">

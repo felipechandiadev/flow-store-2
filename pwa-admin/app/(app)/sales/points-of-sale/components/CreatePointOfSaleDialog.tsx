@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Dialog from "@/shared/components/Dialog/Dialog";
@@ -388,7 +389,7 @@ export function CreatePointOfSaleDialog({
             Configura qué medios están habilitados en este punto de venta, cuáles se precargan y el orden (arrastrando).
           </p>
           {loadingPayments ? (
-            <p className="text-sm text-muted-foreground">Cargando medios de pago…</p>
+            <LoadingState className="flex items-center justify-center py-4" label="Cargando medios de pago" />
           ) : (
             <PosPaymentMethodsCardsEditor
               key={open ? "pos-pm-editor-create" : "pos-pm-editor-create-closed"}

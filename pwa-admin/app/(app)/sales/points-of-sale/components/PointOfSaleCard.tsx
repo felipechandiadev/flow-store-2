@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -157,12 +158,7 @@ export function PointOfSaleCard({
         </div>
 
         {pmLoading ? (
-          <p
-            className="text-sm text-muted-foreground"
-            data-test-id="pos-card-payment-methods-loading"
-          >
-            Cargando…
-          </p>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="pos-card-payment-methods-loading" />
         ) : pmError ? (
           <p
             className="text-sm text-error"

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listLedgerAccountsAction } from "@/features/accounting-ledgers/actions/accounting-ledger.action";
 import LedgersDataGrid from "./ui/LedgersDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,7 @@ export default async function LedgersPage({
     <div className="min-h-0 p-0" data-test-id="accounting-ledgers-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="ledgers-page-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="ledgers-page-skeleton" />
         }
       >
         <LedgersDataGrid rows={accounts} includeInactive={includeInactive} />

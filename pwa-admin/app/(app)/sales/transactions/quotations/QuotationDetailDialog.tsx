@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog";
@@ -238,7 +239,7 @@ export function QuotationDetailDialog({
       data-test-id="quotation-detail-dialog"
     >
       {loading ? (
-        <p className="text-sm text-muted-foreground">Cargando…</p>
+        <LoadingState className="flex items-center justify-center py-4" />
       ) : (
         <div className="flex flex-col gap-4">
           <div className="grid gap-2 sm:grid-cols-2">

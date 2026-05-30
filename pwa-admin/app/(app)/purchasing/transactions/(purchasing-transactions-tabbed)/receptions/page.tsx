@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listReceptionsForGridAction } from "@/features/receptions/actions/reception.action";
 import ReceptionsDataGrid from "./ui/ReceptionsDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +33,7 @@ export default async function ReceptionListPage({
     <div className="min-h-0 p-0" data-test-id="receptions-list-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="receptions-list-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="receptions-list-skeleton" />
         }
       >
         <ReceptionsDataGrid rows={result.rows} total={result.total} />

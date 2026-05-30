@@ -14,7 +14,7 @@ export default function IconButtonPage() {
 
       <div>
         <h2 className="text-2xl font-semibold mb-4">Variantes</h2>
-        <div className="grid grid-cols-2 gap-6 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-6 md:grid-cols-4 lg:grid-cols-4">
           <div className="space-y-2">
             <p className="text-sm font-medium">Action</p>
             <p className="text-xs text-muted-foreground">Toolbars, grids</p>
@@ -27,6 +27,16 @@ export default function IconButtonPage() {
           <div className="space-y-2">
             <p className="text-sm font-medium">Secondary</p>
             <IconButton icon="Star" variant="secondary" ariaLabel="Destacar" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Primary circle</p>
+            <p className="text-xs text-muted-foreground">Primary, circular</p>
+            <IconButton icon="Plus" variant="primaryCircle" ariaLabel="Añadir" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Secondary circle</p>
+            <p className="text-xs text-muted-foreground">Secondary, circular</p>
+            <IconButton icon="Send" variant="secondaryCircle" ariaLabel="Enviar" />
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Text</p>

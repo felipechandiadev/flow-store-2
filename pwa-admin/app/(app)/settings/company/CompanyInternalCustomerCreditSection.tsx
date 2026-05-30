@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -110,7 +111,7 @@ export function CompanyInternalCustomerCreditSection({ company }: Props) {
       ) : loadError ? (
         <p className="text-sm text-error">{loadError}</p>
       ) : loading ? (
-        <p className="text-sm text-muted-foreground">Cargando…</p>
+        <LoadingState className="flex items-center justify-center py-4" />
       ) : (
         <div className="flex flex-col gap-4">
           {error ? <Alert variant="error">{error}</Alert> : null}

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listHeroSlidesAction } from "@/features/e-shop-hero-slides/actions/hero-slide.action";
 import { HeroSlidesCollection } from "./components/HeroSlidesCollection";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,7 @@ export default async function EShopHeroSlidesPage() {
   return (
     <Suspense
       fallback={
-        <div className="p-4 text-sm text-muted md:p-6" data-test-id="hero-slides-page-skeleton">
-          Cargando…
-        </div>
+        <LoadingState className="flex items-center justify-center p-4 md:p-6 py-4" data-test-id="hero-slides-page-skeleton" />
       }
     >
       <HeroSlidesCollection initialSlides={initialSlides} />

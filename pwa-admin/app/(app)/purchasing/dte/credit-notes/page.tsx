@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listSupplierCreditNotesForPage } from "@/features/purchasing-supplier-credit-notes/actions/supplier-credit-note.action";
 import DteCreditNotesDataGrid from "./ui/DteCreditNotesDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +29,7 @@ export default async function DteCreditNotesPage({
     <div className="min-h-0 min-w-0 p-0" data-test-id="dte-credit-notes-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="dte-credit-notes-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="dte-credit-notes-skeleton" />
         }
       >
         <DteCreditNotesDataGrid rows={res.data} total={res.total} />

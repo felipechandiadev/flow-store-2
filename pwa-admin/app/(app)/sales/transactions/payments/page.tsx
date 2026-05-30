@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listSalesPaymentsAction } from "@/features/sales-payments/actions/sales-payments.action";
 import SalesPaymentsDataGrid from "./ui/SalesPaymentsDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,7 @@ export default async function Page() {
     >
       <Suspense
         fallback={
-          <div
-            className="text-sm text-muted-foreground"
-            data-test-id="sales-transactions-payments-page-skeleton"
-          >
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="sales-transactions-payments-page-skeleton" />
         }
       >
         <SalesPaymentsDataGrid rows={rows} total={total} />

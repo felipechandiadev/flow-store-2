@@ -4,6 +4,7 @@ import { listChartOfAccountsForPage } from "@/features/accounting-chart-of-accou
 import { listTaxesForPage } from "@/features/accounting-taxes/actions/tax.action";
 import { listExpenseCategoriesForPage } from "@/features/expense-categories/actions/expense-category.action";
 import { AccountingRulesCollection } from "./ui/AccountingRulesCollection";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +22,7 @@ export default async function Page() {
   return (
     <Suspense
       fallback={
-        <div className="p-4 text-sm text-muted md:p-6" data-test-id="accounting-rules-page-skeleton">
-          Cargando…
-        </div>
+        <LoadingState className="flex items-center justify-center p-4 md:p-6 py-4" data-test-id="accounting-rules-page-skeleton" />
       }
     >
       <AccountingRulesCollection

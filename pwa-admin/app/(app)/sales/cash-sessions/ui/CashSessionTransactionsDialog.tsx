@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog";
@@ -116,9 +117,7 @@ export default function CashSessionTransactionsDialog({
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground" data-test-id="cash-session-tx-loading">
-            Cargando movimientos…
-          </p>
+          <LoadingState className="flex items-center justify-center py-4" label="Cargando movimientos" data-test-id="cash-session-tx-loading" />
         ) : null}
 
         {error ? (

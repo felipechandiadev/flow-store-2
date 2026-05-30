@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { BasicPageLayout } from "@/shared/components/layouts/BasicPageLayout";
 import { adminFillViewportBelowTopBarClassName } from "@/shared/components/layouts/layoutPageTokens";
 import FeaturedPageContent from "./FeaturedPageContent";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +22,7 @@ export default function EShopFeaturedPage({
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <Suspense
           fallback={
-            <p className="text-sm text-muted-foreground" data-test-id="eshop-featured-loading">
-              Cargando…
-            </p>
+            <LoadingState className="flex items-center justify-center py-4" data-test-id="eshop-featured-loading" />
           }
         >
           <FeaturedPageContent searchParams={searchParams} />

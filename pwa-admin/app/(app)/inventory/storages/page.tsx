@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { listStoragesForPage } from "@/features/inventory-storages/actions/storage.action";
 import { listBranchesForSettingsPage } from "@/features/settings-branches/actions/branch.action";
 import { StoragesCollection } from "./components/StoragesCollection";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +12,7 @@ export default async function Page() {
   return (
     <Suspense
       fallback={
-        <div className="p-4 text-sm text-muted md:p-6" data-test-id="storages-page-skeleton">
-          Cargando…
-        </div>
+        <LoadingState className="flex items-center justify-center p-4 md:p-6 py-4" data-test-id="storages-page-skeleton" />
       }
     >
       <StoragesCollection initialStorages={initialStorages} branches={branches} />

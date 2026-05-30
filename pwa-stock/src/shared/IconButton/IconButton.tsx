@@ -9,6 +9,8 @@ export type IconButtonVariant =
 	| 'action'
 	| 'primary'
 	| 'secondary'
+	| 'primaryCircle'
+	| 'secondaryCircle'
 	| 'neutral'
 	| 'text'
 	| 'outlined';
@@ -39,6 +41,8 @@ const variantClassNames: Record<IconButtonVariant, string> = {
 	action: 'fs-icon-button fs-icon-button--action',
 	primary: 'fs-icon-button fs-icon-button--primary',
 	secondary: 'fs-icon-button fs-icon-button--secondary',
+	primaryCircle: 'fs-icon-button fs-icon-button--primary-circle',
+	secondaryCircle: 'fs-icon-button fs-icon-button--secondary-circle',
 	neutral: 'fs-icon-button fs-icon-button--neutral',
 	text: 'fs-icon-button fs-icon-button--text',
 	outlined: 'fs-icon-button fs-icon-button--outlined',

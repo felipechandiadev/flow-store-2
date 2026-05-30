@@ -49,7 +49,7 @@ export default function EShopBranchesMapInner({ branches }: Props) {
       : DEFAULT_CENTER;
 
   return (
-    <div className="eshop-branches-map h-64 overflow-hidden rounded-xl border border-border">
+    <div className="eshop-branches-map relative z-0 h-64 overflow-hidden rounded-xl border border-border">
       <MapContainer
         center={initialCenter}
         zoom={DEFAULT_ZOOM}

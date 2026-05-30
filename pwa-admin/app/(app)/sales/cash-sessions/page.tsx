@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listCashSessionsAction } from "@/features/sales-cash-sessions/actions/cash-sessions-list.action";
 import CashSessionsDataGrid from "./ui/CashSessionsDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +15,7 @@ export default async function Page() {
     <div className="min-h-0 p-0" data-test-id="sales-cash-sessions-page-root">
       <Suspense
         fallback={
-          <div
-            className="text-sm text-muted-foreground"
-            data-test-id="sales-cash-sessions-page-skeleton"
-          >
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="sales-cash-sessions-page-skeleton" />
         }
       >
         <CashSessionsDataGrid rows={rows} total={total} />

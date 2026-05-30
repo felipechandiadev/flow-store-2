@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useEffect, useState } from "react";
 import Badge from "@/shared/components/Badge/Badge";
@@ -61,7 +62,7 @@ export function CustomerDetailCreditNotesSection({ customerId }: { customerId: s
   }, [customerId]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Cargando notas de crédito…</p>;
+    return <LoadingState className="flex items-center justify-center py-4" label="Cargando notas de crédito" />;
   }
   if (error) {
     return <p className="text-sm text-error">{error}</p>;

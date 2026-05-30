@@ -2,6 +2,7 @@ import { CollectionPageLayoutShowcaseClient } from "./CollectionPageLayoutShowca
 import { SearchQueryServerPreview } from "./SearchQueryServerPreview";
 import { UrlSearchLive } from "./UrlSearchLive";
 import { Suspense } from "react";
+import LoadingState from '@/shared/components/LoadingState';
 
 export default async function CollectionPageLayoutShowcasePage({
   searchParams,
@@ -21,9 +22,7 @@ export default async function CollectionPageLayoutShowcasePage({
           <Suspense
             key="url-client"
             fallback={
-              <p className="text-sm text-muted" data-test-id="url-search-live-skeleton">
-                Cargando reflejo de la URL…
-              </p>
+              <LoadingState className="flex items-center justify-center py-4" label="Cargando reflejo de la URL" data-test-id="url-search-live-skeleton" />
             }
           >
             <UrlSearchLive paramName="search" />

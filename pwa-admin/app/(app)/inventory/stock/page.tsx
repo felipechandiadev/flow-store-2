@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { listStockForGrid } from "@/features/inventory-stock/actions/stock.action";
 import { listStoragesForPage } from "@/features/inventory-storages/actions/storage.action";
 import StockDataGrid from "./ui/StockDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -49,9 +50,7 @@ export default async function Page({
     <div className="min-h-0 p-0" data-test-id="inventory-stock-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="inventory-stock-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="inventory-stock-skeleton" />
         }
       >
         <StockDataGrid

@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -1643,7 +1644,7 @@ export function PurchaseDocumentBuilder({
                       >
                         <div className="flex min-h-8 min-w-0 flex-col items-start gap-y-1">
                           {referenceLoading ? (
-                            <span className="text-xs text-muted-foreground">Cargando impuestos…</span>
+                            <LoadingState className="flex items-center justify-center py-4" label="Cargando impuestos" size={12} />
                           ) : activeTaxes.length === 0 ? (
                             <span className="text-xs text-muted-foreground">Sin impuestos definidos</span>
                           ) : (
@@ -1968,7 +1969,7 @@ export function PurchaseDocumentBuilder({
             />
           )
         ) : (
-          <p className="py-10 text-center text-sm text-muted-foreground">Cargando datos de la empresa…</p>
+          <LoadingState className="flex items-center justify-center py-10" label="Cargando datos de la empresa" />
         )}
       </PrintDialog>
 

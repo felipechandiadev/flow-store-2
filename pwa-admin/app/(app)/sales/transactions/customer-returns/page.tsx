@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listCustomerSaleReturnsAction } from "@/features/sales-transactions/actions/sales-transactions-list.action";
 import SalesTransactionsDataGrid from "../ui/SalesTransactionsDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +37,7 @@ export default async function Page({
     >
       <Suspense
         fallback={
-          <div
-            className="text-sm text-muted-foreground"
-            data-test-id="sales-customer-returns-page-skeleton"
-          >
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="sales-customer-returns-page-skeleton" />
         }
       >
         <SalesTransactionsDataGrid

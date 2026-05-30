@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listCustomersForPage } from "@/features/sales-customers/actions/customer.action";
 import CustomersDataGrid from "./ui/CustomersDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +12,7 @@ export default async function Page() {
     <div className="min-h-0 p-0" data-test-id="customers-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="customers-page-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="customers-page-skeleton" />
         }
       >
         <CustomersDataGrid

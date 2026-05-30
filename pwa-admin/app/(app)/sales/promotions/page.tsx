@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listPromotionsAction } from "@/features/promotions/actions/promotions.action";
 import { PromotionsPageContent } from "./PromotionsPageContent";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export default async function Page({
   return (
     <Suspense
       fallback={
-        <div className="p-4 text-sm text-muted-foreground md:p-6">Cargando…</div>
+        <LoadingState className="flex items-center justify-center p-4 md:p-6 py-4" />
       }
     >
       <PromotionsPageContent

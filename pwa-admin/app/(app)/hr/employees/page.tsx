@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { listEmployeesForGridAction } from "@/features/hr-employees/actions/employee.action";
 import { listBranchesForSettingsPage } from "@/features/settings-branches/actions/branch.action";
 import EmployeesDataGrid from "./ui/EmployeesDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -37,9 +38,7 @@ export default async function EmployeesPage({
     <div className="min-h-0 p-0" data-test-id="hr-employees-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="employees-page-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="employees-page-skeleton" />
         }
       >
         <EmployeesDataGrid rows={rows} total={total} branches={branches} />

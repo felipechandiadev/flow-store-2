@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog";
@@ -206,9 +207,7 @@ export default function SaleTransactionDetailDialog({
     >
       <div className="flex flex-col gap-4 p-4">
         {loading ? (
-          <p className="text-sm text-muted-foreground" data-test-id="sale-detail-loading">
-            Cargando…
-          </p>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="sale-detail-loading" />
         ) : null}
 
         {error ? (

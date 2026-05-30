@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useEffect, useState } from "react";
 import { getCustomerBackordersListAction } from "@/features/sales-customers/actions/customer.action";
@@ -45,7 +46,7 @@ export function CustomerDetailBackordersSection({ customerId }: { customerId: st
   }, [customerId]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Cargando encargos…</p>;
+    return <LoadingState className="flex items-center justify-center py-4" label="Cargando encargos" />;
   }
   if (error) {
     return <p className="text-sm text-error">{error}</p>;

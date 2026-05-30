@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useState } from "react";
 import Dialog from "@/shared/components/Dialog/Dialog";
@@ -117,7 +118,7 @@ export default function PurchasingDteDetailDialog({
       }
       actionsJustify="end"
     >
-      {loading ? <p className="text-sm text-muted-foreground">Cargando documento…</p> : null}
+      {loading ? <LoadingState className="flex items-center justify-center py-4" label="Cargando documento" /> : null}
       {error ? <Alert variant="error">{error}</Alert> : null}
       {tx && !loading ? (
         <div className="space-y-5">

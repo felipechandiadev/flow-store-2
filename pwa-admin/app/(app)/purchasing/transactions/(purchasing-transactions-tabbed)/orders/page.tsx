@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listPurchaseOrdersForGrid } from "@/features/purchasing-document/actions/purchase-order-list.action";
 import PurchaseOrdersDataGrid from "./ui/PurchaseOrdersDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +33,7 @@ export default async function PurchaseOrdersListPage({
     <div className="min-h-0 p-0" data-test-id="purchase-orders-list-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="purchase-orders-list-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="purchase-orders-list-skeleton" />
         }
       >
         <PurchaseOrdersDataGrid rows={result.rows} total={result.total} />

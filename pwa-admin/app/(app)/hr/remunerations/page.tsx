@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { listRemunerationsForGridAction } from "@/features/hr-remunerations/actions/remuneration.action";
 import { listEmployeesForGridAction } from "@/features/hr-employees/actions/employee.action";
 import RemunerationsDataGrid from "./ui/RemunerationsDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -37,9 +38,7 @@ export default async function RemunerationsPage({
     <div className="min-h-0 p-0" data-test-id="hr-remunerations-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="remunerations-page-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="remunerations-page-skeleton" />
         }
       >
         <RemunerationsDataGrid rows={rows} total={total} employees={employees} />

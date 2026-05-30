@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Dialog from "@/shared/components/Dialog/Dialog";
@@ -190,7 +191,7 @@ export function EditVariantStockConfigDialog({
       }
     >
       {loading ? (
-        <p className="text-sm text-muted-foreground">Cargando variante…</p>
+        <LoadingState className="flex items-center justify-center py-4" label="Cargando variante" />
       ) : row ? (
         <div className="flex flex-col gap-5">
           <p className="text-sm text-muted-foreground">{subtitle}</p>

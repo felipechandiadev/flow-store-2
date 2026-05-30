@@ -29,6 +29,7 @@ import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { MultimediaAsset } from '@modules/multimedia/domain/multimedia-asset.entity';
 import { MultimediaLink } from '@modules/multimedia/domain/multimedia-link.entity';
 import { EShopHeroSlide } from '@modules/e-shop/domain/e-shop-hero-slide.entity';
+import { EShopTestimonial } from '@modules/e-shop/domain/e-shop-testimonial.entity';
 
 /**
  * Misma conexión y entidades que el API: el esquema lo define TypeORM vía
@@ -69,6 +70,7 @@ import { EShopHeroSlide } from '@modules/e-shop/domain/e-shop-hero-slide.entity'
       MultimediaAsset,
       MultimediaLink,
       EShopHeroSlide,
+      EShopTestimonial,
     ]),
   ],
 })

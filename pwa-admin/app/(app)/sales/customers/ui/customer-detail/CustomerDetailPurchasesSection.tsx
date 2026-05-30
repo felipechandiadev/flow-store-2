@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useEffect, useState } from "react";
 import { getCustomerPurchasesListAction } from "@/features/sales-customers/actions/customer.action";
@@ -48,7 +49,7 @@ export function CustomerDetailPurchasesSection({ customerId }: { customerId: str
   }, [customerId]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Cargando compras…</p>;
+    return <LoadingState className="flex items-center justify-center py-4" label="Cargando compras" />;
   }
   if (error) {
     return <p className="text-sm text-error">{error}</p>;

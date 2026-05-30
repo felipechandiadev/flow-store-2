@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useEffect, useState } from "react";
 import { getCustomerPendingQuotasListAction } from "@/features/sales-customers/actions/customer.action";
@@ -36,7 +37,7 @@ export function CustomerDetailQuotasSection({ customerId }: { customerId: string
   }, [customerId]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Cargando cuotas…</p>;
+    return <LoadingState className="flex items-center justify-center py-4" label="Cargando cuotas" />;
   }
   if (error) {
     return <p className="text-sm text-error">{error}</p>;

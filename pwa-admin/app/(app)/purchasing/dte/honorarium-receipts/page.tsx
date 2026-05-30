@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listSupplierHonorariumReceiptsForPage } from "@/features/purchasing-supplier-honorarium-receipts/actions/supplier-honorarium-receipt.action";
 import DteHonorariumReceiptsDataGrid from "./ui/DteHonorariumReceiptsDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +29,7 @@ export default async function DteHonorariumReceiptsPage({
     <div className="min-h-0 min-w-0 p-0" data-test-id="dte-honorarium-receipts-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="dte-honorarium-receipts-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="dte-honorarium-receipts-skeleton" />
         }
       >
         <DteHonorariumReceiptsDataGrid rows={res.data} total={res.total} />

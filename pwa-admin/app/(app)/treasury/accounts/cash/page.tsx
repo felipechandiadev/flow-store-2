@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { resolveTreasuryCashHubSelection } from "./treasury-cash-hubs";
 import { mapCashHubMovementsToGridRows, type TreasuryCashMovementGridRow } from "./treasury-cash-hub-movements-mapper";
 import TreasuryCashTabContent from "./TreasuryCashTabContent";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -89,9 +90,7 @@ export default async function TreasuryCashPage({
   return (
     <Suspense
       fallback={
-        <div className="p-4 text-sm text-muted-foreground" data-test-id="treasury-cash-page-suspense">
-          Cargando…
-        </div>
+        <LoadingState className="flex items-center justify-center p-4 py-4" data-test-id="treasury-cash-page-suspense" />
       }
     >
       <TreasuryCashTabContent

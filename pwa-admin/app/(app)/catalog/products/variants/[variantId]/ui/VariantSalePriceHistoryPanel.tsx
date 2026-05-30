@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useState } from "react";
 import { listVariantSalePriceHistoryAction } from "@/features/inventory-products/actions/product.action";
@@ -93,7 +94,7 @@ export function VariantSalePriceHistoryPanel({
         Historial de precios de venta
       </p>
       {loading ? (
-        <p className="mt-2 text-xs text-muted-foreground">Cargando historial…</p>
+        <LoadingState className="flex items-center justify-center mt-2" label="Cargando historial" size={12} />
       ) : error ? (
         <p className="mt-2 text-xs text-destructive">{error}</p>
       ) : items.length === 0 ? (

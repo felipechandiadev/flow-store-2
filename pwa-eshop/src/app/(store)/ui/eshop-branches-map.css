@@ -1,10 +1,70 @@
 @import "leaflet/dist/leaflet.css";
 
+/**
+ * Leaflet asigna z-index altos (200–1000) a panes/controles. Sin aislar el contexto,
+ * popups y tiles quedan por encima del topbar (z-40) y del resto del home.
+ */
+.eshop-branches-map {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+}
+
 .eshop-branches-map .leaflet-container {
   height: 100%;
   width: 100%;
   cursor: grab;
   font-family: inherit;
+  z-index: 0;
+}
+
+.eshop-branches-map .leaflet-pane {
+  z-index: 1;
+}
+
+.eshop-branches-map .leaflet-tile-pane {
+  z-index: 1;
+}
+
+.eshop-branches-map .leaflet-overlay-pane {
+  z-index: 2;
+}
+
+.eshop-branches-map .leaflet-shadow-pane {
+  z-index: 3;
+}
+
+.eshop-branches-map .leaflet-marker-pane {
+  z-index: 4;
+}
+
+.eshop-branches-map .leaflet-tooltip-pane {
+  z-index: 5;
+}
+
+.eshop-branches-map .leaflet-popup-pane {
+  z-index: 6;
+}
+
+.eshop-branches-map .leaflet-map-pane canvas {
+  z-index: 1;
+}
+
+.eshop-branches-map .leaflet-map-pane svg {
+  z-index: 2;
+}
+
+.eshop-branches-map .leaflet-control {
+  z-index: 7;
+}
+
+.eshop-branches-map .leaflet-top,
+.eshop-branches-map .leaflet-bottom {
+  z-index: 7;
+}
+
+.eshop-branches-map .leaflet-zoom-box {
+  z-index: 8;
 }
 
 .eshop-branches-map .leaflet-container:active,

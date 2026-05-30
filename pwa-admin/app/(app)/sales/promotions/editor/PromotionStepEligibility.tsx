@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TextField } from "@/shared/components/TextField/TextField";
@@ -348,7 +349,7 @@ export function PromotionStepEligibility({ input, patch }: Props) {
       </div>
 
       {optionsLoading ? (
-        <p className="text-sm text-muted-foreground">Cargando catálogos de alcance…</p>
+        <LoadingState className="flex items-center justify-center py-4" label="Cargando catálogos de alcance" />
       ) : null}
 
       <div className="rounded-xl border border-border bg-muted/15 p-4 shadow-sm">

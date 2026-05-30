@@ -2,14 +2,13 @@ import { Suspense } from "react";
 import { unstable_noStore as noStore } from "next/cache";
 import { connection } from "next/server";
 import ReceptionNewPageContent from "./ReceptionNewPageContent";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
 function ReceptionNewFallback() {
   return (
-    <div className="min-h-0 min-w-0 p-3 text-sm text-muted-foreground" data-test-id="receptions-new-skeleton">
-      Cargando búsqueda…
-    </div>
+    <LoadingState className="flex items-center justify-center min-h-0 min-w-0 p-3 py-4" label="Cargando búsqueda" data-test-id="receptions-new-skeleton" />
   );
 }
 

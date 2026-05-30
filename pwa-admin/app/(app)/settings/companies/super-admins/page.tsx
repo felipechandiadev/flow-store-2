@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import { listSuperAdminsAction } from "@/features/settings-users/actions/super-admin.action";
 import { SuperAdminsCollection } from "../components/SuperAdminsCollection";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +20,7 @@ export default async function Page() {
     <div className="min-h-0" data-test-id="super-admins-page-root">
       <Suspense
         fallback={
-          <div
-            className="p-4 text-sm text-muted md:p-6"
-            data-test-id="super-admins-page-skeleton"
-          >
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center p-4 md:p-6 py-4" data-test-id="super-admins-page-skeleton" />
         }
       >
         <SuperAdminsCollection

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listSupplierGuidesForPage } from "@/features/purchasing-supplier-guides/actions/supplier-guide.action";
 import DteGuidesDataGrid from "./ui/DteGuidesDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +29,7 @@ export default async function DteGuidesPage({
     <div className="min-h-0 min-w-0 p-0" data-test-id="dte-guides-page-root">
       <Suspense
         fallback={
-          <div className="text-sm text-muted-foreground" data-test-id="dte-guides-skeleton">
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="dte-guides-skeleton" />
         }
       >
         <DteGuidesDataGrid rows={res.data} total={res.total} />

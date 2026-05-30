@@ -6,7 +6,9 @@ import { Repository } from 'typeorm';
 import { MultimediaAsset } from '@modules/multimedia/domain/multimedia-asset.entity';
 import { MultimediaLink } from '@modules/multimedia/domain/multimedia-link.entity';
 import { EShopHeroSlide } from '@modules/e-shop/domain/e-shop-hero-slide.entity';
+import { EShopTestimonial } from '@modules/e-shop/domain/e-shop-testimonial.entity';
 import { ESHOP_HERO_SLIDE_MULTIMEDIA_ENTITY } from '@modules/e-shop/domain/e-shop-hero-slide.constants';
+import { ESHOP_TESTIMONIAL_MULTIMEDIA_ENTITY } from '@modules/e-shop/domain/e-shop-testimonial.constants';
 import { Product } from '@modules/products/domain/product.entity';
 import { ProductVariant } from '@modules/product-variants/domain/product-variant.entity';
 import { Attribute } from '@modules/attributes/domain/attribute.entity';
@@ -19,6 +21,10 @@ import {
   SEED_DEV_ESHOP_HERO_SLIDES,
   type SeedDevEshopHeroSlideDef,
 } from './seed-dev-eshop-hero-slides';
+import {
+  SEED_DEV_ESHOP_TESTIMONIALS,
+  type SeedDevEshopTestimonialDef,
+} from './seed-dev-eshop-testimonials';
 
 /** Raíz de archivos estáticos versionados para el seed (`backend/src/seed/assets`). */
 export const SEED_ASSETS_ROOT = path.join(__dirname, 'assets');
@@ -156,6 +162,65 @@ export async function seedDevEshopHeroSlides(params: {
 
   console.log(
     `✅ Hero slides KaiStore: ${SEED_DEV_ESHOP_HERO_SLIDES.length} slide(s), ${linkedImages} con imagen`,
+  );
+}
+
+function mapTestimonialDef(companyId: string, def: SeedDevEshopTestimonialDef) {
+  return {
+    companyId,
+    clientName: def.clientName,
+    rating: def.rating,
+    message: def.message,
+    isActive: true,
+    sortOrder: def.sortOrder,
+  };
+}
+
+export async function seedDevEshopTestimonials(params: {
+  testimonialRepo: Repository<EShopTestimonial>;
+  assetRepo: Repository<MultimediaAsset>;
+  linkRepo: Repository<MultimediaLink>;
+  companyId: string;
+  localStoragePath: string;
+  publicBasePath: string;
+  storageProvider: 'local' | 'cloudflare';
+  seedImages: boolean;
+}): Promise<void> {
+  await params.testimonialRepo.delete({ companyId: params.companyId });
+
+  let linkedImages = 0;
+  for (const def of SEED_DEV_ESHOP_TESTIMONIALS) {
+    const row = await params.testimonialRepo.save(
+      params.testimonialRepo.create(mapTestimonialDef(params.companyId, def)),
+    );
+
+    if (!params.seedImages || !def.imageFile) {
+      continue;
+    }
+    if (!(await seedAssetFileExists(def.imageFile))) {
+      console.warn(
+        `⚠️ Seed dev: avatar testimonio «${def.key}» no encontrado (${def.imageFile}); sin imagen`,
+      );
+      continue;
+    }
+
+    await seedMultimediaFileLink({
+      assetRepo: params.assetRepo,
+      linkRepo: params.linkRepo,
+      sourceRelativePath: def.imageFile,
+      localStoragePath: params.localStoragePath,
+      publicBasePath: params.publicBasePath,
+      storageProvider: params.storageProvider,
+      entityType: ESHOP_TESTIMONIAL_MULTIMEDIA_ENTITY,
+      entityId: row.id,
+      usageType: 'default',
+      isPrimary: true,
+    });
+    linkedImages += 1;
+  }
+
+  console.log(
+    `✅ Testimonios eShop: ${SEED_DEV_ESHOP_TESTIMONIALS.length} registro(s), ${linkedImages} con avatar`,
   );
 }
 

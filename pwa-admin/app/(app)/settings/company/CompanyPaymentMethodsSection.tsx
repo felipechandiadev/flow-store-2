@@ -1,4 +1,5 @@
 "use client";
+import LoadingState from '@/shared/components/LoadingState';
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -228,7 +229,7 @@ export function CompanyPaymentMethodsSection({ companyId }: Props) {
         {loadError ? (
           <p className="text-sm text-error">{loadError}</p>
         ) : loading ? (
-          <p className="text-sm text-muted-foreground">Cargando…</p>
+          <LoadingState className="flex items-center justify-center py-4" />
         ) : sorted.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Aún no hay medios de pago configurados.

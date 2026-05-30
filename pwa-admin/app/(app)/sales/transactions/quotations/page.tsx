@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listQuotationsAction } from "@/features/quotations/actions/quotations.action";
 import QuotationsDataGrid from "./ui/QuotationsDataGrid";
+import LoadingState from '@/shared/components/LoadingState';
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,7 @@ export default async function Page() {
     >
       <Suspense
         fallback={
-          <div
-            className="text-sm text-muted-foreground"
-            data-test-id="sales-transactions-quotations-page-skeleton"
-          >
-            Cargando…
-          </div>
+          <LoadingState className="flex items-center justify-center py-4" data-test-id="sales-transactions-quotations-page-skeleton" />
         }
       >
         <QuotationsDataGrid rows={rows} total={total} />
