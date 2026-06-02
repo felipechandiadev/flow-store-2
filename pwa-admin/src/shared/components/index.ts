@@ -16,6 +16,8 @@ export { Badge } from './Badge';
 export { default as Switch } from './Switch';
 export { default as Tabs } from './Tabs';
 export { default as IconButton } from './IconButton';
+export { MonthlyCalendar } from "./Calendar";
+export type { MonthlyCalendarItem, MonthlyCalendarProps } from "./Calendar";
 
 // Select & Dropdown Components
 export { Select } from './Select';

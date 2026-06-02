@@ -16,6 +16,7 @@ import { CustomerDetailPaymentsSection } from "./customer-detail/CustomerDetailP
 import { CustomerDetailQuotasSection } from "./customer-detail/CustomerDetailQuotasSection";
 import { CustomerDetailReturnsSection } from "./customer-detail/CustomerDetailReturnsSection";
 import { CustomerDetailCreditNotesSection } from "./customer-detail/CustomerDetailCreditNotesSection";
+import { CustomerDetailBankAccountsSection } from "./customer-detail/CustomerDetailBankAccountsSection";
 
 export type CustomerDetailSectionId =
   | "summary"
@@ -25,7 +26,8 @@ export type CustomerDetailSectionId =
   | "payments"
   | "returns"
   | "creditNotes"
-  | "quotas";
+  | "quotas"
+  | "bankAccounts";
 
 const NAV_ITEMS: { id: CustomerDetailSectionId; label: string }[] = [
   { id: "summary", label: "Resumen" },
@@ -36,6 +38,7 @@ const NAV_ITEMS: { id: CustomerDetailSectionId; label: string }[] = [
   { id: "returns", label: "Devoluciones" },
   { id: "creditNotes", label: "Notas de crédito" },
   { id: "quotas", label: "Cuotas pendientes" },
+  { id: "bankAccounts", label: "Cuentas bancarias" },
 ];
 
 type CustomerDetailDialogProps = {
@@ -212,6 +215,12 @@ export function CustomerDetailDialog({
             ) : null}
             {section === "quotas" && customerId?.trim() ? (
               <CustomerDetailQuotasSection customerId={customerId.trim()} />
+            ) : null}
+            {section === "bankAccounts" ? (
+              <CustomerDetailBankAccountsSection
+                personId={detail?.personId ?? ""}
+                loading={loading}
+              />
             ) : null}
           </div>
         </div>

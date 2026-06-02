@@ -9,7 +9,7 @@ import { buildProductDetailGallery } from "../product-detail-gallery";
 import {
   findVariantByExactSelection,
   isOptionAvailable,
-  isOptionCompatibleWithSelection,
+  resolveInitialVariant,
   selectionAfterOptionPick,
 } from "../variant-selection";
 import { formatEShopStockLabel } from "../format-stock-label";
@@ -44,14 +44,10 @@ export function EShopProductDetailPreview({ detail }: Props) {
   );
   const hasSelectors = hasAttributeSelectors(detail);
 
-  const defaultVariant = useMemo(() => {
-    return (
-      (detail.defaultVariantId &&
-        detail.variants.find((v) => v.id === detail.defaultVariantId)) ||
-      detail.variants[0] ||
-      null
-    );
-  }, [detail.defaultVariantId, detail.variants]);
+  const defaultVariant = useMemo(
+    () => resolveInitialVariant(detail.variants, null, detail.defaultVariantId),
+    [detail.defaultVariantId, detail.variants],
+  );
 
   const [selection, setSelection] = useState<Record<string, string>>(
     () => defaultVariant?.attributeValues ?? {},
@@ -169,8 +165,7 @@ export function EShopProductDetailPreview({ detail }: Props) {
                 <p className="text-sm font-medium">{dimension}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {(detail.attributeOptions[dimension] ?? []).map((value) => {
-                    const available = isOptionAvailable(detail.variants, dimension, value);
-                    const compatible = isOptionCompatibleWithSelection(
+                    const available = isOptionAvailable(
                       detail.variants,
                       dimension,
                       value,
@@ -183,18 +178,11 @@ export function EShopProductDetailPreview({ detail }: Props) {
                         type="button"
                         disabled={!available}
                         onClick={() => selectOption(dimension, value)}
-                        title={
-                          available && !compatible
-                            ? "Al elegir esta opción se ajustarán los demás atributos a una variante disponible"
-                            : undefined
-                        }
                         className={`min-h-8 cursor-pointer rounded-lg border px-2.5 py-1 text-xs transition-colors ${
                           selected
                             ? "border-2 border-primary font-medium"
                             : available
-                              ? compatible
-                                ? "border border-border hover:border-primary/40"
-                                : "border border-dashed border-border hover:border-primary/40"
+                              ? "border border-border hover:border-primary/40"
                               : "cursor-not-allowed border border-border/60 text-muted-foreground opacity-50"
                         }`}
                         data-test-id={`eshop-preview-attr-${dimension}-${value}`}

@@ -110,6 +110,7 @@ export class GetMovementsForSessionQueryHandler implements IQueryHandler<GetMove
       case TransactionType.EXPENSE_PAYMENT:
       case TransactionType.BANK_TO_CASH_TRANSFER:
       case TransactionType.CASH_DEPOSIT:
+      case TransactionType.CUSTOMER_CREDIT_NOTE_PAYOUT:
         return 'OUT';
       default:
         return 'NEUTRAL';

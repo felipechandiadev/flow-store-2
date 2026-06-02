@@ -47,14 +47,10 @@ export function paymentStatusVariant(
   return "secondary-outlined";
 }
 
-export const TX_TYPE_LABEL: Record<string, string> = {
-  SALE: "Venta",
-  BACKORDER: "Encargo",
-  PURCHASE: "Compra",
-  PAYMENT_IN: "Cobro",
-  SALE_RETURN: "Devolución",
-  CUSTOMER_CREDIT_NOTE: "Nota de crédito",
-};
+export {
+  POS_TRANSACTION_TYPE_LABEL as TX_TYPE_LABEL,
+  posTransactionTypeLabel,
+} from "@/features/transactions/lib/pos-transaction-type-label";
 
 export const CREDIT_NOTE_USAGE_LABEL: Record<CustomerCreditNoteUsageStatus, string> = {
   available: "Disponible",

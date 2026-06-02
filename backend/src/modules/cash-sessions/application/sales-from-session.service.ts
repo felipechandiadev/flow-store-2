@@ -27,6 +27,7 @@ import { Unit } from '@modules/units/domain/unit.entity';
 import { VariantQuantityConversionService } from '@modules/product-variants/application/variant-quantity-conversion.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { CollectPendingSalesDto } from './dto/collect-pending-sales.dto';
+import { PayoutCustomerCreditNotesDto } from './dto/payout-customer-credit-notes.dto';
 import { CreateBackorderDto } from './dto/create-backorder.dto';
 import {
   isSaleCollectible,
@@ -437,6 +438,218 @@ export class SalesFromSessionService {
         paymentIn: {
           id: paymentIn.id,
           documentNumber: paymentIn.documentNumber,
+          total: paidTotal,
+        },
+        allocations,
+      };
+    });
+  }
+
+  /**
+   * Devolución en caja del saldo disponible de notas de crédito del cliente (100 % del disponible por NC).
+   * Transacción CUSTOMER_CREDIT_NOTE_PAYOUT; el efectivo sale de caja (ver expected-amount util).
+   */
+  async payoutCustomerCreditNotes(dto: PayoutCustomerCreditNotesDto) {
+    const customerId = dto.customerId.trim();
+    const ncIds = [
+      ...new Set(
+        (dto.creditNoteTransactionIds ?? [])
+          .map((id) => id.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (!customerId) {
+      throw new BadRequestException('customerId es obligatorio');
+    }
+    if (ncIds.length === 0) {
+      throw new BadRequestException(
+        'Debes indicar al menos una nota de crédito a liquidar',
+      );
+    }
+
+    const paymentsForPayout = (dto.payments ?? []).filter(
+      (p) => (Number(p.amount) || 0) > 0,
+    );
+    if (paymentsForPayout.length === 0) {
+      throw new BadRequestException(
+        'Debes enviar al menos un pago con monto > 0 en payments.',
+      );
+    }
+
+    const pointOfSale = await this.pointOfSaleRepository.findOne({
+      where: { id: dto.pointOfSaleId, deletedAt: IsNull() },
+    });
+    if (!pointOfSale?.branchId) {
+      throw new BadRequestException('Punto de venta sin sucursal');
+    }
+    const user = await this.userRepository.findOne({
+      where: { userName: dto.userName, deletedAt: IsNull() },
+    });
+    if (!user) {
+      throw new NotFoundException(`Usuario ${dto.userName} no encontrado`);
+    }
+
+    const cashSession = await this.cashSessionRepository.findOne({
+      where: { id: dto.cashSessionId },
+    });
+    if (!cashSession) {
+      throw new NotFoundException(
+        `Sesión de caja ${dto.cashSessionId} no encontrada`,
+      );
+    }
+    if (cashSession.status !== CashSessionStatus.OPEN) {
+      throw new ConflictException(
+        `La sesión de caja está en estado ${cashSession.status}, no se pueden registrar operaciones`,
+      );
+    }
+
+    const sources =
+      await this.customerPaymentSourcesService.listForCustomer(customerId);
+    const ncById = new Map(sources.creditNotes.map((r) => [r.id, r]));
+
+    const allocations: Array<{
+      creditNoteId: string;
+      documentNumber: string;
+      amount: number;
+    }> = [];
+    let balanceTotal = 0;
+
+    for (const ncId of ncIds) {
+      const row = ncById.get(ncId);
+      if (!row) {
+        throw new BadRequestException(
+          `La nota de crédito ${ncId} no está disponible para este cliente.`,
+        );
+      }
+      const amount = Math.round(row.availableAmount);
+      if (amount < 1) {
+        throw new BadRequestException(
+          `La nota de crédito ${row.documentNumber} no tiene saldo disponible.`,
+        );
+      }
+      balanceTotal += amount;
+      allocations.push({
+        creditNoteId: ncId,
+        documentNumber: row.documentNumber,
+        amount,
+      });
+    }
+
+    const paidTotal = paymentsForPayout.reduce(
+      (acc, p) => acc + (Number(p.amount) || 0),
+      0,
+    );
+    if (Math.abs(paidTotal - balanceTotal) > 1) {
+      throw new BadRequestException(
+        `La suma de medios de pago (${Math.round(paidTotal)}) debe coincidir con el total a devolver (${Math.round(balanceTotal)}).`,
+      );
+    }
+
+    const ncPayoutAllowed = new Set<string>([
+      PaymentMethod.CASH,
+      PaymentMethod.TRANSFER,
+      PaymentMethod.CHECK,
+    ]);
+
+    for (const p of paymentsForPayout) {
+      const method = (p.paymentMethod ?? '').trim().toUpperCase();
+      if (!ncPayoutAllowed.has(method)) {
+        throw new BadRequestException(
+          'La devolución de saldo NC solo admite efectivo, transferencia o cheque.',
+        );
+      }
+      if (method === PaymentMethod.INTERNAL_CREDIT) {
+        throw new BadRequestException(
+          'La devolución de notas de crédito no admite crédito interno.',
+        );
+      }
+      if (method === PaymentMethod.CUSTOMER_CREDIT_NOTE) {
+        throw new BadRequestException(
+          'No puede usar otra nota de crédito como medio de devolución.',
+        );
+      }
+      if (p.backorderTransactionId?.trim()) {
+        throw new BadRequestException(
+          'La devolución de notas de crédito no admite abono de encargo.',
+        );
+      }
+      if (p.creditNoteTransactionId?.trim()) {
+        throw new BadRequestException(
+          'La devolución de notas de crédito no admite nota de crédito como medio.',
+        );
+      }
+    }
+
+    const salePaymentInputs: SalePaymentInput[] = paymentsForPayout.map((p) => ({
+      paymentMethod: p.paymentMethod,
+      amount: Number(p.amount) || 0,
+      companyPaymentMethodId: p.companyPaymentMethodId,
+      bankAccountId: p.bankAccountId,
+      reference: p.reference,
+      checkData: p.checkData as Record<string, unknown> | undefined,
+    }));
+
+    let catalog: Awaited<ReturnType<CompaniesService['getPaymentMethods']>> = [];
+    try {
+      if (pointOfSale.companyId) {
+        catalog = await this.companiesService.getPaymentMethods(
+          pointOfSale.companyId,
+        );
+      }
+    } catch {
+      catalog = [];
+    }
+
+    const paymentSnapshots = buildPaymentSnapshotsFromSalePayments(
+      salePaymentInputs,
+      catalog,
+    );
+    const finalPaymentMethod = getRepresentativePaymentMethod(
+      paymentSnapshots,
+      PaymentMethod.CASH,
+    );
+
+    return this.dataSource.transaction(async () => {
+      const payoutDto = new CreateTransactionDto();
+      Object.assign(payoutDto, {
+        transactionType: TransactionType.CUSTOMER_CREDIT_NOTE_PAYOUT,
+        branchId: pointOfSale.branchId,
+        userId: user.id,
+        pointOfSaleId: pointOfSale.id,
+        cashSessionId: cashSession.id,
+        customerId,
+        relatedTransactionId: allocations[0]?.creditNoteId ?? undefined,
+        subtotal: paidTotal,
+        taxAmount: 0,
+        discountAmount: 0,
+        total: paidTotal,
+        paymentMethod: finalPaymentMethod,
+        paymentStatus: PaymentStatus.PAID,
+        amountPaid: paidTotal,
+        changeAmount: 0,
+        metadata: {
+          allocations,
+          ...buildPaymentsMetadataFields(paymentSnapshots),
+        },
+      });
+      payoutDto.lines = [];
+      const payoutTx =
+        await this.transactionsService.createTransaction(payoutDto);
+
+      for (const alloc of allocations) {
+        await this.customerPaymentSourcesService.consumeCreditNoteForPayout(
+          alloc.creditNoteId,
+          alloc.amount,
+          payoutTx.id,
+          customerId,
+        );
+      }
+
+      return {
+        success: true,
+        payout: {
+          id: payoutTx.id,
+          documentNumber: payoutTx.documentNumber,
           total: paidTotal,
         },
         allocations,

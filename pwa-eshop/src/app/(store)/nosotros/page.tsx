@@ -39,7 +39,7 @@ export default async function NosotrosPage() {
         </div>
       )}
 
-      {contact.email || contact.phone || contact.instagram || contact.tiktok ? (
+      {contact.email || contact.phone || contact.instagram || contact.tiktok || contact.facebook ? (
         <section className="max-w-2xl space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground">Contacto</h2>
           <EShopPublicContactLinks

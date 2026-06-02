@@ -2,7 +2,32 @@ export type VariantWithAttributes = {
   id: string;
   sku: string;
   attributeValues: Record<string, string>;
+  inStock?: boolean;
 };
+
+function isInStock<T extends VariantWithAttributes>(variant: T): boolean {
+  return variant.inStock !== false;
+}
+
+function matchesPartialSelection<T extends VariantWithAttributes>(
+  variant: T,
+  dimension: string,
+  value: string,
+  selection: Record<string, string>,
+): boolean {
+  if (variant.attributeValues[dimension] !== value) {
+    return false;
+  }
+  for (const [key, selected] of Object.entries(selection)) {
+    if (key === dimension || !selected) {
+      continue;
+    }
+    if (variant.attributeValues[key] !== selected) {
+      return false;
+    }
+  }
+  return true;
+}
 
 export function findVariantByExactSelection<T extends VariantWithAttributes>(
   variants: T[],
@@ -22,6 +47,36 @@ export function findVariantByExactSelection<T extends VariantWithAttributes>(
   );
 }
 
+/** Variante inicial: URL/preferida si tiene stock; si no, default con stock; si no, primera con stock. */
+export function resolveInitialVariant<T extends VariantWithAttributes>(
+  variants: T[],
+  preferredVariantId?: string | null,
+  defaultVariantId?: string | null,
+): T | null {
+  if (variants.length === 0) {
+    return null;
+  }
+
+  const preferred =
+    (preferredVariantId && variants.find((v) => v.id === preferredVariantId)) || null;
+  if (preferred && isInStock(preferred)) {
+    return preferred;
+  }
+
+  const fromDefault =
+    (defaultVariantId && variants.find((v) => v.id === defaultVariantId)) || null;
+  if (fromDefault && isInStock(fromDefault)) {
+    return fromDefault;
+  }
+
+  const firstInStock = variants.find(isInStock);
+  if (firstInStock) {
+    return firstInStock;
+  }
+
+  return preferred ?? fromDefault ?? variants[0] ?? null;
+}
+
 export function selectionAfterOptionPick<T extends VariantWithAttributes>(
   variants: T[],
   dimension: string,
@@ -29,7 +84,9 @@ export function selectionAfterOptionPick<T extends VariantWithAttributes>(
   prevSelection: Record<string, string>,
   dimensions: string[],
 ): Record<string, string> {
-  const candidates = variants.filter((v) => v.attributeValues[dimension] === value);
+  const candidates = variants.filter(
+    (v) => isInStock(v) && v.attributeValues[dimension] === value,
+  );
   if (candidates.length === 0) {
     return prevSelection;
   }
@@ -58,12 +115,18 @@ export function selectionAfterOptionPick<T extends VariantWithAttributes>(
   return { ...best.attributeValues };
 }
 
+/** Hay alguna variante con stock que encaja con la selección parcial actual. */
 export function isOptionAvailable<T extends VariantWithAttributes>(
   variants: T[],
   dimension: string,
   value: string,
+  selection: Record<string, string>,
 ): boolean {
-  return variants.some((variant) => variant.attributeValues[dimension] === value);
+  return variants.some(
+    (variant) =>
+      isInStock(variant) &&
+      matchesPartialSelection(variant, dimension, value, selection),
+  );
 }
 
 export function isOptionCompatibleWithSelection<T extends VariantWithAttributes>(
@@ -72,18 +135,5 @@ export function isOptionCompatibleWithSelection<T extends VariantWithAttributes>
   value: string,
   selection: Record<string, string>,
 ): boolean {
-  return variants.some((variant) => {
-    if (variant.attributeValues[dimension] !== value) {
-      return false;
-    }
-    for (const [key, selected] of Object.entries(selection)) {
-      if (key === dimension || !selected) {
-        continue;
-      }
-      if (variant.attributeValues[key] !== selected) {
-        return false;
-      }
-    }
-    return true;
-  });
+  return isOptionAvailable(variants, dimension, value, selection);
 }

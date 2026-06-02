@@ -7,6 +7,7 @@ export interface CompanyPublicContactSettings {
   phone?: string;
   instagram?: string;
   tiktok?: string;
+  facebook?: string;
 }
 
 export function buildDefaultCompanyPublicContact(): CompanyPublicContactSettings {
@@ -27,5 +28,6 @@ export function sanitizeCompanyPublicContact(
     phone: trim(o.phone),
     instagram: trim(o.instagram),
     tiktok: trim(o.tiktok),
+    facebook: trim(o.facebook),
   };
 }

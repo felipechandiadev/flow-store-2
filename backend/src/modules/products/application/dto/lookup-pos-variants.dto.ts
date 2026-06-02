@@ -12,4 +12,9 @@ export class LookupPosVariantsDto {
   @IsUUID()
   @IsOptional()
   branchId?: string;
+
+  /** Si se indica, solo devuelve variantes con precio en esa lista (favoritos POS). */
+  @IsUUID()
+  @IsOptional()
+  priceListId?: string;
 }

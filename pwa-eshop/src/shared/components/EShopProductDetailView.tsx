@@ -11,9 +11,11 @@ import { buildProductDetailGallery } from "@/features/e-shop-storefront/utils/pr
 import {
   findVariantByExactSelection,
   isOptionAvailable,
-  isOptionCompatibleWithSelection,
+  resolveInitialVariant,
   selectionAfterOptionPick,
 } from "@/features/e-shop-storefront/utils/variant-selection";
+import { buildProductDetailCanonicalUrl } from "@/lib/eshop-site-url";
+import { EShopProductDetailToolbar } from "@/shared/components/EShopProductDetailToolbar";
 
 function fmt(n: number) {
   return new Intl.NumberFormat("es-CL", {
@@ -43,7 +45,11 @@ type Props = {
   preview?: boolean;
 };
 
-export function EShopProductDetailView({ detail, initialVariantId, preview = false }: Props) {
+export function EShopProductDetailView({
+  detail,
+  initialVariantId,
+  preview = false,
+}: Props) {
   const { addItem } = useEShopCart();
   const attributeDimensions = useMemo(
     () => Object.keys(detail.attributeOptions),
@@ -51,15 +57,10 @@ export function EShopProductDetailView({ detail, initialVariantId, preview = fal
   );
   const hasSelectors = attributeDimensions.length > 0 && detail.variants.length > 1;
 
-  const defaultVariant = useMemo(() => {
-    const preferred =
-      (initialVariantId && detail.variants.find((v) => v.id === initialVariantId)) ||
-      (detail.defaultVariantId &&
-        detail.variants.find((v) => v.id === detail.defaultVariantId)) ||
-      detail.variants[0] ||
-      null;
-    return preferred;
-  }, [detail.defaultVariantId, detail.variants, initialVariantId]);
+  const defaultVariant = useMemo(
+    () => resolveInitialVariant(detail.variants, initialVariantId, detail.defaultVariantId),
+    [detail.defaultVariantId, detail.variants, initialVariantId],
+  );
 
   const [selection, setSelection] = useState<Record<string, string>>(
     () => defaultVariant?.attributeValues ?? {},
@@ -111,8 +112,20 @@ export function EShopProductDetailView({ detail, initialVariantId, preview = fal
   const inStock = selectedVariant?.inStock === true;
   const price = selectedVariant?.basePrice ?? defaultVariant?.basePrice ?? 0;
 
+  const shareUrl = useMemo(
+    () => buildProductDetailCanonicalUrl(detail.product.id, selectedVariant?.id ?? null),
+    [detail.product.id, selectedVariant?.id],
+  );
+
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+    <div className="space-y-0">
+      <EShopProductDetailToolbar
+        productName={detail.product.name}
+        shareUrl={shareUrl}
+        preview={preview}
+      />
+
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
       <div className="space-y-3">
         <div className="overflow-hidden rounded-xl border border-border bg-muted aspect-square">
           {activeImage ? (
@@ -188,8 +201,7 @@ export function EShopProductDetailView({ detail, initialVariantId, preview = fal
                 <p className="text-sm font-medium">{dimension}</p>
                 <div className="flex flex-wrap gap-2">
                   {(detail.attributeOptions[dimension] ?? []).map((value) => {
-                    const available = isOptionAvailable(detail.variants, dimension, value);
-                    const compatible = isOptionCompatibleWithSelection(
+                    const available = isOptionAvailable(
                       detail.variants,
                       dimension,
                       value,
@@ -202,18 +214,11 @@ export function EShopProductDetailView({ detail, initialVariantId, preview = fal
                         type="button"
                         disabled={!available}
                         onClick={() => selectOption(dimension, value)}
-                        title={
-                          available && !compatible
-                            ? "Al elegir esta opción se ajustarán los demás atributos a una variante disponible"
-                            : undefined
-                        }
                         className={`min-h-9 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
                           selected
                             ? "border-2 border-primary"
                             : available
-                              ? compatible
-                                ? "border border-border hover:border-primary/40"
-                                : "border border-dashed border-border hover:border-primary/40"
+                              ? "border border-border hover:border-primary/40"
                               : "cursor-not-allowed border border-border/60 text-muted-foreground opacity-50"
                         }`}
                       >
@@ -258,6 +263,7 @@ export function EShopProductDetailView({ detail, initialVariantId, preview = fal
             </p>
           </section>
         ) : null}
+      </div>
       </div>
     </div>
   );

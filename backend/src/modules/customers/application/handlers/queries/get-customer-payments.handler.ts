@@ -5,7 +5,10 @@ import {
   CustomersRepositoryPort,
   CUSTOMERS_REPOSITORY,
 } from '../../ports/customers.repository.port';
-import { relatedSalesFromPaymentIn } from '@modules/transactions/application/payment-in-allocations.util';
+import {
+  relatedCreditNotesFromCustomerPayout,
+  relatedSalesFromPaymentIn,
+} from '@modules/transactions/application/payment-in-allocations.util';
 
 @QueryHandler(GetCustomerPaymentsQuery)
 export class GetCustomerPaymentsHandler implements IQueryHandler<GetCustomerPaymentsQuery> {
@@ -24,19 +27,28 @@ export class GetCustomerPaymentsHandler implements IQueryHandler<GetCustomerPaym
         p.metadata && typeof p.metadata === 'object'
           ? (p.metadata as Record<string, unknown>)
           : null;
-      const relatedSales = relatedSalesFromPaymentIn({
-        relatedTransactionId: p.relatedTransactionId,
+      const txType = (p as { transactionType?: string }).transactionType ?? null;
+      const relatedCreditNotes = relatedCreditNotesFromCustomerPayout({
+        transactionType: txType,
         metadata: meta,
       });
+      const relatedSales =
+        relatedCreditNotes.length > 0
+          ? []
+          : relatedSalesFromPaymentIn({
+              relatedTransactionId: p.relatedTransactionId,
+              metadata: meta,
+            });
       return {
         id: p.id,
         documentNumber: (p as { documentNumber?: string }).documentNumber ?? null,
-        type: (p as { transactionType?: string }).transactionType ?? null,
+        type: txType,
         status: (p as { status?: string }).status ?? null,
         total: Number((p as { total?: number }).total ?? 0),
         paymentMethod: (p as { paymentMethod?: string }).paymentMethod ?? null,
         createdAt: p.createdAt,
         relatedSales,
+        relatedCreditNotes,
       };
     });
 

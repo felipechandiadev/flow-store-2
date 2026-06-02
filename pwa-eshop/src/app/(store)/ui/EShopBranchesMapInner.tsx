@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { EShopBranch } from "@/features/e-shop-storefront/types/storefront.types";
@@ -21,7 +21,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "",
 });
 
-function FitMapView({ branches }: { branches: BranchWithLocation[] }) {
+function branchesViewKey(branches: BranchWithLocation[]): string {
+  return branches
+    .map((b) => `${b.id}:${b.location.lat},${b.location.lng}`)
+    .join("|");
+}
+
+function FitMapView({
+  branches,
+  viewKey,
+}: {
+  branches: BranchWithLocation[];
+  viewKey: string;
+}) {
   const map = useMap();
 
   useEffect(() => {
@@ -35,14 +47,22 @@ function FitMapView({ branches }: { branches: BranchWithLocation[] }) {
 
     const bounds = L.latLngBounds(branches.map((b) => [b.location.lat, b.location.lng]));
     map.fitBounds(bounds, { padding: [32, 32], maxZoom: 15, animate: false });
-  }, [map, branches]);
+  }, [map, viewKey]);
 
   return null;
 }
 
-type Props = { branches: BranchWithLocation[] };
+type Props = {
+  branches: BranchWithLocation[];
+  /** Solo botones +/-; desactiva rueda, doble clic y pinch. */
+  zoomButtonsOnly?: boolean;
+};
 
-export default function EShopBranchesMapInner({ branches }: Props) {
+export default function EShopBranchesMapInner({
+  branches,
+  zoomButtonsOnly = false,
+}: Props) {
+  const viewKey = useMemo(() => branchesViewKey(branches), [branches]);
   const initialCenter: [number, number] =
     branches.length > 0
       ? [branches[0].location.lat, branches[0].location.lng]
@@ -53,12 +73,15 @@ export default function EShopBranchesMapInner({ branches }: Props) {
       <MapContainer
         center={initialCenter}
         zoom={DEFAULT_ZOOM}
-        scrollWheelZoom
+        scrollWheelZoom={!zoomButtonsOnly}
+        doubleClickZoom={!zoomButtonsOnly}
+        touchZoom={!zoomButtonsOnly}
+        boxZoom={!zoomButtonsOnly}
         attributionControl={false}
         className="h-full w-full"
       >
         <TileLayer url={CARTO_LIGHT_TILES} subdomains="abcd" maxZoom={20} />
-        <FitMapView branches={branches} />
+        <FitMapView branches={branches} viewKey={viewKey} />
         {branches.map((branch) => (
           <Marker key={branch.id} position={[branch.location.lat, branch.location.lng]}>
             <Popup>

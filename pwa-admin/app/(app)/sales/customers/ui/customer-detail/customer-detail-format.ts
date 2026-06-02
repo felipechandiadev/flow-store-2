@@ -26,6 +26,7 @@ export const TX_TYPE_LABEL: Record<string, string> = {
   PAYMENT_IN: "Cobro",
   SALE_RETURN: "Devolución",
   CUSTOMER_CREDIT_NOTE: "Nota de crédito",
+  CUSTOMER_CREDIT_NOTE_PAYOUT: "Devolución saldo NC",
 };
 
 export {

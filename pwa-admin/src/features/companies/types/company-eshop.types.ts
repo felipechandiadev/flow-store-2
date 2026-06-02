@@ -16,6 +16,7 @@ export type CompanyPublicContactSettings = {
   phone?: string;
   instagram?: string;
   tiktok?: string;
+  facebook?: string;
 };
 
 export type CompanyIdentitySettings = {

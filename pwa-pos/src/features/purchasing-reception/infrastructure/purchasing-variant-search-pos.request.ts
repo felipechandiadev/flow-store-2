@@ -72,10 +72,16 @@ function normalizeItem(row: unknown): PurchasingVariantSearchResult["items"][num
       o.purchaseUnitLabel != null && String(o.purchaseUnitLabel).trim()
         ? String(o.purchaseUnitLabel).trim()
         : null,
-    stockBaseUnitLabel:
+  stockBaseUnitLabel:
       o.stockBaseUnitLabel != null && String(o.stockBaseUnitLabel).trim()
         ? String(o.stockBaseUnitLabel).trim()
         : null,
+    stockQtyPerPurchaseUnit:
+      o.stockQtyPerPurchaseUnit == null || o.stockQtyPerPurchaseUnit === ""
+        ? undefined
+        : Number.isFinite(Number(o.stockQtyPerPurchaseUnit)) && Number(o.stockQtyPerPurchaseUnit) > 0
+          ? Number(o.stockQtyPerPurchaseUnit)
+          : undefined,
     attributeValues,
     unitLabel:
       (o.purchaseUnitLabel != null && String(o.purchaseUnitLabel).trim()

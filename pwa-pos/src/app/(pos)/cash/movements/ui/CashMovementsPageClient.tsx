@@ -12,6 +12,7 @@ import {
 } from "@/features/pos-print/lib/reprint-sale-receipt";
 import { CashMovementSaleDetailDialog } from "@/app/(pos)/cash/movements/ui/CashMovementSaleDetailDialog";
 import { paymentMethodLabelEs } from "@/features/pos-payment-methods/lib/payment-method-label";
+import { posTransactionTypeLabel } from "@/features/transactions/lib/pos-transaction-type-label";
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
@@ -22,26 +23,6 @@ function formatDateTimeLocal(iso: string | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-
-function transactionTypeLabel(t: string): string {
-  const map: Record<string, string> = {
-    SALE: "Venta",
-    SALE_RETURN: "Devolución de venta",
-    CASH_SESSION_OPENING: "Apertura de caja",
-    CASH_SESSION_CLOSING: "Cierre de caja",
-    CASH_SESSION_DEPOSIT: "Ingreso de efectivo",
-    CASH_SESSION_WITHDRAWAL: "Retiro de efectivo",
-    CASH_SESSION_TO_HUB_TRANSFER: "Transferencia a centro de efectivo",
-    CASH_CHANGE: "Vuelto en efectivo",
-    SUPPLIER_PAYMENT: "Pago proveedor",
-    PAYROLL_PAYMENT: "Pago nómina",
-    EXPENSE_PAYMENT: "Pago gasto",
-    BANK_TO_CASH_TRANSFER: "Banco a caja",
-    OPERATING_EXPENSE: "Gasto operativo",
-    CASH_DEPOSIT: "Depósito en banco",
-  };
-  return map[t] ?? t;
 }
 
 function directionLabel(d: CashSessionMovementRow["direction"]): string {
@@ -114,7 +95,7 @@ export default function CashMovementsPageClient() {
         )
         .map((r) => ({
           ...r,
-          typeLabel: transactionTypeLabel(r.transactionType),
+          typeLabel: posTransactionTypeLabel(r.transactionType),
           directionLabel: directionLabel(r.direction),
           createdAtLabel: formatDateTimeLocal(r.createdAt),
           totalLabel: currencyFmt.format(Number(r.total) || 0),

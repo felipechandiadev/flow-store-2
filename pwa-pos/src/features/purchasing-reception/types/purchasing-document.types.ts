@@ -20,6 +20,8 @@ export type PurchasingVariantSearchItem = {
   suggestedPurchaseUnitCost?: number | null;
   purchaseUnitLabel?: string | null;
   stockBaseUnitLabel?: string | null;
+  /** Unidades de stock base por 1 unidad de compra. */
+  stockQtyPerPurchaseUnit?: number;
   attributeValues: Record<string, string>;
   unitLabel: string | null;
   defaultTaxIds: string[];

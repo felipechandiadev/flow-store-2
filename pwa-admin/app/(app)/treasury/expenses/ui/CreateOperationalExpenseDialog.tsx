@@ -29,17 +29,14 @@ import {
 } from "@/features/purchasing-dte/lib/honorarium-amounts";
 import {
   addCalendarDays,
-  bankAccountOptionKey,
   parseYyyyMmDdLocal,
   parseClpAmountInput,
-  resolveChequeBankNameFromCompanyAccount,
   splitTotalAcrossLines,
   toYyyyMmDdLocal,
 } from "@/features/purchasing-dte/lib/planned-payment-helpers";
 import {
   InvoicePlannedPaymentLines,
   type InvoicePlannedPaymentLineState,
-  type InvoicePlannedPaymentMethodUI,
 } from "@/shared/components/PlannedPaymentLines/InvoicePlannedPaymentLines";
 
 type CreateOperationalExpenseDialogProps = {
@@ -58,10 +55,6 @@ const EMPTY_SUPPLIERS: SupplierGridRow[] = [];
 const EMPTY_TAXES: TaxListItem[] = [];
 const EMPTY_COMPANY_BANKS: CompanyBankAccountItem[] = [];
 const EMPTY_SUPPLIER_BANKS: SupplierPersonBankAccount[] = [];
-
-function defaultPaymentMethod(companyHasBanks: boolean, supplierHasBanks: boolean): InvoicePlannedPaymentMethodUI {
-  return companyHasBanks && supplierHasBanks ? "TRANSFER" : "CASH";
-}
 
 const DTE_KIND_OPTIONS: Option[] = [
   { id: "SUPPLIER_INVOICE", label: "Factura de proveedor" },
@@ -253,22 +246,18 @@ export function CreateOperationalExpenseDialog({
     const sup = activeSuppliers.find((s) => s.id === sid);
     const term = sup?.defaultPaymentTermDays ?? 0;
     const firstDue = addCalendarDays(new Date(), term);
-    const banks = sup?.person?.bankAccounts ?? [];
-    const dm = defaultPaymentMethod(companyBankAccounts.length > 0, banks.length > 0);
     setPaymentLines([
       {
         id: crypto.randomUUID(),
         dueDate: toYyyyMmDdLocal(firstDue),
         amountStr: String(total),
-        paymentMethod: dm,
-        companyBankAccountKey:
-          companyBankAccounts[0] != null ? bankAccountOptionKey(companyBankAccounts[0], 0) : null,
-        supplierBankAccountKey: banks[0] != null ? bankAccountOptionKey(banks[0], 0) : null,
+        companyBankAccountKey: null,
+        supplierBankAccountKey: null,
         chequeNumber: "",
       },
     ]);
     manualPaymentLockRef.current = false;
-  }, [linkToDte, linkedSupplierOpt?.id, activeSuppliers, companyBankAccounts, total]);
+  }, [linkToDte, linkedSupplierOpt?.id, activeSuppliers, total]);
 
   useEffect(() => {
     if (!linkToDte || manualPaymentLockRef.current) {
@@ -291,63 +280,16 @@ export function CreateOperationalExpenseDialog({
     });
   }, [linkToDte, total, paymentLines.length]);
 
-  useEffect(() => {
-    if (!linkToDte || !linkedSupplierOpt?.id || paymentLines.length === 0) {
-      return;
-    }
-    setPaymentLines((prev) => {
-      let changed = false;
-      const next = prev.map((line) => {
-        if (line.paymentMethod !== "TRANSFER") {
-          return line;
-        }
-        let l = { ...line };
-        if (companyBankAccounts.length > 0 && !l.companyBankAccountKey) {
-          l.companyBankAccountKey = bankAccountOptionKey(companyBankAccounts[0], 0);
-          changed = true;
-        }
-        const supBanks = selectedLinkedSupplier?.person?.bankAccounts;
-        if (supBanks && supBanks.length > 0 && !l.supplierBankAccountKey) {
-          l.supplierBankAccountKey = bankAccountOptionKey(supBanks[0], 0);
-          changed = true;
-        }
-        return l;
-      });
-      return changed ? next : prev;
-    });
-  }, [
-    linkToDte,
-    linkedSupplierOpt?.id,
-    companyBankAccounts,
-    selectedLinkedSupplier?.person?.bankAccounts,
-    paymentLines.length,
-  ]);
-
   const onPatchPaymentLine = useCallback(
     (id: string, patch: Partial<InvoicePlannedPaymentLineState>) => {
       if (patch.amountStr !== undefined) {
         manualPaymentLockRef.current = true;
       }
       setPaymentLines((prev) =>
-        prev.map((l) => {
-          if (l.id !== id) {
-            return l;
-          }
-          let next: InvoicePlannedPaymentLineState = { ...l, ...patch };
-          if (next.paymentMethod === "TRANSFER") {
-            if (companyBankAccounts[0] && !next.companyBankAccountKey) {
-              next.companyBankAccountKey = bankAccountOptionKey(companyBankAccounts[0], 0);
-            }
-            const sb = selectedLinkedSupplier?.person?.bankAccounts?.[0];
-            if (sb && !next.supplierBankAccountKey) {
-              next.supplierBankAccountKey = bankAccountOptionKey(sb, 0);
-            }
-          }
-          return next;
-        }),
+        prev.map((l) => (l.id === id ? { ...l, ...patch } : l)),
       );
     },
-    [companyBankAccounts, selectedLinkedSupplier?.person?.bankAccounts],
+    [],
   );
 
   const onAddPaymentLine = useCallback(() => {
@@ -360,23 +302,19 @@ export function CreateOperationalExpenseDialog({
       const lastDue = parseYyyyMmDdLocal(prev[prev.length - 1].dueDate);
       const nextDue = addCalendarDays(lastDue, term);
       const parts = splitTotalAcrossLines(total, prev.length + 1);
-      const dm = defaultPaymentMethod(companyBankAccounts.length > 0, supplierBankAccounts.length > 0);
-      const banks = supplierBankAccounts;
       const nextLine: InvoicePlannedPaymentLineState = {
         id: crypto.randomUUID(),
         dueDate: toYyyyMmDdLocal(nextDue),
         amountStr: String(parts[parts.length - 1] ?? 0),
-        paymentMethod: dm,
-        companyBankAccountKey:
-          companyBankAccounts[0] != null ? bankAccountOptionKey(companyBankAccounts[0], 0) : null,
-        supplierBankAccountKey: banks[0] != null ? bankAccountOptionKey(banks[0], 0) : null,
+        companyBankAccountKey: null,
+        supplierBankAccountKey: null,
         chequeNumber: "",
       };
       return prev
         .map((l, i) => ({ ...l, amountStr: String(parts[i] ?? 0) }))
         .concat([nextLine]);
     });
-  }, [selectedLinkedSupplier?.defaultPaymentTermDays, total, companyBankAccounts, supplierBankAccounts]);
+  }, [selectedLinkedSupplier?.defaultPaymentTermDays, total]);
 
   const onRemovePaymentLine = useCallback(
     (id: string) => {
@@ -410,36 +348,12 @@ export function CreateOperationalExpenseDialog({
     }
     for (const l of paymentLines) {
       const a = parseClpAmountInput(l.amountStr);
-      if (a <= 0) {
+      if (a <= 0 || !l.dueDate.trim()) {
         return false;
-      }
-      if (l.paymentMethod === "TRANSFER") {
-        if (companyBankAccounts.length === 0 || supplierBankAccounts.length === 0) {
-          return false;
-        }
-        if (!l.companyBankAccountKey || !l.supplierBankAccountKey) {
-          return false;
-        }
-      }
-      if (l.paymentMethod === "CHECK") {
-        if (companyBankAccounts.length === 0) {
-          return false;
-        }
-        if (!l.companyBankAccountKey || !String(l.chequeNumber).trim()) {
-          return false;
-        }
       }
     }
     return true;
-  }, [
-    linkToDte,
-    linkedSupplierOpt?.id,
-    paymentLines,
-    paymentsSum,
-    total,
-    companyBankAccounts.length,
-    supplierBankAccounts.length,
-  ]);
+  }, [linkToDte, linkedSupplierOpt?.id, paymentLines, paymentsSum, total]);
 
   const handleClose = () => {
     if (isPending) {
@@ -484,7 +398,7 @@ export function CreateOperationalExpenseDialog({
           }
           if (!paymentsValid) {
             setError(
-              "Revise el plan de pagos: la suma debe igualar el total; transferencia requiere cuentas; cheque requiere número.",
+              "Revise cada cuota: montos mayores a cero, fecha de vencimiento y suma igual al total.",
             );
             return;
           }
@@ -494,23 +408,6 @@ export function CreateOperationalExpenseDialog({
         const plannedPayments = paymentLines.map((l) => ({
           dueDate: l.dueDate,
           amount: parseClpAmountInput(l.amountStr),
-          paymentMethod: l.paymentMethod,
-          companyBankAccountKey:
-            l.paymentMethod === "TRANSFER" || l.paymentMethod === "CHECK" ? l.companyBankAccountKey : null,
-          supplierBankAccountKey: l.paymentMethod === "TRANSFER" ? l.supplierBankAccountKey : null,
-          chequeNumber: l.paymentMethod === "CHECK" ? String(l.chequeNumber).trim() : null,
-          chequeBankName:
-            l.paymentMethod === "CHECK"
-              ? resolveChequeBankNameFromCompanyAccount(l.companyBankAccountKey, companyBankAccounts, l.chequeBankName)
-              : null,
-          chequeDrawerName:
-            l.paymentMethod === "CHECK"
-              ? (l.chequeDrawerName ?? "").trim() || null
-              : null,
-          chequeDueDate:
-            l.paymentMethod === "CHECK"
-              ? (l.chequeDueDate ?? "").trim() || null
-              : null,
         }));
 
         const r = await createOperationalExpenseAction({
@@ -703,6 +600,7 @@ export function CreateOperationalExpenseDialog({
 
             <InvoicePlannedPaymentLines
               disabled={referenceLoading || Boolean(referenceError) || !linkedSupplierOpt?.id}
+              lineKind="scheduled"
               companyBankAccounts={companyBankAccounts}
               supplierBankAccounts={supplierBankAccounts}
               lines={paymentLines}

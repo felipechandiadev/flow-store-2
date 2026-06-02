@@ -19,6 +19,7 @@ import type {
 } from "@/features/pos-cart/pos-payment.types";
 import {
   isCustomerLinkedPaymentMethod,
+  isNcPayoutAllowedPaymentMethod,
 } from "@/features/pos-cart/pos-payment.types";
 import type {
   CustomerCreditNoteSource,
@@ -52,14 +53,21 @@ import { formatReceiptLineDisplayName } from "@/features/pos-print/lib/format-re
 import { createBackorderFromPosAction } from "@/features/session/actions/create-backorder.action";
 import { createSaleFromPosAction } from "@/features/session/actions/create-sale.action";
 import { collectPendingSalesFromPosAction } from "@/features/session/actions/collect-pending-sales.action";
+import { payoutCustomerCreditNotesFromPosAction } from "@/features/session/actions/payout-customer-credit-notes.action";
 import { buildCreateBackorderClientPayload } from "@/features/session/lib/build-create-backorder-payload";
 import { buildCollectPendingSalesClientPayload } from "@/features/session/lib/build-collect-pending-sales-payload";
+import { buildPayoutCustomerCreditNotesClientPayload } from "@/features/session/lib/build-payout-customer-credit-notes-payload";
 import { buildCreateSaleClientPayload } from "@/features/session/lib/build-create-sale-payload";
 import {
   clearPosArCollectDraft,
   readPosArCollectDraft,
   type PosArCollectSaleRow,
 } from "@/features/session/lib/pos-ar-collect-storage";
+import {
+  clearPosNcPayoutDraft,
+  readPosNcPayoutDraft,
+  type PosNcPayoutRow,
+} from "@/features/session/lib/pos-nc-payout-storage";
 import {
   buildConfirmCustomerReturnDocumentPayload,
   buildConfirmCustomerReturnRefundPayload,
@@ -217,7 +225,7 @@ function PosPaymentMethodCard({
             <span className="inline-flex items-center">
               {p.type !== "CASH" && remaining > 0.01 ? (
                 <IconButton
-                  icon="ArrowDownToLine"
+                  icon="ArrowUpToLine"
                   variant="neutral"
                   size="xs"
                   ariaLabel="Rellenar con saldo pendiente"
@@ -386,6 +394,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isCollectMode = (searchParams.get("mode") ?? "").trim() === "collect";
+  const isNcPayoutMode = (searchParams.get("mode") ?? "").trim() === "nc-payout";
   const cart = usePosCart();
   const {
     payments,
@@ -424,6 +433,8 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const [deferLoading, setDeferLoading] = useState(false);
   const [collectSales, setCollectSales] = useState<PosArCollectSaleRow[]>([]);
   const [collectInitError, setCollectInitError] = useState("");
+  const [ncPayoutCreditNotes, setNcPayoutCreditNotes] = useState<PosNcPayoutRow[]>([]);
+  const [ncPayoutInitError, setNcPayoutInitError] = useState("");
   /** Devolución: reembolso inmediato en caja (muestra barra de montos y medios de pago). */
   const [immediateReturnRefund, setImmediateReturnRefund] = useState(false);
 
@@ -626,9 +637,11 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
 
     return base.filter((opt) => {
       const method = resolveMethodForOption(opt.id);
-      return !isCustomerLinkedPaymentMethod(method);
+      if (isCustomerLinkedPaymentMethod(method)) return false;
+      if (isNcPayoutMode && !isNcPayoutAllowedPaymentMethod(method)) return false;
+      return true;
     });
-  }, [effectiveMethods, resolveMethodForOption]);
+  }, [effectiveMethods, resolveMethodForOption, isNcPayoutMode]);
 
   // Si el medio seleccionado es transferencia y el POS configuró una cuenta destino preferente,
   // precárgala en el diálogo (pero sin pisar una selección manual).
@@ -646,11 +659,11 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
 
   useEffect(() => {
     if (!cart.ready) return;
-    if (isCollectMode) return;
+    if (isCollectMode || isNcPayoutMode) return;
     if (cart.lines.length === 0) {
       router.replace("/pos");
     }
-  }, [cart.ready, cart.lines.length, router, isCollectMode]);
+  }, [cart.ready, cart.lines.length, router, isCollectMode, isNcPayoutMode]);
 
   const pickSearchCustomer = useCallback(
     (row: PosCustomerSearchRow) => {
@@ -707,7 +720,14 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     () => collectSales.reduce((acc, s) => acc + (Number(s.balanceDue) || 0), 0),
     [collectSales],
   );
-  const amountToPay = isCollectMode
+  const ncPayoutBalanceTotal = useMemo(
+    () =>
+      ncPayoutCreditNotes.reduce((acc, n) => acc + (Number(n.availableAmount) || 0), 0),
+    [ncPayoutCreditNotes],
+  );
+  const amountToPay = isNcPayoutMode
+    ? ncPayoutBalanceTotal
+    : isCollectMode
     ? collectBalanceTotal
     : isEncargoMode && backorderDeposit
       ? Math.max(0, Math.round(backorderDeposit.amount))
@@ -741,7 +761,9 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     [setBackorderDeposit, setEncargoModeEnabled],
   );
 
-  const flowTitle = isCollectMode
+  const flowTitle = isNcPayoutMode
+    ? "Devolución saldo NC"
+    : isCollectMode
     ? "Cobro pendiente"
     : isReturnMode
       ? "Devolución en curso"
@@ -750,7 +772,9 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         : isEncargoMode
           ? "Encargo en curso"
           : "Venta en curso";
-  const summarySectionLabel = isCollectMode
+  const summarySectionLabel = isNcPayoutMode
+    ? "Notas de crédito a liquidar"
+    : isCollectMode
     ? "Ventas a cobrar"
     : isReturnMode
       ? "Resumen de devolución"
@@ -761,7 +785,9 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           : "Resumen de venta";
   const amountDueLabel = isReturnMode
     ? "Total a devolver"
-    : isCollectMode
+    : isNcPayoutMode
+      ? "Total a devolver"
+      : isCollectMode
       ? "Total a cobrar"
       : "Total a pagar";
   const showReturnRefundUi = !isReturnMode || immediateReturnRefund;
@@ -800,6 +826,34 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   }, [isCollectMode, disableEncargoMode, setCustomer, setPayments]);
 
   useEffect(() => {
+    if (!isNcPayoutMode) return;
+    disableEncargoMode();
+    const draft = readPosNcPayoutDraft();
+    if (!draft) {
+      setNcPayoutInitError(
+        "No hay notas de crédito seleccionadas. Vuelve a la ficha del cliente.",
+      );
+      setNcPayoutCreditNotes([]);
+      return;
+    }
+    setNcPayoutInitError("");
+    setNcPayoutCreditNotes(draft.creditNotes);
+    setCustomer({
+      customerId: draft.customerId,
+      name: draft.customerDisplayName ?? draft.customerId,
+      document: "",
+      phone: "",
+      email: null,
+    });
+    setPayments([]);
+  }, [isNcPayoutMode, disableEncargoMode, setCustomer, setPayments]);
+
+  useEffect(() => {
+    if (!isNcPayoutMode) return;
+    setPayments((prev) => prev.filter((p) => isNcPayoutAllowedPaymentMethod(p.type)));
+  }, [isNcPayoutMode, setPayments]);
+
+  useEffect(() => {
     if (customer?.customerId?.trim()) {
       setSaleSummaryAlert("");
     }
@@ -821,7 +875,11 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       if (prev.length > 0) return prev;
       // Catálogo efectivo: precargar líneas marcadas como `preloadOnPaymentScreen`,
       // ordenadas por `preloadOrder` (el backend ya las devuelve ordenadas).
-      const preload = effectiveMethods.filter((m) => m.preloadOnPaymentScreen);
+      const preload = effectiveMethods.filter((m) => {
+        if (!m.preloadOnPaymentScreen) return false;
+        if (isNcPayoutMode && !isNcPayoutAllowedPaymentMethod(m.method)) return false;
+        return true;
+      });
       const preloadLines =
         preload.length > 0
           ? preload.map((m) => ({
@@ -871,6 +929,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     effectiveMethods,
     isFulfillBackorderMode,
     loadedBackorder,
+    isNcPayoutMode,
   ]);
 
   const appliedTotal = useMemo(() => payments.reduce((a, p) => a + p.amount, 0), [payments]);
@@ -985,6 +1044,10 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       setAddAlert("Usa las notas de crédito del panel del cliente para este medio de pago.");
       return;
     }
+    if (isNcPayoutMode && !isNcPayoutAllowedPaymentMethod(enumType)) {
+      setAddAlert("Solo se admite efectivo, transferencia o cheque para devolver saldo de NC.");
+      return;
+    }
     if (enumType !== "CASH" && nonCashTotal + amt > amountToPay + 0.01) {
       setAddAlert(NON_CASH_LIMIT_MSG);
       return;
@@ -1022,6 +1085,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     bankAccountOptions.length,
     nonCashTotal,
     amountToPay,
+    isNcPayoutMode,
   ]);
 
   const isFulfillBackorderAdvanceLine = useCallback(
@@ -1234,6 +1298,16 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     payments.length > 0 &&
     (remaining <= 0.01 || overpay > 0);
 
+  const canConfirmNcPayout =
+    isNcPayoutMode &&
+    ncPayoutCreditNotes.length > 0 &&
+    !ncPayoutInitError &&
+    hasSaleCustomer &&
+    amountToPay > 0 &&
+    payments.length > 0 &&
+    remaining <= 0.01 &&
+    overpay <= 0.01;
+
   const canConfirmStandardPayment =
     amountToPay > 0 && payments.length > 0 && remaining <= 0.01;
 
@@ -1248,6 +1322,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const canConfirmSale =
     !isReturnMode &&
     !isCollectMode &&
+    !isNcPayoutMode &&
     cart.lines.length > 0 &&
     !stockBlocksSalePayment &&
     (isEncargoMode
@@ -1260,12 +1335,14 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     canConfirmReturnDocument ||
     canConfirmReturnWithRefund ||
     canConfirmSale ||
-    canConfirmCollect;
+    canConfirmCollect ||
+    canConfirmNcPayout;
 
   const confirmPaymentDisabled = !canConfirm || confirmLoading || deferLoading;
 
   const showDeferPaymentButton =
     !isCollectMode &&
+    !isNcPayoutMode &&
     !isReturnMode &&
     !isFulfillBackorderMode &&
     !isEncargoMode &&
@@ -1287,6 +1364,15 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       if (payments.length === 0) return "Agrega al menos un método de pago";
       if (remaining > 0.01) return "Cubre el saldo restante antes de confirmar";
       return "Confirmar reembolso";
+    }
+    if (isNcPayoutMode) {
+      if (ncPayoutInitError) return ncPayoutInitError;
+      if (ncPayoutCreditNotes.length === 0) return "No hay notas de crédito seleccionadas";
+      if (!hasSaleCustomer) return "Cliente requerido";
+      if (payments.length === 0) return "Agrega al menos un método de pago";
+      if (remaining > 0.01) return "Cubre el total a devolver antes de confirmar";
+      if (overpay > 0.01) return "El monto no puede superar el total a devolver";
+      return "Confirmar devolución";
     }
     if (isCollectMode) {
       if (collectInitError) return collectInitError;
@@ -1314,6 +1400,22 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   })();
 
   const validateConfirm = (): string => {
+    if (isNcPayoutMode) {
+      if (ncPayoutInitError) return ncPayoutInitError;
+      if (ncPayoutCreditNotes.length === 0) {
+        return "No hay notas de crédito seleccionadas para devolver.";
+      }
+      if (!hasSaleCustomer) return "Cliente requerido.";
+      if (amountToPay <= 0) return "El total a devolver debe ser mayor que cero.";
+      if (payments.length === 0) return "Agrega al menos un método de pago.";
+      if (remaining > 0.01) return "Cubre el total a devolver antes de confirmar.";
+      if (overpay > 0.01) return "El monto pagado no puede superar el total a devolver.";
+      const badMethod = payments.find((p) => !isNcPayoutAllowedPaymentMethod(p.type));
+      if (badMethod) {
+        return "Quita los medios de pago no permitidos (solo efectivo, transferencia o cheque).";
+      }
+      return "";
+    }
     if (isCollectMode) {
       if (collectInitError) return collectInitError;
       if (collectSales.length === 0) return "No hay ventas seleccionadas para cobrar.";
@@ -1523,6 +1625,76 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         "Falta la sesión de caja en el contexto del POS. Ve a la configuración de sesión y vuelve a entrar al punto de venta.",
       );
       return;
+    }
+
+    if (isNcPayoutMode) {
+      const customerId = customer?.customerId?.trim();
+      if (!customerId) {
+        setConfirmLoading(false);
+        setPageAlert("Cliente requerido.");
+        return;
+      }
+      try {
+        const payoutRes = await payoutCustomerCreditNotesFromPosAction(
+          buildPayoutCustomerCreditNotesClientPayload({
+            pointOfSaleId,
+            cashSessionId,
+            customerId,
+            creditNoteTransactionIds: ncPayoutCreditNotes.map((n) => n.id),
+            payments,
+          }),
+        );
+        if (!payoutRes.success) {
+          setConfirmLoading(false);
+          setPageAlert(payoutRes.message);
+          return;
+        }
+        clearPosNcPayoutDraft();
+        let details = companyDetails;
+        if (!details) {
+          try {
+            details = (await getCompanyDetailsAction()) ?? null;
+            if (details) setCompanyDetails(details);
+          } catch {
+            details = null;
+          }
+        }
+        const snapshot = buildPosSaleReceiptSnapshot({
+          lines: [],
+          payments,
+          customer,
+          company: details,
+          posContext: posCtx,
+          appliedPromotions: [],
+          orderDiscount: 0,
+          lineDiscountsTotal: 0,
+          totals: {
+            net: 0,
+            gross: 0,
+            taxes: 0,
+            discounts: 0,
+            saleTotal: ncPayoutBalanceTotal,
+            appliedTotal,
+            overpay: 0,
+          },
+          methodsById,
+          loadedQuotation: null,
+          saleFolio: payoutRes.documentNumber,
+          documentKind: "sale",
+          ncPayout: payoutRes.allocations.map((a) => ({
+            folio: a.documentNumber,
+            amount: a.amount,
+          })),
+        });
+        setReceiptData(snapshot);
+        setConfirmLoading(false);
+        setSuccessOpen(true);
+        return;
+      } catch (e) {
+        setConfirmLoading(false);
+        setPageAlert(e instanceof Error ? e.message : "No se pudo registrar la devolución.");
+        return;
+      }
     }
 
     if (isCollectMode) {
@@ -1824,7 +1996,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     );
   }
 
-  if (!isCollectMode && cart.lines.length === 0) {
+  if (!isCollectMode && !isNcPayoutMode && cart.lines.length === 0) {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
         <DotProgress />
@@ -1991,6 +2163,10 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                   labelPosition="left"
                 />
               </div>
+            ) : isNcPayoutMode ? (
+              <span className="text-xs text-muted-foreground">
+                {ncPayoutCreditNotes.length} nota(s) de crédito · 100 % del disponible
+              </span>
             ) : isCollectMode ? (
               <span className="text-xs text-muted-foreground">
                 {collectSales.length} venta(s) seleccionada(s)
@@ -2063,9 +2239,9 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
               </div>
             )}
           </div>
-          {collectInitError ? (
+          {collectInitError || ncPayoutInitError ? (
             <Alert variant="error" className="text-xs">
-              {collectInitError}
+              {collectInitError || ncPayoutInitError}
             </Alert>
           ) : null}
           {saleSummaryAlert || stockBlocksSalePayment ? (
@@ -2077,7 +2253,22 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
             className="min-h-0 flex-1 divide-y divide-border overflow-y-auto rounded-lg border border-border bg-background [scrollbar-gutter:stable]"
             data-test-id="pos-payment-cart-lines-readonly"
           >
-            {isCollectMode
+            {isNcPayoutMode
+              ? ncPayoutCreditNotes.map((nc) => (
+                  <li
+                    key={nc.id}
+                    className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
+                    data-test-id={`pos-nc-payout-row-${nc.id}`}
+                  >
+                    <span className="font-mono font-medium text-foreground">
+                      {nc.documentNumber}
+                    </span>
+                    <span className="shrink-0 tabular-nums font-semibold">
+                      {formatMoney(nc.availableAmount)}
+                    </span>
+                  </li>
+                ))
+              : isCollectMode
               ? collectSales.map((sale) => (
                   <li
                     key={sale.id}
@@ -2097,7 +2288,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                 ))}
           </ul>
           <footer className="shrink-0 space-y-2 border-t border-border pt-3 text-sm">
-            {isCollectMode || isEncargoMode ? (
+            {isCollectMode || isNcPayoutMode || isEncargoMode ? (
               <div className="flex justify-between gap-4 pt-1 text-base font-semibold">
                 <span className="text-foreground">{amountDueLabel}</span>
                 <span className="tabular-nums text-foreground">{formatMoney(amountToPay)}</span>
@@ -2149,7 +2340,11 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
                 error={paymentSourcesError}
                 showOrderAdvances={false}
                 onApplyCreditNote={
-                  showReturnRefundUi && !isReturnMode && !isCollectMode && !isEncargoMode
+                  showReturnRefundUi &&
+                    !isReturnMode &&
+                    !isCollectMode &&
+                    !isNcPayoutMode &&
+                    !isEncargoMode
                     ? applyCreditNoteFromPanel
                     : undefined
                 }

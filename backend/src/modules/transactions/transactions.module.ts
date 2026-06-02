@@ -3,6 +3,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TransactionsController } from './presentation/transactions.controller';
 import { SupplierPaymentsController } from './presentation/supplier-payments.controller';
+import { AccountsPayableController } from './presentation/accounts-payable.controller';
 import { PurchaseOrdersController } from './presentation/purchase-orders.controller';
 import { OperatingExpenseTransactionsController } from './presentation/operating-expense-transactions.controller';
 import { InventoryTransactionsController } from './presentation/controllers/inventory.controller';
@@ -54,6 +55,8 @@ import { PosBackorderLookupService } from './application/pos-backorder-lookup.se
 import { PosSaleReceiptPrintService } from './application/pos-sale-receipt-print.service';
 import { CompaniesModule } from '@modules/companies/companies.module';
 import { SupplierFiscalDocumentPaymentAggregateService } from './application/services/supplier-fiscal-document-payment-aggregate.service';
+import { ParentPaymentAggregateService } from './application/services/parent-payment-aggregate.service';
+import { AccountsPayableService } from './application/services/accounts-payable.service';
 
 // Inventory CQRS
 import { inventoryCommandHandlers } from './application/commands/inventory';
@@ -96,6 +99,7 @@ import { CancelBackorderService } from './application/cancel-backorder.service';
   controllers: [
     TransactionsController,
     SupplierPaymentsController,
+    AccountsPayableController,
     PurchaseOrdersController,
     OperatingExpenseTransactionsController,
     InventoryTransactionsController,
@@ -109,6 +113,8 @@ import { CancelBackorderService } from './application/cancel-backorder.service';
     PosSaleReceiptPrintService,
     CancelBackorderService,
     SupplierFiscalDocumentPaymentAggregateService,
+    ParentPaymentAggregateService,
+    AccountsPayableService,
     PurchaseOrdersService,
     TransactionsService, // Adapter for backward compatibility
     TransactionsServiceAdapter,
@@ -145,6 +151,8 @@ import { CancelBackorderService } from './application/cancel-backorder.service';
     TransactionsService,
     TransactionsServiceAdapter,
     SupplierFiscalDocumentPaymentAggregateService,
+    ParentPaymentAggregateService,
+    AccountsPayableService,
     DocumentNumberService,
   ],
 })

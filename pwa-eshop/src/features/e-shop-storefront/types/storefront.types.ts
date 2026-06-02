@@ -9,6 +9,7 @@ export type EShopStorefront = {
     phone?: string;
     instagram?: string;
     tiktok?: string;
+    facebook?: string;
   };
   eShopEnabled: boolean;
   eShopFreeShippingThreshold: number | null;

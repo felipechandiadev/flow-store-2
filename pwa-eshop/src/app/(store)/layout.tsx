@@ -6,7 +6,6 @@ import { EShopTopBar } from "@/shared/components/EShopTopBar";
 import { EShopCartDrawer } from "@/shared/components/EShopCartDrawer";
 import { EShopFooter } from "@/shared/components/EShopFooter";
 import { EShopStoreUnavailable } from "@/shared/components/EShopStoreUnavailable";
-import { StorefrontCartSync } from "./StorefrontCartSync";
 import { LegacyHashRedirect } from "./ui/LegacyHashRedirect";
 
 export default async function StoreLayout({ children }: { children: React.ReactNode }) {
@@ -26,9 +25,8 @@ export default async function StoreLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <EShopCartProvider>
+    <EShopCartProvider initialFreeShippingThreshold={storefront.eShopFreeShippingThreshold}>
       <LegacyHashRedirect />
-      <StorefrontCartSync threshold={storefront.eShopFreeShippingThreshold} />
       <EShopTopBar
         companyName={storefront.companyName}
         companyLogoUrl={storefront.companyLogoUrl}

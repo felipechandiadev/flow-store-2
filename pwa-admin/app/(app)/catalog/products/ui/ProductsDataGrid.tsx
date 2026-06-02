@@ -688,7 +688,7 @@ export default function ProductsDataGrid({ rows, total }: ProductsDataGridProps)
         >
           {eshopModuleOn && r.visibleInEShop === true ? (
             <IconButton
-              icon="Eye"
+              icon="Globe"
               variant="action"
               size="sm"
               title="Vista previa eShop"

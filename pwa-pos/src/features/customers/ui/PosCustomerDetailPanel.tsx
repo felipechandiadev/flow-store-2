@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Dialog, IconButton } from "@/shared/admin-shared";
 import { Badge } from "@/shared/components/Badge";
 import { writePosArCollectDraft } from "@/features/session/lib/pos-ar-collect-storage";
+import { writePosNcPayoutDraft } from "@/features/session/lib/pos-nc-payout-storage";
 import { getBackorderDetailPosAction, getCustomerPosDetailBundleAction } from "@/features/customers/actions/customers-pos.action";
 import type {
   PosCustomerDetail,
@@ -224,7 +225,11 @@ export default function PosCustomerDetailPanel({
       </SectionCard>
 
       <SectionCard title="Notas de crédito" testId="pos-customer-detail-credit-notes">
-        <CreditNotesSection rows={creditNotes} />
+        <CreditNotesSection
+          rows={creditNotes}
+          customerId={customer.customerId}
+          customerDisplayName={customer.displayName}
+        />
       </SectionCard>
     </article>
   );
@@ -602,20 +607,45 @@ function formatRelatedSalesLabel(
     .join(", ");
 }
 
+function formatRelatedCreditNotesLabel(
+  relatedCreditNotes: PosCustomerPaymentRow["relatedCreditNotes"],
+): string {
+  if (!relatedCreditNotes.length) return "—";
+  if (relatedCreditNotes.length === 1) {
+    return (
+      relatedCreditNotes[0].documentNumber?.trim() ||
+      relatedCreditNotes[0].creditNoteId
+    );
+  }
+  return relatedCreditNotes
+    .map((n) => n.documentNumber?.trim() || n.creditNoteId.slice(0, 8))
+    .join(", ");
+}
+
+function formatPaymentReferenceLabel(row: PosCustomerPaymentRow): string {
+  if (row.relatedCreditNotes.length > 0) {
+    return formatRelatedCreditNotesLabel(row.relatedCreditNotes);
+  }
+  return formatRelatedSalesLabel(row.relatedSales);
+}
+
 function PaymentsSection({ rows }: { rows: PosCustomerPaymentRow[] }) {
   if (rows.length === 0) {
-    return <EmptyTableMsg>No hay cobros (pagos a cuenta) registrados.</EmptyTableMsg>;
+    return (
+      <EmptyTableMsg>
+        No hay cobros ni devoluciones de saldo NC registrados.
+      </EmptyTableMsg>
+    );
   }
   return (
     <DataTable
-      headers={["Folio cobro", "Ventas", "Estado", "Medio", "Monto", "Fecha"]}
+      headers={["Folio", "Referencia", "Tipo", "Medio", "Monto", "Fecha"]}
       rows={rows.map((r) => {
         const typeKey = r.type ?? "";
         return [
           r.documentNumber ?? "—",
-          formatRelatedSalesLabel(r.relatedSales),
+          formatPaymentReferenceLabel(r),
           TX_TYPE_LABEL[typeKey] ?? (typeKey || "—"),
-          r.status ?? "—",
           r.paymentMethod ?? "—",
           fmtClp(r.total),
           formatCustomerDateTime(r.createdAt),
@@ -669,44 +699,156 @@ function ReturnsSection({ rows }: { rows: PosCustomerReturnRow[] }) {
   );
 }
 
-function CreditNotesSection({ rows }: { rows: PosCustomerCreditNoteRow[] }) {
+function CreditNotesSection({
+  rows,
+  customerId,
+  customerDisplayName,
+}: {
+  rows: PosCustomerCreditNoteRow[];
+  customerId: string;
+  customerDisplayName: string;
+}) {
+  const router = useRouter();
+  const refundable = useMemo(
+    () => rows.filter((r) => Math.round(r.availableAmount) >= 1),
+    [rows],
+  );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [customerId, rows]);
+
+  const toggleRow = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    if (selectedIds.size >= refundable.length) {
+      setSelectedIds(new Set());
+      return;
+    }
+    setSelectedIds(new Set(refundable.map((r) => r.id)));
+  }, [refundable, selectedIds.size]);
+
+  const selectedTotal = useMemo(
+    () =>
+      refundable
+        .filter((r) => selectedIds.has(r.id))
+        .reduce((acc, r) => acc + Math.round(r.availableAmount), 0),
+    [refundable, selectedIds],
+  );
+
+  const handlePayout = useCallback(() => {
+    const notes = refundable
+      .filter((r) => selectedIds.has(r.id))
+      .map((r) => ({
+        id: r.id,
+        documentNumber: r.documentNumber,
+        availableAmount: Math.round(r.availableAmount),
+      }));
+    if (notes.length === 0) return;
+    writePosNcPayoutDraft({
+      customerId,
+      customerDisplayName,
+      creditNotes: notes,
+    });
+    router.push("/pos/payment?mode=nc-payout");
+  }, [refundable, selectedIds, customerId, customerDisplayName, router]);
+
   if (rows.length === 0) {
     return <EmptyTableMsg>No hay notas de crédito registradas.</EmptyTableMsg>;
   }
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full min-w-[560px] border-collapse text-xs">
-        <thead>
-          <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-semibold uppercase text-muted-foreground">
-            <th className="px-3 py-2">Folio NC</th>
-            <th className="px-3 py-2">Estado</th>
-            <th className="px-3 py-2 text-right">Total</th>
-            <th className="px-3 py-2 text-right">Utilizado</th>
-            <th className="px-3 py-2 text-right">Disponible</th>
-            <th className="px-3 py-2">Fecha</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="border-b border-border/80">
-              <td className="px-3 py-2 font-mono">{r.documentNumber}</td>
-              <td className="px-3 py-2">
-                <Badge variant={creditNoteUsageVariant(r.usageStatus)}>
-                  {CREDIT_NOTE_USAGE_LABEL[r.usageStatus]}
-                </Badge>
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">{fmtClp(r.total)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{fmtClp(r.consumedAmount)}</td>
-              <td className="px-3 py-2 text-right tabular-nums font-medium">
-                {fmtClp(r.availableAmount)}
-              </td>
-              <td className="px-3 py-2 text-muted-foreground">
-                {formatCustomerDateTime(r.createdAt)}
-              </td>
+    <div className="space-y-3">
+      {refundable.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/20 px-3 py-2">
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
+            <input
+              type="checkbox"
+              className="size-4 rounded border-border"
+              checked={selectedIds.size > 0 && selectedIds.size === refundable.length}
+              onChange={toggleAll}
+              data-test-id="pos-customer-nc-select-all"
+            />
+            Seleccionar todas ({refundable.length})
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {selectedIds.size > 0
+                ? `${selectedIds.size} NC · ${fmtClp(selectedTotal)} (100 % del disponible)`
+                : "Selecciona notas con saldo a devolver en caja"}
+            </span>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={selectedIds.size === 0}
+              onClick={handlePayout}
+              data-test-id="pos-customer-nc-payout-selection"
+            >
+              Devolver saldo
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full min-w-[560px] border-collapse text-xs">
+          <thead>
+            <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-semibold uppercase text-muted-foreground">
+              {refundable.length > 0 ? <th className="w-8 px-2 py-2" /> : null}
+              <th className="px-3 py-2">Folio NC</th>
+              <th className="px-3 py-2">Estado</th>
+              <th className="px-3 py-2 text-right">Total</th>
+              <th className="px-3 py-2 text-right">Utilizado</th>
+              <th className="px-3 py-2 text-right">Disponible</th>
+              <th className="px-3 py-2">Fecha</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const isRefundableRow = refundable.some((x) => x.id === r.id);
+              return (
+                <tr key={r.id} className="border-b border-border/80">
+                  {refundable.length > 0 ? (
+                    <td className="px-2 py-2">
+                      {isRefundableRow ? (
+                        <input
+                          type="checkbox"
+                          className="size-4 rounded border-border"
+                          checked={selectedIds.has(r.id)}
+                          onChange={() => toggleRow(r.id)}
+                          data-test-id={`pos-customer-nc-select-${r.id}`}
+                        />
+                      ) : null}
+                    </td>
+                  ) : null}
+                  <td className="px-3 py-2 font-mono">{r.documentNumber}</td>
+                  <td className="px-3 py-2">
+                    <Badge variant={creditNoteUsageVariant(r.usageStatus)}>
+                      {CREDIT_NOTE_USAGE_LABEL[r.usageStatus]}
+                    </Badge>
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtClp(r.total)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtClp(r.consumedAmount)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium">
+                    {fmtClp(r.availableAmount)}
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground">
+                    {formatCustomerDateTime(r.createdAt)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

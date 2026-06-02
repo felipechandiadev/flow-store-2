@@ -9,7 +9,8 @@ export type CreateSupplierInvoicePlannedPayment = {
   /** Fecha de pago (YYYY-MM-DD). */
   dueDate: string;
   amount: number;
-  paymentMethod: "CASH" | "TRANSFER" | "CHECK";
+  /** Medio de pago; omitir en cuotas programadas (se define al ejecutar el pago). */
+  paymentMethod?: "CASH" | "TRANSFER" | "CHECK";
   companyBankAccountKey?: string | null;
   supplierBankAccountKey?: string | null;
   chequeNumber?: string | null;

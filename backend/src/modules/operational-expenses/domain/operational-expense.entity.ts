@@ -35,7 +35,8 @@ export enum OperationalExpenseStatus {
 export type OperationalExpenseLinkedPlannedPayment = {
   dueDate: string;
   amount: number;
-  paymentMethod: 'CASH' | 'TRANSFER' | 'CHECK';
+  /** Medio de pago; omitir en cuotas programadas (se define al ejecutar el pago). */
+  paymentMethod?: 'CASH' | 'TRANSFER' | 'CHECK';
   companyBankAccountKey?: string | null;
   supplierBankAccountKey?: string | null;
   /** Número del cheque (cuando `paymentMethod === 'CHECK'`). */
@@ -68,6 +69,7 @@ export interface OperationalExpenseMetadata {
   invoiceNumber?: string;
   notes?: string;
   linkedTributaryDocument?: OperationalExpenseLinkedTributaryDocument | null;
+  operatingExpenseTransactionId?: string;
 }
 
 @Entity('operational_expenses')

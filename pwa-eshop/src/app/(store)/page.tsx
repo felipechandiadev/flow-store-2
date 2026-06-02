@@ -26,8 +26,8 @@ export default async function HomePage() {
       <StorePageShell className="space-y-16">
         <section id="productos" className="scroll-mt-20 space-y-6">
           <div className="flex items-end justify-between gap-4">
-            <h2 className="text-xl font-semibold">Productos destacados</h2>
-            <Link href="/productos" className="text-sm text-primary hover:underline">
+            <h2 className="text-base font-semibold md:text-xl">Productos destacados</h2>
+            <Link href="/productos" className="text-xs text-primary hover:underline md:text-sm">
               Ver catálogo completo
             </Link>
           </div>
@@ -43,11 +43,8 @@ export default async function HomePage() {
         </section>
 
         <section id="donde-estamos" className="scroll-mt-20 space-y-4">
-          <h2 className="text-xl font-semibold">Encuéntranos</h2>
-          <BranchesMap branches={branches} />
-          <Link href="/donde-estamos" className="text-sm text-primary hover:underline">
-            Ver mapa y sucursales
-          </Link>
+          <h2 className="text-base font-semibold md:text-xl">Encuéntranos</h2>
+          <BranchesMap branches={branches} zoomButtonsOnly />
         </section>
       </StorePageShell>
     </>

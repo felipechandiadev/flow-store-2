@@ -65,6 +65,12 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
     ) {
       await this.assertPayrollPaymentParent(dto);
     }
+    if (
+      dto.transactionType === TransactionType.EXPENSE_PAYMENT &&
+      dto.relatedTransactionId
+    ) {
+      await this.assertExpensePaymentParent(dto);
+    }
 
     // Paso Pre-transacción: Obtener branch y companyId fuera de la transacción
     const branch = await this.branchRepository.findOne({
@@ -118,14 +124,17 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
             );
 
         // Paso 3-4: Crear y guardar Transaction en BD
-        const initialStatus =
-          dto.transactionType === TransactionType.PURCHASE_ORDER &&
-          dto.transactionStatus === TransactionStatus.DRAFT
-            ? TransactionStatus.DRAFT
-            : dto.transactionType === TransactionType.SUPPLIER_PAYMENT &&
-                dto.transactionStatus === TransactionStatus.DRAFT
-              ? TransactionStatus.DRAFT
-              : TransactionStatus.CONFIRMED;
+        const draftOnCreate =
+          dto.transactionStatus === TransactionStatus.DRAFT &&
+          [
+            TransactionType.PURCHASE_ORDER,
+            TransactionType.SUPPLIER_PAYMENT,
+            TransactionType.PAYROLL_PAYMENT,
+            TransactionType.EXPENSE_PAYMENT,
+          ].includes(dto.transactionType);
+        const initialStatus = draftOnCreate
+          ? TransactionStatus.DRAFT
+          : TransactionStatus.CONFIRMED;
 
         const transactionData: any = {
           documentNumber,
@@ -281,6 +290,33 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
     ) {
       throw new BadRequestException(
         'SUPPLIER_PAYMENT: supplierId no coincide con el documento origen',
+      );
+    }
+  }
+
+  private async assertExpensePaymentParent(
+    dto: CreateTransactionDto,
+  ): Promise<void> {
+    const parent = await this.transactionsRepository.findOne({
+      where: { id: dto.relatedTransactionId! },
+    });
+    if (!parent) {
+      throw new BadRequestException(
+        'EXPENSE_PAYMENT: relatedTransactionId no existe',
+      );
+    }
+    if (parent.transactionType !== TransactionType.OPERATING_EXPENSE) {
+      throw new BadRequestException(
+        `EXPENSE_PAYMENT: el origen debe ser OPERATING_EXPENSE (actual: ${parent.transactionType})`,
+      );
+    }
+    if (
+      dto.expenseCategoryId &&
+      parent.expenseCategoryId &&
+      parent.expenseCategoryId !== dto.expenseCategoryId
+    ) {
+      throw new BadRequestException(
+        'EXPENSE_PAYMENT: expenseCategoryId no coincide con el gasto origen',
       );
     }
   }

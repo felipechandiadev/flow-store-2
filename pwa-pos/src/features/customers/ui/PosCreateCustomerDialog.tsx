@@ -10,9 +10,17 @@ import {
 } from "@/shared/admin-shared";
 import type { Option } from "@/shared/components/Select/Select";
 import { createPosCustomerAction } from "@/features/customers/actions/customers-pos.action";
-import type { PosCreateCustomerInput } from "@/features/customers/types/pos-customer-create.types";
+import type {
+  PosCreateCustomerInput,
+  PosCustomerDocumentType,
+} from "@/features/customers/types/pos-customer-create.types";
 
-const DOC_OPTIONS: Option[] = [
+const PERSON_TYPE_OPTIONS: Option[] = [
+  { id: "NATURAL", label: "Persona natural" },
+  { id: "COMPANY", label: "Empresa" },
+];
+
+const DOC_NATURAL_OPTIONS: Option[] = [
   { id: "RUN", label: "RUN" },
   { id: "PASSPORT", label: "Pasaporte" },
   { id: "DNI", label: "DNI" },
@@ -47,9 +55,11 @@ export function PosCreateCustomerDialog({
   onSuccess,
   internalCreditEnabled = false,
 }: PosCreateCustomerDialogProps) {
+  const [personType, setPersonType] = useState<"NATURAL" | "COMPANY">("NATURAL");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [documentType, setDocumentType] = useState<"RUN" | "PASSPORT" | "DNI">("RUN");
+  const [businessName, setBusinessName] = useState("");
+  const [documentType, setDocumentType] = useState<PosCustomerDocumentType>("RUN");
   const [documentNumber, setDocumentNumber] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -62,8 +72,10 @@ export function PosCreateCustomerDialog({
 
   useEffect(() => {
     if (open) {
+      setPersonType("NATURAL");
       setFirstName("");
       setLastName("");
+      setBusinessName("");
       setDocumentType("RUN");
       setDocumentNumber("");
       setEmail("");
@@ -81,6 +93,18 @@ export function PosCreateCustomerDialog({
     onClose();
   };
 
+  const useDniField =
+    personType === "COMPANY" || (personType === "NATURAL" && (documentType === "RUN" || documentType === "DNI"));
+
+  const documentNumberLabel =
+    personType === "COMPANY"
+      ? "RUT"
+      : documentType === "RUN"
+        ? "RUN"
+        : documentType === "DNI"
+          ? "DNI"
+          : "Número de documento";
+
   const handleSubmit = () => {
     setError(null);
     const creditLimit = internalCreditEnabled
@@ -88,10 +112,11 @@ export function PosCreateCustomerDialog({
       : 0;
     const day = Number(paymentDayOfMonth);
     const input: PosCreateCustomerInput = {
-      personType: "NATURAL",
-      firstName: firstName.trim(),
-      lastName: lastName.trim() || undefined,
-      documentType,
+      personType,
+      firstName: personType === "NATURAL" ? firstName : undefined,
+      lastName: personType === "NATURAL" ? lastName : undefined,
+      businessName: personType === "COMPANY" ? businessName : undefined,
+      documentType: personType === "COMPANY" ? "RUT" : documentType,
       documentNumber: documentNumber.trim(),
       email: email.trim() || undefined,
       phone: phone.trim() || undefined,
@@ -110,7 +135,9 @@ export function PosCreateCustomerDialog({
         const r = await createPosCustomerAction(input);
         if (r.success) {
           const displayName =
-            [firstName.trim(), lastName.trim()].filter(Boolean).join(" ").trim() || "Cliente";
+            personType === "COMPANY"
+              ? businessName.trim()
+              : [firstName.trim(), lastName.trim()].filter(Boolean).join(" ").trim() || "Cliente";
           await onSuccess?.({
             customerId: r.customerId,
             displayName,
@@ -126,7 +153,12 @@ export function PosCreateCustomerDialog({
     });
   };
 
-  const canSubmit = !isPending && firstName.trim().length > 0 && documentNumber.trim().length > 0;
+  const canSubmit =
+    !isPending &&
+    documentNumber.trim().length > 0 &&
+    (personType === "COMPANY"
+      ? businessName.trim().length > 0
+      : firstName.trim().length > 0 && documentType !== "RUT");
 
   return (
     <Dialog
@@ -151,43 +183,77 @@ export function PosCreateCustomerDialog({
     >
       <div className="flex w-full min-w-0 flex-col gap-4">
         <p className="text-sm text-muted-foreground">
-          Persona natural. El documento debe ser único en la empresa.
+          El cliente se asocia a una persona o empresa. El documento debe ser único en la empresa.
         </p>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <TextField
-            label="Nombre"
-            name="pos-customer-first-name"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            placeholder="Nombre"
-            required
-          />
-          <TextField
-            label="Apellidos (opcional)"
-            name="pos-customer-last-name"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            placeholder="Apellidos"
-          />
-        </div>
-
         <Select
-          label="Tipo de documento"
-          name="pos-customer-doc-type"
-          placeholder="Tipo de documento"
-          options={DOC_OPTIONS}
-          value={documentType}
-          onChange={(v) => setDocumentType((v != null ? String(v) : "RUN") as "RUN" | "PASSPORT" | "DNI")}
+          label="Tipo de titular"
+          name="pos-customer-person-type"
+          placeholder="Tipo de titular"
+          options={PERSON_TYPE_OPTIONS}
+          value={personType}
+          onChange={(v) => {
+            const next = v === "COMPANY" ? "COMPANY" : "NATURAL";
+            setPersonType(next);
+            if (next === "COMPANY") {
+              setDocumentType("RUT");
+            } else if (documentType === "RUT") {
+              setDocumentType("RUN");
+            }
+          }}
           required
         />
 
+        {personType === "COMPANY" ? (
+          <TextField
+            label="Razón social"
+            name="pos-customer-business-name"
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+            placeholder="Razón social"
+            required
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <TextField
+              label="Nombre"
+              name="pos-customer-first-name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Nombre"
+              required
+            />
+            <TextField
+              label="Apellidos (opcional)"
+              name="pos-customer-last-name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Apellidos"
+            />
+          </div>
+        )}
+
+        {personType === "NATURAL" ? (
+          <Select
+            label="Tipo de documento"
+            name="pos-customer-doc-type"
+            placeholder="Tipo de documento"
+            options={DOC_NATURAL_OPTIONS}
+            value={documentType}
+            onChange={(v) =>
+              setDocumentType((v != null ? String(v) : "RUN") as PosCustomerDocumentType)
+            }
+            required
+          />
+        ) : null}
+
         <TextField
-          label={documentType === "RUN" ? "RUN" : documentType === "DNI" ? "DNI" : "Número de documento"}
+          label={documentNumberLabel}
           name="pos-customer-document-number"
-          type={documentType === "RUN" || documentType === "DNI" ? "dni" : "text"}
+          type={useDniField ? "dni" : "text"}
           value={documentNumber}
           onChange={(e) => setDocumentNumber(e.target.value)}
+          placeholder={documentNumberLabel}
           required
         />
 

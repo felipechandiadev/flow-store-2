@@ -172,7 +172,6 @@ export function StockAlertsDropdown() {
           icon="Bell"
           variant="text"
           size="md"
-          strokeWidth={2.5}
           ariaLabel={`Alertas de stock${stockAlertCount > 0 ? `: ${stockAlertCount} nuevas` : ""}`}
           title="Alertas de stock"
           aria-expanded={open}

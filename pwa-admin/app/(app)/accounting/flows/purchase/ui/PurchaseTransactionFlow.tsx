@@ -74,7 +74,7 @@ function buildNodes(): Node[] {
       position: { x: -140, y: 360 },
       data: {
         label:
-          "Crédito\n(paymentStatus=PENDING|PARTIAL)\n\nNO se crea TransactionType.SUPPLIER_PAYMENT\n\nSe registra CxP / Cuotas (entidad)\n(sin mostrar pagos posteriores)",
+          "CxP pendiente\n\nSUPPLIER_PAYMENT (DRAFT)\npor cuota programada\n\nGET /accounts-payable",
       },
       style: nodeStyle,
     },

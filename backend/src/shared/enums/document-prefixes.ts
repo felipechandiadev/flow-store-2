@@ -10,6 +10,7 @@ export const DOCUMENT_PREFIXES: Record<TransactionType, string> = {
   [TransactionType.PURCHASE_ORDER]: 'ORDEN-COMPRA-',
   [TransactionType.SALE_RETURN]: 'DEVOLUCION-VENTA-',
   [TransactionType.CUSTOMER_CREDIT_NOTE]: 'NOTA-CREDITO-CLIENTE-',
+  [TransactionType.CUSTOMER_CREDIT_NOTE_PAYOUT]: 'DEVOLUCION-SALDO-NC-',
   [TransactionType.PURCHASE_RETURN]: 'DEVOLUCION-COMPRA-',
   [TransactionType.SUPPLIER_INVOICE]: 'FACTURA-PROVEEDOR-',
   [TransactionType.SUPPLIER_RECEIPT]: 'BOLETA-PROVEEDOR-',

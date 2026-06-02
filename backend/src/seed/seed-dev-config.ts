@@ -41,6 +41,7 @@ export const SEED_DEV_ESHOP_PUBLIC_CONTACT = {
   phone: SEED_DEV_COMPANY.phone,
   instagram: 'https://www.instagram.com/kaistore.cl/',
   tiktok: 'https://www.tiktok.com/@kaistore.cl',
+  facebook: 'https://www.facebook.com/kaistore.cl',
 } as const;
 
 export const SEED_DEV_ESHOP_PUBLIC_CONTACT_SECOND = {
@@ -48,6 +49,7 @@ export const SEED_DEV_ESHOP_PUBLIC_CONTACT_SECOND = {
   phone: SEED_DEV_COMPANY_SECOND.phone,
   instagram: 'https://www.instagram.com/segunda.empresa.demo/',
   tiktok: 'https://www.tiktok.com/@segunda.empresa.demo',
+  facebook: 'https://www.facebook.com/segunda.empresa.demo',
 } as const;
 
 function normalizeInstagramProfileUrl(value: string): string {
@@ -68,11 +70,28 @@ function normalizeTiktokProfileUrl(value: string): string {
   return `https://www.tiktok.com/@${handle}`;
 }
 
+function normalizeFacebookProfileUrl(value: string): string {
+  const v = value.trim();
+  if (!v) return v;
+  if (/^https?:\/\//i.test(v)) return v;
+  const handle = v
+    .replace(/^@/, '')
+    .replace(/^(www\.)?facebook\.com\//i, '')
+    .replace(/^fb\.com\//i, '');
+  return `https://www.facebook.com/${handle}`;
+}
+
 export function buildSeedEshopPublicContact(
   eShopPublicSlug: string,
   fallbackEmail: string,
   fallbackPhone?: string,
-): { email: string; phone: string; instagram: string; tiktok: string } {
+): {
+  email: string;
+  phone: string;
+  instagram: string;
+  tiktok: string;
+  facebook: string;
+} {
   const source =
     eShopPublicSlug === SEED_DEV_COMPANY_SECOND_ESHOP_SLUG
       ? SEED_DEV_ESHOP_PUBLIC_CONTACT_SECOND
@@ -83,6 +102,7 @@ export function buildSeedEshopPublicContact(
     phone: source.phone || fallbackPhone || '',
     instagram: normalizeInstagramProfileUrl(source.instagram),
     tiktok: normalizeTiktokProfileUrl(source.tiktok),
+    facebook: normalizeFacebookProfileUrl(source.facebook),
   };
 }
 

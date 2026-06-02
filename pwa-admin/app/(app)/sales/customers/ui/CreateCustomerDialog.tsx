@@ -7,9 +7,17 @@ import { Button } from "@/shared/components/Button";
 import { TextField } from "@/shared/components/TextField/TextField";
 import { Select, type Option } from "@/shared/components/Select";
 import { createCustomerAction } from "@/features/sales-customers/actions/customer.action";
-import type { CreateCustomerFormInput } from "@/features/sales-customers/types/customer.types";
+import type {
+  CreateCustomerFormInput,
+  CustomerDocumentType,
+} from "@/features/sales-customers/types/customer.types";
 
-const DOC_OPTIONS: Option[] = [
+const PERSON_TYPE_OPTIONS: Option[] = [
+  { id: "NATURAL", label: "Persona natural" },
+  { id: "COMPANY", label: "Empresa" },
+];
+
+const DOC_NATURAL_OPTIONS: Option[] = [
   { id: "RUN", label: "RUN" },
   { id: "PASSPORT", label: "Pasaporte" },
   { id: "DNI", label: "DNI" },
@@ -38,9 +46,11 @@ export function CreateCustomerDialog({
   onSuccess,
   internalCreditEnabled = true,
 }: CreateCustomerDialogProps) {
+  const [personType, setPersonType] = useState<"NATURAL" | "COMPANY">("NATURAL");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [documentType, setDocumentType] = useState<"RUN" | "PASSPORT" | "DNI">("RUN");
+  const [businessName, setBusinessName] = useState("");
+  const [documentType, setDocumentType] = useState<CustomerDocumentType>("RUN");
   const [documentNumber, setDocumentNumber] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -53,8 +63,10 @@ export function CreateCustomerDialog({
 
   useEffect(() => {
     if (open) {
+      setPersonType("NATURAL");
       setFirstName("");
       setLastName("");
+      setBusinessName("");
       setDocumentType("RUN");
       setDocumentNumber("");
       setEmail("");
@@ -68,8 +80,10 @@ export function CreateCustomerDialog({
   }, [open]);
 
   const reset = () => {
+    setPersonType("NATURAL");
     setFirstName("");
     setLastName("");
+    setBusinessName("");
     setDocumentType("RUN");
     setDocumentNumber("");
     setEmail("");
@@ -87,6 +101,18 @@ export function CreateCustomerDialog({
     onClose();
   };
 
+  const useDniField =
+    personType === "COMPANY" || (personType === "NATURAL" && (documentType === "RUN" || documentType === "DNI"));
+
+  const documentNumberLabel =
+    personType === "COMPANY"
+      ? "RUT"
+      : documentType === "RUN"
+        ? "RUN"
+        : documentType === "DNI"
+          ? "DNI"
+          : "Número de documento";
+
   const handleSubmit = () => {
     setError(null);
     const creditLimit = internalCreditEnabled
@@ -94,10 +120,11 @@ export function CreateCustomerDialog({
       : 0;
     const day = Number(paymentDayOfMonth) as CreateCustomerFormInput["paymentDayOfMonth"];
     const input: CreateCustomerFormInput = {
-      personType: "NATURAL",
-      firstName: firstName.trim(),
-      lastName: lastName.trim() || undefined,
-      documentType,
+      personType,
+      firstName: personType === "NATURAL" ? firstName : undefined,
+      lastName: personType === "NATURAL" ? lastName : undefined,
+      businessName: personType === "COMPANY" ? businessName : undefined,
+      documentType: personType === "COMPANY" ? "RUT" : documentType,
       documentNumber: documentNumber.trim(),
       email: email.trim() || undefined,
       phone: phone.trim() || undefined,
@@ -124,7 +151,12 @@ export function CreateCustomerDialog({
     });
   };
 
-  const canSubmit = !isPending && firstName.trim().length > 0 && documentNumber.trim().length > 0;
+  const canSubmit =
+    !isPending &&
+    documentNumber.trim().length > 0 &&
+    (personType === "COMPANY"
+      ? businessName.trim().length > 0
+      : firstName.trim().length > 0 && documentType !== "RUT");
 
   return (
     <Dialog
@@ -155,46 +187,82 @@ export function CreateCustomerDialog({
     >
       <div className="flex w-full min-w-0 flex-col gap-4">
         <p className="text-sm text-muted-foreground">
-          El cliente se registra como persona natural. El documento debe ser único en el sistema.
+          El cliente se asocia a una persona o empresa. El número de documento debe ser único en el sistema.
         </p>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <TextField
-            label="Nombre"
-            name="customer-first-name"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            placeholder="Nombre"
-            required
-            data-test-id="customer-create-first-name"
-          />
-          <TextField
-            label="Apellidos (opcional)"
-            name="customer-last-name"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            placeholder="Apellidos"
-            data-test-id="customer-create-last-name"
-          />
-        </div>
-
         <Select
-          label="Tipo de documento"
-          name="customer-doc-type"
-          placeholder="Tipo de documento"
-          options={DOC_OPTIONS}
-          value={documentType}
-          onChange={(v) => setDocumentType((v != null ? String(v) : "RUN") as "RUN" | "PASSPORT" | "DNI")}
+          label="Tipo de titular"
+          name="customer-person-type"
+          placeholder="Tipo de titular"
+          options={PERSON_TYPE_OPTIONS}
+          value={personType}
+          onChange={(v) => {
+            const next = v === "COMPANY" ? "COMPANY" : "NATURAL";
+            setPersonType(next);
+            if (next === "COMPANY") {
+              setDocumentType("RUT");
+            } else if (documentType === "RUT") {
+              setDocumentType("RUN");
+            }
+          }}
           required
-          data-test-id="customer-create-doc-type"
+          data-test-id="customer-create-person-type"
         />
 
+        {personType === "COMPANY" ? (
+          <TextField
+            label="Razón social"
+            name="customer-business-name"
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+            placeholder="Razón social"
+            required
+            data-test-id="customer-create-business-name"
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <TextField
+              label="Nombre"
+              name="customer-first-name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Nombre"
+              required
+              data-test-id="customer-create-first-name"
+            />
+            <TextField
+              label="Apellidos (opcional)"
+              name="customer-last-name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Apellidos"
+              data-test-id="customer-create-last-name"
+            />
+          </div>
+        )}
+
+        {personType === "NATURAL" ? (
+          <Select
+            label="Tipo de documento"
+            name="customer-doc-type"
+            placeholder="Tipo de documento"
+            options={DOC_NATURAL_OPTIONS}
+            value={documentType}
+            onChange={(v) =>
+              setDocumentType((v != null ? String(v) : "RUN") as CustomerDocumentType)
+            }
+            required
+            data-test-id="customer-create-doc-type"
+          />
+        ) : null}
+
         <TextField
-          label={documentType === "RUN" ? "RUN" : documentType === "DNI" ? "DNI" : "Número de documento"}
+          label={documentNumberLabel}
           name="customer-document-number"
-          type={documentType === "RUN" || documentType === "DNI" ? "dni" : "text"}
+          type={useDniField ? "dni" : "text"}
           value={documentNumber}
           onChange={(e) => setDocumentNumber(e.target.value)}
+          placeholder={documentNumberLabel}
           required
           data-test-id="customer-create-document"
         />

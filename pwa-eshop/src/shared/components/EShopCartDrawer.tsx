@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { Button, IconButton } from "@/shared/admin-shared";
 import { useEShopCart } from "@/features/e-shop-cart/EShopCartProvider";
+import { getFeaturedProductsAction } from "@/features/e-shop-storefront/actions/storefront.action";
 import { EShopFreeShippingProgress } from "./EShopFreeShippingProgress";
 import "./eshop-cart-drawer.css";
 
@@ -11,7 +13,17 @@ function fmt(n: number) {
 }
 
 export function EShopCartDrawer() {
-  const { lines, subtotal, drawerOpen, closeDrawer, removeItem, crossSell, addItem } = useEShopCart();
+  const { lines, subtotal, drawerOpen, closeDrawer, removeItem, crossSell, addItem, setCrossSell } =
+    useEShopCart();
+  const crossSellLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!drawerOpen || crossSellLoadedRef.current) {
+      return;
+    }
+    crossSellLoadedRef.current = true;
+    getFeaturedProductsAction().then((r) => setCrossSell(r.items ?? []));
+  }, [drawerOpen, setCrossSell]);
 
   const suggestions = crossSell.filter(
     (p) =>
@@ -38,20 +50,22 @@ export function EShopCartDrawer() {
           ) : (
             lines.map((l) => (
               <div key={l.productVariantId} className="flex gap-3 border-b border-border pb-3">
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{l.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {l.quantity} × {fmt(l.unitPrice)}
                   </p>
-                  <button
-                    type="button"
-                    className="mt-1 text-xs text-destructive"
-                    onClick={() => removeItem(l.productVariantId)}
-                  >
-                    Quitar
-                  </button>
                 </div>
-                <p className="text-sm font-semibold tabular-nums">{fmt(l.unitPrice * l.quantity)}</p>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <IconButton
+                    icon="Trash2"
+                    variant="text"
+                    size="sm"
+                    ariaLabel="Quitar del carrito"
+                    onClick={() => removeItem(l.productVariantId)}
+                  />
+                  <p className="text-sm font-semibold tabular-nums">{fmt(l.unitPrice * l.quantity)}</p>
+                </div>
               </div>
             ))
           )}

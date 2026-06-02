@@ -10,12 +10,14 @@ import type { SupplierDetailView } from "@/features/purchasing-suppliers/types/s
 import { documentTypeLabel } from "@/features/sales-customers/lib/customer-document-labels";
 import { SupplierDetailSummarySection } from "./supplier-detail/SupplierDetailSummarySection";
 import { SupplierDetailCommercialSection } from "./supplier-detail/SupplierDetailCommercialSection";
+import { SupplierDetailBankAccountsSection } from "./supplier-detail/SupplierDetailBankAccountsSection";
 
-export type SupplierDetailSectionId = "summary" | "commercial";
+export type SupplierDetailSectionId = "summary" | "commercial" | "bankAccounts";
 
 const NAV_ITEMS: { id: SupplierDetailSectionId; label: string }[] = [
   { id: "summary", label: "Resumen" },
   { id: "commercial", label: "Comercial" },
+  { id: "bankAccounts", label: "Cuentas bancarias" },
 ];
 
 function supplierDisplayName(d: SupplierDetailView): string {
@@ -171,6 +173,13 @@ export function SupplierDetailDialog({ open, supplierId, onClose }: SupplierDeta
                 detail={detail}
                 loading={loading}
                 supplierId={supplierId?.trim() ?? ""}
+                onDetailUpdated={setDetail}
+              />
+            ) : null}
+            {section === "bankAccounts" ? (
+              <SupplierDetailBankAccountsSection
+                detail={detail}
+                loading={loading}
                 onDetailUpdated={setDetail}
               />
             ) : null}

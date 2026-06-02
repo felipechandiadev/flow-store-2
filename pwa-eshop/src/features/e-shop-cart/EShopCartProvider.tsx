@@ -30,10 +30,18 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-export function EShopCartProvider({ children }: { children: ReactNode }) {
+export function EShopCartProvider({
+  children,
+  initialFreeShippingThreshold = null,
+}: {
+  children: ReactNode;
+  initialFreeShippingThreshold?: number | null;
+}) {
   const [lines, setLines] = useState<EShopCartLine[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [freeShippingThreshold, setFreeShippingThreshold] = useState<number | null>(null);
+  const [freeShippingThreshold, setFreeShippingThreshold] = useState<number | null>(
+    initialFreeShippingThreshold,
+  );
   const [crossSell, setCrossSell] = useState<EShopProductCard[]>([]);
 
   useEffect(() => {

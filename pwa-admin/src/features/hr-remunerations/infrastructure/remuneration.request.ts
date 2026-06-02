@@ -54,6 +54,7 @@ export class RemunerationRequest {
     date: string;
     resultCenterId?: string | null;
     lines: Array<{ typeId: string; amount: number }>;
+    plannedPayments?: Array<{ dueDate: string; amount: number }>;
   }): Promise<{ success: true; id: string } | { success: false; error: string }> {
     const headers = await authHeaders();
     const res = await fetch(apiUrl("remunerations"), {
@@ -64,6 +65,7 @@ export class RemunerationRequest {
         date: payload.date,
         resultCenterId: payload.resultCenterId ?? undefined,
         lines: payload.lines,
+        plannedPayments: payload.plannedPayments,
       }),
       cache: "no-store",
     });

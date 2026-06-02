@@ -9,6 +9,61 @@ export type PaymentInRelatedSale = {
   amount: number;
 };
 
+/** NC liquidadas en `CUSTOMER_CREDIT_NOTE_PAYOUT` (`metadata.allocations[]`). */
+export type CustomerCreditNotePayoutAllocation = {
+  creditNoteId: string;
+  documentNumber: string;
+  amount: number;
+};
+
+export function isLegacyPosNcPayoutMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!metadata || typeof metadata !== 'object') return false;
+  return (metadata as { source?: unknown }).source === 'pos_nc_payout';
+}
+
+export function parseCreditNotePayoutAllocationsFromMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+): CustomerCreditNotePayoutAllocation[] {
+  if (!metadata || typeof metadata !== 'object') return [];
+  const raw = metadata.allocations;
+  if (!Array.isArray(raw)) return [];
+  const out: CustomerCreditNotePayoutAllocation[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const o = row as Record<string, unknown>;
+    const creditNoteId =
+      typeof o.creditNoteId === 'string' ? o.creditNoteId.trim() : '';
+    if (!creditNoteId) continue;
+    out.push({
+      creditNoteId,
+      documentNumber:
+        typeof o.documentNumber === 'string' && o.documentNumber.trim()
+          ? o.documentNumber.trim()
+          : '',
+      amount: Math.round(Number(o.amount) || 0),
+    });
+  }
+  return out;
+}
+
+export function relatedCreditNotesFromCustomerPayout(tx: {
+  transactionType?: string | null;
+  metadata?: Record<string, unknown> | null;
+}): CustomerCreditNotePayoutAllocation[] {
+  const type = (tx.transactionType ?? '').trim();
+  const meta =
+    tx.metadata && typeof tx.metadata === 'object' ? tx.metadata : null;
+  if (
+    type === 'CUSTOMER_CREDIT_NOTE_PAYOUT' ||
+    isLegacyPosNcPayoutMetadata(meta)
+  ) {
+    return parseCreditNotePayoutAllocationsFromMetadata(meta);
+  }
+  return [];
+}
+
 export function parsePaymentInAllocationsFromMetadata(
   metadata: Record<string, unknown> | null | undefined,
 ): PaymentInRelatedSale[] {

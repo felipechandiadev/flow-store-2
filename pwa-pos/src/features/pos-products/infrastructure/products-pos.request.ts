@@ -73,6 +73,7 @@ export class ProductsPosRequest {
     variantIds: string[];
     pointOfSaleId?: string | null;
     branchId?: string | null;
+    priceListId?: string | null;
   }): Promise<PosVariantsLookupResponse> {
     const base = process.env.BACKEND_API_URL;
     if (!base) {
@@ -95,6 +96,7 @@ export class ProductsPosRequest {
     qs.set("variantIds", ids.join(","));
     if (input.pointOfSaleId?.trim()) qs.set("pointOfSaleId", input.pointOfSaleId.trim());
     if (input.branchId?.trim()) qs.set("branchId", input.branchId.trim());
+    if (input.priceListId?.trim()) qs.set("priceListId", input.priceListId.trim());
 
     try {
       const headers: Record<string, string> = {

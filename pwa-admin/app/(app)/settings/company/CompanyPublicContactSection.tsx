@@ -18,6 +18,7 @@ export function CompanyPublicContactSection({ company }: Props) {
   const [phone, setPhone] = useState("");
   const [instagram, setInstagram] = useState("");
   const [tiktok, setTiktok] = useState("");
+  const [facebook, setFacebook] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export function CompanyPublicContactSection({ company }: Props) {
         setPhone(r.publicContact.phone ?? "");
         setInstagram(r.publicContact.instagram ?? "");
         setTiktok(r.publicContact.tiktok ?? "");
+        setFacebook(r.publicContact.facebook ?? "");
       }
     });
   }, [company.id]);
@@ -66,6 +68,12 @@ export function CompanyPublicContactSection({ company }: Props) {
           value={tiktok}
           onChange={(e) => setTiktok(e.target.value)}
         />
+        <TextField
+          label="Facebook"
+          placeholder="https://www.facebook.com/tu-marca"
+          value={facebook}
+          onChange={(e) => setFacebook(e.target.value)}
+        />
         <Button
           variant="primary"
           disabled={busy || !company.id}
@@ -77,6 +85,7 @@ export function CompanyPublicContactSection({ company }: Props) {
               phone,
               instagram,
               tiktok,
+              facebook,
             }).finally(() => {
               setBusy(false);
               router.refresh();

@@ -153,7 +153,66 @@ export async function getCustomerPendingQuotasListAction(
 }
 
 export async function createCustomerAction(input: CreateCustomerFormInput): Promise<CreateCustomerResult> {
-  const r = await CustomerRequest.create(input);
+  const personType = input.personType === "COMPANY" ? "COMPANY" : "NATURAL";
+  const docNum = input.documentNumber?.trim() ?? "";
+  if (!docNum) {
+    return { success: false, error: "El número de documento es obligatorio." };
+  }
+
+  const creditLimit = Math.max(0, Math.round(Number(input.creditLimit) || 0));
+  const day = Number(input.paymentDayOfMonth);
+  const paymentDayOfMonth = [5, 10, 15, 20, 25, 30].includes(day)
+    ? (day as CreateCustomerFormInput["paymentDayOfMonth"])
+    : 5;
+  const base = {
+    creditLimit,
+    paymentDayOfMonth,
+    notes: input.notes?.trim() || undefined,
+    email: input.email?.trim() || undefined,
+    phone: input.phone?.trim() || undefined,
+    address: input.address?.trim() || undefined,
+  };
+
+  if (personType === "COMPANY") {
+    const bn = input.businessName?.trim() ?? "";
+    if (!bn) {
+      return { success: false, error: "La razón social es obligatoria para una empresa." };
+    }
+    const r = await CustomerRequest.create({
+      personType: "COMPANY",
+      firstName: bn,
+      businessName: bn,
+      documentType: "RUT",
+      documentNumber: docNum,
+      ...base,
+    });
+    if (r.success) {
+      revalidatePath(CUSTOMERS_PATH, "page");
+      return { success: true };
+    }
+    return { success: false, error: r.error };
+  }
+
+  const fn = input.firstName?.trim() ?? "";
+  if (!fn) {
+    return { success: false, error: "El nombre es obligatorio para una persona." };
+  }
+  const dt = input.documentType;
+  if (dt === "RUT") {
+    return {
+      success: false,
+      error: "Una persona no puede usar RUT; elija empresa o otro documento.",
+    };
+  }
+
+  const r = await CustomerRequest.create({
+    personType: "NATURAL",
+    firstName: fn,
+    lastName: input.lastName?.trim() || undefined,
+    documentType: dt,
+    documentNumber: docNum,
+    ...base,
+  });
   if (r.success) {
     revalidatePath(CUSTOMERS_PATH, "page");
     return { success: true };

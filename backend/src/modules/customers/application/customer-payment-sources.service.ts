@@ -273,6 +273,48 @@ export class CustomerPaymentSourcesService {
     await this.txRepo.save(tx);
   }
 
+  async consumeCreditNoteForPayout(
+    creditNoteId: string,
+    amount: number,
+    payoutTransactionId: string,
+    customerId: string,
+  ): Promise<void> {
+    const tx = await this.txRepo.findOne({
+      where: {
+        id: creditNoteId,
+        customerId,
+        transactionType: TransactionType.CUSTOMER_CREDIT_NOTE,
+      },
+    });
+    if (!tx) {
+      throw new NotFoundException('Nota de crédito no encontrada.');
+    }
+    const meta = { ...(tx.metadata ?? {}) } as Record<string, unknown>;
+    const available = readCreditNoteAvailableAmount(Number(tx.total), meta);
+    if (amount > available + 0.01) {
+      throw new BadRequestException(
+        'La nota de crédito ya no tiene saldo suficiente.',
+      );
+    }
+    const prevBlock = (meta.creditNote ?? {}) as TransactionCustomerCreditNoteMetadata;
+    const prevConsumed = readCreditNoteConsumedAmount(meta);
+    const applications = Array.isArray(prevBlock.applications)
+      ? [...prevBlock.applications]
+      : [];
+    applications.push({
+      payoutTransactionId,
+      amount,
+      appliedAt: new Date().toISOString(),
+    });
+    meta.creditNote = {
+      ...prevBlock,
+      consumedAmount: prevConsumed + amount,
+      applications,
+    };
+    tx.metadata = meta;
+    await this.txRepo.save(tx);
+  }
+
   private async consumeBackorder(
     backorderId: string,
     amount: number,

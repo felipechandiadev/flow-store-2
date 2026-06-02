@@ -6,12 +6,15 @@ import { OperationalExpensesService } from './application/operational-expenses.s
 import { OperationalExpensesController } from './presentation/operational-expenses.controller';
 import { OperationalExpensesRepository } from './infrastructure/operational-expenses.repository';
 import { MultimediaModule } from '@modules/multimedia/multimedia.module';
+import { TransactionsModule } from '@modules/transactions/transactions.module';
+import { Branch } from '@modules/branches/domain/branch.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([OperationalExpense]),
+    TypeOrmModule.forFeature([OperationalExpense, Branch]),
     CqrsModule,
     MultimediaModule,
+    TransactionsModule,
   ],
   controllers: [OperationalExpensesController],
   providers: [OperationalExpensesService, OperationalExpensesRepository],

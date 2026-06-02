@@ -67,11 +67,14 @@ export type UpdateCustomerPayload = {
   address?: string;
 };
 
+export type CustomerDocumentType = "RUN" | "RUT" | "PASSPORT" | "DNI";
+
 export type CreateCustomerFormInput = {
-  personType: "NATURAL";
-  firstName: string;
+  personType: "NATURAL" | "COMPANY";
+  firstName?: string;
   lastName?: string;
-  documentType: "RUN" | "PASSPORT" | "DNI";
+  businessName?: string;
+  documentType: CustomerDocumentType;
   documentNumber: string;
   email?: string;
   phone?: string;

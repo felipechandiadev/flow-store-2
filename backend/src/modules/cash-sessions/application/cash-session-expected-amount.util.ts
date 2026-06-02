@@ -4,6 +4,7 @@ import {
   TransactionStatus,
   TransactionType,
 } from '@modules/transactions/domain/transaction.entity';
+import { customerCreditNotePayoutCashFlows } from './customer-credit-note-payout-cash-flow.util';
 import { saleReturnTransactionCashFlows } from './sale-return-transaction-cash-flow.util';
 import { saleTransactionCashFlows } from './sale-transaction-cash-flow.util';
 
@@ -44,8 +45,18 @@ export function computeCashSessionExpectedAmount(
       case TransactionType.CASH_SESSION_DEPOSIT:
         cashIn += total;
         break;
-      case TransactionType.PAYMENT_IN:
+      case TransactionType.CUSTOMER_CREDIT_NOTE_PAYOUT: {
+        const ncPayout = customerCreditNotePayoutCashFlows(tx);
+        cashOut += ncPayout.cashOut;
+        break;
+      }
+      case TransactionType.PAYMENT_IN: {
         if (isPosLinkedPaymentIn(tx)) {
+          break;
+        }
+        const legacyNcPayout = customerCreditNotePayoutCashFlows(tx);
+        if (legacyNcPayout.cashOut > 0) {
+          cashOut += legacyNcPayout.cashOut;
           break;
         }
         if (tx.paymentMethod === PaymentMethod.CASH) {
@@ -53,6 +64,7 @@ export function computeCashSessionExpectedAmount(
           cashIn += Math.max(0, total - change);
         }
         break;
+      }
       case TransactionType.SALE: {
         const { cashIn: saleIn, cashOut: saleOut } = saleTransactionCashFlows(tx);
         cashIn += saleIn;

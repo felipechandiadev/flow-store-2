@@ -77,6 +77,7 @@ export class RemunerationsController {
       date: string;
       lines: Array<{ typeId: string; amount: number }>;
       userId?: string;
+      plannedPayments?: Array<{ dueDate: string; amount: number }>;
     },
   ) {
     try {

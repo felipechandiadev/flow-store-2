@@ -9,6 +9,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { InstallmentService } from '@modules/installments/application/services/installment.service';
+import { AccountsPayableService } from '@modules/transactions/application/services/accounts-payable.service';
 import { CreateInstallmentDto } from '@modules/installments/presentation/dto/create-installment.dto';
 import {
   GetCarteraByDueDateDto,
@@ -18,7 +19,10 @@ import { PayInstallmentDto } from '@modules/installments/presentation/dto/pay-in
 
 @Controller('installments')
 export class InstallmentController {
-  constructor(private readonly installmentService: InstallmentService) {}
+  constructor(
+    private readonly installmentService: InstallmentService,
+    private readonly accountsPayableService: AccountsPayableService,
+  ) {}
 
   /**
    * CENTRALIZED ACCOUNTS PAYABLE
@@ -63,51 +67,28 @@ export class InstallmentController {
       filters.toDate = new Date(toDate);
     }
 
-    const installments =
-      await this.installmentService.getAccountsPayable(filters);
+    const paymentType = filters.sourceType
+      ? (Array.isArray(filters.sourceType)
+          ? filters.sourceType
+          : [filters.sourceType]
+        )
+          .map((st: string) => {
+            if (st === 'PURCHASE') return 'SUPPLIER_PAYMENT';
+            if (st === 'PAYROLL') return 'PAYROLL_PAYMENT';
+            if (st === 'OPERATING_EXPENSE') return 'EXPENSE_PAYMENT';
+            return st;
+          })
+          .join(',')
+      : undefined;
 
-    // Enriquecer respuesta con información calculada
-    return installments.map((inst: any) => {
-      const sourceTransaction = inst.sourceTransaction ?? inst.saleTransaction;
-      const supplier = sourceTransaction?.supplier;
-      const supplierPerson = supplier?.person;
-      const supplierPersonName = [
-        supplierPerson?.firstName,
-        supplierPerson?.lastName,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-      const supplierName =
-        supplier?.alias ||
-        supplierPerson?.businessName ||
-        supplierPersonName ||
-        inst.metadata?.supplierName;
-
-      return {
-        id: inst.id,
-        sourceType: inst.sourceType,
-        sourceTransactionId: inst.sourceTransactionId,
-        payeeType: inst.payeeType,
-        payeeId: inst.payeeId,
-        payeeName: supplierName,
-        installmentNumber: inst.installmentNumber,
-        totalInstallments: inst.totalInstallments,
-        fromReceptionNumber:
-          sourceTransaction?.documentNumber ||
-          inst.metadata?.receptionNumber ||
-          null,
-        amount: inst.amount,
-        amountPaid: inst.amountPaid,
-        pendingAmount: inst.getPendingAmount(),
-        dueDate: inst.dueDate,
-        status: inst.status,
-        isOverdue: inst.isOverdue(),
-        daysOverdue: inst.getDaysOverdue(),
-        paymentTransactionId: inst.paymentTransactionId,
-        metadata: inst.metadata,
-        createdAt: inst.createdAt,
-      };
+    return this.accountsPayableService.list({
+      paymentType: paymentType as any,
+      payeeType: filters.payeeType,
+      fromDate: filters.fromDate,
+      toDate: filters.toDate,
+      overdueOnly:
+        filters.status === 'OVERDUE' ||
+        (Array.isArray(filters.status) && filters.status.includes('OVERDUE')),
     });
   }
 

@@ -23,6 +23,18 @@ export function isCustomerLinkedPaymentMethod(
   return (CUSTOMER_LINKED_PAYMENT_METHODS as readonly string[]).includes(method);
 }
 
+/** Medios permitidos al devolver saldo de NC al cliente en caja. */
+export const NC_PAYOUT_ALLOWED_PAYMENT_METHODS = ["CASH", "TRANSFER", "CHECK"] as const;
+
+export type NcPayoutAllowedPaymentMethod =
+  (typeof NC_PAYOUT_ALLOWED_PAYMENT_METHODS)[number];
+
+export function isNcPayoutAllowedPaymentMethod(method: string): boolean {
+  return (NC_PAYOUT_ALLOWED_PAYMENT_METHODS as readonly string[]).includes(
+    method.trim().toUpperCase(),
+  );
+}
+
 /**
  * Datos específicos de un cheque entrante (cliente -> empresa). Se
  * adjuntan al `PosPaymentLine` cuando `type === "CHECK"`. El backend

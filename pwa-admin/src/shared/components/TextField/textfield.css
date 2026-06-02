@@ -306,3 +306,29 @@
   box-shadow: none;
   outline: none;
 }
+
+/** Select inline con altura default (~2.75rem), alineado con TextField estándar. */
+.fs-inline-combo-shell--default .fs-text-field__input.fs-text-field__input--borderless {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.fs-inline-combo-shell--default
+  .fs-text-field__input.fs-text-field__input--borderless.fs-text-field__input--autocomplete-trigger {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+}
+
+.fs-text-field__inline-label--default {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}

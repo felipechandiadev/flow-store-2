@@ -47,7 +47,21 @@ function defaultPaymentMethod(
   return companyHasBanks && supplierHasBanks ? "TRANSFER" : "CASH";
 }
 
-function newLineFromTemplate(args: {
+function newScheduledLineFromTemplate(args: {
+  dueDate: string;
+  amountStr: string;
+}): InvoicePlannedPaymentLineState {
+  return {
+    id: crypto.randomUUID(),
+    dueDate: args.dueDate,
+    amountStr: args.amountStr,
+    companyBankAccountKey: null,
+    supplierBankAccountKey: null,
+    chequeNumber: "",
+  };
+}
+
+function newImmediateLineFromTemplate(args: {
   dueDate: string;
   amountStr: string;
   companyHasBanks: boolean;
@@ -74,27 +88,41 @@ function newLineFromTemplate(args: {
   };
 }
 
-function lineToPayload(
+function immediateLineToPayload(
   l: InvoicePlannedPaymentLineState,
   isPosCash: boolean,
 ): ReceptionPlannedPaymentLinePayload {
+  const pm = l.paymentMethod ?? "CASH";
   return {
     dueDate: l.dueDate,
     amount: parseClpAmountInput(l.amountStr),
-    paymentMethod: l.paymentMethod,
+    paymentMethod: pm,
     companyBankAccountKey:
-      l.paymentMethod === "TRANSFER" || l.paymentMethod === "CHECK" ? l.companyBankAccountKey : null,
-    supplierBankAccountKey: l.paymentMethod === "TRANSFER" ? l.supplierBankAccountKey : null,
-    chequeNumber: l.paymentMethod === "CHECK" ? String(l.chequeNumber).trim() || null : null,
+      pm === "TRANSFER" || pm === "CHECK" ? l.companyBankAccountKey : null,
+    supplierBankAccountKey: pm === "TRANSFER" ? l.supplierBankAccountKey : null,
+    chequeNumber: pm === "CHECK" ? String(l.chequeNumber).trim() || null : null,
     cashHubId:
-      l.paymentMethod === "CASH" && !isPosCash
-        ? l.cashHubId?.trim()
-          ? l.cashHubId.trim()
-          : null
-        : null,
-    cashSessionId:
-      l.paymentMethod === "CASH" && isPosCash ? l.cashSessionId?.trim() || null : null,
+      pm === "CASH" && !isPosCash ? (l.cashHubId?.trim() ? l.cashHubId.trim() : null) : null,
+    cashSessionId: pm === "CASH" && isPosCash ? l.cashSessionId?.trim() || null : null,
   };
+}
+
+function scheduledLineToPayload(l: InvoicePlannedPaymentLineState): ReceptionPlannedPaymentLinePayload {
+  return {
+    dueDate: l.dueDate,
+    amount: parseClpAmountInput(l.amountStr),
+  };
+}
+
+function applyEqualAmounts(
+  lines: InvoicePlannedPaymentLineState[],
+  amountTotal: number,
+): InvoicePlannedPaymentLineState[] {
+  if (lines.length === 0) {
+    return lines;
+  }
+  const parts = splitTotalAcrossLines(amountTotal, lines.length);
+  return lines.map((l, i) => ({ ...l, amountStr: String(parts[i] ?? 0) }));
 }
 
 export type PaymentCashContext = "admin_cash_hub" | "pos_cash_session";
@@ -131,7 +159,6 @@ export function PurchaseDocumentReceptionPaymentDialog({
   const [partialAmountStr, setPartialAmountStr] = useState("0");
   const [paidLines, setPaidLines] = useState<InvoicePlannedPaymentLineState[]>([]);
   const [scheduledLines, setScheduledLines] = useState<InvoicePlannedPaymentLineState[]>([]);
-  const [equalPartsStr, setEqualPartsStr] = useState("3");
   const [localError, setLocalError] = useState<string | null>(null);
   const manualPaidLockRef = useRef(false);
   const manualSchedLockRef = useRef(false);
@@ -154,7 +181,6 @@ export function PurchaseDocumentReceptionPaymentDialog({
     setPartialAmountStr("0");
     setPaidLines([]);
     setScheduledLines([]);
-    setEqualPartsStr("3");
     setLocalError(null);
     manualPaidLockRef.current = false;
     manualSchedLockRef.current = false;
@@ -169,18 +195,27 @@ export function PurchaseDocumentReceptionPaymentDialog({
       setPartialAmountStr(
         initialDraft.mode === "PARTIAL" ? String(Math.max(0, Math.round(initialDraft.partialPaidAmount ?? 0))) : "0",
       );
-      const mapPayloadLine = (p: ReceptionPlannedPaymentLinePayload): InvoicePlannedPaymentLineState => ({
+      const mapPaidPayloadLine = (p: ReceptionPlannedPaymentLinePayload): InvoicePlannedPaymentLineState => ({
         id: crypto.randomUUID(),
         dueDate: p.dueDate,
         amountStr: String(Math.round(p.amount)),
-        paymentMethod: p.paymentMethod,
+        paymentMethod: p.paymentMethod ?? "CASH",
         companyBankAccountKey: p.companyBankAccountKey ?? null,
         supplierBankAccountKey: p.supplierBankAccountKey ?? null,
         chequeNumber: p.chequeNumber ?? "",
         cashHubId: p.cashHubId ?? null,
+        cashSessionId: p.cashSessionId ?? null,
       });
-      setPaidLines(initialDraft.paidLines.map(mapPayloadLine));
-      setScheduledLines(initialDraft.scheduledLines.map(mapPayloadLine));
+      const mapScheduledPayloadLine = (p: ReceptionPlannedPaymentLinePayload): InvoicePlannedPaymentLineState => ({
+        id: crypto.randomUUID(),
+        dueDate: p.dueDate,
+        amountStr: String(Math.round(p.amount)),
+        companyBankAccountKey: null,
+        supplierBankAccountKey: null,
+        chequeNumber: "",
+      });
+      setPaidLines(initialDraft.paidLines.map(mapPaidPayloadLine));
+      setScheduledLines(initialDraft.scheduledLines.map(mapScheduledPayloadLine));
       manualPaidLockRef.current = true;
       manualSchedLockRef.current = true;
       return;
@@ -209,7 +244,7 @@ export function PurchaseDocumentReceptionPaymentDialog({
           return prev;
         }
         return [
-          newLineFromTemplate({
+          newImmediateLineFromTemplate({
             dueDate: docDate || toYyyyMmDdLocal(new Date()),
             amountStr: String(total),
             companyHasBanks,
@@ -231,36 +266,39 @@ export function PurchaseDocumentReceptionPaymentDialog({
     if (paymentMode === "PENDING_SCHEDULED") {
       setPaidLines([]);
       setScheduledLines((prev) => {
-        if (prev.length > 0 && manualSchedLockRef.current) {
+        if (manualSchedLockRef.current) {
           return prev;
         }
+        if (total <= 0) {
+          return [];
+        }
+        if (prev.length > 0) {
+          return applyEqualAmounts(prev, total);
+        }
         return [
-          newLineFromTemplate({
+          newScheduledLineFromTemplate({
             dueDate: firstDueScheduled,
             amountStr: String(total),
-            companyHasBanks,
-            supplierHasBanks,
-            companyBankAccounts,
-            supplierBankAccounts,
-            cashHubOptions,
           }),
         ];
       });
-      manualSchedLockRef.current = false;
       return;
     }
     if (paymentMode === "PARTIAL") {
       const p = Math.max(0, partialAmount);
       const rest = Math.max(0, total - p);
       setPaidLines((prev) => {
-        if (prev.length > 0 && manualPaidLockRef.current) {
+        if (manualPaidLockRef.current) {
           return prev;
         }
         if (p <= 0) {
           return [];
         }
+        if (prev.length > 0) {
+          return applyEqualAmounts(prev, p);
+        }
         return [
-          newLineFromTemplate({
+          newImmediateLineFromTemplate({
             dueDate: docDate || toYyyyMmDdLocal(new Date()),
             amountStr: String(p),
             companyHasBanks,
@@ -272,21 +310,19 @@ export function PurchaseDocumentReceptionPaymentDialog({
         ];
       });
       setScheduledLines((prev) => {
-        if (prev.length > 0 && manualSchedLockRef.current) {
+        if (manualSchedLockRef.current) {
           return prev;
         }
         if (rest <= 0) {
           return [];
         }
+        if (prev.length > 0) {
+          return applyEqualAmounts(prev, rest);
+        }
         return [
-          newLineFromTemplate({
+          newScheduledLineFromTemplate({
             dueDate: firstDueScheduled,
             amountStr: String(rest),
-            companyHasBanks,
-            supplierHasBanks,
-            companyBankAccounts,
-            supplierBankAccounts,
-            cashHubOptions,
           }),
         ];
       });
@@ -306,35 +342,43 @@ export function PurchaseDocumentReceptionPaymentDialog({
     cashHubOptions,
   ]);
 
-  const distributeScheduledEqualParts = () => {
-    const n = Math.max(2, Math.min(36, Math.round(Number(equalPartsStr) || 0)));
-    if (!Number.isFinite(n) || n < 2) {
-      setLocalError("Indique un número de cuotas entre 2 y 36.");
-      return;
-    }
+  const redistributeScheduledEqual = useCallback(() => {
     if (scheduleTotal <= 0) {
       setLocalError("No hay saldo a distribuir.");
       return;
     }
-    manualSchedLockRef.current = true;
-    const parts = splitTotalAcrossLines(scheduleTotal, n);
-    const term = supplier?.defaultPaymentTermDays ?? 0;
-    let cursor = parseYyyyMmDdLocal(docDate || toYyyyMmDdLocal(new Date()));
-    const nextLines: InvoicePlannedPaymentLineState[] = parts.map((amt) => {
-      cursor = addCalendarDays(cursor, term);
-      return newLineFromTemplate({
-        dueDate: toYyyyMmDdLocal(cursor),
-        amountStr: String(amt),
-        companyHasBanks,
-        supplierHasBanks,
-        companyBankAccounts,
-        supplierBankAccounts,
-        cashHubOptions,
-      });
+    setScheduledLines((prev) => {
+      if (prev.length === 0) {
+        return prev;
+      }
+      manualSchedLockRef.current = false;
+      return applyEqualAmounts(prev, scheduleTotal);
     });
-    setScheduledLines(nextLines);
     setLocalError(null);
-  };
+  }, [scheduleTotal]);
+
+  const scheduledSum = useMemo(
+    () => scheduledLines.reduce((s, l) => s + parseClpAmountInput(l.amountStr), 0),
+    [scheduledLines],
+  );
+
+  const scheduleAmountError = useMemo(() => {
+    const needsSchedule =
+      (paymentMode === "PENDING_SCHEDULED" && total > 0) ||
+      (paymentMode === "PARTIAL" && scheduleTotal > 0);
+    if (!needsSchedule || scheduledLines.length === 0) {
+      return null;
+    }
+    if (Math.abs(scheduledSum - scheduleTotal) <= 1) {
+      return null;
+    }
+    if (scheduledSum > scheduleTotal + 1) {
+      return `Las cuotas suman ${formatMoney(scheduledSum)}, superior al saldo a pagar (${formatMoney(scheduleTotal)}).`;
+    }
+    return `Las cuotas suman ${formatMoney(scheduledSum)}; deben igualar el saldo (${formatMoney(scheduleTotal)}).`;
+  }, [paymentMode, total, scheduleTotal, scheduledLines.length, scheduledSum]);
+
+  const displayError = localError ?? scheduleAmountError;
 
   const validateAndApply = () => {
     setLocalError(null);
@@ -393,7 +437,7 @@ export function PurchaseDocumentReceptionPaymentDialog({
       }
       onApply({
         mode: "COMPLETED",
-        paidLines: paidLines.map((l) => lineToPayload(l, isPosCash)),
+        paidLines: paidLines.map((l) => immediateLineToPayload(l, isPosCash)),
         scheduledLines: [],
       });
       onClose();
@@ -402,21 +446,17 @@ export function PurchaseDocumentReceptionPaymentDialog({
 
     if (paymentMode === "PENDING_SCHEDULED") {
       if (scheduledLines.length === 0) {
-        setLocalError("Agregue al menos una cuota o use «Distribuir en partes iguales».");
+        setLocalError("Agregue al menos una cuota.");
         return;
       }
-      const sum = scheduledLines.reduce((s, l) => s + parseClpAmountInput(l.amountStr), 0);
-      if (Math.abs(sum - total) > 1) {
-        setLocalError(`Las cuotas (${formatMoney(sum)}) deben sumar el total (${formatMoney(total)}).`);
-        return;
-      }
-      if (!checkCash(scheduledLines, "cuotas")) {
+      if (scheduleAmountError) {
+        setLocalError(scheduleAmountError);
         return;
       }
       onApply({
         mode: "PENDING_SCHEDULED",
         paidLines: [],
-        scheduledLines: scheduledLines.map((l) => lineToPayload(l, isPosCash)),
+        scheduledLines: scheduledLines.map(scheduledLineToPayload),
       });
       onClose();
       return;
@@ -439,25 +479,21 @@ export function PurchaseDocumentReceptionPaymentDialog({
       }
       const rest = total - p;
       if (rest > 0 && scheduledLines.length === 0) {
-        setLocalError("Defina cuotas para el saldo restante.");
+        setLocalError("Agregue al menos una cuota para el saldo restante.");
         return;
       }
-      const schedSum = scheduledLines.reduce((s, l) => s + parseClpAmountInput(l.amountStr), 0);
-      if (rest > 0 && Math.abs(schedSum - rest) > 1) {
-        setLocalError(`Las cuotas del saldo deben sumar ${formatMoney(rest)}.`);
+      if (rest > 0 && scheduleAmountError) {
+        setLocalError(scheduleAmountError);
         return;
       }
       if (!checkCash(paidLines, "abono")) {
         return;
       }
-      if (scheduledLines.length > 0 && !checkCash(scheduledLines, "cuotas saldo")) {
-        return;
-      }
       onApply({
         mode: "PARTIAL",
         partialPaidAmount: p,
-        paidLines: paidLines.map((l) => lineToPayload(l, isPosCash)),
-        scheduledLines: scheduledLines.map((l) => lineToPayload(l, isPosCash)),
+        paidLines: paidLines.map((l) => immediateLineToPayload(l, isPosCash)),
+        scheduledLines: scheduledLines.map(scheduledLineToPayload),
       });
       onClose();
       return;
@@ -503,103 +539,49 @@ export function PurchaseDocumentReceptionPaymentDialog({
     [companyBankAccounts, supplierBankAccounts, cashHubOptions],
   );
 
-  const patchSched = useCallback(
-    (id: string, patch: Partial<InvoicePlannedPaymentLineState>) => {
-      if (patch.amountStr !== undefined) {
-        manualSchedLockRef.current = true;
-      }
-      setScheduledLines((prev) =>
-        prev.map((l) => {
-          if (l.id !== id) {
-            return l;
-          }
-          let next = { ...l, ...patch };
-          if (next.paymentMethod === "TRANSFER") {
-            if (companyBankAccounts[0] && !next.companyBankAccountKey) {
-              next.companyBankAccountKey = bankAccountOptionKey(companyBankAccounts[0], 0);
-            }
-            const sb = supplierBankAccounts[0];
-            if (sb && !next.supplierBankAccountKey) {
-              next.supplierBankAccountKey = bankAccountOptionKey(sb, 0);
-            }
-            next.cashHubId = null;
-          }
-          if (next.paymentMethod === "CHECK") {
-            next.cashHubId = null;
-          }
-          if (next.paymentMethod === "CASH") {
-            const h = cashHubOptions[0];
-            if (h && !next.cashHubId) {
-              next.cashHubId = String(h.id);
-            }
-          }
-          return next;
-        }),
-      );
-    },
-    [companyBankAccounts, supplierBankAccounts, cashHubOptions],
-  );
+  const patchSched = useCallback((id: string, patch: Partial<InvoicePlannedPaymentLineState>) => {
+    if (patch.amountStr !== undefined) {
+      manualSchedLockRef.current = true;
+    }
+    setScheduledLines((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+    );
+  }, []);
 
   const addSched = useCallback(() => {
-    manualSchedLockRef.current = true;
+    manualSchedLockRef.current = false;
     setScheduledLines((prev) => {
       if (prev.length === 0) {
         return [
-          newLineFromTemplate({
+          newScheduledLineFromTemplate({
             dueDate: firstDueScheduled,
             amountStr: String(scheduleTotal),
-            companyHasBanks,
-            supplierHasBanks,
-            companyBankAccounts,
-            supplierBankAccounts,
-            cashHubOptions,
           }),
         ];
       }
       const term = supplier?.defaultPaymentTermDays ?? 0;
       const lastDue = parseYyyyMmDdLocal(prev[prev.length - 1].dueDate);
       const nextDue = addCalendarDays(lastDue, term);
-      const parts = splitTotalAcrossLines(scheduleTotal, prev.length + 1);
-      const dm = defaultPaymentMethod(companyHasBanks, supplierHasBanks);
-      const banks = supplierBankAccounts;
-      const firstHub = cashHubOptions[0];
-      const nextLine: InvoicePlannedPaymentLineState = {
-        id: crypto.randomUUID(),
+      const nextLine = newScheduledLineFromTemplate({
         dueDate: toYyyyMmDdLocal(nextDue),
-        amountStr: String(parts[parts.length - 1] ?? 0),
-        paymentMethod: dm,
-        companyBankAccountKey:
-          companyBankAccounts[0] != null ? bankAccountOptionKey(companyBankAccounts[0], 0) : null,
-        supplierBankAccountKey: banks[0] != null ? bankAccountOptionKey(banks[0], 0) : null,
-        chequeNumber: "",
-        cashHubId: dm === "CASH" && firstHub ? String(firstHub.id) : null,
-      };
-      return prev
-        .map((l, i) => ({ ...l, amountStr: String(parts[i] ?? 0) }))
-        .concat([nextLine]);
+        amountStr: "0",
+      });
+      return applyEqualAmounts(prev.concat([nextLine]), scheduleTotal);
     });
-  }, [
-    scheduleTotal,
-    firstDueScheduled,
-    companyHasBanks,
-    supplierHasBanks,
-    companyBankAccounts,
-    supplierBankAccounts,
-    supplier?.defaultPaymentTermDays,
-    cashHubOptions,
-  ]);
+    setLocalError(null);
+  }, [scheduleTotal, firstDueScheduled, supplier?.defaultPaymentTermDays]);
 
   const removeSched = useCallback(
     (id: string) => {
-      manualSchedLockRef.current = true;
+      manualSchedLockRef.current = false;
       setScheduledLines((prev) => {
         if (prev.length <= 1) {
           return prev;
         }
         const next = prev.filter((l) => l.id !== id);
-        const parts = splitTotalAcrossLines(scheduleTotal, next.length);
-        return next.map((l, i) => ({ ...l, amountStr: String(parts[i] ?? 0) }));
+        return applyEqualAmounts(next, scheduleTotal);
       });
+      setLocalError(null);
     },
     [scheduleTotal],
   );
@@ -651,9 +633,9 @@ export function PurchaseDocumentReceptionPaymentDialog({
           data-test-id="purchase-doc-reception-payment-mode"
         />
 
-        {localError ? (
+        {displayError ? (
           <Alert variant="error" data-test-id="purchase-doc-reception-payment-error">
-            {localError}
+            {displayError}
           </Alert>
         ) : null}
 
@@ -715,28 +697,9 @@ export function PurchaseDocumentReceptionPaymentDialog({
             {scheduleTotal > 0 ? (
               <>
                 <p className="text-xs font-medium text-foreground">Saldo — cuotas programadas</p>
-                <div className="flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-muted/10 p-3">
-                  <TextField
-                    label="Número de cuotas iguales"
-                    name="purchase-doc-reception-equal-n"
-                    value={equalPartsStr}
-                    onChange={(e) => setEqualPartsStr(e.target.value.replace(/\D/g, ""))}
-                    className="w-32"
-                    disabled={disabledInner}
-                  />
-                  <Button
-                    type="button"
-                    variant="outlined"
-                    size="sm"
-                    disabled={disabledInner}
-                    onClick={distributeScheduledEqualParts}
-                    data-test-id="purchase-doc-reception-equal-split"
-                  >
-                    Distribuir saldo en partes iguales
-                  </Button>
-                </div>
                 <InvoicePlannedPaymentLines
                   disabled={disabledInner}
+                  lineKind="scheduled"
                   companyBankAccounts={companyBankAccounts}
                   supplierBankAccounts={supplierBankAccounts}
                   cashHubOptions={cashHubOptions}
@@ -744,6 +707,9 @@ export function PurchaseDocumentReceptionPaymentDialog({
                   onAddLine={addSched}
                   onRemoveLine={removeSched}
                   onPatchLine={patchSched}
+                  onDistributeEqual={
+                    scheduledLines.length > 0 ? redistributeScheduledEqual : undefined
+                  }
                 />
               </>
             ) : null}
@@ -751,38 +717,20 @@ export function PurchaseDocumentReceptionPaymentDialog({
         ) : null}
 
         {paymentMode === "PENDING_SCHEDULED" && supplier?.id && total > 0 ? (
-          <>
-            <div className="flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-muted/10 p-3">
-              <TextField
-                label="Número de cuotas iguales"
-                name="purchase-doc-reception-equal-n2"
-                value={equalPartsStr}
-                onChange={(e) => setEqualPartsStr(e.target.value.replace(/\D/g, ""))}
-                className="w-32"
-                disabled={disabledInner}
-              />
-              <Button
-                type="button"
-                variant="outlined"
-                size="sm"
-                disabled={disabledInner}
-                onClick={distributeScheduledEqualParts}
-                data-test-id="purchase-doc-reception-equal-split-2"
-              >
-                Distribuir en partes iguales
-              </Button>
-            </div>
-            <InvoicePlannedPaymentLines
-              disabled={disabledInner}
-              companyBankAccounts={companyBankAccounts}
-              supplierBankAccounts={supplierBankAccounts}
-              cashHubOptions={cashHubOptions}
-              lines={scheduledLines}
-              onAddLine={addSched}
-              onRemoveLine={removeSched}
-              onPatchLine={patchSched}
-            />
-          </>
+          <InvoicePlannedPaymentLines
+            disabled={disabledInner}
+            lineKind="scheduled"
+            companyBankAccounts={companyBankAccounts}
+            supplierBankAccounts={supplierBankAccounts}
+            cashHubOptions={cashHubOptions}
+            lines={scheduledLines}
+            onAddLine={addSched}
+            onRemoveLine={removeSched}
+            onPatchLine={patchSched}
+            onDistributeEqual={
+              scheduledLines.length > 0 ? redistributeScheduledEqual : undefined
+            }
+          />
         ) : null}
       </div>
     </Dialog>

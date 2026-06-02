@@ -15,6 +15,8 @@ import { Branch } from '@modules/branches/domain/branch.entity';
 import { User } from '@modules/users/domain/user.entity';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
+import { Category } from '@modules/categories/domain/category.entity';
+import { Brand } from '@modules/brands/domain/brand.entity';
 import { CompaniesModule } from '@modules/companies/companies.module';
 import { MultimediaModule } from '@modules/multimedia/multimedia.module';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
@@ -34,6 +36,8 @@ import { EShopSchemaBootstrap } from './infrastructure/eshop-schema.bootstrap';
       User,
       PriceListItem,
       Storage,
+      Category,
+      Brand,
     ]),
     CompaniesModule,
     MultimediaModule,

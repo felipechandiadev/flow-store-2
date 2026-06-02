@@ -67,6 +67,7 @@ export class ProductsController {
       variantIds,
       pointOfSaleId: dto.pointOfSaleId,
       branchId: dto.branchId,
+      priceListId: dto.priceListId,
     });
     return { success: true, products };
   }

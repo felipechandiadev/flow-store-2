@@ -195,6 +195,8 @@ export class ProductsPosService {
     variantIds: string[];
     pointOfSaleId?: string;
     branchId?: string;
+    /** Solo variantes con ítem en esta lista (precio vigente en POS). */
+    priceListId?: string;
   }): Promise<PosProductSearchResult[]> {
     const ids = [...new Set(args.variantIds.map((id) => id.trim()).filter(Boolean))];
     if (ids.length === 0) {
@@ -206,20 +208,73 @@ export class ProductsPosService {
       branchId: args.branchId,
     });
 
-    const variants = await this.variantRepository.find({
-      where: {
-        id: In(ids),
-        deletedAt: IsNull(),
-        isActive: true,
-      },
-      relations: ['product', 'saleUnit', 'stockBaseUnit'],
-    });
-    const activeVariants = variants.filter(
-      (v) =>
-        v.product &&
-        v.product.deletedAt == null &&
-        v.product.isActive === true,
-    );
+    const priceListId = args.priceListId?.trim();
+    let activeVariants: ProductVariant[];
+
+    if (priceListId) {
+      activeVariants = await this.variantRepository
+        .createQueryBuilder('v')
+        .innerJoin('v.product', 'product')
+        .innerJoin(
+          'v.priceListItems',
+          'priceListItem',
+          'priceListItem.priceListId = :priceListId AND priceListItem.deletedAt IS NULL',
+          { priceListId },
+        )
+        .leftJoin('v.unit', 'unit')
+        .leftJoin('v.saleUnit', 'saleUnit')
+        .leftJoin('v.stockBaseUnit', 'stockBaseUnit')
+        .where('v.id IN (:...ids)', { ids })
+        .andWhere('v.deletedAt IS NULL')
+        .andWhere('v.isActive = :isActive', { isActive: true })
+        .andWhere('product.deletedAt IS NULL')
+        .andWhere('product.isActive = :isActive', { isActive: true })
+        .select([
+          'v.id',
+          'v.productId',
+          'v.sku',
+          'v.barcode',
+          'v.trackInventory',
+          'v.stockBaseUnitId',
+          'v.saleUnitId',
+          'v.stockBaseQtyPerCountSaleUnit',
+          'v.attributeValues',
+          'product.id',
+          'product.companyId',
+          'product.name',
+          'product.description',
+          'unit.id',
+          'unit.symbol',
+          'unit.allowDecimals',
+          'saleUnit.id',
+          'saleUnit.symbol',
+          'saleUnit.dimension',
+          'saleUnit.allowDecimals',
+          'stockBaseUnit.id',
+          'stockBaseUnit.symbol',
+          'stockBaseUnit.dimension',
+          'priceListItem.id',
+          'priceListItem.netPrice',
+          'priceListItem.grossPrice',
+          'priceListItem.taxIds',
+        ])
+        .getMany();
+    } else {
+      const variants = await this.variantRepository.find({
+        where: {
+          id: In(ids),
+          deletedAt: IsNull(),
+          isActive: true,
+        },
+        relations: ['product', 'saleUnit', 'stockBaseUnit'],
+      });
+      activeVariants = variants.filter(
+        (v) =>
+          v.product &&
+          v.product.deletedAt == null &&
+          v.product.isActive === true,
+      );
+    }
 
     return this.mapVariantsToPosSearchResults(activeVariants, scope);
   }

@@ -15,7 +15,8 @@ export type InvoicePlannedPaymentLineState = {
   id: string;
   dueDate: string;
   amountStr: string;
-  paymentMethod: InvoicePlannedPaymentMethodUI;
+  /** Obligatorio en pagos inmediatos; omitir en cuotas programadas (medio se define al pagar). */
+  paymentMethod?: InvoicePlannedPaymentMethodUI;
   companyBankAccountKey: string | null;
   supplierBankAccountKey: string | null;
   chequeNumber: string;
@@ -41,6 +42,9 @@ function accountLabel(a: CompanyBankAccountItem | SupplierPersonBankAccount): st
   return `${a.bankName} · ${a.accountType} · ${a.accountNumber}`;
 }
 
+/** `immediate`: pago al momento (medio de pago requerido). `scheduled`: cuota futura (solo fecha + monto). */
+export type InvoicePlannedPaymentLineKind = "immediate" | "scheduled";
+
 export type InvoicePlannedPaymentLinesProps = {
   disabled: boolean;
   companyBankAccounts: CompanyBankAccountItem[];
@@ -49,10 +53,14 @@ export type InvoicePlannedPaymentLinesProps = {
   cashHubOptions?: Option[];
   /** Si es false, no se muestra el botón «+» (p. ej. pago único completado). */
   allowAddLine?: boolean;
+  /** Default `immediate`. */
+  lineKind?: InvoicePlannedPaymentLineKind;
   lines: InvoicePlannedPaymentLineState[];
   onAddLine: () => void;
   onRemoveLine: (id: string) => void;
   onPatchLine: (id: string, patch: Partial<InvoicePlannedPaymentLineState>) => void;
+  /** Reparte el total en montos iguales entre las líneas actuales (fechas se conservan). */
+  onDistributeEqual?: () => void;
 };
 
 export function InvoicePlannedPaymentLines({
@@ -61,11 +69,14 @@ export function InvoicePlannedPaymentLines({
   supplierBankAccounts,
   cashHubOptions = [],
   allowAddLine = true,
+  lineKind = "immediate",
   lines,
   onAddLine,
   onRemoveLine,
   onPatchLine,
+  onDistributeEqual,
 }: InvoicePlannedPaymentLinesProps) {
+  const isScheduled = lineKind === "scheduled";
   const companyOpts = companyBankAccounts.map((a, i) => ({
     id: bankAccountOptionKey(a, i),
     label: accountLabel(a),
@@ -78,18 +89,37 @@ export function InvoicePlannedPaymentLines({
   return (
     <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3" data-test-id="invoice-planned-payments">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground">Pagos</h3>
-        {allowAddLine ? (
-          <IconButton
-            type="button"
-            icon="Plus"
-            variant="outlined"
-            size="sm"
-            ariaLabel="Agregar línea de pago"
-            disabled={disabled}
-            onClick={onAddLine}
-            data-test-id="invoice-payment-add-line"
-          />
+        <h3 className="text-sm font-semibold text-foreground">
+          {isScheduled ? "Cuotas programadas" : "Pagos"}
+        </h3>
+        {allowAddLine || onDistributeEqual ? (
+          <div className="flex shrink-0 gap-1">
+            {onDistributeEqual ? (
+              <IconButton
+                type="button"
+                icon="Equal"
+                variant="outlined"
+                size="sm"
+                ariaLabel="Repartir montos en partes iguales"
+                title="Repartir montos en partes iguales"
+                disabled={disabled}
+                onClick={onDistributeEqual}
+                data-test-id="invoice-payment-distribute-equal"
+              />
+            ) : null}
+            {allowAddLine ? (
+              <IconButton
+                type="button"
+                icon="Plus"
+                variant="outlined"
+                size="sm"
+                ariaLabel="Agregar línea de pago"
+                disabled={disabled}
+                onClick={onAddLine}
+                data-test-id="invoice-payment-add-line"
+              />
+            ) : null}
+          </div>
         ) : null}
       </div>
       {lines.length === 0 ? (
@@ -117,10 +147,12 @@ export function InvoicePlannedPaymentLines({
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+              <div
+                className={`grid grid-cols-1 gap-3 sm:gap-4 ${isScheduled ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}
+              >
                 <div className="min-w-0">
                   <TextField
-                    label="Fecha de pago"
+                    label={isScheduled ? "Fecha de vencimiento" : "Fecha de pago"}
                     type="date"
                     value={line.dueDate}
                     onChange={(e) => onPatchLine(line.id, { dueDate: e.target.value })}
@@ -138,30 +170,32 @@ export function InvoicePlannedPaymentLines({
                     disabled={disabled}
                   />
                 </div>
-                <div className="min-w-0">
-                  <Select
-                    label="Medio de pago"
-                    alwaysShowLabel
-                    options={[...METHOD_OPTIONS]}
-                    value={line.paymentMethod}
-                    onChange={(id) =>
-                      onPatchLine(line.id, {
-                        paymentMethod: (id ?? "CASH") as InvoicePlannedPaymentMethodUI,
-                        cashHubId:
-                          id === "CASH" && cashHubOptions[0]
-                            ? String(cashHubOptions[0].id)
-                            : id !== "CASH"
-                              ? null
-                              : line.cashHubId,
-                      })
-                    }
-                    disabled={disabled}
-                    data-test-id={`invoice-payment-method-${idx}`}
-                  />
-                </div>
+                {!isScheduled ? (
+                  <div className="min-w-0">
+                    <Select
+                      label="Medio de pago"
+                      alwaysShowLabel
+                      options={[...METHOD_OPTIONS]}
+                      value={line.paymentMethod ?? "CASH"}
+                      onChange={(id) =>
+                        onPatchLine(line.id, {
+                          paymentMethod: (id ?? "CASH") as InvoicePlannedPaymentMethodUI,
+                          cashHubId:
+                            id === "CASH" && cashHubOptions[0]
+                              ? String(cashHubOptions[0].id)
+                              : id !== "CASH"
+                                ? null
+                                : line.cashHubId,
+                        })
+                      }
+                      disabled={disabled}
+                      data-test-id={`invoice-payment-method-${idx}`}
+                    />
+                  </div>
+                ) : null}
               </div>
 
-              {line.paymentMethod === "TRANSFER" ? (
+              {!isScheduled && line.paymentMethod === "TRANSFER" ? (
                 <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                   <div className="min-w-0">
                     <Select
@@ -192,7 +226,7 @@ export function InvoicePlannedPaymentLines({
                 </div>
               ) : null}
 
-              {line.paymentMethod === "CASH" && cashHubOptions.length > 0 ? (
+              {!isScheduled && line.paymentMethod === "CASH" && cashHubOptions.length > 0 ? (
                 <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                   <div className="min-w-0">
                     <Select
@@ -209,7 +243,7 @@ export function InvoicePlannedPaymentLines({
                 </div>
               ) : null}
 
-              {line.paymentMethod === "CHECK" ? (
+              {!isScheduled && line.paymentMethod === "CHECK" ? (
                 <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                   <div className="min-w-0">
                     <Select

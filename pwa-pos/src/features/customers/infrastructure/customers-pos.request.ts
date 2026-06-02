@@ -12,7 +12,10 @@ import type {
   PosCustomerQuotaRow,
   PosCustomerReturnRow,
 } from "../types/pos-customer-detail.types";
-import type { PosCreateCustomerInput, PosCreateCustomerResult } from "../types/pos-customer-create.types";
+import type {
+  PosCreateCustomerApiBody,
+  PosCreateCustomerResult,
+} from "../types/pos-customer-create.types";
 import type { CustomerPaymentSourcesResponse } from "../types/customer-payment-sources.types";
 
 export class CustomersPosRequest {
@@ -127,6 +130,29 @@ export class CustomersPosRequest {
           });
         }
       }
+      const relatedCreditNotes: Array<{
+        creditNoteId: string;
+        documentNumber: string;
+        amount: number;
+      }> = [];
+      const rawNc = p.relatedCreditNotes;
+      if (Array.isArray(rawNc)) {
+        for (const item of rawNc) {
+          if (!item || typeof item !== "object") continue;
+          const r = item as Record<string, unknown>;
+          const creditNoteId =
+            typeof r.creditNoteId === "string" ? r.creditNoteId.trim() : "";
+          if (!creditNoteId) continue;
+          relatedCreditNotes.push({
+            creditNoteId,
+            documentNumber:
+              typeof r.documentNumber === "string" && r.documentNumber.trim()
+                ? r.documentNumber.trim()
+                : "",
+            amount: Math.round(Number(r.amount) || 0),
+          });
+        }
+      }
       return {
         id: String(p.id ?? ""),
         documentNumber: p.documentNumber != null ? String(p.documentNumber) : null,
@@ -136,6 +162,7 @@ export class CustomersPosRequest {
         paymentMethod: p.paymentMethod != null ? String(p.paymentMethod) : null,
         createdAt: p.createdAt != null ? String(p.createdAt) : "",
         relatedSales,
+        relatedCreditNotes,
       };
     });
   }
@@ -516,7 +543,7 @@ export class CustomersPosRequest {
     }
   }
 
-  static async create(body: PosCreateCustomerInput): Promise<PosCreateCustomerResult> {
+  static async create(body: PosCreateCustomerApiBody): Promise<PosCreateCustomerResult> {
     const base = process.env.BACKEND_API_URL;
     if (!base) {
       return { success: false, message: "BACKEND_API_URL no está configurada" };
@@ -543,6 +570,7 @@ export class CustomersPosRequest {
           personType: body.personType,
           firstName: body.firstName.trim(),
           lastName: body.lastName?.trim() || undefined,
+          businessName: body.businessName?.trim() || undefined,
           documentType: body.documentType,
           documentNumber: body.documentNumber.trim(),
           email: body.email?.trim() || undefined,

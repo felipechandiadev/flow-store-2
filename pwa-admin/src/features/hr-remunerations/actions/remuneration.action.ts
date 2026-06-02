@@ -65,11 +65,18 @@ export async function createRemunerationAction(
   const others = parseAmount(input.othersAmount);
   if (others > 0) lines.push({ typeId: "DEDUCTION_EXTRA", amount: others });
 
+  const net =
+    ordinary -
+    parseAmount(input.afpAmount) -
+    parseAmount(input.healthAmount) -
+    parseAmount(input.othersAmount);
+
   const res = await RemunerationRequest.create({
     employeeId,
     date,
     resultCenterId: input.resultCenterId?.trim() || null,
     lines,
+    plannedPayments: [{ dueDate: date, amount: net }],
   });
   if (res.success) {
     revalidatePath(REMUNERATIONS_PATH, "page");

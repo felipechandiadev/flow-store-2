@@ -1,57 +1,56 @@
-import {
-  getFeaturedProductsAction,
-  getProductsAction,
-} from "@/features/e-shop-storefront/actions/storefront.action";
-import type { EShopProductCard as Product } from "@/features/e-shop-storefront/types/storefront.types";
-import { EShopProductCard } from "@/shared/components/EShopProductCard";
+import { Suspense } from "react";
+import { getCatalogAction } from "@/features/e-shop-catalog/actions/catalog.action";
+import { CatalogSection } from "@/features/e-shop-catalog/components/CatalogSection";
+import { CatalogSectionSkeleton } from "@/features/e-shop-catalog/components/CatalogSectionSkeleton";
 import { StorePageShell } from "@/shared/components/StorePageShell";
 
-function ProductGrid({ items }: { items: Product[] }) {
-  if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">No hay productos para mostrar.</p>;
+type ProductosSearchParams = Promise<{
+  search?: string;
+  categoryId?: string;
+  page?: string;
+  limit?: string;
+}>;
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
   }
+  return Math.floor(parsed);
+}
+
+async function CatalogContent({ searchParams }: { searchParams: ProductosSearchParams }) {
+  const params = await searchParams;
+  const search = params.search?.trim() ?? "";
+  const categoryId = params.categoryId?.trim() ?? "";
+  const page = parsePositiveInt(params.page, 1);
+  const limit = Math.min(48, parsePositiveInt(params.limit, 24));
+
+  const catalog = await getCatalogAction({
+    page,
+    limit,
+    search: search || undefined,
+    categoryId: categoryId || undefined,
+  });
 
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-      {items.map((p) => (
-        <EShopProductCard key={p.id} product={p} />
-      ))}
-    </div>
+    <CatalogSection
+      items={catalog.items}
+      categories={catalog.categories}
+      total={catalog.total}
+      totalGeneral={catalog.totalGeneral}
+    />
   );
 }
 
-export default async function ProductosPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ search?: string }>;
-}) {
-  const { search } = await searchParams;
-  const [{ items: featured }, { items: catalog }] = await Promise.all([
-    getFeaturedProductsAction(),
-    getProductsAction({ search }),
-  ]);
-
-  const featuredIds = new Set(featured.map((p) => p.id));
-  const catalogItems = catalog.filter((p) => !featuredIds.has(p.id));
-  const showFeatured = !search?.trim() && featured.length > 0;
-
+export default function ProductosPage({ searchParams }: { searchParams: ProductosSearchParams }) {
   return (
     <StorePageShell className="space-y-12">
       <h1 className="text-2xl font-semibold">Productos</h1>
 
-      {showFeatured ? (
-        <section id="destacados" className="scroll-mt-20 space-y-6">
-          <h2 className="text-xl font-semibold">Destacados</h2>
-          <ProductGrid items={featured} />
-        </section>
-      ) : null}
-
-      <section id="catalogo" className="scroll-mt-20 space-y-6">
-        <h2 className="text-xl font-semibold">
-          {showFeatured ? "Catálogo completo" : search?.trim() ? "Resultados" : "Catálogo completo"}
-        </h2>
-        <ProductGrid items={showFeatured ? catalogItems : catalog} />
-      </section>
+      <Suspense fallback={<CatalogSectionSkeleton />}>
+        <CatalogContent searchParams={searchParams} />
+      </Suspense>
     </StorePageShell>
   );
 }

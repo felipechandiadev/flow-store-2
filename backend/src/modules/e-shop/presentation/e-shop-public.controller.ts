@@ -16,6 +16,26 @@ export class EShopPublicController {
     return this.eShopService.getStorefront(store);
   }
 
+  @Get('catalog')
+  listCatalog(
+    @EShopStore() store: EShopStoreContext,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('excludeIds') excludeIds?: string,
+  ) {
+    return this.eShopService.listCatalog(store, {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      categoryId,
+      excludeProductIds: excludeIds
+        ? excludeIds.split(',').map((id) => id.trim()).filter(Boolean)
+        : undefined,
+    });
+  }
+
   @Get('products')
   listProducts(
     @EShopStore() store: EShopStoreContext,

@@ -7,7 +7,9 @@ import {
   TransactionStatus,
   TransactionType,
   PaymentMethod,
+  PaymentStatus,
 } from '@modules/transactions/domain/transaction.entity';
+import { ParentPaymentAggregateService } from '@modules/transactions/application/services/parent-payment-aggregate.service';
 import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
 import { Employee } from '@modules/employees/domain/employee.entity';
 import { ResultCenter } from '@modules/result-centers/domain/result-center.entity';
@@ -32,10 +34,16 @@ interface RemunerationLineInput {
   amount: number;
 }
 
+export interface PlannedPaymentLineInput {
+  dueDate: string;
+  amount: number;
+}
+
 @Injectable()
 export class RemunerationsService {
   constructor(
     private readonly transactionsService: TransactionsService,
+    private readonly parentPaymentAggregate: ParentPaymentAggregateService,
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
     @InjectRepository(Employee)
@@ -93,6 +101,7 @@ export class RemunerationsService {
     date: string;
     lines: RemunerationLineInput[];
     userId?: string;
+    plannedPayments?: PlannedPaymentLineInput[];
   }) {
     const employee = await this.employeeRepository.findOne({
       where: { id: data.employeeId },
@@ -135,11 +144,49 @@ export class RemunerationsService {
     dto.discountAmount = totalDeductions;
     dto.total = netPayment;
     dto.paymentMethod = PaymentMethod.TRANSFER;
-    dto.amountPaid = netPayment;
+    dto.amountPaid = 0;
+    dto.paymentStatus = PaymentStatus.PENDING;
     dto.paymentDueDate = data.date;
     dto.metadata = metadata;
 
     const created = await this.transactionsService.createTransaction(dto);
+
+    const schedule =
+      data.plannedPayments?.length && data.plannedPayments.length > 0
+        ? data.plannedPayments
+        : [{ dueDate: data.date, amount: netPayment }];
+
+    const totalInstallments = schedule.length;
+    for (let i = 0; i < schedule.length; i++) {
+      const line = schedule[i];
+      const amount = Math.round(Number(line.amount) || 0);
+      if (amount <= 0) continue;
+
+      const payDto = new CreateTransactionDto();
+      payDto.transactionType = TransactionType.PAYROLL_PAYMENT;
+      payDto.transactionStatus = TransactionStatus.DRAFT;
+      payDto.branchId = branchId;
+      payDto.userId = userId;
+      payDto.employeeId = employee.id;
+      payDto.relatedTransactionId = created.id;
+      payDto.subtotal = amount;
+      payDto.taxAmount = 0;
+      payDto.discountAmount = 0;
+      payDto.total = amount;
+      payDto.amountPaid = 0;
+      payDto.paymentStatus = PaymentStatus.PENDING;
+      payDto.paymentDueDate = String(line.dueDate || data.date).trim();
+      payDto.metadata = {
+        origin: 'PAYROLL_PAYMENT',
+        installmentNumber: i + 1,
+        totalInstallments,
+        payrollTransactionId: created.id,
+      };
+      await this.transactionsService.createTransaction(payDto);
+    }
+
+    await this.parentPaymentAggregate.recalculateParentPaymentStatus(created.id);
+
     return this.getRemunerationById(created.id);
   }
 

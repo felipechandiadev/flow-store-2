@@ -10,6 +10,7 @@ export default function SelectPage() {
   const [compactStackPurpose, setCompactStackPurpose] = useState<string | number | null>(null);
   const [compactInsetPurpose, setCompactInsetPurpose] = useState<string | number | null>('tickets');
   const [compactInsetPrinter, setCompactInsetPrinter] = useState<string | number | null>(null);
+  const [defaultInlineCategory, setDefaultInlineCategory] = useState<string | number | null>('tickets');
 
   const options = [
     { id: 'option1', label: 'Option 1' },
@@ -119,6 +120,24 @@ export default function SelectPage() {
             name="select-compact-inset-printer"
           />
         </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">Default — label inline (altura estándar)</h2>
+        <p className="text-sm text-muted-foreground">
+          <code className="rounded bg-muted/50 px-1 text-xs">labelLayout=&quot;inline&quot;</code> sin{" "}
+          <code className="rounded bg-muted/50 px-1 text-xs">density=&quot;compact&quot;</code>: misma altura que
+          TextField default (~2.75rem).
+        </p>
+        <Select
+          label="Categoría"
+          placeholder="Todas"
+          labelLayout="inline"
+          options={purposeOptions}
+          value={defaultInlineCategory}
+          onChange={setDefaultInlineCategory}
+          name="select-default-inline-category"
+        />
       </section>
 
       <section className="space-y-4">

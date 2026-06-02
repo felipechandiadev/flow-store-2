@@ -10,6 +10,10 @@ export class CompletePaymentDto {
   bankAccountKey?: string;
 
   @IsOptional()
+  @IsString()
+  cashHubId?: string;
+
+  @IsOptional()
   @IsObject()
   supplierBankAccount?: Record<string, unknown>;
 

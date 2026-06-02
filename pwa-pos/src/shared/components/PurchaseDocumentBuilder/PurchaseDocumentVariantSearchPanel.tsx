@@ -219,96 +219,84 @@ export function PurchaseDocumentVariantSearchPanel({
           <p className="text-sm text-muted-foreground">Sin resultados.</p>
         ) : (
           variantSearch.items.map((item) => (
-            <article
+            <button
               key={item.id}
-              className={`flex min-h-0 flex-col overflow-hidden rounded-lg border shadow-sm ${
+              type="button"
+              onClick={() => onAddVariant(item)}
+              title="Agregar a la recepción"
+              className={`block w-full touch-manipulation rounded-lg border p-2.5 text-left shadow-sm transition-colors ${
                 item.hasStockAlert
                   ? STOCK_THRESHOLD_ALERT_CARD_CLASS
-                  : "border-border/80 bg-muted/20"
+                  : "border-border bg-surface hover:border-secondary focus:border-secondary focus:outline-none active:border-secondary/40 active:bg-secondary/10"
               }`}
               data-test-id={`purchase-doc-variant-card-${item.id}`}
               data-stock-alert={item.hasStockAlert ? "true" : undefined}
             >
-              <div className="min-w-0 flex-1 p-2.5">
-                {item.categoryName ? (
-                  <p
-                    className="truncate text-[11px] text-muted-foreground"
-                    title={item.categoryName}
-                  >
-                    {item.categoryName}
-                  </p>
-                ) : null}
-                <ProductNameWithAttributes
-                  name={item.productName}
-                  attributeValues={item.attributeValues}
-                  className="text-sm font-medium text-foreground"
-                />
-                <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 font-mono text-[11px] text-muted-foreground">
-                  <span>SKU {item.sku}</span>
-                  {item.barcode ? (
-                    <>
-                      <InlineSepDot />
-                      <span>{item.barcode}</span>
-                    </>
-                  ) : null}
+              {item.categoryName ? (
+                <p
+                  className="truncate text-[11px] text-muted-foreground"
+                  title={item.categoryName}
+                >
+                  {item.categoryName}
                 </p>
-                <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs tabular-nums text-foreground">
-                  {item.pmp != null && Number(item.pmp) > 0 ? (
-                    <span>
-                      PMP {formatMoney(item.pmp)}
-                      {item.stockBaseUnitLabel ? ` / ${item.stockBaseUnitLabel}` : ""}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">Sin PMP</span>
-                  )}
-                  {item.purchaseUnitLabel ? (
-                    <>
-                      <InlineSepDot />
-                      <span className="text-muted-foreground">Compra: {item.purchaseUnitLabel}</span>
-                    </>
-                  ) : null}
-                </p>
-                {item.storageStocks.length > 0 ? (
-                  <div className="mt-1.5 flex flex-wrap gap-1" data-test-id={`purchase-doc-variant-stock-badges-${item.id}`}>
-                    {item.storageStocks.map((s) => {
-                      const title = [s.storageName, s.branchName].filter(Boolean).join(" · ");
-                      return (
-                        <Badge
-                          key={s.storageId}
-                          variant={s.hasStockAlert ? "error-outlined" : "success-outlined"}
-                          className={
-                            s.hasStockAlert
-                              ? `max-w-[11rem] truncate border ${STOCK_THRESHOLD_ALERT_CARD_CLASS}`
-                              : "max-w-[11rem] truncate"
-                          }
-                          title={`${title} — Disp.: ${formatPurchaseAvailableQty(s.availableStock)}`}
-                        >
-                          <span className="font-medium">{s.storageName}</span>
-                          <span className="mx-0.5 opacity-80">:</span>
-                          <span className="tabular-nums">{formatPurchaseAvailableQty(s.availableStock)}</span>
-                        </Badge>
-                      );
-                    })}
-                  </div>
+              ) : null}
+              <ProductNameWithAttributes
+                name={item.productName}
+                attributeValues={item.attributeValues}
+                className="text-sm font-medium text-foreground"
+              />
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 font-mono text-[11px] text-muted-foreground">
+                <span>SKU {item.sku}</span>
+                {item.barcode ? (
+                  <>
+                    <InlineSepDot />
+                    <span>{item.barcode}</span>
+                  </>
                 ) : null}
-              </div>
-              <div
-                className="flex shrink-0 items-center justify-end gap-2 border-t border-border/70 px-2.5 py-2"
-                data-test-id={`purchase-doc-variant-card-actions-${item.id}`}
-                role="group"
-                aria-label="Acciones"
-              >
-                <IconButton
-                  icon="Plus"
-                  variant="action"
-                  size="sm"
-                  title="Agregar a la lista"
-                  ariaLabel="Agregar variante al documento"
-                  onClick={() => onAddVariant(item)}
-                  data-test-id={`purchase-doc-add-${item.id}`}
-                />
-              </div>
-            </article>
+              </p>
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs tabular-nums text-foreground">
+                {item.pmp != null && Number(item.pmp) > 0 ? (
+                  <span>
+                    PMP {formatMoney(item.pmp)}
+                    {item.stockBaseUnitLabel ? ` / ${item.stockBaseUnitLabel}` : ""}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Sin PMP</span>
+                )}
+                {item.purchaseUnitLabel ? (
+                  <>
+                    <InlineSepDot />
+                    <span className="text-muted-foreground">Compra: {item.purchaseUnitLabel}</span>
+                  </>
+                ) : null}
+              </p>
+              {item.storageStocks.length > 0 ? (
+                <div
+                  className="mt-1.5 flex flex-wrap gap-1"
+                  data-test-id={`purchase-doc-variant-stock-badges-${item.id}`}
+                >
+                  {item.storageStocks.map((s) => {
+                    const title = [s.storageName, s.branchName].filter(Boolean).join(" · ");
+                    return (
+                      <Badge
+                        key={s.storageId}
+                        variant={s.hasStockAlert ? "error-outlined" : "success-outlined"}
+                        className={
+                          s.hasStockAlert
+                            ? `max-w-[11rem] truncate border ${STOCK_THRESHOLD_ALERT_CARD_CLASS}`
+                            : "max-w-[11rem] truncate"
+                        }
+                        title={`${title} — Disp.: ${formatPurchaseAvailableQty(s.availableStock)}`}
+                      >
+                        <span className="font-medium">{s.storageName}</span>
+                        <span className="mx-0.5 opacity-80">:</span>
+                        <span className="tabular-nums">{formatPurchaseAvailableQty(s.availableStock)}</span>
+                      </Badge>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </button>
           ))
         )}
       </div>

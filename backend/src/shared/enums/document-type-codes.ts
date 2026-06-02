@@ -8,6 +8,7 @@ export const DOCUMENT_TYPE_CODES: Record<TransactionType, string> = {
   [TransactionType.SALE]: 'VTA',
   [TransactionType.SALE_RETURN]: 'DEV',
   [TransactionType.CUSTOMER_CREDIT_NOTE]: 'NCC',
+  [TransactionType.CUSTOMER_CREDIT_NOTE_PAYOUT]: 'NCL',
   [TransactionType.PURCHASE]: 'CMP',
   [TransactionType.PURCHASE_ORDER]: 'OC',
   [TransactionType.PURCHASE_RETURN]: 'DPC',

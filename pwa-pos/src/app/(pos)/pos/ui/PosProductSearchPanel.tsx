@@ -31,8 +31,10 @@ import {
   IconButton,
   NumberStepper,
   Select,
+  Switch,
   TextField,
 } from "@/shared/admin-shared";
+import { PosFavoriteQuickPickBar } from "@/features/pos-settings/ui/PosFavoriteQuickPickBar";
 
 /**
  * Alto del buscador de productos respecto al viewport (`vh`).
@@ -85,6 +87,7 @@ export default function PosProductSearchPanel({
   /** Tras Enter o código tipo barras: agregar al carrito si hay un solo resultado. */
   const scanAutoAddRef = useRef(false);
   const [scanAddedHint, setScanAddedHint] = useState("");
+  const [showFavorites, setShowFavorites] = useState(false);
 
   const focusSearchField = useCallback(() => {
     searchFieldWrapRef.current?.querySelector<HTMLInputElement>("input")?.focus();
@@ -281,9 +284,17 @@ export default function PosProductSearchPanel({
           {disabledHint ?? "Búsqueda de productos deshabilitada en este modo."}
         </div>
       ) : null}
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 flex-1" />
-        <div className="flex min-w-0 items-center justify-end gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <Switch
+          checked={showFavorites}
+          onChange={setShowFavorites}
+          label="Favoritos"
+          labelPosition="right"
+          disabled={disabled}
+          className="shrink-0"
+          data-test-id="pos-product-favorites-switch"
+        />
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
           <p
             className="min-w-0 truncate text-sm font-medium text-foreground"
             data-test-id="pos-product-selected-price-list"
@@ -300,6 +311,16 @@ export default function PosProductSearchPanel({
           />
         </div>
       </div>
+
+      {showFavorites ? (
+        <PosFavoriteQuickPickBar
+          pointOfSaleId={pointOfSaleId}
+          priceListId={priceListId}
+          branchId={branchId}
+          disabled={disabled}
+          onPickProduct={onPickProduct}
+        />
+      ) : null}
 
       <div ref={searchFieldWrapRef}>
       <TextField

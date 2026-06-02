@@ -15,6 +15,7 @@ import { User } from '@modules/users/domain/user.entity';
 import { ProductVariantsService } from '@modules/product-variants/application/product-variants.service';
 import { TransactionsService } from '@modules/transactions/application/transactions.service';
 import { DocumentNumberService } from '@modules/transactions/application/document-number.service';
+import { ParentPaymentAggregateService } from '@modules/transactions/application/services/parent-payment-aggregate.service';
 import {
   CreateTransactionDto,
   CreateTransactionLineDto,
@@ -58,6 +59,7 @@ export class ReceptionsService {
     private readonly documentNumberService: DocumentNumberService,
     private readonly variantsService: ProductVariantsService,
     private readonly cashSessionsService: CashSessionsService,
+    private readonly parentPaymentAggregate: ParentPaymentAggregateService,
   ) {}
 
   private resolvePosCashSessionId(data: any): string | null {
@@ -1390,9 +1392,12 @@ export class ReceptionsService {
   ): string | null {
     const due = typeof l?.dueDate === 'string' ? l.dueDate.trim() : '';
     const amount = this.roundClp(l?.amount);
-    const pm = String(l?.paymentMethod || '').toUpperCase();
     if (!due) return `${label}: fecha de vencimiento requerida.`;
     if (amount <= 0) return `${label}: monto inválido.`;
+    if (opts?.isScheduledLine) {
+      return null;
+    }
+    const pm = String(l?.paymentMethod || '').toUpperCase();
     if (!['CASH', 'TRANSFER', 'CHECK'].includes(pm))
       return `${label}: medio de pago inválido.`;
     if (pm === 'CASH') {
@@ -1427,8 +1432,17 @@ export class ReceptionsService {
     return null;
   }
 
-  private toPlannedPaymentMeta(line: any, posCashSessionId?: string | null) {
+  private toPlannedPaymentMeta(
+    line: any,
+    posCashSessionId?: string | null,
+    opts?: { isScheduled?: boolean },
+  ) {
+    const dueDate = String(line?.dueDate || '').trim();
+    const amount = this.roundClp(line?.amount);
     const pm = String(line?.paymentMethod || '').toUpperCase();
+    if (opts?.isScheduled && !pm) {
+      return { dueDate, amount };
+    }
     const lineSession =
       pm === 'CASH' && line?.cashSessionId != null
         ? String(line.cashSessionId).trim()
@@ -1436,9 +1450,9 @@ export class ReceptionsService {
     const sessionId =
       lineSession || (pm === 'CASH' && posCashSessionId ? posCashSessionId.trim() : null);
     return {
-      dueDate: String(line?.dueDate || '').trim(),
-      amount: this.roundClp(line?.amount),
-      paymentMethod: pm,
+      dueDate,
+      amount,
+      ...(pm ? { paymentMethod: pm } : {}),
       companyBankAccountKey:
         pm === 'TRANSFER' || pm === 'CHECK'
           ? line?.companyBankAccountKey != null
@@ -1551,6 +1565,8 @@ export class ReceptionsService {
     line: any;
     asDraft: boolean;
     note: string;
+    installmentNumber?: number;
+    totalInstallments?: number;
   }): Promise<void> {
     const dto = new CreateTransactionDto();
     dto.transactionType = TransactionType.SUPPLIER_PAYMENT;
@@ -1565,43 +1581,49 @@ export class ReceptionsService {
     dto.discountAmount = 0;
     dto.taxAmount = 0;
     dto.total = this.roundClp(opts.line.amount);
-    dto.paymentMethod = this.mapUiPaymentMethod(opts.line.paymentMethod);
     dto.amountPaid = opts.asDraft ? 0 : this.roundClp(opts.line.amount);
     dto.paymentStatus = opts.asDraft ? PaymentStatus.PENDING : PaymentStatus.PAID;
     dto.paymentDueDate = String(opts.line.dueDate || '').trim();
-    const pm = String(opts.line.paymentMethod || '').toUpperCase();
-    if (pm === 'TRANSFER' || pm === 'CHECK') {
-      dto.bankAccountKey =
-        opts.line.companyBankAccountKey != null
-          ? String(opts.line.companyBankAccountKey).trim()
-          : undefined;
-    }
-    const posSessionId = this.resolvePosCashSessionId(opts.dtoHost);
-    if (pm === 'CASH') {
-      const lineSession =
-        typeof opts.line?.cashSessionId === 'string'
-          ? opts.line.cashSessionId.trim()
-          : '';
-      const sessionId = lineSession || posSessionId || '';
-      if (sessionId) {
-        dto.cashSessionId = sessionId;
-        const posId =
-          typeof opts.dtoHost?.pointOfSaleId === 'string'
-            ? opts.dtoHost.pointOfSaleId.trim()
+    const pm = String(opts.line?.paymentMethod || '').toUpperCase();
+    if (pm && ['CASH', 'TRANSFER', 'CHECK'].includes(pm)) {
+      dto.paymentMethod = this.mapUiPaymentMethod(pm);
+      if (pm === 'TRANSFER' || pm === 'CHECK') {
+        dto.bankAccountKey =
+          opts.line.companyBankAccountKey != null
+            ? String(opts.line.companyBankAccountKey).trim()
+            : undefined;
+      }
+      const posSessionId = this.resolvePosCashSessionId(opts.dtoHost);
+      if (pm === 'CASH') {
+        const lineSession =
+          typeof opts.line?.cashSessionId === 'string'
+            ? opts.line.cashSessionId.trim()
             : '';
-        if (posId) {
-          dto.pointOfSaleId = posId;
+        const sessionId = lineSession || posSessionId || '';
+        if (sessionId) {
+          dto.cashSessionId = sessionId;
+          const posId =
+            typeof opts.dtoHost?.pointOfSaleId === 'string'
+              ? opts.dtoHost.pointOfSaleId.trim()
+              : '';
+          if (posId) {
+            dto.pointOfSaleId = posId;
+          }
+        } else if (opts.line.cashHubId != null) {
+          dto.cashHubId = String(opts.line.cashHubId).trim();
         }
-      } else if (opts.line.cashHubId != null) {
-        dto.cashHubId = String(opts.line.cashHubId).trim();
       }
     }
     dto.notes = opts.note;
+    const posSessionId = this.resolvePosCashSessionId(opts.dtoHost);
     dto.metadata = {
       origin: 'RECEPTION_SUPPLIER_PAYMENT',
+      installmentNumber: opts.installmentNumber ?? 1,
+      totalInstallments: opts.totalInstallments ?? 1,
       receptionSupplierPaymentLine: this.toPlannedPaymentMeta(
         opts.line,
         posSessionId,
+        { isScheduled: opts.asDraft },
       ),
     };
     await this.transactionsService.createTransaction(dto);
@@ -1690,14 +1712,16 @@ export class ReceptionsService {
     } else if (payment.mode === 'PARTIAL') {
       parentPaymentStatus = PaymentStatus.PARTIAL;
       parentAmountPaid = this.sumLineAmounts(paid);
-      plannedForMeta = [...paid, ...sched].map((l) =>
-        this.toPlannedPaymentMeta(l, posCashSessionId),
+      plannedForMeta = [...paid, ...sched].map((l, i) =>
+        this.toPlannedPaymentMeta(l, posCashSessionId, {
+          isScheduled: i >= paid.length,
+        }),
       );
     } else if (payment.mode === 'PENDING_SCHEDULED') {
       parentPaymentStatus = PaymentStatus.PENDING;
       parentAmountPaid = 0;
       plannedForMeta = sched.map((l) =>
-        this.toPlannedPaymentMeta(l, posCashSessionId),
+        this.toPlannedPaymentMeta(l, posCashSessionId, { isScheduled: true }),
       );
     } else {
       parentPaymentStatus = PaymentStatus.PENDING;
@@ -1705,9 +1729,10 @@ export class ReceptionsService {
       plannedForMeta = [];
     }
 
-    const methodSource =
-      paid[0]?.paymentMethod ?? sched[0]?.paymentMethod ?? 'TRANSFER';
-    fiscalDto.paymentMethod = this.mapUiPaymentMethod(methodSource);
+    const methodSource = paid[0]?.paymentMethod;
+    if (methodSource) {
+      fiscalDto.paymentMethod = this.mapUiPaymentMethod(methodSource);
+    }
     fiscalDto.paymentStatus = parentPaymentStatus;
     fiscalDto.amountPaid = parentAmountPaid;
 
@@ -1746,6 +1771,15 @@ export class ReceptionsService {
       return 'No se obtuvo id del documento fiscal creado.';
     }
 
+    const totalPaymentLines =
+      payment.mode === 'COMPLETED'
+        ? paid.length
+        : payment.mode === 'PARTIAL'
+          ? paid.length + sched.length
+          : payment.mode === 'PENDING_SCHEDULED'
+            ? sched.length
+            : 0;
+
     if (payment.mode === 'COMPLETED') {
       for (let i = 0; i < paid.length; i++) {
         await this.createSupplierPaymentLine({
@@ -1754,6 +1788,8 @@ export class ReceptionsService {
           line: paid[i],
           asDraft: false,
           note: `Pago documento recepción (${i + 1}/${paid.length})`,
+          installmentNumber: i + 1,
+          totalInstallments: totalPaymentLines || paid.length,
         });
       }
     } else if (payment.mode === 'PARTIAL') {
@@ -1764,6 +1800,8 @@ export class ReceptionsService {
           line: paid[i],
           asDraft: false,
           note: `Abono recepción (${i + 1}/${paid.length})`,
+          installmentNumber: i + 1,
+          totalInstallments: totalPaymentLines,
         });
       }
       for (let i = 0; i < sched.length; i++) {
@@ -1773,6 +1811,8 @@ export class ReceptionsService {
           line: sched[i],
           asDraft: true,
           note: `Cuota programada recepción (${i + 1}/${sched.length})`,
+          installmentNumber: paid.length + i + 1,
+          totalInstallments: totalPaymentLines,
         });
       }
     } else if (payment.mode === 'PENDING_SCHEDULED') {
@@ -1783,8 +1823,14 @@ export class ReceptionsService {
           line: sched[i],
           asDraft: true,
           note: `Cuota programada recepción (${i + 1}/${sched.length})`,
+          installmentNumber: i + 1,
+          totalInstallments: sched.length,
         });
       }
+    }
+
+    if (totalPaymentLines > 0) {
+      await this.parentPaymentAggregate.recalculateParentPaymentStatus(fiscalId);
     }
 
     if (posCashSessionId) {

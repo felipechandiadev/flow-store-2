@@ -97,7 +97,6 @@ export const mainMenuItems: SideBarMenuItem[] = [
   {
     id: 'nav-accounting',
     label: 'Contabilidad',
-    hidden: true,
     children: [
       { id: 'acc-coa', label: 'Plan de cuentas', url: '/accounting/chart-of-accounts' },
       { id: 'acc-rules', label: 'Reglas contables', url: '/accounting/rules' },

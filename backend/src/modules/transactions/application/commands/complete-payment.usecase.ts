@@ -14,6 +14,8 @@ import {
 } from '../../domain/transaction.entity';
 import { TransactionCreatedEvent } from '../../../../shared/events/transaction-created.event';
 import { DocumentNumberService } from '../document-number.service';
+import { ParentPaymentAggregateService } from '../services/parent-payment-aggregate.service';
+import { PaymentStatus } from '../../domain/transaction.entity';
 
 export class CompletePaymentCommand {
   constructor(
@@ -21,6 +23,7 @@ export class CompletePaymentCommand {
     public readonly data: {
       paymentMethod?: string;
       bankAccountKey?: string;
+      cashHubId?: string;
       supplierBankAccount?: any;
       companyBankAccount?: any;
       note?: string;
@@ -38,6 +41,7 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
     private readonly transactionsRepository: Repository<Transaction>,
     private readonly eventBus: EventBus,
     private readonly documentNumberService: DocumentNumberService,
+    private readonly parentPaymentAggregate: ParentPaymentAggregateService,
   ) {}
 
   async execute(command: CompletePaymentCommand): Promise<Transaction> {
@@ -53,12 +57,14 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       throw new BadRequestException(`Payment ${paymentId} not found`);
     }
 
-    if (
-      payment.transactionType !== TransactionType.SUPPLIER_PAYMENT &&
-      payment.transactionType !== TransactionType.PAYROLL_PAYMENT
-    ) {
+    const completableTypes: TransactionType[] = [
+      TransactionType.SUPPLIER_PAYMENT,
+      TransactionType.PAYROLL_PAYMENT,
+      TransactionType.EXPENSE_PAYMENT,
+    ];
+    if (!completableTypes.includes(payment.transactionType)) {
       throw new BadRequestException(
-        `Transaction ${paymentId} is not a completable supplier or payroll payment`,
+        `Transaction ${paymentId} is not a completable accounts-payable payment`,
       );
     }
 
@@ -82,8 +88,10 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
     await this.transactionsRepository.update(paymentId, {
       amountPaid: payment.total,
       status: TransactionStatus.CONFIRMED,
+      paymentStatus: PaymentStatus.PAID,
       paymentMethod: (data.paymentMethod as any) || payment.paymentMethod,
       bankAccountKey: data.bankAccountKey || payment.bankAccountKey,
+      cashHubId: data.cashHubId || payment.cashHubId,
       notes: data.note
         ? `${payment.notes || ''}\n${data.note}`.trim()
         : payment.notes,
@@ -112,9 +120,10 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       status: TransactionStatus.CONFIRMED,
       branchId: payment.branchId,
       userId: payment.userId,
-      relatedTransactionId: paymentId, // Enlace al pago origen (SUPPLIER_PAYMENT / PAYROLL_PAYMENT)
+      relatedTransactionId: paymentId,
       supplierId: payment.supplierId,
       employeeId: payment.employeeId,
+      expenseCategoryId: payment.expenseCategoryId,
       total: payment.total,
       subtotal: payment.subtotal,
       taxAmount: 0,
@@ -122,6 +131,7 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       paymentMethod: paymentMethod,
       amountPaid: payment.total, // Ya está pagado
       bankAccountKey: data.bankAccountKey || payment.bankAccountKey,
+      cashHubId: data.cashHubId || payment.cashHubId,
       accountingPeriodId: payment.accountingPeriodId,
       notes: data.note
         ? `Pago ejecutado: ${data.note}`
@@ -138,6 +148,8 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
         // Copiar metadata crítico desde el pago origen para contabilidad
         payrollLineType: payment.metadata?.payrollLineType,
         payrollTransactionId: payment.metadata?.payrollTransactionId,
+        expenseCategoryId: payment.expenseCategoryId,
+        operatingExpenseId: payment.metadata?.operatingExpenseId,
       },
     });
 
@@ -171,7 +183,20 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       );
     }
 
-    // 4. Retornar el pago origen actualizado
+    if (payment.relatedTransactionId) {
+      try {
+        await this.parentPaymentAggregate.recalculateParentPaymentStatus(
+          payment.relatedTransactionId,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Could not recalculate parent payment status for ${payment.relatedTransactionId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+
     return this.findOne(paymentId);
   }
 

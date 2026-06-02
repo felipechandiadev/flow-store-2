@@ -35,11 +35,11 @@ export function EShopProductCard({ product }: Props) {
         ) : null}
       </Link>
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <Link href={href} className="text-sm font-medium hover:text-primary">
+        <Link href={href} className="text-xs font-medium hover:text-primary md:text-sm">
           {product.name}
         </Link>
         <div className="mt-auto flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold">{fmt(product.basePrice)}</p>
+          <p className="text-xs font-semibold md:text-sm">{fmt(product.basePrice)}</p>
           <IconButton
             icon="Plus"
             variant="secondaryCircle"

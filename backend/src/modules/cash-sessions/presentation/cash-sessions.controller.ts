@@ -16,6 +16,7 @@ import { GetCashSessionsDto } from '../application/dto/get-cash-sessions.dto';
 import { OpenCashSessionDto } from '../application/dto/open-cash-session.dto';
 import { CreateSaleDto } from '../application/dto/create-sale.dto';
 import { CollectPendingSalesDto } from '../application/dto/collect-pending-sales.dto';
+import { PayoutCustomerCreditNotesDto } from '../application/dto/payout-customer-credit-notes.dto';
 import { CreateBackorderDto } from '../application/dto/create-backorder.dto';
 import {
   ConfirmCustomerReturnDocumentDto,
@@ -108,6 +109,11 @@ export class CashSessionsController {
   @Post('collect-pending-sales')
   async collectPendingSales(@Body() body: CollectPendingSalesDto) {
     return this.salesService.collectPendingSales(body);
+  }
+
+  @Post('payout-customer-credit-notes')
+  async payoutCustomerCreditNotes(@Body() body: PayoutCustomerCreditNotesDto) {
+    return this.salesService.payoutCustomerCreditNotes(body);
   }
 
   @Post('backorders')

@@ -329,6 +329,7 @@ export class CreateTransactionDto {
       TransactionType.SALE,
       TransactionType.SALE_RETURN,
       TransactionType.CUSTOMER_CREDIT_NOTE,
+      TransactionType.CUSTOMER_CREDIT_NOTE_PAYOUT,
       TransactionType.PURCHASE,
       TransactionType.PURCHASE_ORDER,
       TransactionType.PURCHASE_RETURN,
@@ -373,6 +374,26 @@ export class CreateTransactionDto {
           );
         }
         break;
+
+      case TransactionType.CUSTOMER_CREDIT_NOTE_PAYOUT: {
+        if (!this.customerId?.trim()) {
+          errors.push('CUSTOMER_CREDIT_NOTE_PAYOUT requiere customerId');
+        }
+        if (!this.cashSessionId?.trim()) {
+          errors.push('CUSTOMER_CREDIT_NOTE_PAYOUT requiere cashSessionId');
+        }
+        const meta =
+          this.metadata && typeof this.metadata === 'object'
+            ? (this.metadata as Record<string, unknown>)
+            : null;
+        const alloc = meta?.allocations;
+        if (!Array.isArray(alloc) || alloc.length === 0) {
+          errors.push(
+            'CUSTOMER_CREDIT_NOTE_PAYOUT requiere metadata.allocations con al menos una nota de crédito',
+          );
+        }
+        break;
+      }
 
       case TransactionType.CAPITAL_CONTRIBUTION:
         if (!this.shareholderId) {
@@ -435,7 +456,10 @@ export class CreateTransactionDto {
         if (!this.total) {
           errors.push('SUPPLIER_PAYMENT requiere monto');
         }
-        if (!this.paymentMethod) {
+        if (
+          !this.paymentMethod &&
+          this.transactionStatus !== TransactionStatus.DRAFT
+        ) {
           errors.push('SUPPLIER_PAYMENT requiere paymentMethod');
         }
         break;
@@ -452,7 +476,10 @@ export class CreateTransactionDto {
         if (!this.total) {
           errors.push('PAYROLL_PAYMENT requiere monto');
         }
-        if (!this.paymentMethod) {
+        if (
+          !this.paymentMethod &&
+          this.transactionStatus !== TransactionStatus.DRAFT
+        ) {
           errors.push('PAYROLL_PAYMENT requiere paymentMethod');
         }
         break;
@@ -461,10 +488,18 @@ export class CreateTransactionDto {
         if (!this.expenseCategoryId) {
           errors.push('EXPENSE_PAYMENT requiere expenseCategoryId');
         }
+        if (!this.relatedTransactionId) {
+          errors.push(
+            'EXPENSE_PAYMENT requiere relatedTransactionId (gasto OPERATING_EXPENSE)',
+          );
+        }
         if (!this.total) {
           errors.push('EXPENSE_PAYMENT requiere monto');
         }
-        if (!this.paymentMethod) {
+        if (
+          !this.paymentMethod &&
+          this.transactionStatus !== TransactionStatus.DRAFT
+        ) {
           errors.push('EXPENSE_PAYMENT requiere paymentMethod');
         }
         break;

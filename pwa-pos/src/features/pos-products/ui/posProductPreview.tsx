@@ -174,13 +174,28 @@ export function PosProductNameWithAttributes({
   name,
   attributes,
   className = "",
+  attributeSeparator = "dot",
 }: {
   name: string;
   attributes: PosProductAttribute[] | null | undefined;
   className?: string;
+  /** `dot`: círculos · (default). `slash`: nombre / valor / valor */
+  attributeSeparator?: "dot" | "slash";
 }) {
   const parts = attributeParts(attributes);
-  const label = [name, ...parts].join(" · ");
+  const label =
+    attributeSeparator === "slash"
+      ? [name, ...parts].filter(Boolean).join(" / ")
+      : [name, ...parts].join(" · ");
+
+  if (attributeSeparator === "slash") {
+    return (
+      <p className={`min-w-0 ${className}`.trim()} title={label}>
+        {label}
+      </p>
+    );
+  }
+
   return (
     <p className={`flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 ${className}`.trim()} title={label}>
       <span className="min-w-0">{name}</span>

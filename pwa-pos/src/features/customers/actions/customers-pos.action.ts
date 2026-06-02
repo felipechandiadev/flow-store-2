@@ -25,5 +25,59 @@ export async function getBackorderDetailPosAction(transactionId: string) {
 }
 
 export async function createPosCustomerAction(input: PosCreateCustomerInput) {
-  return CustomersPosRequest.create(input);
+  const personType = input.personType === "COMPANY" ? "COMPANY" : "NATURAL";
+  const docNum = input.documentNumber?.trim() ?? "";
+  if (!docNum) {
+    return { success: false as const, message: "El número de documento es obligatorio." };
+  }
+
+  const creditLimit = Math.max(0, Math.round(Number(input.creditLimit) || 0));
+  const day = Number(input.paymentDayOfMonth);
+  const paymentDayOfMonth = [5, 10, 15, 20, 25, 30].includes(day)
+    ? (day as PosCreateCustomerInput["paymentDayOfMonth"])
+    : 5;
+  const base = {
+    creditLimit,
+    paymentDayOfMonth,
+    notes: input.notes?.trim() || null,
+    email: input.email?.trim() || undefined,
+    phone: input.phone?.trim() || undefined,
+    address: input.address?.trim() || undefined,
+  };
+
+  if (personType === "COMPANY") {
+    const bn = input.businessName?.trim() ?? "";
+    if (!bn) {
+      return { success: false as const, message: "La razón social es obligatoria para una empresa." };
+    }
+    return CustomersPosRequest.create({
+      personType: "COMPANY",
+      firstName: bn,
+      businessName: bn,
+      documentType: "RUT",
+      documentNumber: docNum,
+      ...base,
+    });
+  }
+
+  const fn = input.firstName?.trim() ?? "";
+  if (!fn) {
+    return { success: false as const, message: "El nombre es obligatorio para una persona." };
+  }
+  const dt = input.documentType;
+  if (dt === "RUT") {
+    return {
+      success: false as const,
+      message: "Una persona no puede usar RUT; elija empresa u otro documento.",
+    };
+  }
+
+  return CustomersPosRequest.create({
+    personType: "NATURAL",
+    firstName: fn,
+    lastName: input.lastName?.trim() || undefined,
+    documentType: dt,
+    documentNumber: docNum,
+    ...base,
+  });
 }

@@ -190,7 +190,10 @@ export class TypeOrmCustomersRepository implements CustomersRepositoryPort {
     return this.transactionRepository.find({
       where: {
         customerId,
-        transactionType: TransactionType.PAYMENT_IN,
+        transactionType: In([
+          TransactionType.PAYMENT_IN,
+          TransactionType.CUSTOMER_CREDIT_NOTE_PAYOUT,
+        ]),
       },
       order: { createdAt: 'DESC' },
       take: 100,

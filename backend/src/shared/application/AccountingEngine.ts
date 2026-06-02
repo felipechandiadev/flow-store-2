@@ -659,6 +659,17 @@ export async function recordPayment(
   ) {
     return;
   }
+  if (
+    transaction.transactionType === TransactionType.CUSTOMER_CREDIT_NOTE_PAYOUT
+  ) {
+    return;
+  }
+  if (
+    transaction.transactionType === TransactionType.PAYMENT_IN &&
+    meta.source === 'pos_nc_payout'
+  ) {
+    return;
+  }
 
   const snapshots = getPaymentSnapshots(transaction);
   if (

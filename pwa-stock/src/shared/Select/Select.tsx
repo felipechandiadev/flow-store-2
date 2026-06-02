@@ -22,12 +22,14 @@ interface SelectProps {
   ["data-test-id"]?: string;
   allowClear?: boolean;
   disabled?: boolean;
+  /** Oculta el icono de despliegue (ChevronDown). Útil cuando no hay opciones. */
+  hideDropdownIcon?: boolean;
   className?: string;
   /** Mantiene visible la etiqueta del campo aunque no haya valor seleccionado. */
   alwaysShowLabel?: boolean;
 }
 
-const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = null, onChange, required = false, name, variant = 'default', allowClear = false, disabled = false, className = '', alwaysShowLabel = false, ...props }) => {
+const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = null, onChange, required = false, name, variant = 'default', allowClear = false, disabled = false, hideDropdownIcon = false, className = '', alwaysShowLabel = false, ...props }) => {
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -283,16 +285,18 @@ const Select: React.FC<SelectProps> = ({ label, options, placeholder, value = nu
             />
           )}
         
-          <IconButton
-            icon="ChevronDown"
-            variant="action"
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 min-w-6 min-h-6 p-0"
-            tabIndex={-1}
-            aria-label="Desplegar opciones"
-            onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); !disabled && setOpen(!open); }}
-            data-test-id="select-dropdown-icon"
-            disabled={disabled}
-          />
+          {!hideDropdownIcon ? (
+            <IconButton
+              icon="ChevronDown"
+              variant="action"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 min-w-6 min-h-6 p-0"
+              tabIndex={-1}
+              aria-label="Desplegar opciones"
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); !disabled && setOpen(!open); }}
+              data-test-id="select-dropdown-icon"
+              disabled={disabled}
+            />
+          ) : null}
           
           <DropdownList 
             open={open} 

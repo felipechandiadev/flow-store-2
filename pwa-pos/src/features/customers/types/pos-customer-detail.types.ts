@@ -26,6 +26,12 @@ export type PosCustomerPaymentRelatedSale = {
   amount: number;
 };
 
+export type PosCustomerPaymentRelatedCreditNote = {
+  creditNoteId: string;
+  documentNumber: string;
+  amount: number;
+};
+
 export type PosCustomerPaymentRow = {
   id: string;
   documentNumber: string | null;
@@ -35,6 +41,7 @@ export type PosCustomerPaymentRow = {
   paymentMethod: string | null;
   createdAt: string;
   relatedSales: PosCustomerPaymentRelatedSale[];
+  relatedCreditNotes: PosCustomerPaymentRelatedCreditNote[];
 };
 
 export type PosCustomerQuotaRow = {

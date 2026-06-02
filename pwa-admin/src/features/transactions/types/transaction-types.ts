@@ -29,6 +29,13 @@ export const TRANSACTION_TYPE_OPTIONS: TransactionTypeOption[] = [
     description:
       "Documento fiscal/contable al cliente que reduce CxC; debe vincularse a una SALE_RETURN existente (metadata.links.saleReturnId). No mueve stock por sí sola.",
   },
+  {
+    id: "CUSTOMER_CREDIT_NOTE_PAYOUT",
+    label: "Devolución saldo NC",
+    category: "Ventas",
+    description:
+      "Pago en caja al cliente por liquidar el saldo disponible de una o más notas de crédito (metadata.allocations). Egreso de efectivo en sesión; no es cobro PAYMENT_IN.",
+  },
 
   // Compras y devoluciones
   {

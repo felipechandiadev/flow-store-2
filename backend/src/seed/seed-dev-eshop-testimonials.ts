@@ -11,13 +11,13 @@ export type SeedDevEshopTestimonialDef = {
 /** Testimonios demo eShop — carrusel home (6 ítems). */
 export const SEED_DEV_ESHOP_TESTIMONIALS: readonly SeedDevEshopTestimonialDef[] = [
   {
-    key: 'maria',
-    clientName: 'María González',
+    key: 'martin',
+    clientName: 'Martín González',
     rating: 5,
     message:
       'Compré calcetines y una polera; llegaron rápido y la calidad superó lo que esperaba. Volveré a pedir.',
     sortOrder: 1,
-    imageFile: 'testimonials/01-maria.svg',
+    imageFile: 'testimonials/1.png',
   },
   {
     key: 'carlos',
@@ -26,7 +26,7 @@ export const SEED_DEV_ESHOP_TESTIMONIALS: readonly SeedDevEshopTestimonialDef[] 
     message:
       'Atención excelente por WhatsApp y retiro en sucursal sin filas. Muy recomendable para compras del hogar.',
     sortOrder: 2,
-    imageFile: 'testimonials/02-carlos.svg',
+    imageFile: 'testimonials/2.png',
   },
   {
     key: 'valentina',
@@ -35,7 +35,7 @@ export const SEED_DEV_ESHOP_TESTIMONIALS: readonly SeedDevEshopTestimonialDef[] 
     message:
       'La tienda online es clara y el checkout simple. Las toallas son suaves y absorbentes.',
     sortOrder: 3,
-    imageFile: 'testimonials/03-valentina.svg',
+    imageFile: 'testimonials/3.png',
   },
   {
     key: 'andres',
@@ -44,7 +44,7 @@ export const SEED_DEV_ESHOP_TESTIMONIALS: readonly SeedDevEshopTestimonialDef[] 
     message:
       'Precios justos y despacho a tiempo. Me gustó poder ver stock antes de pagar.',
     sortOrder: 4,
-    imageFile: 'testimonials/04-andres.svg',
+    imageFile: 'testimonials/4.png',
   },
   {
     key: 'camila',
@@ -53,7 +53,7 @@ export const SEED_DEV_ESHOP_TESTIMONIALS: readonly SeedDevEshopTestimonialDef[] 
     message:
       'Primera compra en la eShop y quedé feliz: empaque cuidado y productos tal como en las fotos.',
     sortOrder: 5,
-    imageFile: 'testimonials/05-camila.svg',
+    imageFile: 'testimonials/5.png',
   },
   {
     key: 'rodrigo',
@@ -62,6 +62,6 @@ export const SEED_DEV_ESHOP_TESTIMONIALS: readonly SeedDevEshopTestimonialDef[] 
     message:
       'Buena variedad de tallas y colores. El mapa de sucursales me ayudó a retirar cerca de casa.',
     sortOrder: 6,
-    imageFile: 'testimonials/06-rodrigo.svg',
+    imageFile: 'testimonials/6.jpeg',
   },
 ] as const;

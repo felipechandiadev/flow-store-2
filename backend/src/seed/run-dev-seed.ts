@@ -1320,9 +1320,10 @@ async function bootstrap() {
       phone?: string;
       instagram?: string;
       tiktok?: string;
+      facebook?: string;
     };
     console.log(
-      `✅ Contacto público eShop: email=${publicContact.email ?? '—'} phone=${publicContact.phone ?? '—'} instagram=${publicContact.instagram ?? '—'} tiktok=${publicContact.tiktok ?? '—'}`,
+      `✅ Contacto público eShop: email=${publicContact.email ?? '—'} phone=${publicContact.phone ?? '—'} instagram=${publicContact.instagram ?? '—'} tiktok=${publicContact.tiktok ?? '—'} facebook=${publicContact.facebook ?? '—'}`,
     );
 
     await upsertMinimalSeedCompany(

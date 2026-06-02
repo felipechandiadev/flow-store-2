@@ -517,6 +517,20 @@ export default function PosTopBar({
           <div className="flex shrink-0 items-center justify-end gap-2">
             <PosTopBarNav {...navProps} />
             <IconButton
+              icon="Settings"
+              variant={
+                topBarNavIconVariant(pathnameMatchesRoute(pathname, "/settings"))
+              }
+              size="md"
+              ariaLabel="Configuración del punto de venta"
+              title="Configuración"
+              aria-current={
+                pathnameMatchesRoute(pathname, "/settings") ? "page" : undefined
+              }
+              onClick={() => router.push("/settings")}
+              data-test-id="pos-topbar-settings"
+            />
+            <IconButton
               icon="LogOut"
               variant="text"
               size="md"
@@ -550,6 +564,20 @@ export default function PosTopBar({
               title="Usuario"
               onClick={() => setUserDialogOpen(true)}
               data-test-id="pos-sidebar-user"
+            />
+            <IconButton
+              icon="Settings"
+              variant={
+                topBarNavIconVariant(pathnameMatchesRoute(pathname, "/settings"))
+              }
+              size="md"
+              ariaLabel="Configuración del punto de venta"
+              title="Configuración"
+              aria-current={
+                pathnameMatchesRoute(pathname, "/settings") ? "page" : undefined
+              }
+              onClick={() => router.push("/settings")}
+              data-test-id="pos-sidebar-settings"
             />
             <IconButton
               icon="LogOut"

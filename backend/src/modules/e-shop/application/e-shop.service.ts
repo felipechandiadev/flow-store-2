@@ -13,6 +13,10 @@ import {
   pickDefaultVariantId,
   resolveVariantAttributeLabels,
 } from './helpers/eshop-catalog-product.helpers';
+import {
+  applyEShopCatalogTextSearch,
+  applyEShopProductListTextSearch,
+} from './helpers/eshop-catalog-text-search.util';
 import type { EShopCatalogProductDetail } from './types/eshop-catalog-product.types';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
@@ -43,6 +47,8 @@ import {
 } from '@modules/multimedia/application/utils/resolve-primary-multimedia.util';
 import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.entity';
 import { Storage } from '@modules/storages/domain/storage.entity';
+import { Category } from '@modules/categories/domain/category.entity';
+import { Brand } from '@modules/brands/domain/brand.entity';
 
 export type EShopProductCard = {
   /** ID del producto (catálogo). */
@@ -53,6 +59,20 @@ export type EShopProductCard = {
   inStock: boolean;
   /** Variante por defecto para agregar al carrito (con stock preferido). */
   defaultVariantId: string | null;
+};
+
+export type EShopCatalogCategoryOption = {
+  id: string;
+  name: string;
+};
+
+export type EShopCatalogListResult = {
+  items: EShopProductCard[];
+  total: number;
+  totalGeneral: number;
+  page: number;
+  limit: number;
+  categories: EShopCatalogCategoryOption[];
 };
 
 export type EShopFeaturedProductAdminItem = {
@@ -144,8 +164,9 @@ export class EShopService {
         .andWhere('p.deletedAt IS NULL');
 
       if (opts.search?.trim()) {
-        qb.andWhere('(p.name ILIKE :q OR v.sku ILIKE :q)', {
-          q: `%${opts.search.trim()}%`,
+        applyEShopProductListTextSearch(qb, opts.search, {
+          product: 'p',
+          variant: 'v',
         });
       }
       return qb;
@@ -169,6 +190,127 @@ export class EShopService {
     const products = rows.map((row) => ({ id: row.id, name: row.name })) as Product[];
     const cards = await this.toProductCatalogCards(companyId, products);
     return { items: cards, total, page, limit };
+  }
+
+  /** Catálogo completo eShop: paginación, filtro por categoría y búsqueda por nombre/marca/categoría. */
+  async listCatalog(
+    store: EShopStoreContext,
+    opts: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      categoryId?: string;
+      excludeProductIds?: string[];
+    },
+  ): Promise<EShopCatalogListResult> {
+    const page = Math.max(1, opts.page ?? 1);
+    const limit = Math.min(48, Math.max(1, opts.limit ?? 24));
+    const companyId = store.companyId;
+
+    const applyVisibleProductJoins = (
+      qb: ReturnType<typeof this.productRepo.createQueryBuilder>,
+    ) => {
+      qb.innerJoin(
+        ProductVariant,
+        'v',
+        `v.productId = p.id
+          AND v.companyId = :companyId
+          AND v.isActive = true
+          AND v.visibleInEShop = true
+          AND v.deletedAt IS NULL`,
+        { companyId },
+      )
+        .leftJoin(
+          Category,
+          'cat',
+          'cat.id = p.categoryId AND cat.companyId = :companyId AND cat.deletedAt IS NULL',
+          { companyId },
+        )
+        .leftJoin(
+          Brand,
+          'brand',
+          'brand.id = p.brandId AND brand.companyId = :companyId AND brand.deletedAt IS NULL',
+          { companyId },
+        )
+        .where('p.companyId = :companyId', { companyId })
+        .andWhere('p.isActive = true')
+        .andWhere('p.visibleInEShop = true')
+        .andWhere('p.deletedAt IS NULL');
+      return qb;
+    };
+
+    const applyCatalogFilters = (
+      qb: ReturnType<typeof this.productRepo.createQueryBuilder>,
+    ) => {
+      applyVisibleProductJoins(qb);
+
+      if (opts.categoryId?.trim()) {
+        qb.andWhere('p.categoryId = :categoryId', { categoryId: opts.categoryId.trim() });
+      }
+
+      if (opts.search?.trim()) {
+        applyEShopCatalogTextSearch(qb, opts.search, {
+          product: 'p',
+          brand: 'brand',
+          category: 'cat',
+        });
+      }
+
+      const excludeIds = (opts.excludeProductIds ?? []).filter(Boolean);
+      if (excludeIds.length > 0) {
+        qb.andWhere('p.id NOT IN (:...excludeIds)', { excludeIds });
+      }
+
+      return qb;
+    };
+
+    const countRow = await applyCatalogFilters(this.productRepo.createQueryBuilder('p'))
+      .select('COUNT(DISTINCT p.id)', 'cnt')
+      .getRawOne<{ cnt: string }>();
+    const total = Number(countRow?.cnt ?? 0);
+
+    const totalGeneralQb = applyVisibleProductJoins(this.productRepo.createQueryBuilder('p'));
+    const excludeIds = (opts.excludeProductIds ?? []).filter(Boolean);
+    if (excludeIds.length > 0) {
+      totalGeneralQb.andWhere('p.id NOT IN (:...excludeIds)', { excludeIds });
+    }
+    const totalGeneralRow = await totalGeneralQb
+      .select('COUNT(DISTINCT p.id)', 'cnt')
+      .getRawOne<{ cnt: string }>();
+    const totalGeneral = Number(totalGeneralRow?.cnt ?? 0);
+
+    const rows = await applyCatalogFilters(this.productRepo.createQueryBuilder('p'))
+      .select('p.id', 'id')
+      .addSelect('p.name', 'name')
+      .groupBy('p.id')
+      .addGroupBy('p.name')
+      .orderBy('p.name', 'ASC')
+      .offset((page - 1) * limit)
+      .limit(limit)
+      .getRawMany<{ id: string; name: string }>();
+
+    const categoryRows = await applyVisibleProductJoins(
+      this.productRepo.createQueryBuilder('p'),
+    )
+      .select('cat.id', 'id')
+      .addSelect('cat.name', 'name')
+      .andWhere('cat.id IS NOT NULL')
+      .groupBy('cat.id')
+      .addGroupBy('cat.name')
+      .orderBy('cat.name', 'ASC')
+      .getRawMany<{ id: string; name: string }>();
+
+    const products = rows.map((row) => ({ id: row.id, name: row.name })) as Product[];
+    const cards = await this.toProductCatalogCards(companyId, products);
+
+    return {
+      items: cards,
+      total,
+      totalGeneral,
+      page,
+      limit,
+      categories: categoryRows.map((row) => ({ id: row.id, name: row.name })),
+    };
   }
 
   async getProduct(store: EShopStoreContext, id: string) {

@@ -3,7 +3,10 @@
  * `transactionType === CUSTOMER_CREDIT_NOTE`.
  */
 export interface CustomerCreditNoteApplication {
-  saleTransactionId: string;
+  /** Imputación en venta posterior (medio de pago NC). */
+  saleTransactionId?: string;
+  /** Liquidación en caja del saldo NC (egreso al cliente). */
+  payoutTransactionId?: string;
   amount: number;
   appliedAt: string;
 }

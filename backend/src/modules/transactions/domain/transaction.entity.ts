@@ -94,6 +94,11 @@ export enum TransactionType {
   SALE_RETURN = 'SALE_RETURN',
   /** Nota de crédito a cliente; montos y vínculos; detalle en SALE_RETURN. */
   CUSTOMER_CREDIT_NOTE = 'CUSTOMER_CREDIT_NOTE',
+  /**
+   * Pago en caja al cliente por liquidación del saldo disponible de una o más NC
+   * (`metadata.allocations[]` con `creditNoteId`). Egreso de efectivo en sesión.
+   */
+  CUSTOMER_CREDIT_NOTE_PAYOUT = 'CUSTOMER_CREDIT_NOTE_PAYOUT',
 
   // Compras y Devoluciones
   PURCHASE = 'PURCHASE',

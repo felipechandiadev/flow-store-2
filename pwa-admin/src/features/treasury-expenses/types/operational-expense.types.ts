@@ -45,7 +45,8 @@ export type OperationalExpenseLinkedDteKind =
 export type OperationalExpenseCreatePlannedPayment = {
   dueDate: string;
   amount: number;
-  paymentMethod: "CASH" | "TRANSFER" | "CHECK";
+  /** Medio de pago; omitir en cuotas programadas (se define al ejecutar el pago). */
+  paymentMethod?: "CASH" | "TRANSFER" | "CHECK";
   companyBankAccountKey?: string | null;
   supplierBankAccountKey?: string | null;
   chequeNumber?: string | null;

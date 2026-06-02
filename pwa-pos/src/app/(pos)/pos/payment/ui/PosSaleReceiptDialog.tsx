@@ -137,6 +137,8 @@ export type PosSaleReceiptData = {
   collectionPending?: boolean;
   /** Cobro consolidado de varias ventas pendientes. */
   arCollection?: Array<{ folio: string; amount: number }> | null;
+  /** Liquidación de saldo NC al cliente (egreso en caja). */
+  ncPayout?: Array<{ folio: string; amount: number }> | null;
 };
 
 export type PosSaleReceiptSnapshotInput = {
@@ -165,6 +167,7 @@ export type PosSaleReceiptSnapshotInput = {
   backorder?: PosSaleReceiptBackorder | null;
   collectionPending?: boolean;
   arCollection?: Array<{ folio: string; amount: number }> | null;
+  ncPayout?: Array<{ folio: string; amount: number }> | null;
 };
 
 function paymentLabel(
@@ -303,15 +306,19 @@ export function buildPosSaleReceiptSnapshot(input: PosSaleReceiptSnapshotInput):
     payments,
     collectionPending: input.collectionPending === true,
     arCollection: input.arCollection?.length ? input.arCollection : null,
+    ncPayout: input.ncPayout?.length ? input.ncPayout : null,
   };
 }
 
 export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string): string {
   const isBackorder = data.documentKind === "backorder";
   const isArCollection = Boolean(data.arCollection?.length);
+  const isNcPayout = Boolean(data.ncPayout?.length);
   const logo = resolveReceiptLogoUrl(data.company.logoUrl, origin);
   const displayName = data.company.nombreFantasia || data.company.razonSocial;
-  const receiptHeading = isArCollection
+  const receiptHeading = isNcPayout
+    ? "DEVOLUCIÓN SALDO NC"
+    : isArCollection
     ? "COBRO PENDIENTE"
     : isBackorder
       ? "ENCARGO"
@@ -378,6 +385,17 @@ export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string
        ${arCollectionRows}`
     : "";
 
+  const ncPayoutRows =
+    data.ncPayout?.map(
+      (row) =>
+        `<div class="row"><span>${escapeHtml(row.folio)}</span><span>${formatMoney(row.amount)}</span></div>`,
+    ).join("") ?? "";
+  const ncPayoutBlock = ncPayoutRows
+    ? `<div class="sep"></div>
+       <div class="section-title">Notas de crédito liquidadas</div>
+       ${ncPayoutRows}`
+    : "";
+
   const paymentsSection =
     payRows || data.totals.change > 0.01
       ? `<div class="sep"></div>
@@ -440,9 +458,12 @@ export function buildPosSaleReceiptHtml(data: PosSaleReceiptData, origin: string
   }
   ${paymentsSection}
   ${arCollectionBlock}
+  ${ncPayoutBlock}
   <div class="sep"></div>
   <p class="center muted" style="margin-top:10px;">${
-    isArCollection
+    isNcPayout
+      ? "Comprobante de devolución de saldo NC"
+      : isArCollection
       ? "Comprobante de cobro"
       : isBackorder
         ? "Comprobante de abono de encargo"
@@ -517,8 +538,13 @@ export function PosSaleReceiptDialog({ open, data, onClose }: DialogProps) {
 
   if (!data) return null;
 
-  const dialogTitle =
-    data.documentKind === "backorder" ? "Encargo registrado" : "Venta registrada";
+  const dialogTitle = data.ncPayout?.length
+    ? "Devolución registrada"
+    : data.arCollection?.length
+      ? "Cobro registrado"
+      : data.documentKind === "backorder"
+        ? "Encargo registrado"
+        : "Venta registrada";
 
   return (
     <Dialog

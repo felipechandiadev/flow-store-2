@@ -17,6 +17,7 @@ export async function lookupPosVariantsAction(input: {
   variantIds: string[];
   pointOfSaleId?: string | null;
   branchId?: string | null;
+  priceListId?: string | null;
 }) {
   return ProductsPosRequest.lookupVariants(input);
 }

@@ -240,6 +240,84 @@ export class CashSessionsRequest {
     return { success: false, message: "Respuesta inesperada al registrar el cobro" };
   }
 
+  static async payoutCustomerCreditNotes(
+    body: import("../lib/build-payout-customer-credit-notes-payload").PayoutCustomerCreditNotesApiBody,
+  ): Promise<
+    | {
+        success: true;
+        payout: { id: string; documentNumber: string };
+        allocations: Array<{
+          creditNoteId: string;
+          documentNumber: string;
+          amount: number;
+        }>;
+      }
+    | { success: false; message: string; statusCode?: number }
+  > {
+    const base = process.env.BACKEND_API_URL;
+    if (!base) {
+      return { success: false, message: "BACKEND_API_URL is not set" };
+    }
+
+    const session = await getServerSession(authOptions);
+    const token = session?.user?.accessToken;
+    const activeCompanyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId;
+    if (!token) {
+      return { success: false, message: "No autenticado" };
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    if (activeCompanyId) headers["X-Active-Company-Id"] = activeCompanyId;
+
+    const res = await backendFetch(`${base}/api/cash-sessions/payout-customer-credit-notes`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (!res) {
+      return { success: false, message: BACKEND_CONNECTION_MESSAGE };
+    }
+
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const rawMsg = data?.message;
+      const msg =
+        typeof rawMsg === "string"
+          ? rawMsg
+          : Array.isArray(rawMsg)
+            ? rawMsg.map(String).join(", ")
+            : typeof data?.error === "string"
+              ? data.error
+              : res.statusText || "Error al registrar la devolución";
+      return { success: false, message: msg, statusCode: res.status };
+    }
+
+    const payout = data?.payout as { id?: string; documentNumber?: string } | undefined;
+    const allocations = Array.isArray(data?.allocations) ? data.allocations : [];
+    if (data?.success === true && payout?.id && payout?.documentNumber) {
+      return {
+        success: true,
+        payout: {
+          id: String(payout.id),
+          documentNumber: String(payout.documentNumber),
+        },
+        allocations: allocations.map((row) => {
+          const r = row as Record<string, unknown>;
+          return {
+            creditNoteId: String(r.creditNoteId ?? ""),
+            documentNumber: String(r.documentNumber ?? ""),
+            amount: Number(r.amount ?? 0),
+          };
+        }),
+      };
+    }
+
+    return { success: false, message: "Respuesta inesperada al registrar la devolución" };
+  }
+
   static async confirmCustomerReturnDocument(
     body: import("../lib/build-create-sale-return-payload").ConfirmCustomerReturnDocumentApiBody,
   ): Promise<

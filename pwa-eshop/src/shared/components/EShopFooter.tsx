@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { EShopStorefront } from "@/features/e-shop-storefront/types/storefront.types";
 import { EShopCompanyLogo } from "@/shared/components/EShopCompanyLogo";
 import { EShopPublicContactLinks } from "@/shared/components/EShopPublicContactLinks";
+import { EShopSocialBrandLinks } from "@/shared/components/EShopSocialBrandLinks";
 
 type Props = {
   storefront: EShopStorefront;
@@ -54,9 +55,11 @@ export function EShopFooter({ storefront }: Props) {
           <p className="text-xs font-semibold uppercase tracking-wide text-white/75">Contacto</p>
           <EShopPublicContactLinks
             contact={contact}
+            omit={["instagram", "tiktok", "facebook"]}
             className="mt-3 space-y-1 text-sm text-white/85"
             linkClassName="text-white/85 hover:text-white"
           />
+          <EShopSocialBrandLinks contact={contact} className="mt-4 flex flex-wrap items-center gap-3" />
         </div>
       </div>
       <p className="border-t border-white/20 py-4 text-center text-xs text-white/75">

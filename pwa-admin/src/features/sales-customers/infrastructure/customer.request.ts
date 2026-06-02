@@ -333,6 +333,7 @@ export class CustomerRequest {
         personType: body.personType,
         firstName: body.firstName.trim(),
         lastName: body.lastName?.trim() || undefined,
+        businessName: body.businessName?.trim() || undefined,
         documentType: body.documentType,
         documentNumber: body.documentNumber.trim(),
         email: body.email?.trim() || undefined,

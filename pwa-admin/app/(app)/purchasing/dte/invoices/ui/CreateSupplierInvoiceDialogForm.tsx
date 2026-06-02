@@ -17,17 +17,14 @@ import { pickIvaTaxForLines } from "@/features/purchasing-dte/lib/iva-from-taxes
 import { amountsWhenNetEdited, amountsWhenTotalEdited } from "@/features/purchasing-dte/lib/clp-net-total";
 import {
   addCalendarDays,
-  bankAccountOptionKey,
   parseYyyyMmDdLocal,
   parseClpAmountInput,
-  resolveChequeBankNameFromCompanyAccount,
   splitTotalAcrossLines,
   toYyyyMmDdLocal,
 } from "@/features/purchasing-dte/lib/planned-payment-helpers";
 import {
   InvoicePlannedPaymentLines,
   type InvoicePlannedPaymentLineState,
-  type InvoicePlannedPaymentMethodUI,
 } from "@/shared/components/PlannedPaymentLines/InvoicePlannedPaymentLines";
 
 export type CreateSupplierInvoiceDialogFormProps = {
@@ -39,10 +36,6 @@ const EMPTY_SUPPLIERS: SupplierGridRow[] = [];
 const EMPTY_TAXES: TaxListItem[] = [];
 const EMPTY_COMPANY_BANKS: CompanyBankAccountItem[] = [];
 const EMPTY_SUPPLIER_BANKS: SupplierPersonBankAccount[] = [];
-
-function defaultPaymentMethod(companyHasBanks: boolean, supplierHasBanks: boolean): InvoicePlannedPaymentMethodUI {
-  return companyHasBanks && supplierHasBanks ? "TRANSFER" : "CASH";
-}
 
 export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoiceDialogFormProps) {
   const router = useRouter();
@@ -150,22 +143,18 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
     const sup = activeSuppliers.find((s) => s.id === sid);
     const term = sup?.defaultPaymentTermDays ?? 0;
     const firstDue = addCalendarDays(new Date(), term);
-    const banks = sup?.person?.bankAccounts ?? [];
-    const dm = defaultPaymentMethod(companyBankAccounts.length > 0, banks.length > 0);
     setPaymentLines([
       {
         id: crypto.randomUUID(),
         dueDate: toYyyyMmDdLocal(firstDue),
         amountStr: String(total),
-        paymentMethod: dm,
-        companyBankAccountKey:
-          companyBankAccounts[0] != null ? bankAccountOptionKey(companyBankAccounts[0], 0) : null,
-        supplierBankAccountKey: banks[0] != null ? bankAccountOptionKey(banks[0], 0) : null,
+        companyBankAccountKey: null,
+        supplierBankAccountKey: null,
         chequeNumber: "",
       },
     ]);
     manualPaymentLockRef.current = false;
-  }, [supplierOpt?.id, activeSuppliers, companyBankAccounts, total]);
+  }, [supplierOpt?.id, activeSuppliers, total]);
 
   useEffect(() => {
     if (manualPaymentLockRef.current) {
@@ -188,63 +177,16 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
     });
   }, [total, paymentLines.length]);
 
-  /** Si cargan cuentas después de elegir proveedor, completa claves en transferencias aún sin valor. */
-  useEffect(() => {
-    if (!supplierOpt?.id || paymentLines.length === 0) {
-      return;
-    }
-    setPaymentLines((prev) => {
-      let changed = false;
-      const next = prev.map((line) => {
-        if (line.paymentMethod !== "TRANSFER") {
-          return line;
-        }
-        let l = { ...line };
-        if (companyBankAccounts.length > 0 && !l.companyBankAccountKey) {
-          l.companyBankAccountKey = bankAccountOptionKey(companyBankAccounts[0], 0);
-          changed = true;
-        }
-        const supBanks = selectedSupplier?.person?.bankAccounts;
-        if (supBanks && supBanks.length > 0 && !l.supplierBankAccountKey) {
-          l.supplierBankAccountKey = bankAccountOptionKey(supBanks[0], 0);
-          changed = true;
-        }
-        return l;
-      });
-      return changed ? next : prev;
-    });
-  }, [
-    supplierOpt?.id,
-    companyBankAccounts,
-    selectedSupplier?.person?.bankAccounts,
-    paymentLines.length,
-  ]);
-
   const onPatchPaymentLine = useCallback(
     (id: string, patch: Partial<InvoicePlannedPaymentLineState>) => {
       if (patch.amountStr !== undefined) {
         manualPaymentLockRef.current = true;
       }
       setPaymentLines((prev) =>
-        prev.map((l) => {
-          if (l.id !== id) {
-            return l;
-          }
-          let next: InvoicePlannedPaymentLineState = { ...l, ...patch };
-          if (next.paymentMethod === "TRANSFER") {
-            if (companyBankAccounts[0] && !next.companyBankAccountKey) {
-              next.companyBankAccountKey = bankAccountOptionKey(companyBankAccounts[0], 0);
-            }
-            const sb = selectedSupplier?.person?.bankAccounts?.[0];
-            if (sb && !next.supplierBankAccountKey) {
-              next.supplierBankAccountKey = bankAccountOptionKey(sb, 0);
-            }
-          }
-          return next;
-        }),
+        prev.map((l) => (l.id === id ? { ...l, ...patch } : l)),
       );
     },
-    [companyBankAccounts, selectedSupplier?.person?.bankAccounts],
+    [],
   );
 
   const onAddPaymentLine = useCallback(() => {
@@ -257,23 +199,19 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
       const lastDue = parseYyyyMmDdLocal(prev[prev.length - 1].dueDate);
       const nextDue = addCalendarDays(lastDue, term);
       const parts = splitTotalAcrossLines(total, prev.length + 1);
-      const dm = defaultPaymentMethod(companyBankAccounts.length > 0, supplierBankAccounts.length > 0);
-      const banks = supplierBankAccounts;
       const nextLine: InvoicePlannedPaymentLineState = {
         id: crypto.randomUUID(),
         dueDate: toYyyyMmDdLocal(nextDue),
         amountStr: String(parts[parts.length - 1] ?? 0),
-        paymentMethod: dm,
-        companyBankAccountKey:
-          companyBankAccounts[0] != null ? bankAccountOptionKey(companyBankAccounts[0], 0) : null,
-        supplierBankAccountKey: banks[0] != null ? bankAccountOptionKey(banks[0], 0) : null,
+        companyBankAccountKey: null,
+        supplierBankAccountKey: null,
         chequeNumber: "",
       };
       return prev
         .map((l, i) => ({ ...l, amountStr: String(parts[i] ?? 0) }))
         .concat([nextLine]);
     });
-  }, [selectedSupplier?.defaultPaymentTermDays, total, companyBankAccounts, supplierBankAccounts]);
+  }, [selectedSupplier?.defaultPaymentTermDays, total]);
 
   const onRemovePaymentLine = useCallback(
     (id: string) => {
@@ -307,35 +245,12 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
     }
     for (const l of paymentLines) {
       const a = parseClpAmountInput(l.amountStr);
-      if (a <= 0) {
+      if (a <= 0 || !l.dueDate.trim()) {
         return false;
-      }
-      if (l.paymentMethod === "TRANSFER") {
-        if (companyBankAccounts.length === 0 || supplierBankAccounts.length === 0) {
-          return false;
-        }
-        if (!l.companyBankAccountKey || !l.supplierBankAccountKey) {
-          return false;
-        }
-      }
-      if (l.paymentMethod === "CHECK") {
-        if (companyBankAccounts.length === 0) {
-          return false;
-        }
-        if (!l.companyBankAccountKey || !String(l.chequeNumber).trim()) {
-          return false;
-        }
       }
     }
     return true;
-  }, [
-    supplierOpt?.id,
-    paymentLines,
-    paymentsSum,
-    total,
-    companyBankAccounts.length,
-    supplierBankAccounts.length,
-  ]);
+  }, [supplierOpt?.id, paymentLines, paymentsSum, total]);
 
   const canSubmit = useMemo(() => {
     const sid = supplierOpt?.id && String(supplierOpt.id).trim();
@@ -367,7 +282,7 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
     if (Math.abs(paymentsSum - total) > 1) {
       return "La suma de los pagos debe coincidir con el total de la factura.";
     }
-    return "Revise cada pago: transferencia requiere cuentas en empresa y proveedor; cheque requiere cuenta empresa y número de cheque.";
+    return "Revise cada cuota: montos mayores a cero y fecha de vencimiento.";
   }, [
     referenceLoading,
     busy,
@@ -403,7 +318,7 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
         setError("La suma de los pagos debe igualar el total de la factura.");
       } else {
         setError(
-          "Revise cada línea: montos mayores a cero; en transferencia, cuentas empresa y proveedor; en cheque, cuenta empresa y número de cheque.",
+          "Revise cada cuota: montos mayores a cero y fecha de vencimiento.",
         );
       }
       return;
@@ -414,23 +329,6 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
       const plannedPayments = paymentLines.map((l) => ({
         dueDate: l.dueDate,
         amount: parseClpAmountInput(l.amountStr),
-        paymentMethod: l.paymentMethod,
-        companyBankAccountKey:
-          l.paymentMethod === "TRANSFER" || l.paymentMethod === "CHECK" ? l.companyBankAccountKey : null,
-        supplierBankAccountKey: l.paymentMethod === "TRANSFER" ? l.supplierBankAccountKey : null,
-        chequeNumber: l.paymentMethod === "CHECK" ? String(l.chequeNumber).trim() : null,
-        chequeBankName:
-          l.paymentMethod === "CHECK"
-            ? resolveChequeBankNameFromCompanyAccount(l.companyBankAccountKey, companyBankAccounts, l.chequeBankName)
-            : null,
-        chequeDrawerName:
-          l.paymentMethod === "CHECK"
-            ? (l.chequeDrawerName ?? "").trim() || null
-            : null,
-        chequeDueDate:
-          l.paymentMethod === "CHECK"
-            ? (l.chequeDueDate ?? "").trim() || null
-            : null,
       }));
 
       const input: CreateSupplierInvoiceInput = {
@@ -509,6 +407,7 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
 
       <InvoicePlannedPaymentLines
         disabled={referenceLoading || Boolean(referenceError) || !supplierOpt?.id}
+        lineKind="scheduled"
         companyBankAccounts={companyBankAccounts}
         supplierBankAccounts={supplierBankAccounts}
         lines={paymentLines}

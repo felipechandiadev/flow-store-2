@@ -24,20 +24,30 @@ const TEXT_ALIGN_CLASS: Record<EShopHeroSlide["textAlign"], string> = {
   right: "items-end text-right ml-auto",
 };
 
+const heroCarouselContentClassName =
+  "mx-auto w-full max-w-6xl px-14 md:px-4";
+
+/** Zona reservada bajo el copy; los indicadores viven fuera del área de texto. */
+const heroCarouselCopyShellClassName =
+  "relative z-10 flex min-h-0 flex-1 flex-col justify-end pb-2 pt-16 text-foreground md:pb-3";
+
+const heroCarouselIndicatorsClassName =
+  "relative z-20 flex h-11 shrink-0 items-center justify-center gap-2 md:h-12";
+
 function FallbackHero() {
   return (
     <section
       id="hero"
       className="relative w-full overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5 eshop-hero-section-shadow"
     >
-      <div className="flex min-h-[320px] flex-col justify-end pb-12 pt-16 text-foreground md:min-h-[480px] md:pb-16">
+      <div className="flex min-h-[320px] flex-col justify-end pb-5 pt-16 text-foreground md:min-h-[480px] md:pb-6">
         <div className={storeContentContainerClassName}>
           <div className="max-w-2xl eshop-hero-text-shadow">
-            <h1 className="text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl">{ESHOP_HERO.title}</h1>
-            <p className="mt-4 text-lg text-muted-foreground">{ESHOP_HERO.subtitle}</p>
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl md:text-4xl lg:text-5xl">{ESHOP_HERO.title}</h1>
+            <p className="mt-3 text-xs text-muted-foreground sm:text-sm md:mt-4 md:text-lg">{ESHOP_HERO.subtitle}</p>
             <Link
               href={ESHOP_HERO.ctaTarget}
-              className="mt-8 inline-flex min-h-[44px] items-center rounded-lg bg-secondary px-6 py-3 text-sm font-semibold text-primary"
+              className="mt-6 inline-flex min-h-[40px] items-center rounded-lg bg-secondary px-4 py-2 text-xs font-semibold text-primary md:mt-8 md:min-h-[44px] md:px-6 md:py-3 md:text-sm"
             >
               {ESHOP_HERO.ctaLabel}
             </Link>
@@ -65,8 +75,8 @@ function HeroCta({ slide }: { slide: EShopHeroSlide }) {
   if (ctaStyle === "link") {
     const presentation = getHeroSlideTextPresentation(slide.textColor);
     const linkClass = presentation.usesCustomColor
-      ? "mt-8 inline-block text-base font-medium underline underline-offset-4 transition hover:opacity-80"
-      : "mt-8 inline-block text-base font-medium text-foreground underline underline-offset-4 transition hover:text-muted-foreground";
+      ? "mt-6 inline-block text-xs font-medium underline underline-offset-4 transition hover:opacity-80 md:mt-8 md:text-base"
+      : "mt-6 inline-block text-xs font-medium text-foreground underline underline-offset-4 transition hover:text-muted-foreground md:mt-8 md:text-base";
     if (isExternal) {
       return (
         <a href={href} className={linkClass} style={linkStyle} target="_blank" rel="noopener noreferrer">
@@ -82,7 +92,7 @@ function HeroCta({ slide }: { slide: EShopHeroSlide }) {
   }
 
   const buttonClass =
-    "mt-8 inline-flex min-h-[44px] items-center rounded-lg bg-secondary px-6 py-3 text-sm font-semibold text-primary transition hover:opacity-95 [text-shadow:none]";
+    "mt-6 inline-flex min-h-[40px] items-center rounded-lg bg-secondary px-4 py-2 text-xs font-semibold text-primary transition hover:opacity-95 [text-shadow:none] md:mt-8 md:min-h-[44px] md:px-6 md:py-3 md:text-sm";
 
   if (isExternal) {
     return (
@@ -103,7 +113,13 @@ function HeroSlideBackground({ slide }: { slide: EShopHeroSlide }) {
   if (slide.imageUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={slide.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      <img
+        src={slide.imageUrl}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover"
+        fetchPriority="high"
+        decoding="async"
+      />
     );
   }
   return <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5" />;
@@ -116,10 +132,10 @@ function HeroSlideCopy({ slide }: { slide: EShopHeroSlide }) {
   const subtitleStyle = heroSlideSubtitleStyle(slide.textColor);
 
   return (
-    <div className={`flex max-w-2xl flex-col ${alignClass}`}>
+    <div className={`flex w-full max-w-2xl flex-col ${alignClass} max-md:max-w-none`}>
       {slide.title ? (
         <h1
-          className={`text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl ${presentation.usesCustomColor ? "" : "text-foreground eshop-hero-text-shadow"}`}
+          className={`text-xl font-bold tracking-tight sm:text-2xl md:text-4xl lg:text-5xl ${presentation.usesCustomColor ? "" : "text-foreground eshop-hero-text-shadow"}`}
           style={titleStyle}
         >
           {slide.title}
@@ -127,7 +143,7 @@ function HeroSlideCopy({ slide }: { slide: EShopHeroSlide }) {
       ) : null}
       {slide.subtitle ? (
         <p
-          className={`mt-4 text-lg md:text-xl ${presentation.usesCustomColor ? "" : "text-muted-foreground eshop-hero-text-shadow"}`}
+          className={`mt-3 text-xs sm:text-sm md:mt-4 md:text-xl ${presentation.usesCustomColor ? "" : "text-muted-foreground eshop-hero-text-shadow"}`}
           style={subtitleStyle}
         >
           {slide.subtitle}
@@ -144,7 +160,7 @@ function EShopHero({ slide }: { slide: EShopHeroSlide }) {
     <section id="hero" className="relative w-full overflow-hidden eshop-hero-section-shadow">
       <div className="relative min-h-[320px] w-full md:min-h-[480px]">
         <HeroSlideBackground slide={slide} />
-        <div className="relative z-10 flex min-h-[320px] flex-col justify-end pb-12 pt-16 text-foreground md:min-h-[480px] md:pb-16">
+        <div className="relative z-10 flex min-h-[320px] flex-col justify-end pb-5 pt-16 text-foreground md:min-h-[480px] md:pb-6">
           <div className={storeContentContainerClassName}>
             <HeroSlideCopy slide={slide} />
           </div>
@@ -181,64 +197,93 @@ function EShopHeroCarousel({
   );
 
   const autoplayMs = resolveAutoplayMs(autoplaySeconds);
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setIndex((i) => (i + 1) % count);
-    }, autoplayMs);
-    return () => window.clearInterval(timer);
-  }, [count, autoplayMs]);
+    if (prefersReducedMotion || count < 2) {
+      return;
+    }
+
+    let timer: number | undefined;
+
+    const schedule = () => {
+      timer = window.setInterval(() => {
+        if (document.visibilityState === "hidden") {
+          return;
+        }
+        setIndex((i) => (i + 1) % count);
+      }, autoplayMs);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden" && timer !== undefined) {
+        window.clearInterval(timer);
+        timer = undefined;
+        return;
+      }
+      if (document.visibilityState === "visible" && timer === undefined) {
+        schedule();
+      }
+    };
+
+    schedule();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      if (timer !== undefined) {
+        window.clearInterval(timer);
+      }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [count, autoplayMs, prefersReducedMotion]);
+
+  const slide = slides[index];
 
   return (
     <section
       id="hero"
-      className="relative w-full overflow-hidden eshop-hero-section-shadow"
+      className="relative flex min-h-[360px] w-full flex-col overflow-hidden eshop-hero-section-shadow md:min-h-[480px]"
       aria-roledescription="carousel"
       aria-label="Destacados de la tienda"
     >
-      <div className="relative min-h-[320px] w-full md:min-h-[480px]">
-        {slides.map((slide, i) => {
-          const active = i === index;
+      <HeroSlideBackground slide={slide} />
 
-          return (
-            <div
-              key={slide.id}
-              className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-                active ? "z-10 opacity-100" : "z-0 pointer-events-none opacity-0"
-              }`}
-              aria-hidden={!active}
-              role="group"
-              aria-roledescription="slide"
-              aria-label={slide.title ?? `Slide ${i + 1}`}
-            >
-              <HeroSlideBackground slide={slide} />
-              <div className="relative z-10 flex h-full min-h-[320px] flex-col justify-end pb-20 pt-16 text-foreground md:min-h-[480px] md:pb-24">
-                <div className={storeContentContainerClassName}>
-                  <HeroSlideCopy slide={slide} />
-                </div>
-              </div>
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          key={slide.id}
+          className="absolute inset-0 flex flex-col"
+          role="group"
+          aria-roledescription="slide"
+          aria-label={slide.title ?? `Slide ${index + 1}`}
+        >
+          <div className={heroCarouselCopyShellClassName}>
+            <div className={heroCarouselContentClassName}>
+              <HeroSlideCopy slide={slide} />
             </div>
-          );
-        })}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="absolute left-3 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground eshop-hero-carousel-nav-shadow transition hover:bg-muted md:left-5"
+          aria-label="Slide anterior"
+          onClick={() => goTo(index - 1)}
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          className="absolute right-3 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground eshop-hero-carousel-nav-shadow transition hover:bg-muted md:right-5"
+          aria-label="Slide siguiente"
+          onClick={() => goTo(index + 1)}
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
       </div>
 
-      <button
-        type="button"
-        className="absolute left-3 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground eshop-hero-carousel-nav-shadow transition hover:bg-muted md:left-5"
-        aria-label="Slide anterior"
-        onClick={() => goTo(index - 1)}
-      >
-        <ChevronLeft className="h-5 w-5" />
-      </button>
-      <button
-        type="button"
-        className="absolute right-3 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground eshop-hero-carousel-nav-shadow transition hover:bg-muted md:right-5"
-        aria-label="Slide siguiente"
-        onClick={() => goTo(index + 1)}
-      >
-        <ChevronRight className="h-5 w-5" />
-      </button>
-      <div className="absolute bottom-4 left-0 right-0 z-20 flex justify-center gap-2">
+      <div className={heroCarouselIndicatorsClassName}>
         {slides.map((slide, i) => {
           const presentation = getHeroSlideTextPresentation(slide.textColor);
           const active = i === index;
