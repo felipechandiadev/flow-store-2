@@ -28,7 +28,7 @@ export async function completeAccountsPayablePaymentAction(
 ): Promise<{ success: true } | { success: false; error: string }> {
   const res = await AccountsPayableRequest.completePayment(input);
   if (res.success) {
-    revalidatePath(AP_PATH, "page");
+    revalidatePath(AP_PATH, "layout");
   }
   return res;
 }

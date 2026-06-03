@@ -1,8 +1,8 @@
 import { listAccountsPayableAction } from "@/features/accounting-accounts-payable/actions/accounts-payable.action";
 import { parseAccountsPayableFilters } from "./lib/parse-accounts-payable-filters";
-import AccountsPayableDataGrid from "./ui/AccountsPayableDataGrid";
+import AccountsPayableCalendarPanel from "./ui/AccountsPayableCalendarPanel";
 
-export default async function AccountsPayablePageContent({
+export default async function AccountsPayableCalendarPageContent({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -11,5 +11,5 @@ export default async function AccountsPayablePageContent({
   const filters = parseAccountsPayableFilters(sp);
   const { items } = await listAccountsPayableAction(filters);
 
-  return <AccountsPayableDataGrid rows={items} />;
+  return <AccountsPayableCalendarPanel rows={items} />;
 }

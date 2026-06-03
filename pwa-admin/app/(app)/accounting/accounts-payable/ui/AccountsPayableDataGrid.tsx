@@ -6,8 +6,8 @@ import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import Badge from "@/shared/components/Badge/Badge";
 import IconButton from "@/shared/components/IconButton/IconButton";
-import { ButtonPill } from "@/shared/components/Button";
 import type { AccountsPayableRow } from "@/features/accounting-accounts-payable/types/accounts-payable.types";
+import { dataGridFillViewportTabPageProps } from "@/shared/components/layouts/layoutPageTokens";
 import {
   labelAccountsPayablePayeeType,
   labelAccountsPayablePaymentType,
@@ -15,7 +15,6 @@ import {
 } from "@/features/accounting-accounts-payable/lib/accounts-payable-labels";
 import CompleteAccountsPayablePaymentDialog from "./CompleteAccountsPayablePaymentDialog";
 import AccountsPayablePaymentDetailsDialog from "./AccountsPayablePaymentDetailsDialog";
-import AccountsPayableCalendar from "./AccountsPayableCalendar";
 
 type AccountsPayableDataGridProps = {
   rows: AccountsPayableRow[];
@@ -62,7 +61,6 @@ export default function AccountsPayableDataGrid({ rows }: AccountsPayableDataGri
   const router = useRouter();
   const [payRow, setPayRow] = useState<AccountsPayableRow | null>(null);
   const [detailsRow, setDetailsRow] = useState<AccountsPayableRow | null>(null);
-  const [view, setView] = useState<"grid" | "calendar">("grid");
 
   const columns: DataGridColumn[] = useMemo(
     () => [
@@ -174,51 +172,20 @@ export default function AccountsPayableDataGrid({ rows }: AccountsPayableDataGri
 
   return (
     <>
-      <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-        <div className="flex items-center justify-end gap-2 px-1">
-          <div className="flex items-center gap-1 rounded-full border border-border bg-background p-1">
-            <ButtonPill
-              variant={view === "grid" ? "primary" : "outlined"}
-              onClick={() => setView("grid")}
-              className="text-xs px-3 py-1"
-              data-test-id="accounts-payable-view-grid"
-            >
-              Tabla
-            </ButtonPill>
-            <ButtonPill
-              variant={view === "calendar" ? "primary" : "outlined"}
-              onClick={() => setView("calendar")}
-              className="text-xs px-3 py-1"
-              data-test-id="accounts-payable-view-calendar"
-            >
-              Calendario
-            </ButtonPill>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-hidden">
-          {view === "grid" ? (
-            <DataGrid
-              columns={columns}
-              rows={rows}
-              totalRows={rows.length}
-              totalGeneral={rows.length}
-              fillViewport
-              showExportButton={false}
-              showSortButton={false}
-              showFilterButton={false}
-              showFooter
-              pinActionsColumn
-              data-test-id="accounts-payable-data-grid"
-            />
-          ) : (
-            <AccountsPayableCalendar
-              rows={rows}
-              onPay={(r) => setPayRow(r)}
-              onDetails={(r) => setDetailsRow(r)}
-            />
-          )}
-        </div>
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+        <DataGrid
+          columns={columns}
+          rows={rows}
+          totalRows={rows.length}
+          totalGeneral={rows.length}
+          showExportButton={false}
+          showSortButton={false}
+          showFilterButton={false}
+          showFooter
+          pinActionsColumn
+          {...dataGridFillViewportTabPageProps}
+          data-test-id="accounts-payable-data-grid"
+        />
       </div>
       <CompleteAccountsPayablePaymentDialog
         open={Boolean(payRow)}

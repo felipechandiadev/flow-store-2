@@ -138,6 +138,7 @@ export default function MonthlyCalendar({
           const key = toIsoDate(d);
           const inMonth = sameMonth(d, monthStart);
           const isToday = key === todayKey;
+          const isMonthStart = inMonth && d.getDate() === 1;
           const dayItems = itemsByDate.get(key) ?? [];
           return (
             <div
@@ -153,22 +154,29 @@ export default function MonthlyCalendar({
               tabIndex={0}
               className={[
                 "min-h-[112px] border-b border-r border-border px-2 py-2 text-left align-top",
-                "hover:bg-[color:var(--color-hover)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent)]/40",
-                !inMonth ? "bg-muted/10 text-muted-foreground" : "",
+                "focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent)]/40",
+                inMonth
+                  ? "bg-background hover:bg-[color:var(--color-hover)]"
+                  : "bg-[color:var(--color-neutral)] text-muted-foreground hover:bg-[color:var(--color-neutral)]",
+                isMonthStart ? "border-l-2 border-l-[color:var(--color-accent)]" : "",
               ].join(" ")}
             >
               <div className="flex items-center justify-between">
                 <div
                   className={[
                     "text-xs font-medium tabular-nums",
-                    isToday ? "rounded-full bg-[color:var(--color-accent)] px-2 py-0.5 text-white" : "",
+                    isToday
+                      ? "rounded-full bg-[color:var(--color-accent)] px-2 py-0.5 text-white"
+                      : !inMonth
+                        ? "opacity-70"
+                        : "",
                   ].join(" ")}
                 >
                   {d.getDate()}
                 </div>
               </div>
 
-              <div className="mt-2 flex flex-col gap-1">
+              <div className={["mt-2 flex flex-col gap-1", !inMonth ? "opacity-80" : ""].join(" ")}>
                 {dayItems.map((it) => (
                   <div key={it.id} className="min-w-0">
                     {it.content}
