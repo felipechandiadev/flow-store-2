@@ -17,7 +17,7 @@ import type {
   SupplierOption,
 } from "@/features/treasury-expenses/types/operational-expense.types";
 import { usePurchaseDocumentReferenceData } from "@/shared/components/PurchaseDocumentBuilder/usePurchaseDocumentReferenceData";
-import type { SupplierGridRow, SupplierPersonBankAccount } from "@/features/purchasing-suppliers/types/supplier.types";
+import type { SupplierGridRow } from "@/features/purchasing-suppliers/types/supplier.types";
 import type { TaxListItem } from "@/features/accounting-taxes/types/tax.types";
 import type { CompanyBankAccountItem } from "@/features/settings-branches/infrastructure/company.request";
 import { supplierOptionLabel } from "@/features/purchasing-dte/lib/supplier-option-label";
@@ -27,17 +27,8 @@ import {
   amountsHonorariumWhenNetEdited,
   amountsHonorariumWhenTotalEdited,
 } from "@/features/purchasing-dte/lib/honorarium-amounts";
-import {
-  addCalendarDays,
-  parseYyyyMmDdLocal,
-  parseClpAmountInput,
-  splitTotalAcrossLines,
-  toYyyyMmDdLocal,
-} from "@/features/purchasing-dte/lib/planned-payment-helpers";
-import {
-  InvoicePlannedPaymentLines,
-  type InvoicePlannedPaymentLineState,
-} from "@/shared/components/PlannedPaymentLines/InvoicePlannedPaymentLines";
+import { PlannedPaymentPlanSection } from "@/shared/components/PlannedPaymentLines";
+import type { PlannedPaymentPayload } from "@/shared/lib/planned-payment-plan";
 
 type CreateOperationalExpenseDialogProps = {
   open: boolean;
@@ -54,7 +45,6 @@ function isoDateToday(): string {
 const EMPTY_SUPPLIERS: SupplierGridRow[] = [];
 const EMPTY_TAXES: TaxListItem[] = [];
 const EMPTY_COMPANY_BANKS: CompanyBankAccountItem[] = [];
-const EMPTY_SUPPLIER_BANKS: SupplierPersonBankAccount[] = [];
 
 const DTE_KIND_OPTIONS: Option[] = [
   { id: "SUPPLIER_INVOICE", label: "Factura de proveedor" },
@@ -93,9 +83,12 @@ export function CreateOperationalExpenseDialog({
   const [netStr, setNetStr] = useState("0");
   const [totalStr, setTotalStr] = useState("0");
   const lastAmountField = useRef<"net" | "total">("net");
-  const [paymentLines, setPaymentLines] = useState<InvoicePlannedPaymentLineState[]>([]);
-  const manualPaymentLockRef = useRef(false);
-  const lastLinkedSupplierIdRef = useRef<string>("");
+  const [paymentPayload, setPaymentPayload] = useState<PlannedPaymentPayload>({
+    mode: "PENDING_SCHEDULED",
+    paidLines: [],
+    scheduledLines: [],
+  });
+  const [paymentValid, setPaymentValid] = useState(false);
 
   const selectOptions: Option[] = useMemo(
     () => categoryOptions.map((c) => ({ id: c.id, label: c.name })),
@@ -127,11 +120,18 @@ export function CreateOperationalExpenseDialog({
     return activeSuppliers.find((s) => s.id === sid) ?? null;
   }, [linkedSupplierOpt?.id, activeSuppliers]);
 
-  const supplierBankAccountsRaw = selectedLinkedSupplier?.person?.bankAccounts;
-  const supplierBankAccounts =
-    supplierBankAccountsRaw != null && supplierBankAccountsRaw.length > 0
-      ? supplierBankAccountsRaw
-      : EMPTY_SUPPLIER_BANKS;
+  const payeeBankAccounts = useMemo(() => {
+    const raw = selectedLinkedSupplier?.person?.bankAccounts;
+    return raw != null && raw.length > 0 ? raw : [];
+  }, [selectedLinkedSupplier?.person?.bankAccounts]);
+
+  const onPaymentStateChange = useCallback(
+    (state: { payload: PlannedPaymentPayload; valid: boolean; error: string | null }) => {
+      setPaymentPayload(state.payload);
+      setPaymentValid(state.valid);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -151,14 +151,12 @@ export function CreateOperationalExpenseDialog({
     setNetStr("0");
     setTotalStr("0");
     lastAmountField.current = "net";
-    setPaymentLines([]);
-    manualPaymentLockRef.current = false;
-    lastLinkedSupplierIdRef.current = "";
+    setPaymentPayload({ mode: "PENDING_SCHEDULED", paidLines: [], scheduledLines: [] });
+    setPaymentValid(false);
   }, [open, categoryOptions]);
 
   const onNetChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      manualPaymentLockRef.current = false;
       const raw = e.target.value;
       const n = Math.max(0, Math.round(Number(raw) || 0));
       if (usesHonorarium) {
@@ -177,7 +175,6 @@ export function CreateOperationalExpenseDialog({
 
   const onTotalChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      manualPaymentLockRef.current = false;
       const raw = e.target.value;
       const g = Math.max(0, Math.round(Number(raw) || 0));
       if (usesHonorarium) {
@@ -227,133 +224,12 @@ export function CreateOperationalExpenseDialog({
   const total = Math.max(0, Math.round(Number(totalStr) || 0));
   const taxAmount = total - net;
 
-  useEffect(() => {
-    if (!linkToDte) {
-      lastLinkedSupplierIdRef.current = "";
-      setPaymentLines((prev) => (prev.length === 0 ? prev : []));
-      return;
-    }
-    const sid = linkedSupplierOpt?.id != null ? String(linkedSupplierOpt.id).trim() : "";
-    if (!sid) {
-      lastLinkedSupplierIdRef.current = "";
-      setPaymentLines((prev) => (prev.length === 0 ? prev : []));
-      return;
-    }
-    if (lastLinkedSupplierIdRef.current === sid) {
-      return;
-    }
-    lastLinkedSupplierIdRef.current = sid;
-    const sup = activeSuppliers.find((s) => s.id === sid);
-    const term = sup?.defaultPaymentTermDays ?? 0;
-    const firstDue = addCalendarDays(new Date(), term);
-    setPaymentLines([
-      {
-        id: crypto.randomUUID(),
-        dueDate: toYyyyMmDdLocal(firstDue),
-        amountStr: String(total),
-        companyBankAccountKey: null,
-        supplierBankAccountKey: null,
-        chequeNumber: "",
-      },
-    ]);
-    manualPaymentLockRef.current = false;
-  }, [linkToDte, linkedSupplierOpt?.id, activeSuppliers, total]);
-
-  useEffect(() => {
-    if (!linkToDte || manualPaymentLockRef.current) {
-      return;
-    }
-    setPaymentLines((prev) => {
-      if (prev.length === 0) {
-        return prev;
-      }
-      const parts = splitTotalAcrossLines(total, prev.length);
-      let changed = false;
-      const next = prev.map((l, i) => {
-        const ns = String(parts[i] ?? 0);
-        if (l.amountStr !== ns) {
-          changed = true;
-        }
-        return { ...l, amountStr: ns };
-      });
-      return changed ? next : prev;
-    });
-  }, [linkToDte, total, paymentLines.length]);
-
-  const onPatchPaymentLine = useCallback(
-    (id: string, patch: Partial<InvoicePlannedPaymentLineState>) => {
-      if (patch.amountStr !== undefined) {
-        manualPaymentLockRef.current = true;
-      }
-      setPaymentLines((prev) =>
-        prev.map((l) => (l.id === id ? { ...l, ...patch } : l)),
-      );
-    },
-    [],
-  );
-
-  const onAddPaymentLine = useCallback(() => {
-    manualPaymentLockRef.current = false;
-    setPaymentLines((prev) => {
-      if (prev.length === 0) {
-        return prev;
-      }
-      const term = selectedLinkedSupplier?.defaultPaymentTermDays ?? 0;
-      const lastDue = parseYyyyMmDdLocal(prev[prev.length - 1].dueDate);
-      const nextDue = addCalendarDays(lastDue, term);
-      const parts = splitTotalAcrossLines(total, prev.length + 1);
-      const nextLine: InvoicePlannedPaymentLineState = {
-        id: crypto.randomUUID(),
-        dueDate: toYyyyMmDdLocal(nextDue),
-        amountStr: String(parts[parts.length - 1] ?? 0),
-        companyBankAccountKey: null,
-        supplierBankAccountKey: null,
-        chequeNumber: "",
-      };
-      return prev
-        .map((l, i) => ({ ...l, amountStr: String(parts[i] ?? 0) }))
-        .concat([nextLine]);
-    });
-  }, [selectedLinkedSupplier?.defaultPaymentTermDays, total]);
-
-  const onRemovePaymentLine = useCallback(
-    (id: string) => {
-      manualPaymentLockRef.current = false;
-      setPaymentLines((prev) => {
-        if (prev.length <= 1) {
-          return prev;
-        }
-        const next = prev.filter((l) => l.id !== id);
-        const parts = splitTotalAcrossLines(total, next.length);
-        return next.map((l, i) => ({ ...l, amountStr: String(parts[i] ?? 0) }));
-      });
-    },
-    [total],
-  );
-
-  const paymentsSum = useMemo(
-    () => paymentLines.reduce((s, l) => s + parseClpAmountInput(l.amountStr), 0),
-    [paymentLines],
-  );
-
   const paymentsValid = useMemo(() => {
     if (!linkToDte || !linkedSupplierOpt?.id) {
       return true;
     }
-    if (paymentLines.length === 0) {
-      return false;
-    }
-    if (Math.abs(paymentsSum - total) > 1) {
-      return false;
-    }
-    for (const l of paymentLines) {
-      const a = parseClpAmountInput(l.amountStr);
-      if (a <= 0 || !l.dueDate.trim()) {
-        return false;
-      }
-    }
-    return true;
-  }, [linkToDte, linkedSupplierOpt?.id, paymentLines, paymentsSum, total]);
+    return paymentValid;
+  }, [linkToDte, linkedSupplierOpt?.id, paymentValid]);
 
   const handleClose = () => {
     if (isPending) {
@@ -405,9 +281,9 @@ export function CreateOperationalExpenseDialog({
         }
 
         const taxIdForLink = usesHonorarium ? retention.taxId : iva.taxId;
-        const plannedPayments = paymentLines.map((l) => ({
+        const plannedPayments = paymentPayload.scheduledLines.map((l) => ({
           dueDate: l.dueDate,
-          amount: parseClpAmountInput(l.amountStr),
+          amount: l.amount,
         }));
 
         const r = await createOperationalExpenseAction({
@@ -515,8 +391,8 @@ export function CreateOperationalExpenseDialog({
             setLinkToDte(checked);
             if (!checked) {
               setLinkedSupplierOpt(null);
-              setPaymentLines([]);
-              lastLinkedSupplierIdRef.current = "";
+              setPaymentPayload({ mode: "PENDING_SCHEDULED", paidLines: [], scheduledLines: [] });
+              setPaymentValid(false);
             }
           }}
           labelPosition="right"
@@ -598,15 +474,20 @@ export function CreateOperationalExpenseDialog({
                 : `IVA (${ivaRate}%): montos coherentes con el impuesto "IVA" del catálogo.`}
             </p>
 
-            <InvoicePlannedPaymentLines
+            <PlannedPaymentPlanSection
               disabled={referenceLoading || Boolean(referenceError) || !linkedSupplierOpt?.id}
-              lineKind="scheduled"
+              total={total}
+              immediatePaymentDate={operationDate}
+              payeeSelected={Boolean(linkedSupplierOpt?.id)}
+              payeeBankAccounts={payeeBankAccounts}
               companyBankAccounts={companyBankAccounts}
-              supplierBankAccounts={supplierBankAccounts}
-              lines={paymentLines}
-              onAddLine={onAddPaymentLine}
-              onRemoveLine={onRemovePaymentLine}
-              onPatchLine={onPatchPaymentLine}
+              schedule={{ kind: "monthly-chain" }}
+              scheduledLinesBehavior="term-chain"
+              allowedModes={["PENDING_SCHEDULED"]}
+              sectionTitle="Cuotas de pago"
+              totalLabel="total del documento"
+              onStateChange={onPaymentStateChange}
+              data-test-id="operating-expense-payment-plan"
             />
           </div>
         ) : null}

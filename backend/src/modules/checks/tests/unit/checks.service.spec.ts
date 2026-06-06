@@ -16,11 +16,19 @@ import {
 
 describe('ChecksService', () => {
   let service: ChecksService;
-  let checkRepo: { save: jest.Mock; findById: jest.Mock; list: jest.Mock; update: jest.Mock };
+  let checkRepo: {
+    save: jest.Mock;
+    findById: jest.Mock;
+    list: jest.Mock;
+    update: jest.Mock;
+    getCommittedOutgoingSummary: jest.Mock;
+  };
   let linkRepo: { findOne: jest.Mock; create: jest.Mock; save: jest.Mock; find: jest.Mock };
   let eventRepo: { create: jest.Mock; save: jest.Mock; find: jest.Mock };
   let transactionsRepo: { findOne: jest.Mock };
   let dataSource: { transaction: jest.Mock };
+  let checkLedger: { postOutgoingCleared: jest.Mock; reverseOutgoingCheck: jest.Mock };
+  let checkPayments: { reopenLinkedPayment: jest.Mock };
 
   const COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -46,6 +54,14 @@ describe('ChecksService', () => {
       findById: jest.fn(),
       list: jest.fn(),
       update: jest.fn(),
+      getCommittedOutgoingSummary: jest.fn(),
+    };
+    checkLedger = {
+      postOutgoingCleared: jest.fn().mockResolvedValue(undefined),
+      reverseOutgoingCheck: jest.fn().mockResolvedValue(undefined),
+    };
+    checkPayments = {
+      reopenLinkedPayment: jest.fn().mockResolvedValue(undefined),
     };
     linkRepo = {
       findOne: jest.fn().mockResolvedValue(null),
@@ -68,6 +84,8 @@ describe('ChecksService', () => {
       eventRepo as any,
       transactionsRepo as any,
       dataSource as any,
+      checkLedger as any,
+      checkPayments as any,
     );
   });
 

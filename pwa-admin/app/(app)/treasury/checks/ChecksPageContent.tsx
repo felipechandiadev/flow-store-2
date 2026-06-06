@@ -9,10 +9,11 @@ import Badge from "@/shared/components/Badge/Badge";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import {
   CHECK_DIRECTION_LABELS,
-  CHECK_STATUS_LABELS,
+  checkStatusLabel,
   type CheckDirection,
   type CheckRow,
   type CheckStatus,
+  type CommittedOutgoingChecksSummary,
 } from "@/features/treasury-checks/types/check.types";
 import { CheckDetailDialog } from "./CheckDetailDialog";
 
@@ -27,6 +28,7 @@ type Props = {
     dueDateFrom?: string;
     dueDateTo?: string;
   };
+  committedSummary: CommittedOutgoingChecksSummary | null;
 };
 
 function formatMoney(n: number, currency = "CLP"): string {
@@ -38,7 +40,13 @@ function formatMoney(n: number, currency = "CLP"): string {
   }).format(n);
 }
 
-function StatusBadge({ status }: { status: CheckStatus }) {
+function StatusBadge({
+  status,
+  direction,
+}: {
+  status: CheckStatus;
+  direction?: CheckDirection;
+}) {
   const variant =
     status === "CLEARED"
       ? "success-outlined"
@@ -52,7 +60,9 @@ function StatusBadge({ status }: { status: CheckStatus }) {
               ? "primary-outlined"
               : "secondary-outlined";
   return (
-    <Badge variant={variant as any}>{CHECK_STATUS_LABELS[status]}</Badge>
+    <Badge variant={variant as any}>
+      {checkStatusLabel(status, direction)}
+    </Badge>
   );
 }
 
@@ -69,6 +79,7 @@ export function ChecksPageContent({
   initialTotal,
   loadError,
   initialFilters,
+  committedSummary,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -102,7 +113,7 @@ export function ChecksPageContent({
       { id: "", label: "Todos" },
       { id: "PENDING", label: "Pendiente" },
       { id: "DEPOSITED", label: "Depositado" },
-      { id: "CLEARED", label: "Cobrado" },
+      { id: "CLEARED", label: "Cobrado / pagado" },
       { id: "BOUNCED", label: "Protestado" },
       { id: "VOIDED", label: "Anulado" },
       { id: "ENDORSED", label: "Endosado" },
@@ -147,6 +158,29 @@ export function ChecksPageContent({
           línea de tiempo del cheque.
         </p>
       </header>
+
+      {committedSummary && committedSummary.checkCount > 0 ? (
+        <section
+          className="rounded-xl border border-warning/40 bg-warning/5 p-4"
+          data-test-id="checks-committed-summary"
+        >
+          <h2 className="text-sm font-semibold text-foreground">
+            Cheques emitidos pendientes de compensar
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {committedSummary.checkCount} cheque
+            {committedSummary.checkCount === 1 ? "" : "s"} por{" "}
+            {formatMoney(committedSummary.totalAmount)} comprometidos en caja /
+            banco futuro.
+          </p>
+          {committedSummary.stalePendingCount > 0 ? (
+            <p className="mt-2 text-sm text-warning">
+              {committedSummary.stalePendingCount} con más de 90 días sin
+              compensar — revise conciliación bancaria.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <section
         className="rounded-xl border border-border bg-card p-4 shadow-sm"
@@ -245,7 +279,7 @@ export function ChecksPageContent({
                     <td className="px-3 py-2">{c.issueDate}</td>
                     <td className="px-3 py-2">{c.dueDate ?? "—"}</td>
                     <td className="px-3 py-2">
-                      <StatusBadge status={c.status} />
+                      <StatusBadge status={c.status} direction={c.direction} />
                     </td>
                     <td className="px-3 py-2 text-right">
                       <IconButton

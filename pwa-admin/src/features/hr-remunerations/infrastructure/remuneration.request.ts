@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import type { RemunerationGridRow, RemunerationListResult } from "../types/remuneration.types";
+import type { PayrollSettlementPaymentPayload } from "../types/payroll-settlement-payment.types";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -55,6 +56,7 @@ export class RemunerationRequest {
     resultCenterId?: string | null;
     lines: Array<{ typeId: string; amount: number }>;
     plannedPayments?: Array<{ dueDate: string; amount: number }>;
+    settlementPayment?: PayrollSettlementPaymentPayload;
   }): Promise<{ success: true; id: string } | { success: false; error: string }> {
     const headers = await authHeaders();
     const res = await fetch(apiUrl("remunerations"), {
@@ -66,13 +68,18 @@ export class RemunerationRequest {
         resultCenterId: payload.resultCenterId ?? undefined,
         lines: payload.lines,
         plannedPayments: payload.plannedPayments,
+        settlementPayment: payload.settlementPayment ?? {
+          mode: "PENDING",
+          paidLines: [],
+          scheduledLines: [],
+        },
       }),
       cache: "no-store",
     });
     const json = (await res.json().catch(() => ({}))) as {
       success?: boolean;
       message?: string;
-      data?: { id?: string };
+      data?: { id?: string; documentNumber?: string | null };
     };
     if (!res.ok) {
       return {
@@ -84,6 +91,6 @@ export class RemunerationRequest {
     if (!json.success || !id) {
       return { success: false, error: json.message || "Respuesta inválida al crear remuneración." };
     }
-    return { success: true, id };
+    return { success: true, id, documentNumber: json.data?.documentNumber ?? null };
   }
 }

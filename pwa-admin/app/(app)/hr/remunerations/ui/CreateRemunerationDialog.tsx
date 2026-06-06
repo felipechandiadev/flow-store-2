@@ -1,13 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Dialog from "@/shared/components/Dialog/Dialog";
 import Alert from "@/shared/components/Alert/Alert";
 import { Button } from "@/shared/components/Button";
 import { TextField } from "@/shared/components/TextField/TextField";
 import { Select, type Option } from "@/shared/components/Select";
+import { PlannedPaymentPlanSection } from "@/shared/components/PlannedPaymentLines";
 import { createRemunerationAction } from "@/features/hr-remunerations/actions/remuneration.action";
 import type { EmployeeGridRow } from "@/features/hr-employees/types/employee.types";
+import type { CompanyBankAccountItem } from "@/features/settings-branches/infrastructure/company.request";
+import type { PersonBankAccountItem } from "@/features/person-bank-accounts/types/person-bank-account.types";
+import type { CashHubRow } from "@/features/treasury-cash-hubs/types/cash-hub.types";
+import { loadCompanyBankAccountsForPurchasingAction } from "@/features/purchasing-invoices/actions/company-banks.action";
+import { listCashHubsForPurchasingAction } from "@/features/treasury-cash-hubs/actions/cash-hub.action";
+import { listPersonBankAccountsAction } from "@/features/person-bank-accounts/actions/person-bank-account.action";
+import {
+  calculatePayrollSettlementTotals,
+  draftLinesToPayload,
+  newDraftLine,
+  parsePayrollAmount,
+  type PayrollSettlementDraftLine,
+} from "@/features/hr-remunerations/lib/payroll-settlement-calc";
+import { buildPayrollSettlementPaymentPayload } from "@/features/hr-remunerations/lib/payroll-settlement-payment-payload";
+import type { PayrollSettlementPaymentPayload } from "@/features/hr-remunerations/types/payroll-settlement-payment.types";
+import { PayrollSettlementLinesEditor } from "./PayrollSettlementLinesEditor";
 
 export type CreateRemunerationDialogProps = {
   open: boolean;
@@ -32,32 +49,12 @@ function todayIsoDate(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function parseCurrencyToNumber(value: string): number {
-  return Math.max(0, Math.round(Number(String(value).replace(/\D/g, "")) || 0));
-}
-
 function baseSalaryAsInputValue(baseSalary: string | null | undefined): string {
   if (baseSalary == null || String(baseSalary).trim() === "") {
     return "";
   }
-  const n = parseCurrencyToNumber(String(baseSalary));
+  const n = parsePayrollAmount(String(baseSalary));
   return n > 0 ? String(n) : "";
-}
-
-function parsePercent(value: string): number {
-  const t = String(value).trim().replace(",", ".");
-  if (!t) return 0;
-  const n = parseFloat(t);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.min(100, n);
-}
-
-/** Monto de descuento = remuneración ordinaria × porcentaje / 100 */
-function amountFromPercent(ordinaryRaw: string, percentRaw: string): string {
-  const base = parseCurrencyToNumber(ordinaryRaw);
-  const pct = parsePercent(percentRaw);
-  if (base <= 0 || pct <= 0) return "";
-  return String(Math.round((base * pct) / 100));
 }
 
 function fmtClp(n: number): string {
@@ -76,14 +73,25 @@ export function CreateRemunerationDialog({
 }: CreateRemunerationDialogProps) {
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [date, setDate] = useState(todayIsoDate);
-  const [ordinaryAmount, setOrdinaryAmount] = useState("");
-  const [afpPercent, setAfpPercent] = useState("");
-  const [afpAmount, setAfpAmount] = useState("");
-  const [healthPercent, setHealthPercent] = useState("");
-  const [healthAmount, setHealthAmount] = useState("");
-  const [othersAmount, setOthersAmount] = useState("");
+  const [earningLines, setEarningLines] = useState<PayrollSettlementDraftLine[]>([]);
+  const [deductionLines, setDeductionLines] = useState<PayrollSettlementDraftLine[]>([]);
+  const [settlementPayment, setSettlementPayment] = useState<PayrollSettlementPaymentPayload>({
+    mode: "PENDING",
+    paidLines: [],
+    scheduledLines: [],
+  });
+  const [paymentValid, setPaymentValid] = useState(true);
+  const [companyBankAccounts, setCompanyBankAccounts] = useState<CompanyBankAccountItem[]>([]);
+  const [cashHubs, setCashHubs] = useState<CashHubRow[]>([]);
+  const [employeeBankAccounts, setEmployeeBankAccounts] = useState<PersonBankAccountItem[]>([]);
+  const [referenceLoading, setReferenceLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const selectedEmployee = useMemo(
+    () => employees.find((e) => e.id === employeeId) ?? null,
+    [employees, employeeId],
+  );
 
   const employeeOptions: Option[] = useMemo(
     () =>
@@ -93,72 +101,114 @@ export function CreateRemunerationDialog({
     [employees],
   );
 
-  const applyPercentToAmounts = (ordinaryRaw: string, afpPct: string, healthPct: string) => {
-    if (afpPct.trim()) {
-      setAfpAmount(amountFromPercent(ordinaryRaw, afpPct));
-    }
-    if (healthPct.trim()) {
-      setHealthAmount(amountFromPercent(ordinaryRaw, healthPct));
-    }
-  };
+  const totals = useMemo(
+    () => calculatePayrollSettlementTotals([...earningLines, ...deductionLines]),
+    [earningLines, deductionLines],
+  );
+
+  const cashHubOptions: Option[] = useMemo(
+    () => cashHubs.map((h) => ({ id: h.id, label: h.name?.trim() || h.id })),
+    [cashHubs],
+  );
+
+  const payeeBankAccounts = useMemo(
+    () =>
+      employeeBankAccounts.map((a) => ({
+        accountKey: a.accountKey,
+        bankName: a.bankName,
+        accountType: a.accountType,
+        accountNumber: a.accountNumber,
+        accountHolderName: a.accountHolderName,
+        isPrimary: a.isPrimary,
+        notes: a.notes,
+      })),
+    [employeeBankAccounts],
+  );
+
+  const onPaymentStateChange = useCallback(
+    (state: {
+      payload: import("@/shared/lib/planned-payment-plan").PlannedPaymentPayload;
+      valid: boolean;
+      error: string | null;
+    }) => {
+      setSettlementPayment(buildPayrollSettlementPaymentPayload(state.payload));
+      setPaymentValid(state.valid);
+    },
+    [],
+  );
+
+  const reset = useCallback(() => {
+    setEmployeeId(null);
+    setDate(todayIsoDate());
+    setEarningLines([]);
+    setDeductionLines([]);
+    setSettlementPayment({ mode: "PENDING", paidLines: [], scheduledLines: [] });
+    setPaymentValid(true);
+    setEmployeeBankAccounts([]);
+    setError(null);
+  }, []);
 
   useEffect(() => {
     if (open) {
-      setEmployeeId(null);
-      setDate(todayIsoDate());
-      setOrdinaryAmount("");
-      setAfpPercent("");
-      setAfpAmount("");
-      setHealthPercent("");
-      setHealthAmount("");
-      setOthersAmount("");
-      setError(null);
+      reset();
+      setReferenceLoading(true);
+      void (async () => {
+        try {
+          const [banks, hubs] = await Promise.all([
+            loadCompanyBankAccountsForPurchasingAction(),
+            listCashHubsForPurchasingAction(),
+          ]);
+          setCompanyBankAccounts(banks);
+          setCashHubs(hubs);
+        } finally {
+          setReferenceLoading(false);
+        }
+      })();
     }
-  }, [open]);
+  }, [open, reset]);
 
-  const reset = () => {
-    setEmployeeId(null);
-    setDate(todayIsoDate());
-    setOrdinaryAmount("");
-    setAfpPercent("");
-    setAfpAmount("");
-    setHealthPercent("");
-    setHealthAmount("");
-    setOthersAmount("");
-    setError(null);
-  };
+  useEffect(() => {
+    const personId = selectedEmployee?.personId ?? selectedEmployee?.person?.id ?? "";
+    if (!personId) {
+      setEmployeeBankAccounts([]);
+      return;
+    }
+    void (async () => {
+      const res = await listPersonBankAccountsAction(personId);
+      setEmployeeBankAccounts(res.success ? res.accounts : []);
+    })();
+  }, [selectedEmployee?.personId, selectedEmployee?.person?.id]);
 
   const handleEmployeeChange = (v: string | null) => {
     const id = v != null ? String(v) : null;
     setEmployeeId(id);
     if (!id) {
-      setOrdinaryAmount("");
-      setAfpAmount("");
-      setHealthAmount("");
+      setEarningLines([]);
       return;
     }
     const employee = employees.find((e) => e.id === id);
     const ordinary = baseSalaryAsInputValue(employee?.baseSalary);
-    setOrdinaryAmount(ordinary);
-    applyPercentToAmounts(ordinary, afpPercent, healthPercent);
+    setEarningLines([
+      {
+        ...newDraftLine("EARNING", "ORDINARY"),
+        amount: ordinary,
+      },
+    ]);
   };
 
-  const handleOrdinaryChange = (value: string) => {
-    setOrdinaryAmount(value);
-    applyPercentToAmounts(value, afpPercent, healthPercent);
-  };
+  const patchEarningLine = useCallback(
+    (id: string, patch: Partial<Pick<PayrollSettlementDraftLine, "typeId" | "amount">>) => {
+      setEarningLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    },
+    [],
+  );
 
-  const handleAfpPercentChange = (value: string) => {
-    const sanitized = value.replace(/[^\d.,]/g, "");
-    setAfpPercent(sanitized);
-    setAfpAmount(amountFromPercent(ordinaryAmount, sanitized));
-  };
-
-  const handleHealthPercentChange = (value: string) => {
-    const sanitized = value.replace(/[^\d.,]/g, "");
-    setHealthPercent(sanitized);
-    setHealthAmount(amountFromPercent(ordinaryAmount, sanitized));
-  };
+  const patchDeductionLine = useCallback(
+    (id: string, patch: Partial<Pick<PayrollSettlementDraftLine, "typeId" | "amount">>) => {
+      setDeductionLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    },
+    [],
+  );
 
   const handleClose = () => {
     setError(null);
@@ -166,28 +216,31 @@ export function CreateRemunerationDialog({
     onClose();
   };
 
-  const earnings = parseCurrencyToNumber(ordinaryAmount);
-  const deductions =
-    parseCurrencyToNumber(afpAmount) +
-    parseCurrencyToNumber(healthAmount) +
-    parseCurrencyToNumber(othersAmount);
-  const netPreview = earnings - deductions;
-
   const handleSubmit = () => {
     setError(null);
     if (!employeeId) {
       setError("Seleccione un empleado.");
       return;
     }
+
+    const payloadLines = draftLinesToPayload([...earningLines, ...deductionLines]);
+    if (payloadLines.length === 0) {
+      setError("Agregue al menos una línea con monto mayor a cero.");
+      return;
+    }
+
+    if (!paymentValid) {
+      setError("Revise el plan de pago de la liquidación.");
+      return;
+    }
+
     startTransition(() => {
       void (async () => {
         const r = await createRemunerationAction({
           employeeId,
           date: date.trim(),
-          ordinaryAmount: earnings,
-          afpAmount: parseCurrencyToNumber(afpAmount),
-          healthAmount: parseCurrencyToNumber(healthAmount),
-          othersAmount: parseCurrencyToNumber(othersAmount),
+          lines: payloadLines.map(({ typeId, amount }) => ({ typeId, amount })),
+          settlementPayment,
         });
         if (r.success) {
           await onSuccess?.();
@@ -200,16 +253,22 @@ export function CreateRemunerationDialog({
   };
 
   const canSubmit =
-    !isPending && employeeId != null && date.trim().length > 0 && earnings > 0 && netPreview >= 0;
+    !isPending &&
+    !referenceLoading &&
+    employeeId != null &&
+    date.trim().length > 0 &&
+    totals.earningCount > 0 &&
+    totals.netPayment >= 0 &&
+    paymentValid;
 
   return (
     <Dialog
       open={open}
       onClose={handleClose}
-      title="Nueva remuneración"
+      title="Crear liquidación de sueldo"
       size="lg"
       scroll="paper"
-      maxHeight="min(90vh, 720px)"
+      maxHeight="min(92vh, 820px)"
       data-test-id="remuneration-create-dialog"
       alertArea={
         error ? (
@@ -224,16 +283,12 @@ export function CreateRemunerationDialog({
             Cancelar
           </Button>
           <Button variant="primary" size="md" onClick={handleSubmit} disabled={!canSubmit}>
-            Crear remuneración
+            Crear liquidación
           </Button>
         </>
       }
     >
       <div className="flex w-full min-w-0 flex-col gap-4">
-        <p className="text-sm text-muted-foreground">
-          Registra una liquidación de sueldo para el empleado. Los descuentos son opcionales.
-        </p>
-
         <Select
           label="Empleado"
           name="remuneration-employee"
@@ -255,90 +310,98 @@ export function CreateRemunerationDialog({
           data-test-id="remuneration-create-date"
         />
 
-        <div className="flex flex-col gap-3 border-t border-border pt-4">
-          <p className="text-sm font-semibold text-foreground">Haberes</p>
-          <TextField
-            label="Remuneración ordinaria"
-            name="remuneration-ordinary"
-            type="currency"
-            currencySymbol="$"
-            startSymbol="$"
-            value={ordinaryAmount}
-            onChange={(e) => handleOrdinaryChange(e.target.value)}
-            required
-            data-test-id="remuneration-create-ordinary"
-          />
-          <p className="text-xs text-muted-foreground">
-            Se precarga con el sueldo base del empleado; puede editarlo antes de guardar.
-          </p>
+        <PayrollSettlementLinesEditor
+          title="Haberes"
+          category="EARNING"
+          lines={earningLines}
+          onAddLine={() => setEarningLines((prev) => [...prev, newDraftLine("EARNING")])}
+          onRemoveLine={(id) => setEarningLines((prev) => prev.filter((l) => l.id !== id))}
+          onPatchLine={patchEarningLine}
+          disabled={!employeeId || isPending}
+          data-test-id="remuneration-create-earnings"
+        />
+
+        <PayrollSettlementLinesEditor
+          title="Descuentos"
+          category="DEDUCTION"
+          lines={deductionLines}
+          onAddLine={() => setDeductionLines((prev) => [...prev, newDraftLine("DEDUCTION")])}
+          onRemoveLine={(id) => setDeductionLines((prev) => prev.filter((l) => l.id !== id))}
+          onPatchLine={patchDeductionLine}
+          disabled={!employeeId || isPending}
+          data-test-id="remuneration-create-deductions"
+        />
+
+        <div className="flex w-full flex-col gap-3" data-test-id="remuneration-create-summary">
+          <p className="text-left text-sm font-semibold text-foreground">Resumen de liquidación</p>
+          <table className="w-full min-w-0 table-fixed text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                  Total haberes
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                  Total descuentos
+                </th>
+                <th className="rounded-t-md bg-muted/30 px-3 py-2.5 text-left text-sm font-semibold text-foreground">
+                  Líquido a pagar
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="px-3 py-2 text-left text-sm tabular-nums text-muted-foreground">
+                  {fmtClp(totals.totalEarnings)}
+                </td>
+                <td className="px-3 py-2 text-left text-sm tabular-nums text-muted-foreground">
+                  {fmtClp(totals.totalDeductions)}
+                </td>
+                <td
+                  className={`rounded-b-md bg-muted/30 px-3 py-2.5 text-left text-base font-semibold tabular-nums ${
+                    totals.netPayment < 0 ? "text-error" : "text-foreground"
+                  }`}
+                >
+                  {fmtClp(totals.netPayment)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          {totals.netPayment < 0 ? (
+            <p className="text-left text-xs text-error">Los descuentos superan los haberes.</p>
+          ) : null}
         </div>
 
-        <div className="flex flex-col gap-4 border-t border-border pt-4">
-          <p className="text-sm font-semibold text-foreground">Descuentos (opcional)</p>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(7.5rem,9rem)_1fr] sm:items-end">
-            <TextField
-              label="AFP"
-              name="remuneration-afp-percent"
-              value={afpPercent}
-              onChange={(e) => handleAfpPercentChange(e.target.value)}
-              endSymbol="%"
-              placeholder="0"
-              data-test-id="remuneration-create-afp-percent"
-            />
-            <TextField
-              label="Monto AFP"
-              name="remuneration-afp"
-              type="currency"
-              currencySymbol="$"
-              startSymbol="$"
-              value={afpAmount}
-              onChange={(e) => setAfpAmount(e.target.value)}
-              data-test-id="remuneration-create-afp"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(7.5rem,9rem)_1fr] sm:items-end">
-            <TextField
-              label="Salud"
-              name="remuneration-health-percent"
-              value={healthPercent}
-              onChange={(e) => handleHealthPercentChange(e.target.value)}
-              endSymbol="%"
-              placeholder="0"
-              data-test-id="remuneration-create-health-percent"
-            />
-            <TextField
-              label="Monto salud"
-              name="remuneration-health"
-              type="currency"
-              currencySymbol="$"
-              startSymbol="$"
-              value={healthAmount}
-              onChange={(e) => setHealthAmount(e.target.value)}
-              data-test-id="remuneration-create-health"
-            />
-          </div>
-
-          <TextField
-            label="Otros"
-            name="remuneration-others"
-            type="currency"
-            currencySymbol="$"
-            startSymbol="$"
-            value={othersAmount}
-            onChange={(e) => setOthersAmount(e.target.value)}
-            data-test-id="remuneration-create-others"
-          />
-        </div>
-
-        {earnings > 0 ? (
-          <p className="text-sm text-muted-foreground" data-test-id="remuneration-create-net-preview">
-            Líquido estimado:{" "}
-            <span className="font-semibold text-foreground">{fmtClp(netPreview)}</span>
-            {netPreview < 0 ? " (revise los montos)" : null}
-          </p>
-        ) : null}
+        <PlannedPaymentPlanSection
+          disabled={isPending || referenceLoading}
+          total={totals.netPayment}
+          immediatePaymentDate={date}
+          payeeSelected={Boolean(employeeId)}
+          payeeBankAccounts={payeeBankAccounts}
+          companyBankAccounts={companyBankAccounts}
+          cashHubOptions={cashHubOptions}
+          schedule={{ kind: "monthly-chain" }}
+          scheduledLinesBehavior="equal-split"
+          sectionTitle="Pago de la liquidación"
+          headerExtra={
+            <p className="text-xs text-muted-foreground">
+              Líquido a pagar:{" "}
+              <span className="font-medium tabular-nums text-foreground">
+                {fmtClp(totals.netPayment)}
+              </span>
+            </p>
+          }
+          payeeBankAccountLabel="Cuenta empleado (destino)"
+          payeeRequiredMessage={
+            !employeeId ? "Seleccione un empleado para planificar el pago." : null
+          }
+          strictZeroTotal
+          totalLabel="líquido a pagar"
+          scheduleBalanceHintVariant="bordered"
+          onStateChange={onPaymentStateChange}
+          data-test-id="payroll-settlement-payment-section"
+          paymentModeSelectName="payroll-settlement-payment-mode"
+          partialAmountTestId="payroll-settlement-partial-amount"
+        />
       </div>
     </Dialog>
   );

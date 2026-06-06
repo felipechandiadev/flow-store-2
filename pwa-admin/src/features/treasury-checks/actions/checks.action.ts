@@ -10,6 +10,10 @@ export async function listChecksAction(params: ListChecksParams = {}) {
   return ChecksRequest.list(params);
 }
 
+export async function getCommittedOutgoingChecksAction() {
+  return ChecksRequest.getCommittedOutgoingSummary();
+}
+
 export async function getCheckByIdAction(id: string) {
   return ChecksRequest.getById(id);
 }

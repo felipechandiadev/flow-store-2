@@ -1,3 +1,5 @@
+import type { ReceptionSupplierDocumentPaymentPayload } from "@/features/receptions/types/reception-document-payment.types";
+
 export type SupplierInvoiceLinkInfo = {
   purchaseOrderId?: string | null;
   receptionId?: string | null;
@@ -56,6 +58,8 @@ export type CreateSupplierInvoiceInput = {
   lines: SupplierInvoiceLine[];
   /** Se persiste en `metadata.plannedPayments` en el API. */
   plannedPayments?: CreateSupplierInvoicePlannedPayment[];
+  /** Plan de pago (modo + cuotas). Genera documentos SUPPLIER_PAYMENT en Cuentas por pagar. */
+  supplierDocumentPayment?: ReceptionSupplierDocumentPaymentPayload;
 };
 
 export type SupplierInvoiceListItem = {
@@ -63,12 +67,23 @@ export type SupplierInvoiceListItem = {
   documentNumber?: string | null;
   transactionType: "SUPPLIER_INVOICE";
   status: string;
+  paymentStatus?: string | null;
+  amountPaid?: number;
   subtotal?: number;
   total: number;
   createdAt: string;
   documentFolio?: string | null;
   externalReference?: string | null;
-  supplier?: { id: string; person?: { businessName?: string; firstName?: string; lastName?: string } };
+  supplier?: {
+    id: string;
+    person?: {
+      businessName?: string;
+      firstName?: string;
+      lastName?: string;
+      documentType?: string | null;
+      documentNumber?: string | null;
+    };
+  };
   metadata?: { dteNumber?: string | null; [k: string]: unknown };
 };
 

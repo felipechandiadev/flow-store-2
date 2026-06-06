@@ -15,24 +15,19 @@ import { Employee } from '@modules/employees/domain/employee.entity';
 import { ResultCenter } from '@modules/result-centers/domain/result-center.entity';
 import { Branch } from '@modules/branches/domain/branch.entity';
 import { User } from '@modules/users/domain/user.entity';
-
-const DEDUCTION_TYPE_IDS = new Set([
-  'AFP',
-  'HEALTH_INSURANCE',
-  'INCOME_TAX',
-  'UNEMPLOYMENT_INSURANCE',
-  'LOAN_PAYMENT',
-  'ADVANCE_PAYMENT',
-  'UNION_FEE',
-  'COURT_ORDER',
-  'DEDUCTION_EXTRA',
-  'ADJUSTMENT_NEG',
-]);
-
-interface RemunerationLineInput {
-  typeId: string;
-  amount: number;
-}
+import {
+  calculatePayrollTotals,
+  listPayrollLineTypeOptions,
+  type PayrollLineInput,
+} from './payroll-lines.util';
+import {
+  coerceSettlementPaymentInput,
+  mapUiPaymentMethod,
+  resolvePayrollPaymentLines,
+  shouldCreatePayrollPaymentChildren,
+  type PayrollSettlementPaymentInput,
+  type PayrollSettlementPaymentLineInput,
+} from './payroll-settlement-payment.util';
 
 export interface PlannedPaymentLineInput {
   dueDate: string;
@@ -55,6 +50,10 @@ export class RemunerationsService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {}
+
+  async getPayrollLineTypeOptions() {
+    return listPayrollLineTypeOptions();
+  }
 
   async getRemunerationById(id: string) {
     const tx = await this.transactionRepository.findOne({
@@ -99,9 +98,10 @@ export class RemunerationsService {
     employeeId: string;
     resultCenterId?: string | null;
     date: string;
-    lines: RemunerationLineInput[];
+    lines: PayrollLineInput[];
     userId?: string;
     plannedPayments?: PlannedPaymentLineInput[];
+    settlementPayment?: PayrollSettlementPaymentInput;
   }) {
     const employee = await this.employeeRepository.findOne({
       where: { id: data.employeeId },
@@ -122,15 +122,40 @@ export class RemunerationsService {
     const userId = await this.resolveUserId(data.userId);
 
     const { totalEarnings, totalDeductions, netPayment, normalizedLines } =
-      this.calculateTotals(data.lines);
+      calculatePayrollTotals(data.lines);
+
+    const settlementInput = coerceSettlementPaymentInput(
+      data.settlementPayment,
+    );
+    const paymentPlan = resolvePayrollPaymentLines(
+      settlementInput,
+      netPayment,
+      data.date,
+    );
+
+    const plannedForMeta = [
+      ...paymentPlan.paidLines,
+      ...paymentPlan.scheduledLines,
+    ];
 
     const metadata = {
       remuneration: true,
+      documentKind: 'PAYROLL_SETTLEMENT',
       payrollDate: data.date,
       lines: normalizedLines,
       totalEarnings,
       totalDeductions,
       netPayment,
+      settlementPayment: {
+        mode: paymentPlan.mode,
+        ...(paymentPlan.mode === 'PARTIAL' &&
+        data.settlementPayment?.partialPaidAmount != null
+          ? { partialPaidAmount: data.settlementPayment.partialPaidAmount }
+          : {}),
+        paidLines: paymentPlan.paidLines,
+        scheduledLines: paymentPlan.scheduledLines,
+      },
+      plannedPayments: plannedForMeta,
     };
 
     const dto = new CreateTransactionDto();
@@ -143,49 +168,91 @@ export class RemunerationsService {
     dto.taxAmount = 0;
     dto.discountAmount = totalDeductions;
     dto.total = netPayment;
-    dto.paymentMethod = PaymentMethod.TRANSFER;
-    dto.amountPaid = 0;
-    dto.paymentStatus = PaymentStatus.PENDING;
+    dto.paymentMethod =
+      paymentPlan.paidLines[0]?.paymentMethod != null
+        ? mapUiPaymentMethod(paymentPlan.paidLines[0].paymentMethod)
+        : PaymentMethod.TRANSFER;
+    dto.amountPaid = paymentPlan.parentAmountPaid;
+    dto.paymentStatus = paymentPlan.parentPaymentStatus;
     dto.paymentDueDate = data.date;
     dto.metadata = metadata;
 
     const created = await this.transactionsService.createTransaction(dto);
 
-    const schedule =
-      data.plannedPayments?.length && data.plannedPayments.length > 0
-        ? data.plannedPayments
-        : [{ dueDate: data.date, amount: netPayment }];
-
-    const totalInstallments = schedule.length;
-    for (let i = 0; i < schedule.length; i++) {
-      const line = schedule[i];
-      const amount = Math.round(Number(line.amount) || 0);
-      if (amount <= 0) continue;
-
-      const payDto = new CreateTransactionDto();
-      payDto.transactionType = TransactionType.PAYROLL_PAYMENT;
-      payDto.transactionStatus = TransactionStatus.DRAFT;
-      payDto.branchId = branchId;
-      payDto.userId = userId;
-      payDto.employeeId = employee.id;
-      payDto.relatedTransactionId = created.id;
-      payDto.subtotal = amount;
-      payDto.taxAmount = 0;
-      payDto.discountAmount = 0;
-      payDto.total = amount;
-      payDto.amountPaid = 0;
-      payDto.paymentStatus = PaymentStatus.PENDING;
-      payDto.paymentDueDate = String(line.dueDate || data.date).trim();
-      payDto.metadata = {
-        origin: 'PAYROLL_PAYMENT',
-        installmentNumber: i + 1,
-        totalInstallments,
-        payrollTransactionId: created.id,
-      };
-      await this.transactionsService.createTransaction(payDto);
+    if (!shouldCreatePayrollPaymentChildren(paymentPlan)) {
+      return this.getRemunerationById(created.id);
     }
 
-    await this.parentPaymentAggregate.recalculateParentPaymentStatus(created.id);
+    const { paidLines, scheduledLines } = paymentPlan;
+    const totalPaymentLines =
+      paymentPlan.mode === 'COMPLETED'
+        ? paidLines.length
+        : paymentPlan.mode === 'PARTIAL'
+          ? paidLines.length + scheduledLines.length
+          : paymentPlan.mode === 'PENDING_SCHEDULED'
+            ? scheduledLines.length
+            : 0;
+
+    if (paymentPlan.mode === 'COMPLETED') {
+      for (let i = 0; i < paidLines.length; i++) {
+        await this.createPayrollPaymentLine({
+          payrollId: created.id,
+          employeeId: employee.id,
+          branchId,
+          userId,
+          line: paidLines[i],
+          asDraft: false,
+          note: `Pago liquidación (${i + 1}/${paidLines.length})`,
+          installmentNumber: i + 1,
+          totalInstallments: totalPaymentLines || paidLines.length,
+        });
+      }
+    } else if (paymentPlan.mode === 'PARTIAL') {
+      for (let i = 0; i < paidLines.length; i++) {
+        await this.createPayrollPaymentLine({
+          payrollId: created.id,
+          employeeId: employee.id,
+          branchId,
+          userId,
+          line: paidLines[i],
+          asDraft: false,
+          note: `Abono liquidación (${i + 1}/${paidLines.length})`,
+          installmentNumber: i + 1,
+          totalInstallments: totalPaymentLines,
+        });
+      }
+      for (let i = 0; i < scheduledLines.length; i++) {
+        await this.createPayrollPaymentLine({
+          payrollId: created.id,
+          employeeId: employee.id,
+          branchId,
+          userId,
+          line: scheduledLines[i],
+          asDraft: true,
+          note: `Cuota programada liquidación (${i + 1}/${scheduledLines.length})`,
+          installmentNumber: paidLines.length + i + 1,
+          totalInstallments: totalPaymentLines,
+        });
+      }
+    } else if (paymentPlan.mode === 'PENDING_SCHEDULED') {
+      for (let i = 0; i < scheduledLines.length; i++) {
+        await this.createPayrollPaymentLine({
+          payrollId: created.id,
+          employeeId: employee.id,
+          branchId,
+          userId,
+          line: scheduledLines[i],
+          asDraft: true,
+          note: `Cuota programada liquidación (${i + 1}/${scheduledLines.length})`,
+          installmentNumber: i + 1,
+          totalInstallments: scheduledLines.length,
+        });
+      }
+    }
+
+    if (totalPaymentLines > 0) {
+      await this.parentPaymentAggregate.recalculateParentPaymentStatus(created.id);
+    }
 
     return this.getRemunerationById(created.id);
   }
@@ -196,7 +263,7 @@ export class RemunerationsService {
       date: string;
       status: TransactionStatus;
       resultCenterId?: string | null;
-      lines: RemunerationLineInput[];
+      lines: PayrollLineInput[];
     }>,
   ) {
     const existing = await this.transactionRepository.findOne({
@@ -220,7 +287,7 @@ export class RemunerationsService {
 
     if (data.lines) {
       const { totalEarnings, totalDeductions, netPayment, normalizedLines } =
-        this.calculateTotals(data.lines);
+        calculatePayrollTotals(data.lines);
       updateData.subtotal = totalEarnings;
       updateData.discountAmount = totalDeductions;
       updateData.total = netPayment;
@@ -247,35 +314,74 @@ export class RemunerationsService {
     return { success: true };
   }
 
-  private calculateTotals(lines: RemunerationLineInput[]) {
-    let totalEarnings = 0;
-    let totalDeductions = 0;
+  private async createPayrollPaymentLine(opts: {
+    payrollId: string;
+    employeeId: string;
+    branchId: string;
+    userId: string;
+    line: PayrollSettlementPaymentLineInput;
+    asDraft: boolean;
+    note: string;
+    installmentNumber: number;
+    totalInstallments: number;
+  }) {
+    const amount = Math.round(Number(opts.line.amount) || 0);
+    if (amount <= 0) return;
 
-    const normalizedLines = lines.map((line) => {
-      const category = DEDUCTION_TYPE_IDS.has(line.typeId)
-        ? 'DEDUCTION'
-        : 'EARNING';
-      const amount = Number(line.amount) || 0;
+    const payDto = new CreateTransactionDto();
+    payDto.transactionType = TransactionType.PAYROLL_PAYMENT;
+    if (opts.asDraft) {
+      payDto.transactionStatus = TransactionStatus.DRAFT;
+    }
+    payDto.branchId = opts.branchId;
+    payDto.userId = opts.userId;
+    payDto.employeeId = opts.employeeId;
+    payDto.relatedTransactionId = opts.payrollId;
+    payDto.subtotal = amount;
+    payDto.taxAmount = 0;
+    payDto.discountAmount = 0;
+    payDto.total = amount;
+    payDto.amountPaid = opts.asDraft ? 0 : amount;
+    payDto.paymentStatus = opts.asDraft
+      ? PaymentStatus.PENDING
+      : PaymentStatus.PAID;
+    payDto.paymentDueDate = String(opts.line.dueDate || '').trim();
 
-      if (category === 'DEDUCTION') {
-        totalDeductions += amount;
-      } else {
-        totalEarnings += amount;
+    const pm = String(opts.line.paymentMethod || '').trim().toUpperCase();
+    if (pm && ['CASH', 'TRANSFER', 'CHECK'].includes(pm)) {
+      payDto.paymentMethod = mapUiPaymentMethod(pm);
+      if (pm === 'TRANSFER' || pm === 'CHECK') {
+        payDto.bankAccountKey =
+          opts.line.companyBankAccountKey != null
+            ? String(opts.line.companyBankAccountKey).trim()
+            : undefined;
       }
+      if (pm === 'CASH' && opts.line.cashHubId != null) {
+        payDto.cashHubId = String(opts.line.cashHubId).trim();
+      }
+    }
 
-      return {
-        typeId: line.typeId,
+    payDto.notes = opts.note;
+    const employeeBankKey =
+      opts.line.employeeBankAccountKey ?? opts.line.supplierBankAccountKey;
+    payDto.metadata = {
+      origin: 'PAYROLL_PAYMENT',
+      installmentNumber: opts.installmentNumber,
+      totalInstallments: opts.totalInstallments,
+      payrollTransactionId: opts.payrollId,
+      settlementPaymentLine: {
+        dueDate: opts.line.dueDate,
         amount,
-        category,
-      };
-    });
-
-    return {
-      totalEarnings,
-      totalDeductions,
-      netPayment: totalEarnings - totalDeductions,
-      normalizedLines,
+        paymentMethod: opts.line.paymentMethod,
+        companyBankAccountKey: opts.line.companyBankAccountKey ?? null,
+        employeeBankAccountKey: employeeBankKey ?? null,
+        chequeNumber: opts.line.chequeNumber ?? null,
+        cashHubId: opts.line.cashHubId ?? null,
+        isScheduled: opts.asDraft,
+      },
     };
+
+    await this.transactionsService.createTransaction(payDto);
   }
 
   private formatRemuneration(tx: Transaction) {
@@ -290,6 +396,7 @@ export class RemunerationsService {
 
     return {
       id: tx.id,
+      documentNumber: tx.documentNumber ?? null,
       date: payrollDate,
       employeeId: tx.employeeId ?? null,
       employeeName,

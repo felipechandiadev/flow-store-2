@@ -1,11 +1,12 @@
 export type RemunerationLine = {
   typeId: string;
   amount: number;
-  category?: string;
+  category?: "EARNING" | "DEDUCTION" | string;
 };
 
 export type RemunerationGridRow = {
   id: string;
+  documentNumber?: string | null;
   date: string;
   employeeId: string | null;
   employeeName: string;
@@ -24,18 +25,4 @@ export type RemunerationListResult = {
   data: RemunerationGridRow[];
 };
 
-/** typeId de líneas de liquidación (haberes y descuentos). */
-export const PAYROLL_LINE_TYPE_LABEL: Record<string, string> = {
-  BASE_SALARY: "Sueldo base",
-  ORDINARY: "Remuneración ordinaria",
-  PROPORTIONAL: "Remuneración proporcional",
-  OVERTIME: "Horas extraordinarias",
-  BONUS: "Bono",
-  ALLOWANCE: "Asignación",
-  GRATIFICATION: "Gratificación",
-  AFP: "AFP",
-  HEALTH_INSURANCE: "Salud",
-  INCOME_TAX: "Impuesto único",
-  UNEMPLOYMENT_INSURANCE: "Seguro de cesantía",
-  DEDUCTION_EXTRA: "Otros descuentos",
-};
+export { labelPayrollLineType as labelPayrollLineTypeId } from "../lib/payroll-line-types";

@@ -31,6 +31,11 @@ import {
   allocateSalePaymentDebits,
   isSalePaymentAssetAccountCode,
 } from './sale-payment-debits.util';
+import {
+  applyOutgoingCheckCreditOverride,
+  resolveOutgoingPaymentCreditAccountCode,
+  shouldSkipPaymentExecutionLedger,
+} from './outgoing-payment-credit-account.util';
 
 interface ValidationError {
   code: string;
@@ -546,6 +551,17 @@ export class LedgerEntriesService {
       );
     }
 
+    if (
+      resolveOutgoingPaymentCreditAccountCode(
+        transaction.transactionType,
+        transaction.paymentMethod,
+      )
+    ) {
+      const accounts = await this.accountRepo.findByCompanyId(companyId);
+      const accountByCode = new Map(accounts.map((a) => [a.code, a.id]));
+      return applyOutgoingCheckCreditOverride(entries, accountByCode);
+    }
+
     return entries;
   }
 
@@ -942,6 +958,13 @@ export class LedgerEntriesService {
     transaction: Transaction,
     personId: string | null,
   ): Promise<LedgerEntryDto[]> {
+    if (shouldSkipPaymentExecutionLedger(transaction.paymentMethod)) {
+      this.logger.log(
+        `Skipping PAYMENT_EXECUTION ledger for CHECK payment ${transaction.id} (bank movement on check clear)`,
+      );
+      return [];
+    }
+
     const entries: LedgerEntryDto[] = [];
 
     // Obtener mapa de cuentas necesarias

@@ -1,6 +1,6 @@
 // UI Base Components
 export { default as Alert } from './Alert';
-export { Button, ButtonPill } from './Button';
+export { Button, ButtonPill, ButtonGroup, ButtonGroupItem, ButtonGroupToggle } from './Button';
 export { Card, StatisticsCard } from './Cards';
 export type {
   CardProps,

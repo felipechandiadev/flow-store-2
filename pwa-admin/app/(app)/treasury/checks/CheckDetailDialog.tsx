@@ -9,7 +9,7 @@ import Badge from "@/shared/components/Badge/Badge";
 import Alert from "@/shared/components/Alert/Alert";
 import {
   CHECK_DIRECTION_LABELS,
-  CHECK_STATUS_LABELS,
+  checkStatusLabel,
   type CheckEventRow,
   type CheckLinkRow,
   type CheckRow,
@@ -136,7 +136,7 @@ export function CheckDetailDialog({ check, onClose, onChanged }: Props) {
         <section className="grid gap-3 sm:grid-cols-2">
           <Info label="Estado">
             <Badge variant="primary-outlined">
-              {CHECK_STATUS_LABELS[status]}
+              {checkStatusLabel(status, current.direction)}
             </Badge>
           </Info>
           <Info label="Monto">
@@ -305,12 +305,12 @@ export function CheckDetailDialog({ check, onClose, onChanged }: Props) {
                   <div className="flex items-baseline gap-2">
                     {ev.fromStatus ? (
                       <Badge variant="secondary-outlined">
-                        {CHECK_STATUS_LABELS[ev.fromStatus]}
+                        {checkStatusLabel(ev.fromStatus, current.direction)}
                       </Badge>
                     ) : null}
                     <span className="text-muted-foreground">→</span>
                     <Badge variant="primary-outlined">
-                      {CHECK_STATUS_LABELS[ev.toStatus]}
+                      {checkStatusLabel(ev.toStatus, current.direction)}
                     </Badge>
                     {ev.notes ? (
                       <span className="text-xs text-muted-foreground">

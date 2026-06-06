@@ -20,5 +20,6 @@ export async function createSupplierInvoiceAction(input: CreateSupplierInvoiceIn
   }
   const res = await SupplierInvoiceRequest.create({ ...input, userId });
   revalidatePath("/purchasing/dte/invoices");
+  revalidatePath("/accounting/accounts-payable", "layout");
   return res;
 }

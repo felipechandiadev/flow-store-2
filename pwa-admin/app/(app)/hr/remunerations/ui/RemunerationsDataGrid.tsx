@@ -66,6 +66,13 @@ export default function RemunerationsDataGrid({
   const columns: DataGridColumn[] = useMemo(
     () => [
       {
+        field: "documentNumber",
+        headerName: "Folio",
+        sortable: false,
+        width: 130,
+        valueGetter: ({ row }) => (row as RemunerationGridRow).documentNumber?.trim() || "—",
+      },
+      {
         field: "date",
         headerName: "Fecha liquidación",
         sortable: false,

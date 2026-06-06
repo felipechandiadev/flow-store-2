@@ -65,6 +65,27 @@ export default function AccountsPayableDataGrid({ rows }: AccountsPayableDataGri
   const columns: DataGridColumn[] = useMemo(
     () => [
       {
+        field: "documentNumber",
+        headerName: "Folio",
+        sortable: true,
+        width: 148,
+        valueGetter: ({ row }) => {
+          const folio = (row as AccountsPayableRow).documentNumber?.trim();
+          return folio || "—";
+        },
+        renderCell: ({ row, value }) => {
+          const folio = String(value ?? "—");
+          return (
+            <span
+              className="block truncate font-mono text-xs text-foreground"
+              title={folio !== "—" ? folio : undefined}
+            >
+              {folio}
+            </span>
+          );
+        },
+      },
+      {
         field: "payeeName",
         headerName: "Beneficiario",
         sortable: true,
@@ -74,12 +95,12 @@ export default function AccountsPayableDataGrid({ rows }: AccountsPayableDataGri
       },
       {
         field: "parentDocumentNumber",
-        headerName: "Documento",
+        headerName: "Documento origen",
         sortable: true,
         minWidth: 140,
         valueGetter: ({ row }) => {
           const r = row as AccountsPayableRow;
-          return r.parentDocumentNumber || r.fromReceptionNumber || r.documentNumber || "—";
+          return r.parentDocumentNumber || r.fromReceptionNumber || "—";
         },
       },
       {

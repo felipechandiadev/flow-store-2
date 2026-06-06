@@ -4,7 +4,7 @@ import { TextField } from "@/shared/components/TextField/TextField";
 import Select from "@/shared/components/Select/Select";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import type { CompanyBankAccountItem } from "@/features/settings-branches/infrastructure/company.request";
-import type { SupplierPersonBankAccount } from "@/features/purchasing-suppliers/types/supplier.types";
+import type { PayeeBankAccount } from "@/shared/lib/planned-payment-plan";
 import { bankAccountOptionKey } from "@/features/purchasing-dte/lib/planned-payment-helpers";
 
 import type { Option } from "@/shared/components/Select";
@@ -38,7 +38,7 @@ const METHOD_OPTIONS = [
   { id: "CASH", label: "Efectivo" },
 ] as const;
 
-function accountLabel(a: CompanyBankAccountItem | SupplierPersonBankAccount): string {
+function accountLabel(a: CompanyBankAccountItem | PayeeBankAccount): string {
   return `${a.bankName} · ${a.accountType} · ${a.accountNumber}`;
 }
 
@@ -48,7 +48,7 @@ export type InvoicePlannedPaymentLineKind = "immediate" | "scheduled";
 export type InvoicePlannedPaymentLinesProps = {
   disabled: boolean;
   companyBankAccounts: CompanyBankAccountItem[];
-  supplierBankAccounts: SupplierPersonBankAccount[];
+  supplierBankAccounts: PayeeBankAccount[];
   /** Centros de acopio para pagos en efectivo (compras / recepción). */
   cashHubOptions?: Option[];
   /** Si es false, no se muestra el botón «+» (p. ej. pago único completado). */
@@ -61,6 +61,19 @@ export type InvoicePlannedPaymentLinesProps = {
   onPatchLine: (id: string, patch: Partial<InvoicePlannedPaymentLineState>) => void;
   /** Reparte el total en montos iguales entre las líneas actuales (fechas se conservan). */
   onDistributeEqual?: () => void;
+  /**
+   * Texto si no hay líneas. Por defecto: proveedor (pagos inmediatos) o ninguno (cuotas programadas).
+   * Pasar `null` para no mostrar mensaje.
+   */
+  emptyLinesMessage?: string | null;
+  /** Pago ejecutado: sin título «Pagos» ni cajas con borde alrededor de los campos. */
+  hideSectionChrome?: boolean;
+  /** Etiqueta del monto en líneas inmediatas (pago ejecutado). Default: «Monto». */
+  immediateAmountLabel?: string;
+  /** Etiqueta del selector de centro de efectivo. Default: «Centro de efectivo». */
+  cashHubLabel?: string;
+  /** Etiqueta de la cuenta bancaria del beneficiario en transferencias. */
+  payeeBankAccountLabel?: string;
 };
 
 export function InvoicePlannedPaymentLines({
@@ -75,8 +88,21 @@ export function InvoicePlannedPaymentLines({
   onRemoveLine,
   onPatchLine,
   onDistributeEqual,
+  emptyLinesMessage,
+  hideSectionChrome = false,
+  immediateAmountLabel = "Monto",
+  cashHubLabel = "Centro de efectivo",
+  payeeBankAccountLabel = "Cuenta proveedor (destino)",
 }: InvoicePlannedPaymentLinesProps) {
   const isScheduled = lineKind === "scheduled";
+  const showToolbar = allowAddLine || onDistributeEqual != null;
+  const showSectionHeader = !hideSectionChrome && (isScheduled || showToolbar);
+  const resolvedEmptyMessage =
+    emptyLinesMessage !== undefined
+      ? emptyLinesMessage
+      : isScheduled
+        ? null
+        : "Seleccione un proveedor para planificar pagos.";
   const companyOpts = companyBankAccounts.map((a, i) => ({
     id: bankAccountOptionKey(a, i),
     label: accountLabel(a),
@@ -86,53 +112,63 @@ export function InvoicePlannedPaymentLines({
     label: accountLabel(a),
   }));
 
+  const toolbarIconVariant = isScheduled ? "action" : "outlined";
+
+  const outerClassName = hideSectionChrome || isScheduled
+    ? "space-y-3"
+    : "space-y-3 rounded-lg border border-border bg-muted/20 p-3";
+  const lineWrapperClassName =
+    hideSectionChrome || isScheduled ? undefined : "rounded-md border border-border/80 bg-background p-3";
+
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3" data-test-id="invoice-planned-payments">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground">
-          {isScheduled ? "Cuotas programadas" : "Pagos"}
-        </h3>
-        {allowAddLine || onDistributeEqual ? (
-          <div className="flex shrink-0 gap-1">
-            {onDistributeEqual ? (
-              <IconButton
-                type="button"
-                icon="Equal"
-                variant="outlined"
-                size="sm"
-                ariaLabel="Repartir montos en partes iguales"
-                title="Repartir montos en partes iguales"
-                disabled={disabled}
-                onClick={onDistributeEqual}
-                data-test-id="invoice-payment-distribute-equal"
-              />
-            ) : null}
-            {allowAddLine ? (
-              <IconButton
-                type="button"
-                icon="Plus"
-                variant="outlined"
-                size="sm"
-                ariaLabel="Agregar línea de pago"
-                disabled={disabled}
-                onClick={onAddLine}
-                data-test-id="invoice-payment-add-line"
-              />
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-      {lines.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Seleccione un proveedor para planificar pagos.</p>
-      ) : (
-        <div className="space-y-4">
+    <div className={outerClassName} data-test-id="invoice-planned-payments">
+      {showSectionHeader ? (
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-foreground">
+            {isScheduled ? "Cuotas programadas" : "Pagos"}
+          </h3>
+          {showToolbar ? (
+            <div className="flex shrink-0 gap-1">
+              {onDistributeEqual ? (
+                <IconButton
+                  type="button"
+                  icon="Equal"
+                  variant={toolbarIconVariant}
+                  size="sm"
+                  ariaLabel="Repartir montos en partes iguales"
+                  title="Repartir montos en partes iguales"
+                  disabled={disabled}
+                  onClick={onDistributeEqual}
+                  data-test-id="invoice-payment-distribute-equal"
+                />
+              ) : null}
+              {allowAddLine ? (
+                <IconButton
+                  type="button"
+                  icon="Plus"
+                  variant={toolbarIconVariant}
+                  size="sm"
+                  ariaLabel="Agregar línea de pago"
+                  disabled={disabled}
+                  onClick={onAddLine}
+                  data-test-id="invoice-payment-add-line"
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {lines.length === 0 && resolvedEmptyMessage ? (
+        <p className="text-sm text-muted-foreground">{resolvedEmptyMessage}</p>
+      ) : lines.length > 0 ? (
+        <div className={isScheduled ? "space-y-3" : "space-y-4"}>
           {lines.map((line, idx) => (
             <div
               key={line.id}
-              className="rounded-md border border-border/80 bg-background p-3"
+              className={lineWrapperClassName}
               data-test-id={`invoice-payment-line-${idx}`}
             >
-              {lines.length > 1 ? (
+              {!isScheduled && lines.length > 1 ? (
                 <div className="mb-2 flex justify-end">
                   <IconButton
                     type="button"
@@ -148,7 +184,13 @@ export function InvoicePlannedPaymentLines({
               ) : null}
 
               <div
-                className={`grid grid-cols-1 gap-3 sm:gap-4 ${isScheduled ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}
+                className={`grid grid-cols-1 gap-3 sm:gap-4 ${
+                  isScheduled
+                    ? lines.length > 1
+                      ? "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+                      : "sm:grid-cols-2"
+                    : "sm:grid-cols-3"
+                }`}
               >
                 <div className="min-w-0">
                   <TextField
@@ -161,7 +203,7 @@ export function InvoicePlannedPaymentLines({
                 </div>
                 <div className="min-w-0">
                   <TextField
-                    label="Monto CLP"
+                    label={isScheduled ? "Monto" : immediateAmountLabel}
                     type="currency"
                     currencySymbol="$"
                     startSymbol="$"
@@ -170,6 +212,20 @@ export function InvoicePlannedPaymentLines({
                     disabled={disabled}
                   />
                 </div>
+                {isScheduled && lines.length > 1 ? (
+                  <div className="flex justify-end sm:pb-1">
+                    <IconButton
+                      type="button"
+                      icon="Trash2"
+                      variant="action"
+                      size="sm"
+                      ariaLabel="Quitar cuota"
+                      disabled={disabled}
+                      onClick={() => onRemoveLine(line.id)}
+                      data-test-id={`invoice-payment-remove-${idx}`}
+                    />
+                  </div>
+                ) : null}
                 {!isScheduled ? (
                   <div className="min-w-0">
                     <Select
@@ -212,7 +268,7 @@ export function InvoicePlannedPaymentLines({
                   </div>
                   <div className="min-w-0">
                     <Select
-                      label="Cuenta proveedor (destino)"
+                      label={payeeBankAccountLabel}
                       alwaysShowLabel
                       placeholder={supplierOpts.length ? "Seleccione…" : "Sin cuentas del proveedor"}
                       options={supplierOpts}
@@ -230,7 +286,7 @@ export function InvoicePlannedPaymentLines({
                 <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                   <div className="min-w-0">
                     <Select
-                      label="Centro de acopio (efectivo)"
+                      label={cashHubLabel}
                       alwaysShowLabel
                       placeholder="Seleccione…"
                       options={cashHubOptions}
@@ -293,7 +349,7 @@ export function InvoicePlannedPaymentLines({
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

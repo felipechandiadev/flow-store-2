@@ -2,7 +2,9 @@
  * Plan de pago del documento fiscal (factura/boleta) asociado a una recepción directa.
  * Se envía en `supplierDocumentPayment` al crear la recepción.
  */
-export type ReceptionDocumentPaymentMode = "PENDING" | "PENDING_SCHEDULED" | "PARTIAL" | "COMPLETED";
+import type { PlannedPaymentMode } from "@/shared/components/PlannedPaymentLines/planned-payment-mode.types";
+
+export type ReceptionDocumentPaymentMode = PlannedPaymentMode;
 
 export type ReceptionPlannedPaymentLinePayload = {
   dueDate: string;

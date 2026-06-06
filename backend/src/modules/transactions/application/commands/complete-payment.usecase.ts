@@ -3,6 +3,8 @@ import {
   BadRequestException,
   ConflictException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -11,7 +13,10 @@ import {
   Transaction,
   TransactionStatus,
   TransactionType,
+  PaymentMethod,
 } from '../../domain/transaction.entity';
+import { ChecksService } from '@modules/checks/application/checks.service';
+import { CheckDirection } from '@modules/checks/domain/check.entity';
 import { TransactionCreatedEvent } from '../../../../shared/events/transaction-created.event';
 import { DocumentNumberService } from '../document-number.service';
 import { ParentPaymentAggregateService } from '../services/parent-payment-aggregate.service';
@@ -27,6 +32,14 @@ export class CompletePaymentCommand {
       supplierBankAccount?: any;
       companyBankAccount?: any;
       note?: string;
+      checkData?: {
+        checkNumber: string;
+        bankName: string;
+        bankAccountKey?: string | null;
+        drawerName?: string | null;
+        dueDate?: string | null;
+        payeeName?: string | null;
+      };
     },
   ) {}
 }
@@ -42,6 +55,8 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
     private readonly eventBus: EventBus,
     private readonly documentNumberService: DocumentNumberService,
     private readonly parentPaymentAggregate: ParentPaymentAggregateService,
+    @Inject(forwardRef(() => ChecksService))
+    private readonly checksService: ChecksService,
   ) {}
 
   async execute(command: CompletePaymentCommand): Promise<Transaction> {
@@ -77,19 +92,50 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       throw new ConflictException(`Payment ${paymentId} has no pending amount`);
     }
 
+    const paymentMethod =
+      (data.paymentMethod as PaymentMethod) || payment.paymentMethod;
+    if (paymentMethod === PaymentMethod.CHECK) {
+      const cn = String(data.checkData?.checkNumber ?? '').trim();
+      const bank = String(data.checkData?.bankName ?? '').trim();
+      if (!cn) {
+        throw new BadRequestException(
+          'Pago con cheque requiere número de cheque',
+        );
+      }
+      if (!bank) {
+        throw new BadRequestException(
+          'Pago con cheque requiere banco emisor (cuenta empresa)',
+        );
+      }
+    }
+
+    const checkData =
+      paymentMethod === PaymentMethod.CHECK && data.checkData
+        ? {
+            checkNumber: String(data.checkData.checkNumber).trim(),
+            bankName: String(data.checkData.bankName).trim(),
+            bankAccountKey: data.checkData.bankAccountKey ?? data.bankAccountKey ?? null,
+            drawerName: data.checkData.drawerName?.trim() || null,
+            dueDate: data.checkData.dueDate?.trim() || null,
+            payeeName: data.checkData.payeeName?.trim() || null,
+            issueDate: new Date().toISOString().slice(0, 10),
+          }
+        : null;
+
     // 1. Actualizar documento de pago (SUPPLIER_PAYMENT / PAYROLL_PAYMENT)
     const updatedMetadata = {
       ...(payment.metadata || {}),
       completedAt: new Date().toISOString(),
       supplierBankAccount: data.supplierBankAccount,
       companyBankAccount: data.companyBankAccount,
+      ...(checkData ? { checkData } : {}),
     };
 
     await this.transactionsRepository.update(paymentId, {
       amountPaid: payment.total,
       status: TransactionStatus.CONFIRMED,
       paymentStatus: PaymentStatus.PAID,
-      paymentMethod: (data.paymentMethod as any) || payment.paymentMethod,
+      paymentMethod,
       bankAccountKey: data.bankAccountKey || payment.bankAccountKey,
       cashHubId: data.cashHubId || payment.cashHubId,
       notes: data.note
@@ -102,9 +148,37 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
       `Payment ${paymentId} marked as CONFIRMED. Amount: ${payment.total}`,
     );
 
-    // 2. Crear transacción PAYMENT_EXECUTION
-    const paymentMethod = (data.paymentMethod as any) || payment.paymentMethod;
+    if (paymentMethod === PaymentMethod.CHECK && checkData) {
+      const companyId = payment.branch?.company?.id;
+      if (companyId) {
+        try {
+          await this.checksService.createFromTransactionPayment({
+            companyId,
+            transactionId: paymentId,
+            direction: CheckDirection.OUTGOING,
+            checkNumber: checkData.checkNumber,
+            bankName: checkData.bankName,
+            bankAccountKey: checkData.bankAccountKey,
+            drawerName: checkData.drawerName,
+            payeeName: checkData.payeeName,
+            payeeId: payment.supplierId ?? payment.employeeId ?? null,
+            amount: Number(payment.total ?? 0),
+            currency: 'CLP',
+            issueDate: checkData.issueDate,
+            dueDate: checkData.dueDate,
+            metadata: { source: 'accounts_payable_complete' },
+          });
+        } catch (err) {
+          this.logger.warn(
+            `Could not materialize check for payment ${paymentId}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+      }
+    }
 
+    // 2. Crear transacción PAYMENT_EXECUTION
     if (!payment.branchId) {
       throw new BadRequestException(`Payment ${paymentId} has no branchId`);
     }

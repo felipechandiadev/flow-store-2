@@ -12,6 +12,13 @@ export interface ListChecksFilter {
   offset?: number;
 }
 
+export interface CommittedOutgoingCheckSummary {
+  totalAmount: number;
+  checkCount: number;
+  byDueDate: Array<{ dueDate: string | null; amount: number; count: number }>;
+  stalePendingCount: number;
+}
+
 export interface CheckRepositoryPort {
   save(check: Check): Promise<Check>;
   findById(id: string, companyId?: string): Promise<Check | null>;
@@ -19,4 +26,7 @@ export interface CheckRepositoryPort {
     filter: ListChecksFilter,
   ): Promise<{ items: Check[]; total: number }>;
   update(id: string, patch: Partial<Check>): Promise<Check>;
+  getCommittedOutgoingSummary(
+    companyId: string,
+  ): Promise<CommittedOutgoingCheckSummary>;
 }

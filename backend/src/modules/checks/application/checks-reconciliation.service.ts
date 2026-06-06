@@ -9,6 +9,7 @@ import { In, Repository } from 'typeorm';
 import { Check, CheckDirection, CheckStatus } from '../domain/check.entity';
 import { CheckEvent } from '../domain/check-event.entity';
 import { BankMovement } from '@modules/bank-movements/domain/bank-movement.entity';
+import { ChecksService } from './checks.service';
 
 export interface ReconciliationResult {
   matched: boolean;
@@ -39,6 +40,7 @@ export class ChecksReconciliationService {
     private readonly events: Repository<CheckEvent>,
     @InjectRepository(BankMovement)
     private readonly movements: Repository<BankMovement>,
+    private readonly checksService: ChecksService,
   ) {}
 
   /**
@@ -92,21 +94,14 @@ export class ChecksReconciliationService {
     }
 
     const target = narrowed[0];
-    const prev = target.status;
-    target.status = CheckStatus.CLEARED;
-    target.clearedDate = new Date().toISOString().slice(0, 10);
-    const saved = await this.checks.save(target);
-
-    await this.events.save(
-      this.events.create({
-        companyId: saved.companyId,
-        checkId: saved.id,
-        fromStatus: prev,
-        toStatus: CheckStatus.CLEARED,
-        userId: null,
+    const saved = await this.checksService.clear(
+      target.id,
+      target.companyId,
+      null,
+      {
+        clearedDate: new Date().toISOString().slice(0, 10),
         notes: `auto-matched bank_movement ${movement.id}`,
-        metadata: { bankMovementId: movement.id, amount: movement.amount },
-      }),
+      },
     );
     return { matched: true, check: saved };
   }
@@ -135,22 +130,9 @@ export class ChecksReconciliationService {
       throw new NotFoundException('Movimiento bancario no encontrado');
     }
 
-    const prev = check.status;
-    check.status = CheckStatus.CLEARED;
-    check.clearedDate = new Date().toISOString().slice(0, 10);
-    const saved = await this.checks.save(check);
-
-    await this.events.save(
-      this.events.create({
-        companyId: saved.companyId,
-        checkId: saved.id,
-        fromStatus: prev,
-        toStatus: CheckStatus.CLEARED,
-        userId,
-        notes: `manual match with bank_movement ${movement.id}`,
-        metadata: { bankMovementId: movement.id, amount: movement.amount },
-      }),
-    );
-    return saved;
+    return this.checksService.clear(check.id, companyId, userId, {
+      clearedDate: new Date().toISOString().slice(0, 10),
+      notes: `manual match with bank_movement ${movement.id}`,
+    });
   }
 }

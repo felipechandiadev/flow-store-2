@@ -6,6 +6,7 @@ import type {
   CheckLinkRow,
   CheckRow,
   CheckStatus,
+  CommittedOutgoingChecksSummary,
 } from "../types/check.types";
 
 function apiUrl(path: string): string {
@@ -44,6 +45,34 @@ export interface ListChecksParams {
 }
 
 export class ChecksRequest {
+  static async getCommittedOutgoingSummary(): Promise<
+    | { success: true; summary: CommittedOutgoingChecksSummary }
+    | { success: false; error: string }
+  > {
+    try {
+      const res = await fetch(apiUrl("checks/treasury/committed-outgoing"), {
+        method: "GET",
+        headers: await authHeaders(),
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        summary?: CommittedOutgoingChecksSummary;
+        message?: string;
+      };
+      if (!res.ok || !data?.summary) {
+        return { success: false, error: data?.message || res.statusText };
+      }
+      return { success: true, summary: data.summary };
+    } catch (e) {
+      return {
+        success: false,
+        error:
+          e instanceof Error ? e.message : "Error al cargar comprometidos",
+      };
+    }
+  }
+
   static async list(
     params: ListChecksParams = {},
   ): Promise<

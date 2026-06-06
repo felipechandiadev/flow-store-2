@@ -31,6 +31,13 @@ export class ChecksController {
     private readonly reconciliation: ChecksReconciliationService,
   ) {}
 
+  @Get('treasury/committed-outgoing')
+  async committedOutgoing(@CurrentCompany() companyId: string) {
+    const summary =
+      await this.checksService.getCommittedOutgoingSummary(companyId);
+    return { success: true, summary };
+  }
+
   @Get()
   async list(
     @Query() q: ListChecksQueryDto,

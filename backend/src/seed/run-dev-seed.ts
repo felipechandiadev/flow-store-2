@@ -24,6 +24,11 @@ import { CashHub } from '@modules/cash-hubs/domain/cash-hub.entity';
 import { ExpenseCategory } from '@modules/expense-categories/domain/expense-category.entity';
 import { Supplier, SupplierType } from '@modules/suppliers/domain/supplier.entity';
 import { Customer } from '@modules/customers/domain/customer.entity';
+import {
+  Employee,
+  EmployeeStatus,
+  EmploymentType,
+} from '@modules/employees/domain/employee.entity';
 import { Shareholder } from '@modules/shareholders/domain/shareholder.entity';
 import { AccountingAccount, AccountType } from '@modules/accounting-accounts/domain/accounting-account.entity';
 import { AccountingRule, RuleScope } from '@modules/accounting-rules/domain/accounting-rule.entity';
@@ -279,6 +284,12 @@ const SEED_ACCOUNTING_ACCOUNTS: readonly {
   { code: '2000', name: 'Pasivos', type: AccountType.LIABILITY },
   { code: '2100', name: 'Cuentas por pagar', type: AccountType.LIABILITY, parentCode: '2000' },
   { code: '2101', name: 'Proveedores', type: AccountType.LIABILITY, parentCode: '2100' },
+  {
+    code: '2110',
+    name: 'Cheques por pagar emitidos',
+    type: AccountType.LIABILITY,
+    parentCode: '2100',
+  },
 
   // Equity
   { code: '3000', name: 'Patrimonio', type: AccountType.EQUITY },
@@ -787,6 +798,148 @@ const SEED_CUSTOMERS: readonly {
   },
 ] as const;
 
+const SEED_EMPLOYEES: readonly {
+  person: {
+    firstName: string;
+    lastName: string;
+    documentNumber: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+  };
+  employee: {
+    employmentType: EmploymentType;
+    status: EmployeeStatus;
+    hireDate: string;
+    baseSalary?: string;
+  };
+}[] = [
+  {
+    person: {
+      firstName: 'Juan',
+      lastName: 'Pérez González',
+      documentNumber: '17.100.001-7',
+      email: 'juan.perez@empleado.local',
+      phone: '+56 9 7000 0001',
+      address: 'Av. Libertador 100, Santiago',
+    },
+    employee: {
+      employmentType: EmploymentType.FULL_TIME,
+      status: EmployeeStatus.ACTIVE,
+      hireDate: '2022-03-15',
+      baseSalary: '850000',
+    },
+  },
+  {
+    person: {
+      firstName: 'María',
+      lastName: 'González Soto',
+      documentNumber: '17.100.002-5',
+      email: 'maria.gonzalez@empleado.local',
+      phone: '+56 9 7000 0002',
+      address: 'Calle Los Alerces 45, Providencia',
+    },
+    employee: {
+      employmentType: EmploymentType.FULL_TIME,
+      status: EmployeeStatus.ACTIVE,
+      hireDate: '2021-08-01',
+      baseSalary: '920000',
+    },
+  },
+  {
+    person: {
+      firstName: 'Carlos',
+      lastName: 'Ramírez Vega',
+      documentNumber: '17.100.003-3',
+      email: 'carlos.ramirez@empleado.local',
+      phone: '+56 9 7000 0003',
+    },
+    employee: {
+      employmentType: EmploymentType.FULL_TIME,
+      status: EmployeeStatus.ACTIVE,
+      hireDate: '2023-01-10',
+      baseSalary: '780000',
+    },
+  },
+  {
+    person: {
+      firstName: 'Ana',
+      lastName: 'Torres Muñoz',
+      documentNumber: '17.100.004-1',
+      email: 'ana.torres@empleado.local',
+      phone: '+56 9 7000 0004',
+      address: 'Pasaje El Roble 12, Ñuñoa',
+    },
+    employee: {
+      employmentType: EmploymentType.PART_TIME,
+      status: EmployeeStatus.ACTIVE,
+      hireDate: '2024-06-01',
+      baseSalary: '450000',
+    },
+  },
+  {
+    person: {
+      firstName: 'Luis',
+      lastName: 'Silva Contreras',
+      documentNumber: '17.100.005-K',
+      email: 'luis.silva@empleado.local',
+      phone: '+56 9 7000 0005',
+    },
+    employee: {
+      employmentType: EmploymentType.FULL_TIME,
+      status: EmployeeStatus.ACTIVE,
+      hireDate: '2020-11-20',
+      baseSalary: '1050000',
+    },
+  },
+  {
+    person: {
+      firstName: 'Andrea',
+      lastName: 'Morales Rojas',
+      documentNumber: '17.100.006-8',
+      email: 'andrea.morales@empleado.local',
+      phone: '+56 9 7000 0006',
+      address: 'Av. Irarrázaval 3200, Macul',
+    },
+    employee: {
+      employmentType: EmploymentType.INTERN,
+      status: EmployeeStatus.ACTIVE,
+      hireDate: '2025-03-01',
+      baseSalary: '350000',
+    },
+  },
+  {
+    person: {
+      firstName: 'Pedro',
+      lastName: 'Contreras López',
+      documentNumber: '17.100.007-6',
+      email: 'pedro.contreras@empleado.local',
+      phone: '+56 9 7000 0007',
+    },
+    employee: {
+      employmentType: EmploymentType.CONTRACTOR,
+      status: EmployeeStatus.ACTIVE,
+      hireDate: '2024-09-15',
+      baseSalary: '650000',
+    },
+  },
+  {
+    person: {
+      firstName: 'Francisca',
+      lastName: 'Herrera Díaz',
+      documentNumber: '17.100.008-4',
+      email: 'francisca.herrera@empleado.local',
+      phone: '+56 9 7000 0008',
+    },
+    employee: {
+      employmentType: EmploymentType.FULL_TIME,
+      status: EmployeeStatus.SUSPENDED,
+      hireDate: '2019-05-01',
+      baseSalary: '880000',
+    },
+  },
+] as const;
+
 /** Tablas en `public` que no deben truncarse (extensiones PostGIS u otras). */
 const TRUNCATE_EXCLUDE_TABLES = new Set([
   'spatial_ref_sys',
@@ -1214,6 +1367,7 @@ async function bootstrap() {
     const expenseCategoryRepo = dataSource.getRepository(ExpenseCategory);
     const supplierRepo = dataSource.getRepository(Supplier);
     const customerRepo = dataSource.getRepository(Customer);
+    const employeeRepo = dataSource.getRepository(Employee);
     const shareholderRepo = dataSource.getRepository(Shareholder);
     const accountingAccountRepo = dataSource.getRepository(AccountingAccount);
     const accountingRuleRepo = dataSource.getRepository(AccountingRule);
@@ -2738,6 +2892,65 @@ async function bootstrap() {
         `${person.firstName} ${person.lastName ?? ''}`.trim();
       console.log(
         `✅ Cliente «${displayName}» sincronizado: id=${customer.id} companyId=${customer.companyId} crédito=${customer.creditLimit} día=${customer.paymentDayOfMonth} activo=${customer.isActive}`,
+      );
+    }
+
+    for (const item of SEED_EMPLOYEES) {
+      let person = await personRepo.findOne({
+        where: { documentNumber: item.person.documentNumber, deletedAt: null as never },
+      });
+      if (!person) {
+        person = personRepo.create({
+          type: PersonType.NATURAL,
+          firstName: item.person.firstName,
+          lastName: item.person.lastName,
+          documentType: DocumentType.RUN,
+          documentNumber: item.person.documentNumber,
+          email: item.person.email,
+          phone: item.person.phone,
+          address: item.person.address,
+        });
+      } else {
+        person.type = PersonType.NATURAL;
+        person.firstName = item.person.firstName;
+        person.lastName = item.person.lastName;
+        person.documentType = DocumentType.RUN;
+        person.email = item.person.email;
+        person.phone = item.person.phone;
+        person.address = item.person.address;
+      }
+      person = await personRepo.save(person);
+
+      let employee = await employeeRepo.findOne({
+        where: { companyId: company.id, personId: person.id },
+        withDeleted: true,
+      });
+      if (!employee) {
+        employee = employeeRepo.create({
+          companyId: company.id,
+          personId: person.id,
+          branchId: seedBranch.id,
+          employmentType: item.employee.employmentType,
+          status: item.employee.status,
+          hireDate: item.employee.hireDate,
+          baseSalary: item.employee.baseSalary,
+        });
+      } else {
+        if (employee.deletedAt) {
+          employee = await employeeRepo.recover(employee);
+        }
+        employee.companyId = company.id;
+        employee.personId = person.id;
+        employee.branchId = seedBranch.id;
+        employee.employmentType = item.employee.employmentType;
+        employee.status = item.employee.status;
+        employee.hireDate = item.employee.hireDate;
+        employee.baseSalary = item.employee.baseSalary;
+      }
+      employee = await employeeRepo.save(employee);
+      const displayName = `${person.firstName} ${person.lastName}`.trim();
+      console.log(
+        `✅ Empleado «${displayName}» sincronizado: id=${employee.id} tipo=${employee.employmentType} estado=${employee.status} sueldo=${employee.baseSalary ?? '—'}`,
       );
     }
 

@@ -1,7 +1,8 @@
 import type { CompanyBankAccountItem } from "@/features/settings-branches/infrastructure/company.request";
 import type { SupplierPersonBankAccount } from "@/features/purchasing-suppliers/types/supplier.types";
+import type { PayeeBankAccount } from "@/shared/lib/planned-payment-plan";
 
-export type BankLike = CompanyBankAccountItem | SupplierPersonBankAccount;
+export type BankLike = CompanyBankAccountItem | SupplierPersonBankAccount | PayeeBankAccount;
 
 export function bankAccountOptionKey(a: BankLike, index: number): string {
   const k = a.accountKey != null ? String(a.accountKey).trim() : "";
@@ -47,6 +48,17 @@ export function parseYyyyMmDdLocal(s: string): Date {
 export function addCalendarDays(d: Date, days: number): Date {
   const x = new Date(d.getTime());
   x.setDate(x.getDate() + days);
+  return x;
+}
+
+/** Suma meses calendario conservando el día cuando es posible (p. ej. 31 ene + 1 mes → 28/29 feb). */
+export function addCalendarMonths(d: Date, months: number): Date {
+  const x = new Date(d.getTime());
+  const day = x.getDate();
+  x.setMonth(x.getMonth() + months);
+  if (x.getDate() !== day) {
+    x.setDate(0);
+  }
   return x;
 }
 

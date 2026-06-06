@@ -1,3 +1,5 @@
+import type { ReceptionSupplierDocumentPaymentPayload } from "@/features/receptions/types/reception-document-payment.types";
+
 export type SupplierReceiptLinkInfo = {
   purchaseOrderId?: string | null;
   receptionId?: string | null;
@@ -26,6 +28,7 @@ export type CreateSupplierReceiptInput = {
   userId?: string;
   supplierId: string;
   storageId?: string | null;
+  /** Folio DTE (tributario); mapea a `documentFolio` y `metadata.dteNumber` en el API. */
   dteNumber?: string | null;
   externalReference?: string | null;
   notes?: string | null;
@@ -38,6 +41,8 @@ export type CreateSupplierReceiptInput = {
   relatedTransactionId?: string | null;
   links?: SupplierReceiptLinkInfo;
   lines: SupplierReceiptLine[];
+  /** Plan de pago (modo + cuotas). Genera documentos SUPPLIER_PAYMENT en Cuentas por pagar. */
+  supplierDocumentPayment?: ReceptionSupplierDocumentPaymentPayload;
 };
 
 export type SupplierReceiptListItem = {

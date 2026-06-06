@@ -1359,6 +1359,11 @@ export async function postTransactionToLedger(
             debitAccountId = accounts.find((a) => a.code === liabilityCode)?.id;
             if (transaction.paymentMethod === 'CASH') {
               creditAccountId = accounts.find((a) => a.code === '1.1.01')?.id;
+            } else if (transaction.paymentMethod === 'CHECK') {
+              creditAccountId =
+                accounts.find((a) => a.code === '2.1.10')?.id ??
+                accounts.find((a) => a.code === '2110')?.id ??
+                accounts.find((a) => a.code === '1.1.02')?.id;
             } else if (transaction.paymentMethod === 'TRANSFER') {
               creditAccountId = accounts.find((a) => a.code === '1.1.02')?.id;
             } else {

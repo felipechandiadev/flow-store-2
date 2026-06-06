@@ -5,6 +5,7 @@ import Dialog from "@/shared/components/Dialog/Dialog";
 import Alert from "@/shared/components/Alert/Alert";
 import Badge from "@/shared/components/Badge/Badge";
 import type { AccountsPayableRow } from "@/features/accounting-accounts-payable/types/accounts-payable.types";
+import { labelPayrollLineTypeId } from "@/features/hr-remunerations/types/remuneration.types";
 
 type Tx = Record<string, unknown>;
 
@@ -246,7 +247,7 @@ export default function AccountsPayablePaymentDetailsDialog({ open, row, onClose
                         const line = l && typeof l === "object" ? (l as Tx) : {};
                         return (
                           <tr key={String(line.typeId ?? idx)} className="border-t border-border">
-                            <td className="px-3 py-2">{safeStr(line.typeId)}</td>
+                            <td className="px-3 py-2">{labelPayrollLineTypeId(safeStr(line.typeId))}</td>
                             <td className="px-3 py-2 text-right tabular-nums">{fmtClp(line.amount)}</td>
                             <td className="px-3 py-2">{safeStr(line.category)}</td>
                           </tr>

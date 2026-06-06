@@ -9,13 +9,26 @@ import {
   Query,
   HttpException,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { RemunerationsService } from '../application/remunerations.service';
 import { TransactionStatus } from '@modules/transactions/domain/transaction.entity';
+import {
+  CreateRemunerationDto,
+  UpdateRemunerationDto,
+} from '../application/dto/create-remuneration.dto';
 
 @Controller('remunerations')
 export class RemunerationsController {
   constructor(private readonly remunerationsService: RemunerationsService) {}
+
+  @Get('line-types')
+  getPayrollLineTypes() {
+    return {
+      success: true,
+      data: this.remunerationsService.getPayrollLineTypeOptions(),
+    };
+  }
 
   @Get()
   async getRemunerations(
@@ -69,22 +82,29 @@ export class RemunerationsController {
   }
 
   @Post()
-  async createRemuneration(
-    @Body()
-    data: {
-      employeeId: string;
-      resultCenterId?: string | null;
-      date: string;
-      lines: Array<{ typeId: string; amount: number }>;
-      userId?: string;
-      plannedPayments?: Array<{ dueDate: string; amount: number }>;
-    },
-  ) {
+  async createRemuneration(@Body() data: CreateRemunerationDto) {
     try {
-      const remuneration =
-        await this.remunerationsService.createRemuneration(data);
+      const remuneration = await this.remunerationsService.createRemuneration({
+        employeeId: data.employeeId,
+        date: data.date,
+        resultCenterId: data.resultCenterId,
+        lines: data.lines,
+        userId: data.userId,
+        plannedPayments: data.plannedPayments,
+        settlementPayment: data.settlementPayment
+          ? {
+              mode: data.settlementPayment.mode,
+              partialPaidAmount: data.settlementPayment.partialPaidAmount,
+              paidLines: data.settlementPayment.paidLines ?? [],
+              scheduledLines: data.settlementPayment.scheduledLines ?? [],
+            }
+          : undefined,
+      });
       return { success: true, data: remuneration };
     } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       throw new HttpException(
         {
           success: false,
@@ -99,19 +119,15 @@ export class RemunerationsController {
   @Put(':id')
   async updateRemuneration(
     @Param('id') id: string,
-    @Body()
-    data: Partial<{
-      date: string;
-      status: TransactionStatus;
-      resultCenterId?: string | null;
-      lines: Array<{ typeId: string; amount: number }>;
-    }>,
+    @Body() data: UpdateRemunerationDto,
   ) {
     try {
-      const updated = await this.remunerationsService.updateRemuneration(
-        id,
-        data,
-      );
+      const updated = await this.remunerationsService.updateRemuneration(id, {
+        date: data.date,
+        status: data.status as TransactionStatus | undefined,
+        resultCenterId: data.resultCenterId,
+        lines: data.lines,
+      });
       if (!updated) {
         throw new HttpException(
           { success: false, message: 'Remuneration not found' },
@@ -120,7 +136,7 @@ export class RemunerationsController {
       }
       return { success: true, data: updated };
     } catch (error) {
-      if (error instanceof HttpException) {
+      if (error instanceof HttpException || error instanceof BadRequestException) {
         throw error;
       }
       throw new HttpException(

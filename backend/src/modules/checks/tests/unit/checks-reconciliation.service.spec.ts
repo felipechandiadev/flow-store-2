@@ -10,6 +10,7 @@ describe('ChecksReconciliationService', () => {
   let checks: { find: jest.Mock; findOne: jest.Mock; save: jest.Mock };
   let events: { create: jest.Mock; save: jest.Mock };
   let movements: { findOne: jest.Mock };
+  let checksService: { clear: jest.Mock };
 
   const COMPANY_ID = 'company-1';
 
@@ -39,10 +40,17 @@ describe('ChecksReconciliationService', () => {
       save: jest.fn().mockResolvedValue({}),
     };
     movements = { findOne: jest.fn() };
+    checksService = {
+      clear: jest.fn().mockImplementation(async (id: string) => {
+        const base = incomingPending();
+        return { ...base, id, status: CheckStatus.CLEARED };
+      }),
+    };
     service = new ChecksReconciliationService(
       checks as any,
       events as any,
       movements as any,
+      checksService as any,
     );
   });
 
@@ -73,7 +81,7 @@ describe('ChecksReconciliationService', () => {
       } as any);
       expect(r.matched).toBe(true);
       expect(r.check?.status).toBe(CheckStatus.CLEARED);
-      expect(events.save).toHaveBeenCalled();
+      expect(checksService.clear).toHaveBeenCalled();
     });
 
     it('returns multiple-candidates when amount matches more than one and no description narrows it', async () => {

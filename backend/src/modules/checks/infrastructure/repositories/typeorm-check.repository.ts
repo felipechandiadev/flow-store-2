@@ -72,4 +72,50 @@ export class TypeOrmCheckRepository implements CheckRepositoryPort {
     Object.assign(entity, patch);
     return this.repository.save(entity);
   }
+
+  async getCommittedOutgoingSummary(companyId: string) {
+    const STALE_DAYS = 90;
+    const staleCutoff = new Date();
+    staleCutoff.setDate(staleCutoff.getDate() - STALE_DAYS);
+    const staleCutoffIso = staleCutoff.toISOString().slice(0, 10);
+
+    const rows = await this.repository
+      .createQueryBuilder('c')
+      .select('c."dueDate"', 'dueDate')
+      .addSelect('SUM(c.amount)', 'amount')
+      .addSelect('COUNT(*)::int', 'count')
+      .where('c.companyId = :companyId', { companyId })
+      .andWhere('c.direction = :direction', { direction: 'OUTGOING' })
+      .andWhere('c.status = :status', { status: 'PENDING' })
+      .groupBy('c."dueDate"')
+      .orderBy('c."dueDate"', 'ASC', 'NULLS LAST')
+      .getRawMany<{ dueDate: string | null; amount: string; count: string }>();
+
+    const stalePendingCount = await this.repository
+      .createQueryBuilder('c')
+      .where('c.companyId = :companyId', { companyId })
+      .andWhere('c.direction = :direction', { direction: 'OUTGOING' })
+      .andWhere('c.status = :status', { status: 'PENDING' })
+      .andWhere(
+        `(c."dueDate" IS NOT NULL AND c."dueDate" < :staleCutoff) OR (c."dueDate" IS NULL AND c."issueDate" < :staleCutoff)`,
+        { staleCutoff: staleCutoffIso },
+      )
+      .getCount();
+
+    let totalAmount = 0;
+    let checkCount = 0;
+    const byDueDate = rows.map((r) => {
+      const amount = Number(r.amount) || 0;
+      const count = Number(r.count) || 0;
+      totalAmount += amount;
+      checkCount += count;
+      return {
+        dueDate: r.dueDate ?? null,
+        amount,
+        count,
+      };
+    });
+
+    return { totalAmount, checkCount, byDueDate, stalePendingCount };
+  }
 }

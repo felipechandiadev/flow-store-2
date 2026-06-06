@@ -6,6 +6,8 @@ import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import IconButton from "@/shared/components/IconButton/IconButton";
 import type { SupplierInvoiceListItem } from "@/features/purchasing-invoices/types/supplier-invoice.types";
 import { dteFolioDisplay } from "@/features/purchasing-dte/lib/dte-folio-display";
+import { supplierDocumentPaymentStatusDisplay } from "@/features/purchasing-dte/lib/supplier-document-payment-status";
+import { supplierPersonDocumentNumber } from "@/features/purchasing-dte/lib/supplier-person-document-number";
 import PurchasingDteDetailDialog from "@/features/purchasing-document/ui/PurchasingDteDetailDialog";
 import { CreateSupplierInvoiceDialogForm } from "./CreateSupplierInvoiceDialogForm";
 
@@ -101,8 +103,16 @@ export default function DteInvoicesDataGrid({ rows, total }: DteInvoicesDataGrid
         },
       },
       {
-        field: "dteFolio",
-        headerName: "Folio DTE",
+        field: "supplierRut",
+        headerName: "RUT",
+        sortable: false,
+        width: 130,
+        valueGetter: ({ row }) =>
+          supplierPersonDocumentNumber((row as SupplierInvoiceListItem).supplier),
+      },
+      {
+        field: "fiscalDocumentNumber",
+        headerName: "N° documento",
         sortable: false,
         width: 140,
         valueGetter: ({ row }) => dteFolioDisplay(row as SupplierInvoiceListItem),
@@ -124,11 +134,18 @@ export default function DteInvoicesDataGrid({ rows, total }: DteInvoicesDataGrid
         valueGetter: ({ row }) => formatMoney(Number((row as SupplierInvoiceListItem).total ?? 0)),
       },
       {
-        field: "status",
-        headerName: "Estado",
+        field: "paymentStatus",
+        headerName: "Estado de pago",
         sortable: false,
-        width: 120,
-        valueGetter: ({ row }) => String((row as SupplierInvoiceListItem).status || "—"),
+        width: 140,
+        valueGetter: ({ row }) => {
+          const r = row as SupplierInvoiceListItem;
+          return supplierDocumentPaymentStatusDisplay({
+            paymentStatus: r.paymentStatus,
+            total: r.total,
+            amountPaid: r.amountPaid,
+          });
+        },
       },
       {
         field: "actions",

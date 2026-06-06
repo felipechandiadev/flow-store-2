@@ -31,6 +31,7 @@ export class AccountsPayableController {
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
     @Query('overdueOnly') overdueOnly?: string,
+    @Query('search') search?: string,
   ) {
     const filters: Parameters<AccountsPayableService['list']>[0] = {};
 
@@ -48,6 +49,7 @@ export class AccountsPayableController {
     if (fromDate) filters.fromDate = new Date(fromDate);
     if (toDate) filters.toDate = new Date(toDate);
     if (overdueOnly === 'true') filters.overdueOnly = true;
+    if (search?.trim()) filters.search = search.trim();
 
     return this.accountsPayableService.list(filters);
   }

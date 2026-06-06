@@ -5,7 +5,7 @@ Documento de referencia interna que contrasta el posicionamiento de **Bsale** (r
 **Última revisión:** mayo 2026  
 **Alcance del repo:** `backend`, `pwa-admin`, `pwa-pos`, `pwa-stock`, `pwa-eshop`  
 **Fuentes:** `Análisis Competitivo ERP Bsale.md`, `Análisis Competitivo Fudo para KaiStore.md`
-
+ que no 
 ---
 
 ## 1. Resumen ejecutivo

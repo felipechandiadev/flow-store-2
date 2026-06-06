@@ -59,7 +59,7 @@ export class SupplierReceiptRequest {
 
   static async create(input: CreateSupplierReceiptInput) {
     const dte = input.dteNumber != null && String(input.dteNumber).trim() !== "" ? String(input.dteNumber).trim() : "";
-    const { links, dteNumber: _d, ...rest } = input;
+    const { links, dteNumber: _d, supplierDocumentPayment, ...rest } = input;
     const payload = {
       ...rest,
       ...(dte ? { dteNumber: dte } : {}),
@@ -67,6 +67,7 @@ export class SupplierReceiptRequest {
         links: links ?? {},
         ...(dte ? { dteNumber: dte } : {}),
       },
+      ...(supplierDocumentPayment ? { supplierDocumentPayment } : {}),
     };
     const headers = await authHeaders();
     const res = await fetch(apiUrl(`supplier-receipts`), {

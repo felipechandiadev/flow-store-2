@@ -49,6 +49,8 @@ export type AccountsPayableListFilters = {
   fromDate?: string;
   toDate?: string;
   overdueOnly?: boolean;
+  /** Folio de pago, documento origen (ej. FPR-…), beneficiario, referencia. */
+  search?: string;
 };
 
 export type AccountsPayableListResult = {
@@ -71,6 +73,15 @@ export type AccountsPayablePaymentContext = {
   companyAccounts: Array<Record<string, unknown>>;
 };
 
+export type CompleteAccountsPayableCheckData = {
+  checkNumber: string;
+  bankName: string;
+  bankAccountKey?: string | null;
+  drawerName?: string | null;
+  dueDate?: string | null;
+  payeeName?: string | null;
+};
+
 export type CompleteAccountsPayablePaymentInput = {
   paymentId: string;
   paymentMethod: "CASH" | "TRANSFER" | "CHECK";
@@ -79,4 +90,5 @@ export type CompleteAccountsPayablePaymentInput = {
   companyBankAccount?: Record<string, unknown>;
   supplierBankAccount?: Record<string, unknown>;
   note?: string;
+  checkData?: CompleteAccountsPayableCheckData;
 };

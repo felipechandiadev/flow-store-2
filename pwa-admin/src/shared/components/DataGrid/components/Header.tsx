@@ -59,8 +59,11 @@ const Header: React.FC<HeaderProps> = ({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
 
-  const searchValue = searchParams.get('search') || '';
   const filtration = searchParams.get('filtration') === 'true';
+
+  React.useEffect(() => {
+    setSearchInput(searchParams.get('search') || '');
+  }, [searchParams]);
 
   // Debounce search updates to avoid excessive URL changes
   const debounceTimer = React.useRef<NodeJS.Timeout | null>(null);
@@ -229,9 +232,9 @@ const Header: React.FC<HeaderProps> = ({
           />
         </div>
         {/* Search field */}
-        <div className="flex items-start flex-1 max-w-xs">
+        <div className="flex flex-1 max-w-xs items-start">
           <label htmlFor="datagrid-search-mobile" className="sr-only">Buscar</label>
-          <div className="flex items-start w-full gap-2">
+          <div className="flex w-full items-start gap-2">
             <TextField
               label="Buscar"
               placeholder="Buscar..."
@@ -239,7 +242,7 @@ const Header: React.FC<HeaderProps> = ({
               value={searchInput}
               onChange={handleChange}
               startAdornment={<Search className="h-4 w-4 shrink-0 text-secondary" aria-hidden />}
-              className="text-sm w-full"
+              className="w-full text-sm"
             />
           </div>
         </div>

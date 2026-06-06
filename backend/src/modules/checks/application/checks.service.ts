@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -29,6 +30,8 @@ import {
   Transaction,
   TransactionType,
 } from '@modules/transactions/domain/transaction.entity';
+import { CheckLedgerService } from './check-ledger.service';
+import { CheckPaymentObligationService } from './check-payment-obligation.service';
 
 const TODAY = () => new Date().toISOString().slice(0, 10);
 
@@ -43,6 +46,8 @@ const OUTGOING_TRANSACTION_TYPES = new Set<TransactionType>([
 
 @Injectable()
 export class ChecksService {
+  private readonly logger = new Logger(ChecksService.name);
+
   constructor(
     @Inject('CheckRepositoryPort')
     private readonly checks: CheckRepositoryPort,
@@ -53,6 +58,8 @@ export class ChecksService {
     @InjectRepository(Transaction)
     private readonly transactions: Repository<Transaction>,
     private readonly dataSource: DataSource,
+    private readonly checkLedger: CheckLedgerService,
+    private readonly checkPayments: CheckPaymentObligationService,
   ) {}
 
   async list(filter: ListChecksFilter) {
@@ -184,6 +191,7 @@ export class ChecksService {
       userId,
       body.notes,
     );
+    await this.afterOutgoingStatusChange(next, check.status, CheckStatus.CLEARED);
     return next;
   }
 
@@ -213,6 +221,7 @@ export class ChecksService {
       userId,
       body.notes,
     );
+    await this.afterOutgoingStatusChange(next, check.status, CheckStatus.BOUNCED);
     return next;
   }
 
@@ -240,6 +249,7 @@ export class ChecksService {
       userId,
       body.notes,
     );
+    await this.afterOutgoingStatusChange(next, check.status, CheckStatus.VOIDED);
     return next;
   }
 
@@ -402,6 +412,43 @@ export class ChecksService {
         role,
       }),
     );
+  }
+
+  async getCommittedOutgoingSummary(companyId: string): Promise<{
+    totalAmount: number;
+    checkCount: number;
+    byDueDate: Array<{ dueDate: string | null; amount: number; count: number }>;
+    stalePendingCount: number;
+  }> {
+    return this.checks.getCommittedOutgoingSummary(companyId);
+  }
+
+  private async afterOutgoingStatusChange(
+    check: Check,
+    fromStatus: CheckStatus,
+    toStatus: CheckStatus,
+  ): Promise<void> {
+    if (check.direction !== CheckDirection.OUTGOING) {
+      return;
+    }
+    try {
+      if (toStatus === CheckStatus.CLEARED) {
+        await this.checkLedger.postOutgoingCleared(check);
+      }
+      if (
+        toStatus === CheckStatus.BOUNCED ||
+        toStatus === CheckStatus.VOIDED
+      ) {
+        await this.checkLedger.reverseOutgoingCheck(check, fromStatus);
+        await this.checkPayments.reopenLinkedPayment(check, toStatus);
+      }
+    } catch (err) {
+      this.logger.error(
+        `Post-status hooks failed for check ${check.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   private async recordEvent(

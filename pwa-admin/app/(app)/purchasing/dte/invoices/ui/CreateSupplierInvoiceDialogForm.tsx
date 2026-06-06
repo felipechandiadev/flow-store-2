@@ -9,33 +9,23 @@ import { Button } from "@/shared/components/Button";
 import type { CreateSupplierInvoiceInput } from "@/features/purchasing-invoices/types/supplier-invoice.types";
 import { createSupplierInvoiceAction } from "@/features/purchasing-invoices/actions/supplier-invoice.action";
 import { usePurchaseDocumentReferenceData } from "@/shared/components/PurchaseDocumentBuilder/usePurchaseDocumentReferenceData";
-import type { SupplierGridRow, SupplierPersonBankAccount } from "@/features/purchasing-suppliers/types/supplier.types";
+import type { SupplierGridRow } from "@/features/purchasing-suppliers/types/supplier.types";
 import type { TaxListItem } from "@/features/accounting-taxes/types/tax.types";
 import type { CompanyBankAccountItem } from "@/features/settings-branches/infrastructure/company.request";
+import type { ReceptionSupplierDocumentPaymentPayload } from "@/features/receptions/types/reception-document-payment.types";
 import { supplierOptionLabel } from "@/features/purchasing-dte/lib/supplier-option-label";
 import { pickIvaTaxForLines } from "@/features/purchasing-dte/lib/iva-from-taxes";
 import { amountsWhenNetEdited, amountsWhenTotalEdited } from "@/features/purchasing-dte/lib/clp-net-total";
-import {
-  addCalendarDays,
-  parseYyyyMmDdLocal,
-  parseClpAmountInput,
-  splitTotalAcrossLines,
-  toYyyyMmDdLocal,
-} from "@/features/purchasing-dte/lib/planned-payment-helpers";
-import {
-  InvoicePlannedPaymentLines,
-  type InvoicePlannedPaymentLineState,
-} from "@/shared/components/PlannedPaymentLines/InvoicePlannedPaymentLines";
+import { toYyyyMmDdLocal } from "@/features/purchasing-dte/lib/planned-payment-helpers";
+import { SupplierDocumentPaymentPlanSection } from "@/shared/components/PlannedPaymentLines";
 
 export type CreateSupplierInvoiceDialogFormProps = {
   onClose?: () => void;
 };
 
-/** Referencias estables: evitar `[]` inline en cada render (rompe deps de useEffect). */
 const EMPTY_SUPPLIERS: SupplierGridRow[] = [];
 const EMPTY_TAXES: TaxListItem[] = [];
 const EMPTY_COMPANY_BANKS: CompanyBankAccountItem[] = [];
-const EMPTY_SUPPLIER_BANKS: SupplierPersonBankAccount[] = [];
 
 export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoiceDialogFormProps) {
   const router = useRouter();
@@ -45,6 +35,7 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
   const branchId = reference.status === "ready" ? reference.branchId : "";
   const companyBankAccounts =
     reference.status === "ready" ? reference.companyBankAccounts : EMPTY_COMPANY_BANKS;
+  const cashHubs = reference.status === "ready" ? reference.cashHubs : [];
   const referenceError = reference.status === "error" ? reference.message : null;
   const referenceLoading = reference.status === "loading";
 
@@ -56,6 +47,11 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
     [activeSuppliers],
   );
 
+  const cashHubOptions: Option[] = useMemo(
+    () => cashHubs.map((h) => ({ id: h.id, label: h.name?.trim() || h.id })),
+    [cashHubs],
+  );
+
   const [supplierOpt, setSupplierOpt] = useState<Option | null>(null);
   const [dteNumber, setDteNumber] = useState("");
   const [notes, setNotes] = useState("");
@@ -65,9 +61,25 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [paymentLines, setPaymentLines] = useState<InvoicePlannedPaymentLineState[]>([]);
-  const manualPaymentLockRef = useRef(false);
-  const lastSupplierIdRef = useRef<string>("");
+  const [paymentPayload, setPaymentPayload] = useState<ReceptionSupplierDocumentPaymentPayload>({
+    mode: "PENDING",
+    paidLines: [],
+    scheduledLines: [],
+  });
+  const [paymentValid, setPaymentValid] = useState(true);
+
+  const docDate = useMemo(() => toYyyyMmDdLocal(new Date()), []);
+
+  const onPaymentStateChange = useCallback(
+    (state: {
+      payload: ReceptionSupplierDocumentPaymentPayload;
+      valid: boolean;
+    }) => {
+      setPaymentPayload(state.payload);
+      setPaymentValid(state.valid);
+    },
+    [],
+  );
 
   const ivaRate = iva.rate;
 
@@ -79,15 +91,8 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
     return activeSuppliers.find((s) => s.id === sid) ?? null;
   }, [supplierOpt?.id, activeSuppliers]);
 
-  const supplierBankAccountsRaw = selectedSupplier?.person?.bankAccounts;
-  const supplierBankAccounts =
-    supplierBankAccountsRaw != null && supplierBankAccountsRaw.length > 0
-      ? supplierBankAccountsRaw
-      : EMPTY_SUPPLIER_BANKS;
-
   const onNetChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      manualPaymentLockRef.current = false;
       const raw = e.target.value;
       const n = Math.max(0, Math.round(Number(raw) || 0));
       const p = amountsWhenNetEdited(n, ivaRate);
@@ -100,7 +105,6 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
 
   const onTotalChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      manualPaymentLockRef.current = false;
       const raw = e.target.value;
       const g = Math.max(0, Math.round(Number(raw) || 0));
       const p = amountsWhenTotalEdited(g, ivaRate);
@@ -128,173 +132,21 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
   const net = Math.max(0, Math.round(Number(netStr) || 0));
   const total = Math.max(0, Math.round(Number(totalStr) || 0));
   const taxAmount = total - net;
-
-  useEffect(() => {
-    const sid = supplierOpt?.id != null ? String(supplierOpt.id).trim() : "";
-    if (!sid) {
-      lastSupplierIdRef.current = "";
-      setPaymentLines((prev) => (prev.length === 0 ? prev : []));
-      return;
-    }
-    if (lastSupplierIdRef.current === sid) {
-      return;
-    }
-    lastSupplierIdRef.current = sid;
-    const sup = activeSuppliers.find((s) => s.id === sid);
-    const term = sup?.defaultPaymentTermDays ?? 0;
-    const firstDue = addCalendarDays(new Date(), term);
-    setPaymentLines([
-      {
-        id: crypto.randomUUID(),
-        dueDate: toYyyyMmDdLocal(firstDue),
-        amountStr: String(total),
-        companyBankAccountKey: null,
-        supplierBankAccountKey: null,
-        chequeNumber: "",
-      },
-    ]);
-    manualPaymentLockRef.current = false;
-  }, [supplierOpt?.id, activeSuppliers, total]);
-
-  useEffect(() => {
-    if (manualPaymentLockRef.current) {
-      return;
-    }
-    setPaymentLines((prev) => {
-      if (prev.length === 0) {
-        return prev;
-      }
-      const parts = splitTotalAcrossLines(total, prev.length);
-      let changed = false;
-      const next = prev.map((l, i) => {
-        const ns = String(parts[i] ?? 0);
-        if (l.amountStr !== ns) {
-          changed = true;
-        }
-        return { ...l, amountStr: ns };
-      });
-      return changed ? next : prev;
-    });
-  }, [total, paymentLines.length]);
-
-  const onPatchPaymentLine = useCallback(
-    (id: string, patch: Partial<InvoicePlannedPaymentLineState>) => {
-      if (patch.amountStr !== undefined) {
-        manualPaymentLockRef.current = true;
-      }
-      setPaymentLines((prev) =>
-        prev.map((l) => (l.id === id ? { ...l, ...patch } : l)),
-      );
-    },
-    [],
-  );
-
-  const onAddPaymentLine = useCallback(() => {
-    manualPaymentLockRef.current = false;
-    setPaymentLines((prev) => {
-      if (prev.length === 0) {
-        return prev;
-      }
-      const term = selectedSupplier?.defaultPaymentTermDays ?? 0;
-      const lastDue = parseYyyyMmDdLocal(prev[prev.length - 1].dueDate);
-      const nextDue = addCalendarDays(lastDue, term);
-      const parts = splitTotalAcrossLines(total, prev.length + 1);
-      const nextLine: InvoicePlannedPaymentLineState = {
-        id: crypto.randomUUID(),
-        dueDate: toYyyyMmDdLocal(nextDue),
-        amountStr: String(parts[parts.length - 1] ?? 0),
-        companyBankAccountKey: null,
-        supplierBankAccountKey: null,
-        chequeNumber: "",
-      };
-      return prev
-        .map((l, i) => ({ ...l, amountStr: String(parts[i] ?? 0) }))
-        .concat([nextLine]);
-    });
-  }, [selectedSupplier?.defaultPaymentTermDays, total]);
-
-  const onRemovePaymentLine = useCallback(
-    (id: string) => {
-      manualPaymentLockRef.current = false;
-      setPaymentLines((prev) => {
-        if (prev.length <= 1) {
-          return prev;
-        }
-        const next = prev.filter((l) => l.id !== id);
-        const parts = splitTotalAcrossLines(total, next.length);
-        return next.map((l, i) => ({ ...l, amountStr: String(parts[i] ?? 0) }));
-      });
-    },
-    [total],
-  );
-
-  const paymentsSum = useMemo(
-    () => paymentLines.reduce((s, l) => s + parseClpAmountInput(l.amountStr), 0),
-    [paymentLines],
-  );
-
-  const paymentsValid = useMemo(() => {
-    if (!supplierOpt?.id) {
-      return true;
-    }
-    if (paymentLines.length === 0) {
-      return false;
-    }
-    if (Math.abs(paymentsSum - total) > 1) {
-      return false;
-    }
-    for (const l of paymentLines) {
-      const a = parseClpAmountInput(l.amountStr);
-      if (a <= 0 || !l.dueDate.trim()) {
-        return false;
-      }
-    }
-    return true;
-  }, [supplierOpt?.id, paymentLines, paymentsSum, total]);
+  const dteFolio = dteNumber.trim();
 
   const canSubmit = useMemo(() => {
     const sid = supplierOpt?.id && String(supplierOpt.id).trim();
     return Boolean(
-      sid && branchId && net > 0 && total > 0 && !busy && !referenceLoading && paymentsValid,
+      sid &&
+        branchId &&
+        dteFolio.length > 0 &&
+        net > 0 &&
+        total > 0 &&
+        !busy &&
+        !referenceLoading &&
+        paymentValid,
     );
-  }, [supplierOpt, branchId, net, total, busy, referenceLoading, paymentsValid]);
-
-  const submitBlockedReason = useMemo(() => {
-    if (referenceLoading || busy || reference.status === "error") {
-      return null;
-    }
-    const sid = supplierOpt?.id != null ? String(supplierOpt.id).trim() : "";
-    if (sid && branchId && net > 0 && total > 0 && paymentsValid) {
-      return null;
-    }
-    if (!sid) {
-      return "Seleccione un proveedor.";
-    }
-    if (!branchId) {
-      return "No hay sucursal disponible. Configure al menos una sucursal activa en Ajustes.";
-    }
-    if (net <= 0 || total <= 0) {
-      return "Indique monto neto y total mayores a cero.";
-    }
-    if (paymentLines.length === 0) {
-      return "No hay líneas de pago; vuelva a elegir el proveedor si acaba de cargar la página.";
-    }
-    if (Math.abs(paymentsSum - total) > 1) {
-      return "La suma de los pagos debe coincidir con el total de la factura.";
-    }
-    return "Revise cada cuota: montos mayores a cero y fecha de vencimiento.";
-  }, [
-    referenceLoading,
-    busy,
-    reference.status,
-    supplierOpt?.id,
-    branchId,
-    net,
-    total,
-    paymentsValid,
-    paymentLines.length,
-    paymentsSum,
-  ]);
+  }, [supplierOpt, branchId, dteFolio, net, total, busy, referenceLoading, paymentValid]);
 
   async function onSubmit() {
     setError(null);
@@ -307,41 +159,30 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
       setError("Seleccione un proveedor.");
       return;
     }
+    if (!dteFolio) {
+      setError("Indique el folio DTE.");
+      return;
+    }
     if (net <= 0 || total <= 0) {
       setError("Indique montos válidos.");
       return;
     }
-    if (!paymentsValid) {
-      if (paymentLines.length === 0) {
-        setError("Defina al menos una línea de pago.");
-      } else if (Math.abs(paymentsSum - total) > 1) {
-        setError("La suma de los pagos debe igualar el total de la factura.");
-      } else {
-        setError(
-          "Revise cada cuota: montos mayores a cero y fecha de vencimiento.",
-        );
-      }
+    if (!paymentValid) {
+      setError("Revise el plan de pago del documento.");
       return;
     }
 
     setBusy(true);
     try {
-      const plannedPayments = paymentLines.map((l) => ({
-        dueDate: l.dueDate,
-        amount: parseClpAmountInput(l.amountStr),
-      }));
-
       const input: CreateSupplierInvoiceInput = {
         branchId,
         supplierId,
-        dteNumber: dteNumber.trim() || null,
+        dteNumber: dteFolio,
         notes: notes.trim() || null,
         subtotal: net,
         taxAmount,
         discountAmount: 0,
         total,
-        paymentStatus: "PENDING",
-        amountPaid: 0,
         lines: [
           {
             quantity: 1,
@@ -355,7 +196,7 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
           },
         ],
         links: {},
-        plannedPayments,
+        supplierDocumentPayment: paymentPayload,
       };
 
       await createSupplierInvoiceAction(input);
@@ -386,42 +227,46 @@ export function CreateSupplierInvoiceDialogForm({ onClose }: CreateSupplierInvoi
         disabled={referenceLoading || Boolean(referenceError)}
         data-test-id="dte-invoice-supplier"
       />
-      <TextField label="Folio DTE" value={dteNumber} onChange={(e) => setDteNumber(e.target.value)} />
-      <TextField label="Notas" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
       <TextField
-        label="Monto neto"
-        type="currency"
-        currencySymbol="$"
-        startSymbol="$"
-        value={netStr}
-        onChange={onNetChange}
+        label="Folio DTE"
+        required
+        value={dteNumber}
+        onChange={(e) => setDteNumber(e.target.value)}
+        data-test-id="dte-invoice-folio"
       />
-      <TextField
-        label="Total"
-        type="currency"
-        currencySymbol="$"
-        startSymbol="$"
-        value={totalStr}
-        onChange={onTotalChange}
-      />
+      <TextField label="Notas" type="textarea" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <div className="grid grid-cols-2 gap-3">
+        <TextField
+          label="Monto neto"
+          type="currency"
+          currencySymbol="$"
+          startSymbol="$"
+          value={netStr}
+          onChange={onNetChange}
+          data-test-id="dte-invoice-net"
+        />
+        <TextField
+          label="Total con impuestos"
+          type="currency"
+          currencySymbol="$"
+          startSymbol="$"
+          value={totalStr}
+          onChange={onTotalChange}
+          data-test-id="dte-invoice-total"
+        />
+      </div>
 
-      <InvoicePlannedPaymentLines
-        disabled={referenceLoading || Boolean(referenceError) || !supplierOpt?.id}
-        lineKind="scheduled"
+      <SupplierDocumentPaymentPlanSection
+        disabled={referenceLoading || Boolean(referenceError)}
+        documentTotal={total}
+        docDate={docDate}
+        supplier={selectedSupplier}
         companyBankAccounts={companyBankAccounts}
-        supplierBankAccounts={supplierBankAccounts}
-        lines={paymentLines}
-        onAddLine={onAddPaymentLine}
-        onRemoveLine={onRemovePaymentLine}
-        onPatchLine={onPatchPaymentLine}
+        cashHubOptions={cashHubOptions}
+        onStateChange={onPaymentStateChange}
       />
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      {submitBlockedReason && !error ? (
-        <p className="text-xs text-muted-foreground" role="status">
-          {submitBlockedReason}
-        </p>
-      ) : null}
       <div className="mt-2 flex justify-between gap-2">
         <Button variant="secondary" type="button" onClick={() => onClose?.()}>
           Cancelar

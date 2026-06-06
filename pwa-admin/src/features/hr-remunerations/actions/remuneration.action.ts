@@ -3,20 +3,42 @@
 import { revalidatePath } from "next/cache";
 import { RemunerationRequest } from "../infrastructure/remuneration.request";
 import type { RemunerationGridRow } from "../types/remuneration.types";
+import type { PayrollSettlementPaymentPayload } from "../types/payroll-settlement-payment.types";
+import {
+  isPayrollLineTypeId,
+  payrollLineCategory,
+} from "../lib/payroll-line-types";
 
 const REMUNERATIONS_PATH = "/hr/remunerations";
+
+function normalizeSettlementPaymentPayload(
+  input?: PayrollSettlementPaymentPayload,
+): PayrollSettlementPaymentPayload {
+  if (!input?.mode) {
+    return { mode: "PENDING", paidLines: [], scheduledLines: [] };
+  }
+  if (input.mode === "PENDING") {
+    return { mode: "PENDING", paidLines: [], scheduledLines: [] };
+  }
+  return {
+    mode: input.mode,
+    partialPaidAmount: input.partialPaidAmount,
+    paidLines: input.paidLines ?? [],
+    scheduledLines: input.scheduledLines ?? [],
+  };
+}
 
 export type CreateRemunerationFormInput = {
   employeeId: string;
   date: string;
   resultCenterId?: string | null;
-  ordinaryAmount: number;
-  afpAmount?: number;
-  healthAmount?: number;
-  othersAmount?: number;
+  lines: Array<{ typeId: string; amount: number }>;
+  settlementPayment?: PayrollSettlementPaymentPayload;
 };
 
-export type CreateRemunerationResult = { success: true; id: string } | { success: false; error: string };
+export type CreateRemunerationResult =
+  | { success: true; id: string; documentNumber?: string | null }
+  | { success: false; error: string };
 
 function parseAmount(value: string | number | undefined): number {
   if (typeof value === "number") {
@@ -47,36 +69,66 @@ export async function createRemunerationAction(
     return { success: false, error: "La fecha debe tener formato AAAA-MM-DD." };
   }
 
-  const ordinary = parseAmount(input.ordinaryAmount);
-  if (ordinary <= 0) {
-    return { success: false, error: "Ingrese un monto de remuneración ordinaria mayor a cero." };
+  const rawLines = Array.isArray(input.lines) ? input.lines : [];
+  if (rawLines.length === 0) {
+    return { success: false, error: "Agregue al menos una línea de haber o descuento." };
   }
 
-  const lines: Array<{ typeId: string; amount: number }> = [
-    { typeId: "ORDINARY", amount: ordinary },
-  ];
+  const lines: Array<{ typeId: string; amount: number }> = [];
+  let totalEarnings = 0;
+  let totalDeductions = 0;
 
-  const afp = parseAmount(input.afpAmount);
-  if (afp > 0) lines.push({ typeId: "AFP", amount: afp });
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    const typeId = String(line?.typeId ?? "").trim();
+    const amount = parseAmount(line?.amount);
+    if (!typeId) {
+      return { success: false, error: `La línea ${i + 1} debe tener un tipo.` };
+    }
+    if (!isPayrollLineTypeId(typeId)) {
+      return { success: false, error: `Tipo de línea no válido: ${typeId}` };
+    }
+    if (amount <= 0) {
+      return { success: false, error: `La línea ${i + 1} debe tener monto mayor a cero.` };
+    }
+    if (payrollLineCategory(typeId) === "DEDUCTION") {
+      totalDeductions += amount;
+    } else {
+      totalEarnings += amount;
+    }
+    lines.push({ typeId, amount });
+  }
 
-  const health = parseAmount(input.healthAmount);
-  if (health > 0) lines.push({ typeId: "HEALTH_INSURANCE", amount: health });
+  if (totalEarnings <= 0) {
+    return { success: false, error: "La liquidación debe incluir al menos un haber." };
+  }
 
-  const others = parseAmount(input.othersAmount);
-  if (others > 0) lines.push({ typeId: "DEDUCTION_EXTRA", amount: others });
+  const net = totalEarnings - totalDeductions;
+  if (net < 0) {
+    return {
+      success: false,
+      error: "El líquido a pagar no puede ser negativo (descuentos superan haberes).",
+    };
+  }
 
-  const net =
-    ordinary -
-    parseAmount(input.afpAmount) -
-    parseAmount(input.healthAmount) -
-    parseAmount(input.othersAmount);
+  const settlementPayment = normalizeSettlementPaymentPayload(input.settlementPayment);
+  if (settlementPayment.mode === "PENDING") {
+    const paid = settlementPayment.paidLines.length;
+    const sched = settlementPayment.scheduledLines.length;
+    if (paid > 0 || sched > 0) {
+      return {
+        success: false,
+        error: "Pago pendiente: no debe incluir líneas de pago.",
+      };
+    }
+  }
 
   const res = await RemunerationRequest.create({
     employeeId,
     date,
     resultCenterId: input.resultCenterId?.trim() || null,
     lines,
-    plannedPayments: [{ dueDate: date, amount: net }],
+    settlementPayment,
   });
   if (res.success) {
     revalidatePath(REMUNERATIONS_PATH, "page");

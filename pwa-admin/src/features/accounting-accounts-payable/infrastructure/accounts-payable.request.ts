@@ -40,6 +40,7 @@ export class AccountsPayableRequest {
     if (filters.fromDate) params.set("fromDate", filters.fromDate);
     if (filters.toDate) params.set("toDate", filters.toDate);
     if (filters.overdueOnly) params.set("overdueOnly", "true");
+    if (filters.search?.trim()) params.set("search", filters.search.trim());
 
     const qs = params.toString();
     const headers = await authHeaders();
@@ -84,6 +85,7 @@ export class AccountsPayableRequest {
         companyBankAccount: input.companyBankAccount,
         supplierBankAccount: input.supplierBankAccount,
         note: input.note,
+        checkData: input.checkData,
       }),
       cache: "no-store",
     });

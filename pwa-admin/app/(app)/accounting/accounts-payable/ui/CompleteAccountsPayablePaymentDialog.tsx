@@ -45,6 +45,19 @@ function accountLabel(acc: Record<string, unknown>): string {
   return [left, mid, right].filter(Boolean).join(" ") || key || "Cuenta";
 }
 
+function readCheckPrefill(row: AccountsPayableRow | null, dueDate?: string | null) {
+  const meta = (row?.metadata ?? {}) as Record<string, unknown>;
+  const line = meta.settlementPaymentLine as Record<string, unknown> | undefined;
+  const cd = meta.checkData as Record<string, unknown> | undefined;
+  const due =
+    String(line?.dueDate ?? cd?.dueDate ?? dueDate ?? "").trim().slice(0, 10) || "";
+  return {
+    chequeNumber: String(line?.chequeNumber ?? cd?.checkNumber ?? "").trim(),
+    drawerName: String(cd?.drawerName ?? "").trim(),
+    dueDate: due,
+  };
+}
+
 async function fetchCashHubsForPurchasing(): Promise<CashHubRow[]> {
   const res = await fetch("/api/treasury/cash-hubs/purchasing", {
     method: "GET",
@@ -66,6 +79,9 @@ export default function CompleteAccountsPayablePaymentDialog({
   const [bankAccountKey, setBankAccountKey] = useState<string | null>(null);
   const [destAccountKey, setDestAccountKey] = useState<string | null>(null);
   const [cashHubId, setCashHubId] = useState<string | null>(null);
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [chequeDrawerName, setChequeDrawerName] = useState("");
+  const [chequeDueDate, setChequeDueDate] = useState("");
   const [cashHubs, setCashHubs] = useState<CashHubRow[]>([]);
   const [supplierPersonId, setSupplierPersonId] = useState<string | null>(null);
   const [addDestOpen, setAddDestOpen] = useState(false);
@@ -85,6 +101,9 @@ export default function CompleteAccountsPayablePaymentDialog({
       setSupplierPersonId(null);
       setAddDestOpen(false);
       setPaymentMethod("TRANSFER");
+      setChequeNumber("");
+      setChequeDrawerName("");
+      setChequeDueDate("");
       return;
     }
     setLoading(true);
@@ -100,12 +119,22 @@ export default function CompleteAccountsPayablePaymentDialog({
         if (pm === "CASH" || pm === "TRANSFER" || pm === "CHECK") {
           setPaymentMethod(pm);
         }
+        const pre = readCheckPrefill(row, ctx.payment.dueDate);
+        setChequeNumber(pre.chequeNumber);
+        setChequeDrawerName(pre.drawerName);
+        setChequeDueDate(pre.dueDate);
+        const firstCompanyKey = String(
+          (ctx.companyAccounts?.[0] as Record<string, unknown> | undefined)?.accountKey ?? "",
+        ).trim();
+        if (firstCompanyKey) {
+          setBankAccountKey(firstCompanyKey);
+        }
       })
       .catch((e) => {
         setError(e instanceof Error ? e.message : "No se pudo cargar el pago.");
       })
       .finally(() => setLoading(false));
-  }, [open, row?.id]);
+  }, [open, row?.id, row]);
 
   useEffect(() => {
     if (!open) return;
@@ -121,15 +150,15 @@ export default function CompleteAccountsPayablePaymentDialog({
 
   const companyAccountOptions: Option[] = useMemo(() => {
     return (context?.companyAccounts ?? []).map((acc, i) => {
-      const key = String((acc as any).accountKey ?? i);
-      return { id: key, label: accountLabel(acc) };
+      const key = String((acc as Record<string, unknown>).accountKey ?? i);
+      return { id: key, label: accountLabel(acc as Record<string, unknown>) };
     });
   }, [context?.companyAccounts]);
 
   const supplierAccountOptions: Option[] = useMemo(() => {
     return (context?.supplierAccounts ?? []).map((acc, i) => {
-      const key = String((acc as any).accountKey ?? i);
-      return { id: key, label: accountLabel(acc) };
+      const key = String((acc as Record<string, unknown>).accountKey ?? i);
+      return { id: key, label: accountLabel(acc as Record<string, unknown>) };
     });
   }, [context?.supplierAccounts]);
 
@@ -137,6 +166,13 @@ export default function CompleteAccountsPayablePaymentDialog({
     () => cashHubs.map((h) => ({ id: h.id, label: h.name })),
     [cashHubs],
   );
+
+  const selectedCompanyAccount = useMemo(() => {
+    if (!bankAccountKey) return null;
+    return (context?.companyAccounts ?? []).find(
+      (a) => String((a as Record<string, unknown>).accountKey ?? "") === String(bankAccountKey),
+    ) as Record<string, unknown> | undefined;
+  }, [context?.companyAccounts, bankAccountKey]);
 
   const handleSubmit = () => {
     if (!row?.id) return;
@@ -148,20 +184,32 @@ export default function CompleteAccountsPayablePaymentDialog({
       setError("Seleccione la cuenta de destino.");
       return;
     }
+    if (paymentMethod === "CHECK") {
+      if (!chequeNumber.trim()) {
+        setError("Indique el número de cheque.");
+        return;
+      }
+      const bankName = String(selectedCompanyAccount?.bankName ?? "").trim();
+      if (!bankName) {
+        setError("La cuenta empresa seleccionada no tiene banco asociado.");
+        return;
+      }
+    }
     if (paymentMethod === "CASH" && !cashHubId?.trim()) {
       setError("Seleccione el centro de efectivo (cash hub) desde donde saldrá el dinero.");
       return;
     }
     setError(null);
     startTransition(async () => {
-      const originAcc =
-        (context?.companyAccounts ?? []).find(
-          (a) => String((a as any).accountKey ?? "") === String(bankAccountKey ?? ""),
-        ) ?? null;
+      const originAcc = selectedCompanyAccount ?? null;
       const destAcc =
         (context?.supplierAccounts ?? []).find(
-          (a) => String((a as any).accountKey ?? "") === String(destAccountKey ?? ""),
+          (a) => String((a as Record<string, unknown>).accountKey ?? "") === String(destAccountKey ?? ""),
         ) ?? null;
+      const payeeName =
+        context?.payment.payeeName ?? row?.payeeName ?? undefined;
+      const bankName = String(selectedCompanyAccount?.bankName ?? "").trim();
+
       const res = await completeAccountsPayablePaymentAction({
         paymentId: row.id,
         paymentMethod,
@@ -170,6 +218,17 @@ export default function CompleteAccountsPayablePaymentDialog({
         companyBankAccount: originAcc ?? undefined,
         supplierBankAccount: destAcc ?? undefined,
         note: note.trim() || undefined,
+        checkData:
+          paymentMethod === "CHECK"
+            ? {
+                checkNumber: chequeNumber.trim(),
+                bankName,
+                bankAccountKey: bankAccountKey ?? null,
+                drawerName: chequeDrawerName.trim() || null,
+                dueDate: chequeDueDate.trim() || null,
+                payeeName: payeeName ?? null,
+              }
+            : undefined,
       });
       if (res.success) {
         onSuccess?.();
@@ -188,7 +247,7 @@ export default function CompleteAccountsPayablePaymentDialog({
         open={open}
         onClose={onClose}
         title="Registrar pago"
-        size="sm"
+        size="md"
         data-test-id="complete-accounts-payable-payment-dialog"
         alertArea={error ? <Alert variant="error">{error}</Alert> : null}
         actions={
@@ -231,44 +290,96 @@ export default function CompleteAccountsPayablePaymentDialog({
               ]}
               data-test-id="ap-complete-payment-method"
             />
-            {paymentMethod === "TRANSFER" || paymentMethod === "CHECK" ? (
-              <Select
-                label="Cuenta de origen"
-                value={bankAccountKey}
-                onChange={setBankAccountKey}
-                options={companyAccountOptions}
-                placeholder="Seleccione cuenta"
-                data-test-id="ap-complete-bank-account"
-              />
-            ) : null}
+
             {paymentMethod === "TRANSFER" ? (
-              <div className="flex items-end gap-2">
-                <div className="min-w-0 flex-1">
+              <>
+                <Select
+                  label="Cuenta de origen"
+                  value={bankAccountKey}
+                  onChange={setBankAccountKey}
+                  options={companyAccountOptions}
+                  placeholder="Seleccione cuenta"
+                  data-test-id="ap-complete-bank-account"
+                />
+                <div className="flex items-end gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Select
+                      label="Cuenta de destino"
+                      value={destAccountKey}
+                      onChange={setDestAccountKey}
+                      options={supplierAccountOptions}
+                      placeholder={
+                        supplierAccountOptions.length ? "Seleccione cuenta" : "Sin cuentas de destino"
+                      }
+                      disabled={supplierAccountOptions.length === 0}
+                      hideDropdownIcon={supplierAccountOptions.length === 0}
+                      data-test-id="ap-complete-destination-account"
+                    />
+                  </div>
+                  {supplierAccountOptions.length === 0 && row?.payeeType === "SUPPLIER" ? (
+                    <IconButton
+                      icon="Plus"
+                      variant="action"
+                      size="sm"
+                      title="Agregar cuenta de destino"
+                      ariaLabel="Agregar cuenta de destino"
+                      onClick={() => setAddDestOpen(true)}
+                      disabled={!supplierPersonId}
+                      data-test-id="ap-complete-destination-add"
+                    />
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+
+            {paymentMethod === "CHECK" ? (
+              <div
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                data-test-id="ap-complete-check-fields"
+              >
+                <div className="min-w-0 sm:col-span-2">
                   <Select
-                    label="Cuenta de destino"
-                    value={destAccountKey}
-                    onChange={setDestAccountKey}
-                    options={supplierAccountOptions}
-                    placeholder={supplierAccountOptions.length ? "Seleccione cuenta" : "Sin cuentas de destino"}
-                    disabled={supplierAccountOptions.length === 0}
-                    hideDropdownIcon={supplierAccountOptions.length === 0}
-                    data-test-id="ap-complete-destination-account"
+                    label="Cuenta empresa (cheque)"
+                    value={bankAccountKey}
+                    onChange={setBankAccountKey}
+                    options={companyAccountOptions}
+                    placeholder={
+                      companyAccountOptions.length ? "Seleccione cuenta" : "Sin cuentas en empresa"
+                    }
+                    disabled={companyAccountOptions.length === 0}
+                    data-test-id="ap-complete-check-company-account"
                   />
                 </div>
-                {supplierAccountOptions.length === 0 && row?.payeeType === "SUPPLIER" ? (
-                  <IconButton
-                    icon="Plus"
-                    variant="action"
-                    size="sm"
-                    title="Agregar cuenta de destino"
-                    ariaLabel="Agregar cuenta de destino"
-                    onClick={() => setAddDestOpen(true)}
-                    disabled={!supplierPersonId}
-                    data-test-id="ap-complete-destination-add"
+                <div className="min-w-0">
+                  <TextField
+                    label="Número de cheque"
+                    required
+                    value={chequeNumber}
+                    onChange={(e) => setChequeNumber(e.target.value)}
+                    data-test-id="ap-complete-check-number"
                   />
-                ) : null}
+                </div>
+                <div className="min-w-0">
+                  <TextField
+                    label="Girador"
+                    value={chequeDrawerName}
+                    onChange={(e) => setChequeDrawerName(e.target.value)}
+                    placeholder="Quien firma el cheque"
+                    data-test-id="ap-complete-check-drawer"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <TextField
+                    label="A fecha (opcional)"
+                    type="date"
+                    value={chequeDueDate}
+                    onChange={(e) => setChequeDueDate(e.target.value)}
+                    data-test-id="ap-complete-check-due-date"
+                  />
+                </div>
               </div>
             ) : null}
+
             {paymentMethod === "CASH" ? (
               <Select
                 label="Centro de efectivo"
@@ -281,6 +392,8 @@ export default function CompleteAccountsPayablePaymentDialog({
             ) : null}
             <TextField
               label="Nota (opcional)"
+              type="textarea"
+              rows={3}
               value={note}
               onChange={(e) => setNote(e.target.value)}
               data-test-id="ap-complete-note"
@@ -299,7 +412,7 @@ export default function CompleteAccountsPayablePaymentDialog({
           onSuccess={(accounts) => {
             setContext((prev) => {
               if (!prev) return prev;
-              return { ...prev, supplierAccounts: accounts as any };
+              return { ...prev, supplierAccounts: accounts as Record<string, unknown>[] };
             });
             const first = accounts?.[0]?.accountKey;
             if (first) {
@@ -312,4 +425,3 @@ export default function CompleteAccountsPayablePaymentDialog({
     </>
   );
 }
-

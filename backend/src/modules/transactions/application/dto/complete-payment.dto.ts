@@ -1,4 +1,29 @@
-import { IsObject, IsOptional, IsString } from 'class-validator';
+import { IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class CompletePaymentCheckDataDto {
+  @IsString()
+  checkNumber!: string;
+
+  @IsString()
+  bankName!: string;
+
+  @IsOptional()
+  @IsString()
+  bankAccountKey?: string | null;
+
+  @IsOptional()
+  @IsString()
+  drawerName?: string | null;
+
+  @IsOptional()
+  @IsString()
+  dueDate?: string | null;
+
+  @IsOptional()
+  @IsString()
+  payeeName?: string | null;
+}
 
 export class CompletePaymentDto {
   @IsOptional()
@@ -24,4 +49,9 @@ export class CompletePaymentDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CompletePaymentCheckDataDto)
+  checkData?: CompletePaymentCheckDataDto;
 }

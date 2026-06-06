@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Brackets, Repository, In } from 'typeorm';
 import {
   Transaction,
   TransactionStatus,
@@ -48,6 +48,7 @@ export interface AccountsPayableListFilters {
   fromDate?: Date;
   toDate?: Date;
   overdueOnly?: boolean;
+  search?: string;
 }
 
 const PAYMENT_TYPES: TransactionType[] = [
@@ -135,6 +136,30 @@ export class AccountsPayableService {
       qb.andWhere('payment.paymentDueDate < :today', {
         today: new Date().toISOString().split('T')[0],
       });
+    }
+
+    const searchTerm = filters?.search?.trim();
+    if (searchTerm) {
+      qb.leftJoin(
+        Transaction,
+        'parent',
+        'parent.id = payment.relatedTransactionId',
+      );
+      const like = `%${searchTerm}%`;
+      qb.andWhere(
+        new Brackets((sub) => {
+          sub
+            .where('payment.documentNumber LIKE :like', { like })
+            .orWhere('payment.externalReference LIKE :like', { like })
+            .orWhere('parent.documentNumber LIKE :like', { like })
+            .orWhere('parent.documentFolio LIKE :like', { like })
+            .orWhere('supplierPerson.businessName LIKE :like', { like })
+            .orWhere('supplierPerson.firstName LIKE :like', { like })
+            .orWhere('supplierPerson.lastName LIKE :like', { like })
+            .orWhere('employeePerson.firstName LIKE :like', { like })
+            .orWhere('employeePerson.lastName LIKE :like', { like });
+        }),
+      );
     }
 
     qb.orderBy('payment.paymentDueDate', 'ASC');

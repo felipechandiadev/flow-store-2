@@ -7,7 +7,6 @@ export default function AccountsPayableLayout({ children }: { children: ReactNod
   return (
     <TabPageLayout
       title="Cuentas por pagar"
-      subtitle="Obligaciones de pago pendientes: compras, remuneraciones y gastos operativos."
       tabs={<AccountsPayableTabs />}
       className={`min-h-0 ${adminFillViewportBelowTopBarClassName}`}
       contentClassName="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"

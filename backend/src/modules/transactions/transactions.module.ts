@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TransactionsController } from './presentation/transactions.controller';
@@ -57,6 +57,8 @@ import { CompaniesModule } from '@modules/companies/companies.module';
 import { SupplierFiscalDocumentPaymentAggregateService } from './application/services/supplier-fiscal-document-payment-aggregate.service';
 import { ParentPaymentAggregateService } from './application/services/parent-payment-aggregate.service';
 import { AccountsPayableService } from './application/services/accounts-payable.service';
+import { SupplierDocumentPaymentPlanService } from './application/services/supplier-document-payment-plan.service';
+import { ChecksModule } from '@modules/checks/checks.module';
 
 // Inventory CQRS
 import { inventoryCommandHandlers } from './application/commands/inventory';
@@ -95,6 +97,7 @@ import { CancelBackorderService } from './application/cancel-backorder.service';
     ProductVariantsModule,
     StockLevelsModule,
     CompaniesModule,
+    forwardRef(() => ChecksModule),
   ],
   controllers: [
     TransactionsController,
@@ -115,6 +118,7 @@ import { CancelBackorderService } from './application/cancel-backorder.service';
     SupplierFiscalDocumentPaymentAggregateService,
     ParentPaymentAggregateService,
     AccountsPayableService,
+    SupplierDocumentPaymentPlanService,
     PurchaseOrdersService,
     TransactionsService, // Adapter for backward compatibility
     TransactionsServiceAdapter,
@@ -153,6 +157,7 @@ import { CancelBackorderService } from './application/cancel-backorder.service';
     SupplierFiscalDocumentPaymentAggregateService,
     ParentPaymentAggregateService,
     AccountsPayableService,
+    SupplierDocumentPaymentPlanService,
     DocumentNumberService,
   ],
 })

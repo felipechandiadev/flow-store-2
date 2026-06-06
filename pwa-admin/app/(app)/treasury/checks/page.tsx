@@ -1,6 +1,10 @@
 import { Suspense } from "react";
 import LoadingState from '@/shared/components/LoadingState';
-import { listChecksAction } from "@/features/treasury-checks/actions/checks.action";
+import {
+  getCommittedOutgoingChecksAction,
+  listChecksAction,
+} from "@/features/treasury-checks/actions/checks.action";
+import type { CommittedOutgoingChecksSummary } from "@/features/treasury-checks/types/check.types";
 import type {
   CheckDirection,
   CheckStatus,
@@ -53,7 +57,13 @@ export default async function Page({
     dueDateTo: parseStr(sp.dueDateTo),
   };
 
-  const res = await listChecksAction(filters);
+  const [res, committedRes] = await Promise.all([
+    listChecksAction(filters),
+    getCommittedOutgoingChecksAction(),
+  ]);
+
+  const committedSummary: CommittedOutgoingChecksSummary | null =
+    committedRes.success ? committedRes.summary : null;
 
   return (
     <Suspense
@@ -66,6 +76,7 @@ export default async function Page({
         initialTotal={res.success ? res.total : 0}
         loadError={res.success ? null : res.error}
         initialFilters={filters}
+        committedSummary={committedSummary}
       />
     </Suspense>
   );
