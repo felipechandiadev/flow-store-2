@@ -260,6 +260,7 @@ export function CreatePointOfSaleDialog({
             disabled={
               !name.trim() ||
               isPending ||
+              loadingPayments ||
               !branchId ||
               !hasBranches ||
               !storageId ||

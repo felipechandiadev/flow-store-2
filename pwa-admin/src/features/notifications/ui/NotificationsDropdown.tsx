@@ -6,9 +6,51 @@ import IconButton from "@/shared/components/IconButton/IconButton";
 import { useNotificationsRealtime } from "../realtime/notifications-realtime-context";
 import { labelNotificationKind } from "../lib/notification-labels";
 import { formatReceivedAt } from "@/features/inventory-stock/lib/stock-alert-copy";
+import type { NotificationRow } from "../lib/inbox-mapper";
 
 function formatQty(n: number): string {
   return new Intl.NumberFormat("es-CL", { maximumFractionDigits: 3 }).format(n);
+}
+
+function NotificationRowContent({ evt }: { evt: NotificationRow }) {
+  const isEshop = evt.kind.startsWith("eshop.order.");
+  return (
+    <>
+      <p className="text-xs font-medium text-muted-foreground">
+        {formatReceivedAt(evt.receivedAt)}
+      </p>
+      <p className="mt-1 text-sm font-semibold text-foreground">
+        {isEshop ? evt.title : evt.productName}
+      </p>
+      {evt.attributesLabel && isEshop ? (
+        <p className="mt-0.5 text-xs text-muted-foreground">#{evt.attributesLabel}</p>
+      ) : evt.attributesLabel ? (
+        <p className="mt-0.5 text-xs text-muted-foreground">{evt.attributesLabel}</p>
+      ) : null}
+      {evt.storageName ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Almacén: <span className="text-foreground">{evt.storageName}</span>
+        </p>
+      ) : null}
+      {evt.body ? (
+        <p className="mt-1 text-xs text-foreground/90">{evt.body}</p>
+      ) : !isEshop ? (
+        <p className="mt-1 text-xs text-foreground/90">
+          Stock físico <strong>{formatQty(evt.physicalStock)}</strong>
+        </p>
+      ) : null}
+      {!isEshop ? (
+        <ul className="mt-1.5 space-y-0.5 text-xs text-amber-800 dark:text-amber-200">
+          {evt.alertLabels.map((a) => (
+            <li key={a} className="flex items-center gap-1.5">
+              <AlertTriangle className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
+              <span>{labelNotificationKind(a)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </>
+  );
 }
 
 export function NotificationsDropdown() {
@@ -74,33 +116,13 @@ export function NotificationsDropdown() {
               <ul className="divide-y divide-border">
                 {notificationRows.map((evt) => (
                   <li key={evt.deliveryId} className="px-3 py-2.5">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      {formatReceivedAt(evt.receivedAt)}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">{evt.productName}</p>
-                    {evt.attributesLabel ? (
-                      <p className="mt-0.5 text-xs text-muted-foreground">{evt.attributesLabel}</p>
-                    ) : null}
-                    {evt.storageName ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Almacén: <span className="text-foreground">{evt.storageName}</span>
-                      </p>
-                    ) : null}
-                    {evt.body ? (
-                      <p className="mt-1 text-xs text-foreground/90">{evt.body}</p>
+                    {evt.href ? (
+                      <a href={evt.href} className="block hover:bg-muted/50 -mx-1 px-1 rounded">
+                        <NotificationRowContent evt={evt} />
+                      </a>
                     ) : (
-                      <p className="mt-1 text-xs text-foreground/90">
-                        Stock físico <strong>{formatQty(evt.physicalStock)}</strong>
-                      </p>
+                      <NotificationRowContent evt={evt} />
                     )}
-                    <ul className="mt-1.5 space-y-0.5 text-xs text-amber-800 dark:text-amber-200">
-                      {evt.alertLabels.map((a) => (
-                        <li key={a} className="flex items-center gap-1.5">
-                          <AlertTriangle className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
-                          <span>{labelNotificationKind(a)}</span>
-                        </li>
-                      ))}
-                    </ul>
                   </li>
                 ))}
               </ul>

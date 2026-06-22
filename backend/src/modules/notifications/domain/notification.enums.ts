@@ -42,5 +42,10 @@ export const StockNotificationKind = {
   REORDER: 'stock.reorder',
 } as const;
 
+export const EShopNotificationKind = {
+  ORDER_CREATED: 'eshop.order.created',
+  ORDER_STATUS_CHANGED: 'eshop.order.status_changed',
+} as const;
+
 export type StockNotificationKindValue =
   (typeof StockNotificationKind)[keyof typeof StockNotificationKind];

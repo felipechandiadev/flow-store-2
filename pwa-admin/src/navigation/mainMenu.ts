@@ -163,8 +163,8 @@ export const mainMenuItems: SideBarMenuItem[] = [
       },
       {
         id: 'eshop-shipping',
-        label: 'Envíos',
-        url: '/e-shop/shipping',
+        label: 'Encargos y envíos',
+        url: '/e-shop/fulfillment',
         requiresEShopEnabled: true,
       },
     ],
@@ -202,6 +202,7 @@ export const mainMenuItems: SideBarMenuItem[] = [
       { id: 'settings-branches', label: 'Sucursales', url: '/settings/branches' },
       { id: 'settings-users', label: 'Usuarios', url: '/settings/users' },
       { id: 'settings-local-printing', label: 'Impresión local', url: '/settings/local-printing' },
+      { id: 'settings-metal-prices', label: 'Precios de metales', url: '/settings/metal-prices' },
       // { id: 'settings-parameters', label: 'Parámetros del sistema', url: '/settings/parameters' },
     ],
   },

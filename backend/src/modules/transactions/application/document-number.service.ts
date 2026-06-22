@@ -22,6 +22,7 @@ export class DocumentNumberService {
   async allocateNext(
     branchId: string,
     transactionType: TransactionType,
+    companyId: string,
     manager?: EntityManager,
   ): Promise<string> {
     const year = new Date().getFullYear();
@@ -29,7 +30,13 @@ export class DocumentNumberService {
     const yy = String(year).slice(-2);
 
     const run = async (m: EntityManager) => {
-      const n = await this.bumpSequence(m, branchId, transactionType, year);
+      const n = await this.bumpSequence(
+        m,
+        branchId,
+        transactionType,
+        year,
+        companyId,
+      );
       return `${code}-${yy}-${String(n).padStart(5, '0')}`;
     };
 
@@ -44,6 +51,7 @@ export class DocumentNumberService {
     branchId: string,
     transactionType: TransactionType,
     year: number,
+    companyId: string,
   ): Promise<number> {
     const r = m.getRepository(DocumentSequence);
     const typeKey = String(transactionType);
@@ -60,6 +68,7 @@ export class DocumentNumberService {
       }
 
       const row = r.create({
+        companyId,
         branchId,
         transactionType: typeKey,
         year,

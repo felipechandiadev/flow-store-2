@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { loadCart, saveCart, type EShopCartLine } from "./cart-storage";
+import { clearCartStorage, loadCart, saveCart, type EShopCartLine } from "./cart-storage";
 import type { EShopProductCard } from "@/features/e-shop-storefront/types/storefront.types";
 
 type CartContextValue = {
@@ -26,6 +26,7 @@ type CartContextValue = {
   setQuantity: (productVariantId: string, quantity: number) => void;
   setFreeShippingThreshold: (n: number | null) => void;
   setCrossSell: (items: EShopProductCard[]) => void;
+  clearCart: () => void;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -92,6 +93,11 @@ export function EShopCartProvider({
     });
   }, []);
 
+  const clearCart = useCallback(() => {
+    setLines([]);
+    clearCartStorage();
+  }, []);
+
   const subtotal = useMemo(
     () => lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0),
     [lines],
@@ -113,6 +119,7 @@ export function EShopCartProvider({
       setQuantity,
       setFreeShippingThreshold,
       setCrossSell,
+      clearCart,
     }),
     [
       lines,
@@ -124,6 +131,7 @@ export function EShopCartProvider({
       addItem,
       removeItem,
       setQuantity,
+      clearCart,
     ],
   );
 

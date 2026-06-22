@@ -120,6 +120,7 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
           : await this.documentNumberService.allocateNext(
               dto.branchId,
               dto.transactionType,
+              companyId,
               manager,
             );
 
@@ -140,6 +141,7 @@ export class CreateTransactionUseCase implements ICommandHandler<CreateTransacti
           documentNumber,
           transactionType: dto.transactionType,
           status: initialStatus,
+          companyId,
           branchId: dto.branchId,
           userId: dto.userId,
           pointOfSaleId: dto.pointOfSaleId || null,

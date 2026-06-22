@@ -15,6 +15,7 @@ export type NotificationRow = {
   storageName: string;
   physicalStock: number;
   alertLabels: string[];
+  href?: string | null;
 };
 
 function alertLabelsFromPayload(
@@ -69,6 +70,24 @@ export function inboxItemToRow(item: InboxItem, domainFilter?: string): Notifica
 
   const n = item.notification;
   const p = n.payload ?? {};
+
+  if (n.kind.startsWith("eshop.order.")) {
+    const orderId = String(p.orderId ?? "").trim();
+    return {
+      deliveryId: item.deliveryId,
+      title: n.title,
+      body: n.body,
+      kind: n.kind,
+      receivedAt: new Date(item.deliveredAt).getTime(),
+      productName: String(p.customerName ?? n.title),
+      attributesLabel: String(p.orderNumber ?? ""),
+      storageName: "",
+      physicalStock: 0,
+      alertLabels: [n.kind.replace(/^eshop\.order\./, "pedido ")],
+      href: orderId ? `/e-shop/fulfillment?order=${orderId}` : "/e-shop/fulfillment",
+    };
+  }
+
   const productName =
     String(p.productName ?? "").trim() || productNameFromNotificationTitle(n.title);
   const attributesLabel =

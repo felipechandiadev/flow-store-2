@@ -1,15 +1,29 @@
 "use server";
 
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth/auth-options";
 import { CompaniesInternalCustomerCreditRequest } from "../infrastructure/companies-internal-customer-credit.request";
+import type { InternalCustomerCreditContext } from "../types/company-internal-customer-credit.types";
+
+export type { InternalCustomerCreditContext };
+
+const EMPTY_CONTEXT: InternalCustomerCreditContext = {
+  enabled: false,
+  paymentMethodId: null,
+  paymentMethodLabel: null,
+};
+
+/** Política y medio empresa de crédito interno para la empresa activa. */
+export async function getInternalCustomerCreditContextAction(): Promise<InternalCustomerCreditContext> {
+  const res = await CompaniesInternalCustomerCreditRequest.getForActiveCompany();
+  if (!res.success) return EMPTY_CONTEXT;
+  return {
+    enabled: res.internalCustomerCredit.enabled === true,
+    paymentMethodId: res.internalCreditPaymentMethod?.id ?? null,
+    paymentMethodLabel: res.internalCreditPaymentMethod?.label ?? null,
+  };
+}
 
 /** `true` si la empresa tiene habilitado el crédito interno de clientes. */
 export async function getInternalCustomerCreditEnabledAction(): Promise<boolean> {
-  const session = await getServerSession(authOptions);
-  const companyId = (session?.user as { activeCompanyId?: string | null })?.activeCompanyId?.trim();
-  if (!companyId) return false;
-  const res = await CompaniesInternalCustomerCreditRequest.get(companyId);
-  if (!res.success) return false;
-  return res.internalCustomerCredit.enabled === true;
+  const ctx = await getInternalCustomerCreditContextAction();
+  return ctx.enabled;
 }

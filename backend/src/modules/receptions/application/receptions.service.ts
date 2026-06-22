@@ -161,6 +161,7 @@ export class ReceptionsService {
       const folio = await this.documentNumberService.allocateNext(
         branchId,
         TransactionType.PURCHASE,
+        reception.companyId,
       );
       await this.receptionRepo.update({ id: reception.id }, { documentNumber: folio });
       reception.documentNumber = folio;

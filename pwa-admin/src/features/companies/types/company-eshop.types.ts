@@ -9,6 +9,7 @@ export type CompanyEShopFlatSettings = {
   eShopDefaultPriceListId: string | null;
   eShopDefaultStorageId: string | null;
   eShopHeroSliderAutoplaySeconds: number;
+  eShopStockPolicy: "ALLOW_BACKORDER" | "BLOCK_OUT_OF_STOCK" | "IGNORE_STOCK";
 };
 
 export type CompanyPublicContactSettings = {
@@ -36,6 +37,7 @@ export function defaultCompanyEShopFlatSettings(): CompanyEShopFlatSettings {
     eShopDefaultPriceListId: null,
     eShopDefaultStorageId: null,
     eShopHeroSliderAutoplaySeconds: 6,
+    eShopStockPolicy: "ALLOW_BACKORDER",
   };
 }
 

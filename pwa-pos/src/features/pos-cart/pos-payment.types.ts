@@ -4,6 +4,7 @@ export const POS_PAYMENT_METHOD_IDS = [
   "DEBIT_CARD",
   "TRANSFER",
   "CHECK",
+  "INTERNAL_CREDIT",
   "CUSTOMER_CREDIT_NOTE",
   "ORDER_ADVANCE",
 ] as const;

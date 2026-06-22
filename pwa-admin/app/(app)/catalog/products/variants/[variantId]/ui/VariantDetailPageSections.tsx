@@ -16,6 +16,7 @@ import {
   listVariantSalePriceHistoryAction,
   updateProductVariantIdentityPartialAction,
   updateProductVariantInventoryPartialAction,
+  updateProductVariantLogisticsAction,
   updateProductVariantPricingPartialAction,
 } from "@/features/inventory-products/actions/product.action";
 import {
@@ -50,6 +51,14 @@ import {
   type VariantPriceRowModel,
 } from "../../../ui/VariantPriceRowsEditor";
 import { VariantPmpPriceCalculatorDialog } from "../../../ui/VariantPmpPriceCalculatorDialog";
+import { VariantJewelryPriceCalculatorDialog } from "../../../ui/VariantJewelryPriceCalculatorDialog";
+import { VariantWeightFields } from "../../../ui/VariantWeightFields";
+import {
+  displayWeightToNetWeightKg,
+  netWeightKgToDisplay,
+  weightInGrams,
+  type VariantWeightUnit,
+} from "@/features/inventory-products/lib/variant-weight";
 import { VariantSalePriceHistoryPanel } from "./VariantSalePriceHistoryPanel";
 
 function catalogDefaultIvaTaxIds(taxes: TaxListItem[]): string[] {
@@ -658,6 +667,9 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
   const [taxes, setTaxes] = useState<TaxListItem[]>([]);
   const [priceRows, setPriceRows] = useState<VariantPriceRowModel[]>([]);
   const [pmpCalculatorRowKey, setPmpCalculatorRowKey] = useState<string | null>(null);
+  const [jewelryCalculatorRowKey, setJewelryCalculatorRowKey] = useState<string | null>(null);
+  const [weightValue, setWeightValue] = useState("");
+  const [weightUnit, setWeightUnit] = useState<VariantWeightUnit>("g");
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [lastUpdatedByListId, setLastUpdatedByListId] = useState<Record<string, string>>({});
 
@@ -735,6 +747,13 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
     if (!editing) {
       const defaultIva = catalogDefaultIvaTaxIds(taxes);
       setPriceRows(priceListItemsToVariantRows(variant.priceListItems ?? [], defaultIva));
+      const w = netWeightKgToDisplay(
+        variant.netWeightKg != null && Number.isFinite(Number(variant.netWeightKg))
+          ? Number(variant.netWeightKg)
+          : null,
+      );
+      setWeightValue(w.value);
+      setWeightUnit(w.unit);
       setEditing(true);
       return;
     }
@@ -777,18 +796,48 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
 
     startTransition(() => {
       void (async () => {
+        const netWeightKg = displayWeightToNetWeightKg(weightValue, weightUnit);
         const r = await updateProductVariantPricingPartialAction(vid, {
           productId: pid,
           basePrice,
           priceListItems,
         });
-        if (r.success) {
-          setEditing(false);
-          setHistoryRefreshKey((k) => k + 1);
-          await router.refresh();
-        } else {
+        if (!r.success) {
           setError(r.error);
+          return;
         }
+        if (netWeightKg != null) {
+          const lr = await updateProductVariantLogisticsAction(vid, {
+            netWeightKg,
+            grossWeightKg:
+              variant.grossWeightKg != null && Number.isFinite(Number(variant.grossWeightKg))
+                ? Number(variant.grossWeightKg)
+                : null,
+            packageLengthCm:
+              variant.packageLengthCm != null && Number.isFinite(Number(variant.packageLengthCm))
+                ? Number(variant.packageLengthCm)
+                : null,
+            packageWidthCm:
+              variant.packageWidthCm != null && Number.isFinite(Number(variant.packageWidthCm))
+                ? Number(variant.packageWidthCm)
+                : null,
+            packageHeightCm:
+              variant.packageHeightCm != null && Number.isFinite(Number(variant.packageHeightCm))
+                ? Number(variant.packageHeightCm)
+                : null,
+            volumetricDivisorK:
+              variant.volumetricDivisorK != null && Number.isFinite(Number(variant.volumetricDivisorK))
+                ? Math.round(Number(variant.volumetricDivisorK))
+                : null,
+          });
+          if (!lr.success) {
+            setError(lr.error);
+            return;
+          }
+        }
+        setEditing(false);
+        setHistoryRefreshKey((k) => k + 1);
+        await router.refresh();
       })();
     });
   };
@@ -805,6 +854,29 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
       }),
     );
   };
+
+  const handleJewelryCalculatorApply = (net: number, priceRowKey: string) => {
+    handlePmpCalculatorApply(0, net, priceRowKey);
+  };
+
+  const syncWeightFromGrams = (grams: number) => {
+    if (grams > 0) {
+      setWeightValue(String(grams));
+      setWeightUnit("g");
+    }
+  };
+
+  const weightGrams = useMemo(() => {
+    if (editing) {
+      return weightInGrams(weightValue, weightUnit);
+    }
+    const d = netWeightKgToDisplay(
+      variant.netWeightKg != null && Number.isFinite(Number(variant.netWeightKg))
+        ? Number(variant.netWeightKg)
+        : null,
+    );
+    return weightInGrams(d.value, d.unit);
+  }, [editing, weightValue, weightUnit, variant.netWeightKg]);
 
   const ro = !editing;
 
@@ -871,6 +943,13 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
             onChange={noop}
             readOnly
           />
+          <VariantWeightFields
+            weight={weightValue}
+            weightUnit={weightUnit}
+            onWeightChange={setWeightValue}
+            onWeightUnitChange={setWeightUnit}
+            testIdPrefix="pv-pricing-edit-weight"
+          />
           <VariantPriceRowsEditor
             priceLists={priceLists}
             ivaTaxes={ivaTaxes}
@@ -878,6 +957,7 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
             onRowsChange={setPriceRows}
             defaultIvaTaxIds={defaultIvaTaxIds}
             onOpenPmpCalculator={(rowKey) => setPmpCalculatorRowKey(rowKey)}
+            onOpenJewelryCalculator={(rowKey) => setJewelryCalculatorRowKey(rowKey)}
           />
         </div>
       )}
@@ -909,6 +989,14 @@ export function VariantDetailPricingSection({ productId, variant }: SectionProps
         }
         ivaTaxes={ivaTaxes}
         onApply={handlePmpCalculatorApply}
+      />
+      <VariantJewelryPriceCalculatorDialog
+        open={jewelryCalculatorRowKey != null}
+        onClose={() => setJewelryCalculatorRowKey(null)}
+        weightGrams={weightGrams}
+        onWeightGramsChange={syncWeightFromGrams}
+        priceRowKey={jewelryCalculatorRowKey}
+        onApply={handleJewelryCalculatorApply}
       />
     </section>
 

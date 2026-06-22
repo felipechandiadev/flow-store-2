@@ -252,15 +252,30 @@ export class CompaniesController {
   }
 
   /**
+   * Política de crédito interno de la empresa activa (ADMIN/OPERATOR/POS).
+   * Incluye el medio empresa `INTERNAL_CREDIT` si está habilitado.
+   */
+  @Get('company/internal-customer-credit-settings')
+  async getActiveCompanyInternalCustomerCreditSettings(
+    @CurrentCompany() activeCompanyId: string,
+  ) {
+    const ctx =
+      await this.companiesService.getInternalCustomerCreditContext(
+        activeCompanyId,
+      );
+    return { success: true, ...ctx };
+  }
+
+  /**
    * Política global de crédito interno para clientes (`settings.internalCustomerCredit`).
    */
   @Get('companies/:id/internal-customer-credit-settings')
   @AdminOnly()
   @AllowAdminWithoutCompany()
   async getCompanyInternalCustomerCreditSettings(@Param('id') id: string) {
-    const internalCustomerCredit =
-      await this.companiesService.getInternalCustomerCreditSettings(id);
-    return { success: true, internalCustomerCredit };
+    const ctx =
+      await this.companiesService.getInternalCustomerCreditContext(id);
+    return { success: true, ...ctx };
   }
 
   /**
@@ -284,7 +299,13 @@ export class CompaniesController {
         id,
         incoming,
       );
-    return { success: true, internalCustomerCredit };
+    const ctx =
+      await this.companiesService.getInternalCustomerCreditContext(id);
+    return {
+      success: true,
+      internalCustomerCredit,
+      internalCreditPaymentMethod: ctx.internalCreditPaymentMethod,
+    };
   }
 
   @Get('companies/:id/public-contact-settings')

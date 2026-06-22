@@ -7,15 +7,26 @@ import {
   Patch,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
-import { CurrentCompany } from '@common/tenant';
+import { CurrentCompany, CurrentUser, type CurrentUserPayload } from '@common/tenant';
 import { EShopService } from '../application/e-shop.service';
 import { CreateHeroSlideDto } from '../application/dto/create-hero-slide.dto';
 import { UpdateHeroSlideDto } from '../application/dto/update-hero-slide.dto';
+import { EShopFulfillmentMethodsService } from '../application/eshop-fulfillment-methods.service';
+import { EShopOrderStatusService } from '../application/eshop-order-status.service';
+import { CompaniesService } from '@modules/companies/application/companies.service';
+import type { EShopStockPolicy } from '@modules/companies/domain/company-eshop-flat.types';
+import type { EShopFulfillmentStatus } from '@modules/transactions/domain/transaction-eshop-order.metadata';
 
 @Controller('e-shop/admin')
 export class EShopAdminController {
-  constructor(private readonly eShopService: EShopService) {}
+  constructor(
+    private readonly eShopService: EShopService,
+    private readonly fulfillmentMethods: EShopFulfillmentMethodsService,
+    private readonly orderStatus: EShopOrderStatusService,
+    private readonly companiesService: CompaniesService,
+  ) {}
 
   @Get('testimonials')
   listTestimonials(@CurrentCompany() companyId: string) {
@@ -140,5 +151,113 @@ export class EShopAdminController {
     @Param('productId') productId: string,
   ) {
     return this.eShopService.getCatalogProductPreview(companyId, productId);
+  }
+
+  @Get('fulfillment-methods')
+  listFulfillmentMethods(@CurrentCompany() companyId: string) {
+    return this.fulfillmentMethods.listAdmin(companyId);
+  }
+
+  @Post('fulfillment-methods')
+  createFulfillmentMethod(
+    @CurrentCompany() companyId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.fulfillmentMethods.create(companyId, body as never);
+  }
+
+  @Patch('fulfillment-methods/:id')
+  updateFulfillmentMethod(
+    @CurrentCompany() companyId: string,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.fulfillmentMethods.update(companyId, id, body as never);
+  }
+
+  @Delete('fulfillment-methods/:id')
+  deleteFulfillmentMethod(
+    @CurrentCompany() companyId: string,
+    @Param('id') id: string,
+  ) {
+    return this.fulfillmentMethods.remove(companyId, id);
+  }
+
+  @Put('fulfillment-methods/reorder')
+  reorderFulfillmentMethods(
+    @CurrentCompany() companyId: string,
+    @Body() body: { orderedIds: string[] },
+  ) {
+    return this.fulfillmentMethods.reorder(companyId, body.orderedIds ?? []);
+  }
+
+  @Get('fulfillment-settings')
+  async getFulfillmentSettings(@CurrentCompany() companyId: string) {
+    const settings = await this.companiesService.getEShopFlatSettings(companyId);
+    return {
+      eShopStockPolicy: settings.eShopStockPolicy,
+      eShopFreeShippingThreshold: settings.eShopFreeShippingThreshold,
+      eShopDefaultBranchId: settings.eShopDefaultBranchId,
+      eShopDefaultStorageId: settings.eShopDefaultStorageId,
+      eShopDefaultPriceListId: settings.eShopDefaultPriceListId,
+    };
+  }
+
+  @Put('fulfillment-settings')
+  async updateFulfillmentSettings(
+    @CurrentCompany() companyId: string,
+    @Body()
+    body: {
+      eShopStockPolicy?: EShopStockPolicy;
+      eShopFreeShippingThreshold?: number | null;
+    },
+  ) {
+    const settings = await this.companiesService.replaceEShopFlatSettings(companyId, {
+      ...(body.eShopStockPolicy ? { eShopStockPolicy: body.eShopStockPolicy } : {}),
+      ...(body.eShopFreeShippingThreshold !== undefined
+        ? { eShopFreeShippingThreshold: body.eShopFreeShippingThreshold }
+        : {}),
+    });
+    return {
+      eShopStockPolicy: settings.eShopStockPolicy,
+      eShopFreeShippingThreshold: settings.eShopFreeShippingThreshold,
+      eShopDefaultBranchId: settings.eShopDefaultBranchId,
+      eShopDefaultStorageId: settings.eShopDefaultStorageId,
+      eShopDefaultPriceListId: settings.eShopDefaultPriceListId,
+    };
+  }
+
+  @Get('orders')
+  listOrders(
+    @CurrentCompany() companyId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.orderStatus.listOrders(companyId, {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      status,
+      search,
+    });
+  }
+
+  @Get('orders/:id')
+  getOrder(@CurrentCompany() companyId: string, @Param('id') id: string) {
+    return this.orderStatus.getOrder(companyId, id);
+  }
+
+  @Patch('orders/:id/status')
+  updateOrderStatus(
+    @CurrentCompany() companyId: string,
+    @Param('id') id: string,
+    @Body() body: { status: EShopFulfillmentStatus; note?: string },
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.orderStatus.updateStatus(companyId, id, body.status, {
+      byUserId: user?.id,
+      note: body.note,
+    });
   }
 }

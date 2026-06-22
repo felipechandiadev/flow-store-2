@@ -182,10 +182,17 @@ export class CompletePaymentUseCase implements ICommandHandler<CompletePaymentCo
     if (!payment.branchId) {
       throw new BadRequestException(`Payment ${paymentId} has no branchId`);
     }
+    const companyId = payment.branch?.companyId;
+    if (!companyId) {
+      throw new BadRequestException(
+        `Payment ${paymentId} branch has no companyId`,
+      );
+    }
 
     const executionDocNumber = await this.documentNumberService.allocateNext(
       payment.branchId,
       TransactionType.PAYMENT_EXECUTION,
+      companyId,
     );
 
     const paymentExecution = this.transactionsRepository.create({

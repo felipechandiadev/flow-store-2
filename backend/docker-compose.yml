@@ -110,5 +110,4 @@ volumes:
 
 networks:
   flow-store-network:
-    driver: bridge</content>
-<parameter name="filePath">/Users/felipe/dev/flow-store/backend/docker-compose.yml
+    driver: bridge

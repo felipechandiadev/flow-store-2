@@ -352,6 +352,7 @@ export class CreateTransactionDto {
       TransactionType.PAYROLL,
       TransactionType.PAYMENT_EXECUTION,
       TransactionType.BACKORDER,
+      TransactionType.CUSTOMER_ORDER,
     ];
     if (requirePositive.includes(this.transactionType) && !poDraft) {
       if (this.subtotal < 0.01) {
@@ -659,6 +660,22 @@ export class CreateTransactionDto {
         }
         if (!this.lines || this.lines.length === 0) {
           errors.push('SUPPLIER_CREDIT_NOTE requiere al menos una línea');
+        }
+        break;
+      }
+
+      case TransactionType.CUSTOMER_ORDER: {
+        if (!this.lines || this.lines.length === 0) {
+          errors.push('CUSTOMER_ORDER requiere al menos una línea');
+        }
+        if (this.metadata?.source === 'e-shop') {
+          if (!this.customerId) {
+            errors.push('Pedido eShop requiere customerId');
+          }
+          const eo = this.metadata?.eShopOrder;
+          if (!eo || typeof eo !== 'object') {
+            errors.push('Pedido eShop requiere metadata.eShopOrder');
+          }
         }
         break;
       }

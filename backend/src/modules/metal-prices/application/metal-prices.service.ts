@@ -12,44 +12,50 @@ export class MetalPricesService {
     private readonly metalPriceRepository: Repository<MetalPrice>,
   ) {}
 
-  async findAll() {
+  private toDto(p: MetalPrice) {
+    return {
+      id: p.id,
+      companyId: p.companyId,
+      date: p.date.toISOString(),
+      valueCLP: Number(p.valueCLP),
+      notes: p.notes ?? null,
+      metal: p.metal,
+    };
+  }
+
+  private async findOwned(id: string, companyId: string): Promise<MetalPrice> {
+    const price = await this.metalPriceRepository.findOne({
+      where: { id, companyId },
+    });
+    if (!price) {
+      throw new NotFoundException('Metal price not found');
+    }
+    return price;
+  }
+
+  async findAll(companyId: string) {
     const prices = await this.metalPriceRepository.find({
+      where: { companyId },
       order: { date: 'DESC' },
     });
 
     return {
       success: true,
-      data: prices.map((p) => ({
-        id: p.id,
-        date: p.date.toISOString(),
-        valueCLP: Number(p.valueCLP),
-        notes: p.notes,
-        metal: p.metal,
-      })),
+      data: prices.map((p) => this.toDto(p)),
     };
   }
 
-  async findOne(id: string) {
-    const price = await this.metalPriceRepository.findOne({ where: { id } });
-
-    if (!price) {
-      throw new NotFoundException('Metal price not found');
-    }
-
+  async findOne(id: string, companyId: string) {
+    const price = await this.findOwned(id, companyId);
     return {
       success: true,
-      data: {
-        id: price.id,
-        date: price.date.toISOString(),
-        valueCLP: Number(price.valueCLP),
-        notes: price.notes,
-        metal: price.metal,
-      },
+      data: this.toDto(price),
     };
   }
 
-  async create(createDto: CreateMetalPriceDto) {
+  async create(companyId: string, createDto: CreateMetalPriceDto) {
     const price = this.metalPriceRepository.create({
+      companyId,
       date: new Date(createDto.date),
       valueCLP: createDto.valueCLP,
       metal: createDto.metal,
@@ -60,22 +66,12 @@ export class MetalPricesService {
 
     return {
       success: true,
-      data: {
-        id: saved.id,
-        date: saved.date.toISOString(),
-        valueCLP: Number(saved.valueCLP),
-        notes: saved.notes,
-        metal: saved.metal,
-      },
+      data: this.toDto(saved),
     };
   }
 
-  async update(id: string, updateDto: UpdateMetalPriceDto) {
-    const price = await this.metalPriceRepository.findOne({ where: { id } });
-
-    if (!price) {
-      throw new NotFoundException('Metal price not found');
-    }
+  async update(id: string, companyId: string, updateDto: UpdateMetalPriceDto) {
+    const price = await this.findOwned(id, companyId);
 
     if (updateDto.date) price.date = new Date(updateDto.date);
     if (updateDto.valueCLP !== undefined) price.valueCLP = updateDto.valueCLP;
@@ -86,23 +82,12 @@ export class MetalPricesService {
 
     return {
       success: true,
-      data: {
-        id: saved.id,
-        date: saved.date.toISOString(),
-        valueCLP: Number(saved.valueCLP),
-        notes: saved.notes,
-        metal: saved.metal,
-      },
+      data: this.toDto(saved),
     };
   }
 
-  async remove(id: string) {
-    const price = await this.metalPriceRepository.findOne({ where: { id } });
-
-    if (!price) {
-      throw new NotFoundException('Metal price not found');
-    }
-
+  async remove(id: string, companyId: string) {
+    const price = await this.findOwned(id, companyId);
     await this.metalPriceRepository.remove(price);
 
     return {

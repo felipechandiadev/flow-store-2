@@ -95,6 +95,7 @@ export class CompleteSupplierPaymentCommandHandler implements ICommandHandler<Co
       const executionDocNumber = await this.documentNumberService.allocateNext(
         payment.branchId || '',
         TransactionType.PAYMENT_EXECUTION,
+        companyId,
         manager,
       );
 

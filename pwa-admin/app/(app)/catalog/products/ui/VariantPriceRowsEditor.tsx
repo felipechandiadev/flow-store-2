@@ -78,6 +78,8 @@ type VariantPriceRowsEditorProps = {
   defaultIvaTaxIds: string[];
   /** Abre la calculadora PMP/utilidad para la fila indicada (precio neto e impuestos de esa fila). */
   onOpenPmpCalculator: (rowKey: string) => void;
+  /** Abre la calculadora de precio por metal (joyería) para la fila indicada. */
+  onOpenJewelryCalculator?: (rowKey: string) => void;
 };
 
 export function VariantPriceRowsEditor({
@@ -87,6 +89,7 @@ export function VariantPriceRowsEditor({
   onRowsChange,
   defaultIvaTaxIds,
   onOpenPmpCalculator,
+  onOpenJewelryCalculator,
 }: VariantPriceRowsEditorProps) {
   const activeLists = useMemo(
     () => priceLists.filter((p) => p.isActive),
@@ -210,11 +213,22 @@ export function VariantPriceRowsEditor({
                     data-test-id={`variant-price-remove-${row.key}`}
                   />
                 </div>
-                <div className="absolute bottom-2 right-2 z-10">
+                <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1">
+                  {onOpenJewelryCalculator ? (
+                    <IconButton
+                      type="button"
+                      icon="Gem"
+                      ariaLabel="Calculadora de precio por metal (joyería)"
+                      variant="action"
+                      size="sm"
+                      onClick={() => onOpenJewelryCalculator(row.key)}
+                      data-test-id={`variant-jewelry-calculator-open-${row.key}`}
+                    />
+                  ) : null}
                   <IconButton
                     type="button"
                     icon="Calculator"
-                    ariaLabel="Calculadora precio de venta para esta lista"
+                    ariaLabel="Calculadora PMP y utilidad"
                     variant="action"
                     size="sm"
                     onClick={() => onOpenPmpCalculator(row.key)}

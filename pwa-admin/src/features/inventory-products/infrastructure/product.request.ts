@@ -588,6 +588,7 @@ export class ProductRequest {
     maximumStockEnabled?: boolean;
     reorderPoint?: number;
     reorderPointEnabled?: boolean;
+    netWeightKg?: number | null;
   }): Promise<{ success: true; id: string } | { success: false; error: string }> {
     const headers = await authHeaders();
     const payload: Record<string, unknown> = {
@@ -642,6 +643,9 @@ export class ProductRequest {
     }
     if (body.stockBaseQtyPerCountPurchaseUnit != null) {
       payload.stockBaseQtyPerCountPurchaseUnit = body.stockBaseQtyPerCountPurchaseUnit;
+    }
+    if (body.netWeightKg !== undefined && body.netWeightKg !== null) {
+      payload.netWeightKg = body.netWeightKg;
     }
     try {
       const res = await fetch(apiUrl("product-variants"), {

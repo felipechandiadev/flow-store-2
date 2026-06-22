@@ -31,7 +31,14 @@ import {
   type VariantPriceRowModel,
 } from "./VariantPriceRowsEditor";
 import { VariantPmpPriceCalculatorDialog } from "./VariantPmpPriceCalculatorDialog";
+import { VariantJewelryPriceCalculatorDialog } from "./VariantJewelryPriceCalculatorDialog";
+import { VariantWeightFields } from "./VariantWeightFields";
 import { VariantAttributesPickerDialog } from "./VariantAttributesPickerDialog";
+import {
+  displayWeightToNetWeightKg,
+  weightInGrams,
+  type VariantWeightUnit,
+} from "@/features/inventory-products/lib/variant-weight";
 
 /** IVA marcado como predeterminado en catálogo; si no hay ninguno, se usa el primer IVA activo. */
 function catalogDefaultIvaTaxIds(taxes: TaxListItem[]): string[] {
@@ -86,6 +93,9 @@ export function CreateProductVariantDialog({
   const [priceRows, setPriceRows] = useState<VariantPriceRowModel[]>([]);
   /** Fila para la que está abierta la calculadora PMP (null = cerrado). */
   const [pmpCalculatorRowKey, setPmpCalculatorRowKey] = useState<string | null>(null);
+  const [jewelryCalculatorRowKey, setJewelryCalculatorRowKey] = useState<string | null>(null);
+  const [weightValue, setWeightValue] = useState("");
+  const [weightUnit, setWeightUnit] = useState<VariantWeightUnit>("g");
   const [attributes, setAttributes] = useState<AttributeListItem[]>([]);
   /** attributeId → valor de opción elegido (null = sin definir). */
   const [attributeSelections, setAttributeSelections] = useState<Record<string, string | null>>({});
@@ -166,8 +176,6 @@ export function CreateProductVariantDialog({
     if (!open) {
       return;
     }
-    setPhase("form");
-    setNewVariantId(null);
     setSku("");
     setBarcode("");
     setUnitId(null);
@@ -176,6 +184,10 @@ export function CreateProductVariantDialog({
     setStockBaseQtyPerCountSaleUnit("");
     setStockBaseQtyPerCountPurchaseUnit("");
     setIsActive(true);
+    setWeightValue("");
+    setWeightUnit("g");
+    setJewelryCalculatorRowKey(null);
+    setPmpCalculatorRowKey(null);
     const isService = String(productType || "").toUpperCase() === "SERVICE";
     setTrackInventory(!isService);
     setAllowNegativeStock(false);
@@ -186,9 +198,6 @@ export function CreateProductVariantDialog({
     setAttributeSelections({});
     setError(null);
     setLoadError(null);
-    setStagedVariantFiles([]);
-    setMediaStagingKey((k) => k + 1);
-    setPostCreateUploadError(null);
     void (async () => {
       try {
         const [list, pls, txs, attrs] = await Promise.all([
@@ -317,6 +326,8 @@ export function CreateProductVariantDialog({
       stockBaseQtyPerCountPurchaseUnitOut = n;
     }
 
+    const netWeightKg = displayWeightToNetWeightKg(weightValue, weightUnit);
+
     startTransition(() => {
       void (async () => {
         const r = await createProductVariantAction({
@@ -340,6 +351,7 @@ export function CreateProductVariantDialog({
           reorderPointEnabled,
           stockBaseQtyPerCountSaleUnit: stockBaseQtyPerCountSaleUnitOut,
           stockBaseQtyPerCountPurchaseUnit: stockBaseQtyPerCountPurchaseUnitOut,
+          netWeightKg,
         });
         if (r.success) {
           await router.refresh();
@@ -364,6 +376,22 @@ export function CreateProductVariantDialog({
       }),
     );
   };
+
+  const handleJewelryCalculatorApply = (net: number, priceRowKey: string) => {
+    handlePmpCalculatorApply(0, net, priceRowKey);
+  };
+
+  const syncWeightFromGrams = (grams: number) => {
+    if (grams > 0) {
+      setWeightValue(String(grams));
+      setWeightUnit("g");
+    }
+  };
+
+  const weightGrams = useMemo(
+    () => weightInGrams(weightValue, weightUnit),
+    [weightValue, weightUnit],
+  );
 
   const canSubmit =
     Boolean(productId.trim()) &&
@@ -518,6 +546,14 @@ export function CreateProductVariantDialog({
             ) : null}
           </div>
 
+          <VariantWeightFields
+            weight={weightValue}
+            weightUnit={weightUnit}
+            onWeightChange={setWeightValue}
+            onWeightUnitChange={setWeightUnit}
+            testIdPrefix="product-variant-create-weight"
+          />
+
           {selectableAttributes.length > 0 ? (
             <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3">
               <p className="text-sm font-medium text-foreground">Atributos (opcional)</p>
@@ -551,8 +587,10 @@ export function CreateProductVariantDialog({
           ) : null}
 
           <p className="text-xs text-muted-foreground">
-            El PMP (precio medio ponderado) se asigna con la primera compra valorada; la calculadora solo ayuda a
-            fijar precios de venta.
+            Use la calculadora <strong className="font-medium text-foreground">joyería</strong> (ícono
+            gema) con el peso de la pieza y precios de metales, o la calculadora{" "}
+            <strong className="font-medium text-foreground">PMP</strong> para margen sobre costo de
+            compra.
           </p>
           <VariantPriceRowsEditor
             priceLists={priceLists}
@@ -561,6 +599,7 @@ export function CreateProductVariantDialog({
             onRowsChange={setPriceRows}
             defaultIvaTaxIds={defaultIvaTaxIds}
             onOpenPmpCalculator={(rowKey) => setPmpCalculatorRowKey(rowKey)}
+            onOpenJewelryCalculator={(rowKey) => setJewelryCalculatorRowKey(rowKey)}
           />
           <div className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-muted/15 p-3 md:grid-cols-2">
             <Switch
@@ -629,6 +668,14 @@ export function CreateProductVariantDialog({
         }
         ivaTaxes={ivaTaxes}
         onApply={handlePmpCalculatorApply}
+      />
+      <VariantJewelryPriceCalculatorDialog
+        open={jewelryCalculatorRowKey != null}
+        onClose={() => setJewelryCalculatorRowKey(null)}
+        weightGrams={weightGrams}
+        onWeightGramsChange={syncWeightFromGrams}
+        priceRowKey={jewelryCalculatorRowKey}
+        onApply={handleJewelryCalculatorApply}
       />
       <VariantAttributesPickerDialog
         open={attributesPickerOpen}

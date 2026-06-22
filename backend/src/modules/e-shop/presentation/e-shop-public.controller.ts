@@ -4,12 +4,18 @@ import { EShopService } from '../application/e-shop.service';
 import { EShopStoreGuard } from './eshop-store.guard';
 import { EShopStore } from './eshop-store.decorator';
 import type { EShopStoreContext } from '../application/eshop-store.context';
+import { EShopFulfillmentMethodsService } from '../application/eshop-fulfillment-methods.service';
+import { EShopCheckoutOrderService } from '../application/eshop-checkout-order.service';
 
 @Controller('e-shop')
 @SkipTenant()
 @UseGuards(EShopStoreGuard)
 export class EShopPublicController {
-  constructor(private readonly eShopService: EShopService) {}
+  constructor(
+    private readonly eShopService: EShopService,
+    private readonly fulfillmentMethods: EShopFulfillmentMethodsService,
+    private readonly checkoutOrder: EShopCheckoutOrderService,
+  ) {}
 
   @Get('storefront')
   getStorefront(@EShopStore() store: EShopStoreContext) {
@@ -83,6 +89,19 @@ export class EShopPublicController {
     return this.eShopService.listTestimonials(store);
   }
 
+  @Get('fulfillment-methods')
+  listFulfillmentMethods(
+    @EShopStore() store: EShopStoreContext,
+    @Query('subtotal') subtotal?: string,
+  ) {
+    const sub = Math.max(0, Number(subtotal) || 0);
+    return this.fulfillmentMethods.listActiveWithPricing(
+      store.companyId,
+      sub,
+      store.eShop.eShopFreeShippingThreshold,
+    );
+  }
+
   @Post('checkout')
   checkout(
     @EShopStore() store: EShopStoreContext,
@@ -91,11 +110,27 @@ export class EShopPublicController {
       customerName: string;
       customerEmail: string;
       customerPhone?: string;
+      fulfillmentMethodId?: string;
       address?: string;
+      shippingAddress?: {
+        line1?: string;
+        commune?: string;
+        region?: string;
+        notes?: string;
+      };
       lines: Array<{ productVariantId: string; quantity: number }>;
       notes?: string;
     },
   ) {
+    const useV2 =
+      process.env.ESHOP_CHECKOUT_V2 === 'true' ||
+      process.env.ESHOP_CHECKOUT_V2 === '1';
+    if (useV2 && body.fulfillmentMethodId?.trim()) {
+      return this.checkoutOrder.createCheckoutOrder(store, {
+        ...body,
+        fulfillmentMethodId: body.fulfillmentMethodId.trim(),
+      });
+    }
     return this.eShopService.createCheckoutSale(store, body);
   }
 }

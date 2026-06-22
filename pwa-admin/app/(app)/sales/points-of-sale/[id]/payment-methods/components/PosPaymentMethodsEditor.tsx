@@ -132,7 +132,7 @@ export function PosPaymentMethodsEditor({
       void (async () => {
         const payload: PosPaymentMethodConfig[] = usableCatalog.map((c) => ({
           companyPaymentMethodId: c.id,
-          isEnabled: byId[c.id]?.isEnabled !== false,
+          isEnabled: byId[c.id]?.isEnabled === true,
           preloadOnPaymentScreen:
             byId[c.id]?.preloadOnPaymentScreen === true,
           preloadOrder: byId[c.id]?.preloadOrder ?? null,
@@ -147,12 +147,27 @@ export function PosPaymentMethodsEditor({
         const r = await replacePosPaymentMethodsAction(posId, payload);
         if (r.success) {
           setSuccess("Cambios guardados.");
+          const synced = syncPosPaymentDraftWithCatalog(initialCatalog, r.paymentMethods);
+          const nextById: Record<string, RowState> = {};
+          for (const c of usableCatalog) {
+            const row = synced.find((x) => x.companyPaymentMethodId === c.id);
+            nextById[c.id] = row ?? {
+              companyPaymentMethodId: c.id,
+              isEnabled: false,
+              preloadOnPaymentScreen: false,
+              preloadOrder: null,
+              isDefaultForChange: false,
+              bankAccountKey: c.bankAccountKey ?? null,
+              requireReference: null,
+            };
+          }
+          setById(nextById);
         } else {
           setError(r.error || "No se pudo guardar");
         }
       })();
     });
-  }, [byId, posId, usableCatalog]);
+  }, [byId, posId, usableCatalog, initialCatalog]);
 
   return (
     <BasicPageLayout
@@ -230,7 +245,7 @@ export function PosPaymentMethodsEditor({
                     </div>
 
                     <Switch
-                      checked={r?.isEnabled !== false}
+                      checked={r?.isEnabled === true}
                       onChange={(v) => update(c.id, { isEnabled: v })}
                       label="Habilitado"
                       labelPosition="right"

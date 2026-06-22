@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="es">
+  <body style="font-family: sans-serif; color: #222;">
+    <h2>{{title}}</h2>
+    <p>Hola {{customerName}},</p>
+    <p>{{message}}</p>
+    {{#if orderNumber}}<p><strong>Pedido:</strong> {{orderNumber}}</p>{{/if}}
+    {{#if fulfillmentMethod}}<p><strong>Entrega:</strong> {{fulfillmentMethod}}</p>{{/if}}
+    {{#if total}}<p><strong>Total:</strong> ${{total}}</p>{{/if}}
+  </body>
+</html>

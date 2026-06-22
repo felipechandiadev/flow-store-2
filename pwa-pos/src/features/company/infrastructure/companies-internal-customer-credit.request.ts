@@ -1,6 +1,9 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
-import type { CompanyInternalCustomerCreditSettings } from "../types/company-internal-customer-credit.types";
+import type {
+  CompanyInternalCustomerCreditSettings,
+  InternalCreditPaymentMethodRef,
+} from "../types/company-internal-customer-credit.types";
 
 function apiUrl(path: string): string {
   const base = process.env.BACKEND_API_URL;
@@ -20,29 +23,41 @@ async function authHeaders(): Promise<HeadersInit> {
   return h;
 }
 
+type ContextResponse = {
+  success?: boolean;
+  internalCustomerCredit?: CompanyInternalCustomerCreditSettings;
+  internalCreditPaymentMethod?: InternalCreditPaymentMethodRef | null;
+  message?: string;
+};
+
 export class CompaniesInternalCustomerCreditRequest {
-  static async get(
-    companyId: string,
-  ): Promise<
-    | { success: true; internalCustomerCredit: CompanyInternalCustomerCreditSettings }
+  /** Empresa activa de la sesión (accesible para OPERATOR en POS). */
+  static async getForActiveCompany(): Promise<
+    | {
+        success: true;
+        internalCustomerCredit: CompanyInternalCustomerCreditSettings;
+        internalCreditPaymentMethod: InternalCreditPaymentMethodRef | null;
+      }
     | { success: false; error: string }
   > {
     try {
-      const res = await fetch(
-        apiUrl(`companies/${encodeURIComponent(companyId)}/internal-customer-credit-settings`),
-        { method: "GET", headers: await authHeaders(), cache: "no-store" },
-      );
-      const data = (await res.json().catch(() => ({}))) as {
-        internalCustomerCredit?: CompanyInternalCustomerCreditSettings;
-        message?: string;
-      };
+      const res = await fetch(apiUrl("company/internal-customer-credit-settings"), {
+        method: "GET",
+        headers: await authHeaders(),
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as ContextResponse;
       if (!res.ok) {
         return { success: false, error: data?.message || res.statusText };
       }
       if (!data?.internalCustomerCredit) {
         return { success: false, error: "Respuesta inválida del backend" };
       }
-      return { success: true, internalCustomerCredit: data.internalCustomerCredit };
+      return {
+        success: true,
+        internalCustomerCredit: data.internalCustomerCredit,
+        internalCreditPaymentMethod: data.internalCreditPaymentMethod ?? null,
+      };
     } catch (e) {
       return {
         success: false,

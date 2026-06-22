@@ -1,0 +1,82 @@
+export type EShopStockPolicy =
+  | "ALLOW_BACKORDER"
+  | "BLOCK_OUT_OF_STOCK"
+  | "IGNORE_STOCK";
+
+export type EShopFulfillmentMethodType =
+  | "PICKUP"
+  | "FLAT_RATE"
+  | "FREE_OVER_THRESHOLD"
+  | "MANUAL_QUOTE";
+
+export type EShopFulfillmentStatus =
+  | "SUBMITTED"
+  | "CONFIRMED"
+  | "PREPARING"
+  | "READY_FOR_PICKUP"
+  | "SHIPPED"
+  | "DELIVERED"
+  | "CANCELLED";
+
+export type EShopFulfillmentMethodRow = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  type: EShopFulfillmentMethodType;
+  priceFlat: number | null;
+  freeShippingThreshold: number | null;
+  estimatedDaysMin: number | null;
+  estimatedDaysMax: number | null;
+  requiresAddress: boolean;
+  requiresPhone: boolean;
+  instructions: string | null;
+  pickupBranchId: string | null;
+  isActive: boolean;
+  sortOrder: number;
+};
+
+export type EShopFulfillmentSettings = {
+  eShopStockPolicy: EShopStockPolicy;
+  eShopFreeShippingThreshold: number | null;
+  eShopDefaultBranchId: string | null;
+  eShopDefaultStorageId: string | null;
+  eShopDefaultPriceListId: string | null;
+};
+
+export type EShopOrderListRow = {
+  id: string;
+  documentNumber: string;
+  transactionType: string;
+  total: number;
+  createdAt: string;
+  fulfillmentStatus: EShopFulfillmentStatus;
+  fulfillmentMethodName: string | null;
+  customerName: string | null;
+  customerEmail: string | null;
+  isLegacy: boolean;
+  isTerminal: boolean;
+};
+
+export type EShopOrderDetail = EShopOrderListRow & {
+  status: string;
+  notes?: string | null;
+  shippingCost: number;
+  shippingAddress: Record<string, string | null> | null;
+  stockSnapshot: Array<{ variantId: string; requestedQty: number; availableQty: number }>;
+  statusHistory: Array<{
+    status: EShopFulfillmentStatus;
+    at: string;
+    byUserId?: string | null;
+    note?: string | null;
+  }>;
+  lines: Array<{
+    id: string;
+    productName: string;
+    productSku?: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }>;
+  customerId?: string | null;
+};

@@ -233,6 +233,7 @@ export function buildSeedJoyarteCompanySettings(
     eShopFeaturedProductIds: [],
     eShopFreeShippingThreshold: 150_000,
     eShopShippingMode: 'disabled',
+    eShopStockPolicy: 'ALLOW_BACKORDER',
     eShopDefaultBranchId: null,
     eShopDefaultPriceListId: null,
     eShopDefaultStorageId: null,

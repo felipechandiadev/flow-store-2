@@ -3,6 +3,17 @@
  */
 export type EShopShippingMode = 'disabled' | 'flat' | 'distance';
 
+export type EShopStockPolicy =
+  | 'ALLOW_BACKORDER'
+  | 'BLOCK_OUT_OF_STOCK'
+  | 'IGNORE_STOCK';
+
+export const ESHOP_STOCK_POLICIES: EShopStockPolicy[] = [
+  'ALLOW_BACKORDER',
+  'BLOCK_OUT_OF_STOCK',
+  'IGNORE_STOCK',
+];
+
 export const ESHOP_HERO_SLIDER_AUTOPLAY_MIN_SECONDS = 3;
 export const ESHOP_HERO_SLIDER_AUTOPLAY_DEFAULT_SECONDS = 6;
 
@@ -19,6 +30,8 @@ export interface CompanyEShopFlatSettings {
   /** Almacén desde el cual se muestra disponibilidad y se despacha la tienda en línea. */
   eShopDefaultStorageId: string | null;
   eShopHeroSliderAutoplaySeconds: number;
+  /** Comportamiento ante falta de stock en checkout eShop. */
+  eShopStockPolicy: EShopStockPolicy;
 }
 
 export function buildDefaultCompanyEShopFlatSettings(): CompanyEShopFlatSettings {
@@ -33,6 +46,7 @@ export function buildDefaultCompanyEShopFlatSettings(): CompanyEShopFlatSettings
     eShopDefaultPriceListId: null,
     eShopDefaultStorageId: null,
     eShopHeroSliderAutoplaySeconds: ESHOP_HERO_SLIDER_AUTOPLAY_DEFAULT_SECONDS,
+    eShopStockPolicy: 'ALLOW_BACKORDER',
   };
 }
 
@@ -94,6 +108,13 @@ export function sanitizeCompanyEShopFlatSettings(
     Math.round(Number(autoplayRaw) || ESHOP_HERO_SLIDER_AUTOPLAY_DEFAULT_SECONDS),
   );
 
+  const stockPolicyRaw = settings.eShopStockPolicy;
+  const stockPolicy: EShopStockPolicy = ESHOP_STOCK_POLICIES.includes(
+    stockPolicyRaw as EShopStockPolicy,
+  )
+    ? (stockPolicyRaw as EShopStockPolicy)
+    : defaults.eShopStockPolicy;
+
   return {
     eShopEnabled: truthy(settings.eShopEnabled),
     eShopPublicSlug: slug,
@@ -105,6 +126,7 @@ export function sanitizeCompanyEShopFlatSettings(
     eShopDefaultPriceListId: priceListId,
     eShopDefaultStorageId: storageId,
     eShopHeroSliderAutoplaySeconds: autoplaySeconds,
+    eShopStockPolicy: stockPolicy,
   };
 }
 

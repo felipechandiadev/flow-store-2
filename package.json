@@ -1,0 +1,16 @@
+{
+  "name": "flow-store",
+  "private": true,
+  "description": "KaiStore monorepo — scripts de desarrollo",
+  "scripts": {
+    "dev": "bash scripts/dev-all.sh all",
+    "dev:all": "bash scripts/dev-all.sh all",
+    "dev:eshop": "bash scripts/dev-all.sh eshop",
+    "dev:infra": "bash scripts/dev-infra.sh",
+    "dev:apps": "bash scripts/dev-apps.sh all",
+    "dev:apps:eshop": "bash scripts/dev-apps.sh eshop"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

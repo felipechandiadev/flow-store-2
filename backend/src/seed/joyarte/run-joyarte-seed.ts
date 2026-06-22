@@ -69,6 +69,8 @@ import {
 } from '../seed-multimedia.util';
 import { EShopHeroSlide } from '@modules/e-shop/domain/e-shop-hero-slide.entity';
 import { EShopTestimonial } from '@modules/e-shop/domain/e-shop-testimonial.entity';
+import { EShopFulfillmentMethod } from '@modules/e-shop/domain/e-shop-fulfillment-method.entity';
+import { MetalPrice } from '@modules/metal-prices/domain/metal-price.entity';
 import type { CompanyPaymentMethodConfig } from '@modules/payment-methods-config/domain/payment-method-config.types';
 import {
   SEED_BRANCH_ADDRESS,
@@ -107,6 +109,8 @@ import { buildJoyarteProductImagesFromCatalog } from './seed-joyarte-catalog-ima
 import { buildJoyarteProductImagesForSeed } from './seed-joyarte-featured-product-images';
 import { SEED_JOYARTE_ESHOP_HERO_SLIDES } from './seed-joyarte-eshop-hero-slides';
 import { SEED_JOYARTE_ESHOP_TESTIMONIALS } from './seed-joyarte-eshop-testimonials';
+import { SEED_JOYARTE_METAL_PRICES } from './seed-joyarte-metal-prices';
+import { seedMetalPricesFromDefs } from '../shared/seed-metal-prices.util';
 import { runSeedBootstrapGuards } from '../shared/seed-bootstrap.util';
 import {
   seedProductsFromDefinitions,
@@ -1888,6 +1892,14 @@ async function bootstrap() {
       `✅ Listas de precios: «${listaMinorista.name}» id=${listaMinorista.id} (default), «${listaMayorista.name}» id=${listaMayorista.id}, «${listaEshop.name}» id=${listaEshop.id} (eShop, no eliminable)`,
     );
 
+    const metalPriceRepo = dataSource.getRepository(MetalPrice);
+    await seedMetalPricesFromDefs({
+      metalPriceRepo,
+      companyId: company.id,
+      rows: SEED_JOYARTE_METAL_PRICES,
+      logLabel: 'Joyarte',
+    });
+
     const productRepo = dataSource.getRepository(Product);
     const variantRepo = dataSource.getRepository(ProductVariant);
     const priceListItemRepo = dataSource.getRepository(PriceListItem);
@@ -2013,6 +2025,40 @@ async function bootstrap() {
       assetsRoot: SEED_JOYARTE_ASSETS_ROOT,
       logLabel: 'Joyarte',
     });
+
+    const fulfillmentRepo = dataSource.getRepository(EShopFulfillmentMethod);
+    const existingMethods = await fulfillmentRepo.count({
+      where: { companyId: company.id },
+    });
+    if (existingMethods === 0) {
+      await fulfillmentRepo.save([
+        fulfillmentRepo.create({
+          companyId: company.id,
+          code: 'pickup',
+          name: 'Retiro en tienda',
+          description: 'Retira tu pedido en nuestra boutique',
+          type: 'PICKUP',
+          requiresAddress: false,
+          requiresPhone: false,
+          instructions: 'Te avisaremos cuando tu pedido esté listo para retiro.',
+          isActive: true,
+          sortOrder: 0,
+        }),
+        fulfillmentRepo.create({
+          companyId: company.id,
+          code: 'coordinate',
+          name: 'Envío a coordinar',
+          description: 'Coordinamos el envío contigo tras confirmar el pedido',
+          type: 'MANUAL_QUOTE',
+          requiresAddress: true,
+          requiresPhone: true,
+          instructions: 'Nos contactaremos para acordar dirección y costo de envío.',
+          isActive: true,
+          sortOrder: 1,
+        }),
+      ]);
+      console.log('✅ Métodos de entrega eShop Joyarte (pickup, coordinate)');
+    }
 
     const priceListsJson = [
       { id: listaMinorista.id, name: listaMinorista.name, isActive: true },

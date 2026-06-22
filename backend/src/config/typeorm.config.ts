@@ -72,6 +72,7 @@ import { NotificationPreference } from '@modules/notifications/domain/notificati
 import { NotificationRetentionPolicy } from '@modules/notifications/domain/notification-retention-policy.entity';
 import { EShopTestimonial } from '@modules/e-shop/domain/e-shop-testimonial.entity';
 import { EShopHeroSlide } from '@modules/e-shop/domain/e-shop-hero-slide.entity';
+import { EShopFulfillmentMethod } from '@modules/e-shop/domain/e-shop-fulfillment-method.entity';
 import { AuditSubscriber } from '../subscribers/AuditSubscriber';
 import { TenantSubscriber } from '../common/tenant/tenant.subscriber';
 
@@ -157,6 +158,7 @@ export const typeOrmConfig = (
       NotificationRetentionPolicy,
       EShopTestimonial,
       EShopHeroSlide,
+      EShopFulfillmentMethod,
     ],
 
     // Register subscribers (TypeORM EventSubscribers)

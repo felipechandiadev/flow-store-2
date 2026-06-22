@@ -32,7 +32,15 @@ import {
   type VariantPriceRowModel,
 } from "./VariantPriceRowsEditor";
 import { VariantPmpPriceCalculatorDialog } from "./VariantPmpPriceCalculatorDialog";
+import { VariantJewelryPriceCalculatorDialog } from "./VariantJewelryPriceCalculatorDialog";
+import { VariantWeightFields } from "./VariantWeightFields";
 import { VariantAttributesPickerDialog } from "./VariantAttributesPickerDialog";
+import {
+  displayWeightToNetWeightKg,
+  netWeightKgToDisplay,
+  weightInGrams,
+  type VariantWeightUnit,
+} from "@/features/inventory-products/lib/variant-weight";
 import { EntityMultimediaPanel } from "./EntityMultimediaPanel";
 
 function noop() {}
@@ -80,7 +88,8 @@ export function EditProductVariantDialog({
   const [maximumStockEnabled, setMaximumStockEnabled] = useState(false);
   const [reorderPoint, setReorderPoint] = useState("0");
   const [reorderPointEnabled, setReorderPointEnabled] = useState(false);
-  const [netWeightKg, setNetWeightKg] = useState("");
+  const [weightValue, setWeightValue] = useState("");
+  const [weightUnit, setWeightUnit] = useState<VariantWeightUnit>("g");
   const [grossWeightKg, setGrossWeightKg] = useState("");
   const [packageLengthCm, setPackageLengthCm] = useState("");
   const [packageWidthCm, setPackageWidthCm] = useState("");
@@ -91,6 +100,7 @@ export function EditProductVariantDialog({
   const [taxes, setTaxes] = useState<TaxListItem[]>([]);
   const [priceRows, setPriceRows] = useState<VariantPriceRowModel[]>([]);
   const [pmpCalculatorRowKey, setPmpCalculatorRowKey] = useState<string | null>(null);
+  const [jewelryCalculatorRowKey, setJewelryCalculatorRowKey] = useState<string | null>(null);
   const [attributes, setAttributes] = useState<AttributeListItem[]>([]);
   const [attributeSelections, setAttributeSelections] = useState<Record<string, string | null>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -237,11 +247,13 @@ export function EditProductVariantDialog({
             ? String(Math.max(0, Math.round(Number(variant.reorderPoint))))
             : "0",
         );
-        setNetWeightKg(
+        const weightDisplay = netWeightKgToDisplay(
           variant.netWeightKg != null && Number.isFinite(Number(variant.netWeightKg))
-            ? String(variant.netWeightKg)
-            : "",
+            ? Number(variant.netWeightKg)
+            : null,
         );
+        setWeightValue(weightDisplay.value);
+        setWeightUnit(weightDisplay.unit);
         setGrossWeightKg(
           variant.grossWeightKg != null && Number.isFinite(Number(variant.grossWeightKg))
             ? String(variant.grossWeightKg)
@@ -433,6 +445,7 @@ export function EditProductVariantDialog({
 
     startTransition(() => {
       void (async () => {
+        const netWeightKgOut = displayWeightToNetWeightKg(weightValue, weightUnit);
         const r = await updateProductVariantAction(vid, {
           productId: pid,
           sku: sku.trim(),
@@ -454,7 +467,7 @@ export function EditProductVariantDialog({
           reorderPointEnabled,
           stockBaseQtyPerCountSaleUnit: stockBaseQtyPerCountSaleUnitOut,
           stockBaseQtyPerCountPurchaseUnit: stockBaseQtyPerCountPurchaseUnitOut,
-          netWeightKg: parseOptDecimal(netWeightKg),
+          netWeightKg: netWeightKgOut,
           grossWeightKg: parseOptDecimal(grossWeightKg),
           packageLengthCm: parseOptDecimal(packageLengthCm),
           packageWidthCm: parseOptDecimal(packageWidthCm),
@@ -483,6 +496,22 @@ export function EditProductVariantDialog({
       }),
     );
   };
+
+  const handleJewelryCalculatorApply = (net: number, priceRowKey: string) => {
+    handlePmpCalculatorApply(0, net, priceRowKey);
+  };
+
+  const syncWeightFromGrams = (grams: number) => {
+    if (grams > 0) {
+      setWeightValue(String(grams));
+      setWeightUnit("g");
+    }
+  };
+
+  const weightGrams = useMemo(
+    () => weightInGrams(weightValue, weightUnit),
+    [weightValue, weightUnit],
+  );
 
   const canSubmit =
     Boolean(product.id?.trim()) &&
@@ -658,6 +687,14 @@ export function EditProductVariantDialog({
             </div>
           ) : null}
 
+          <VariantWeightFields
+            weight={weightValue}
+            weightUnit={weightUnit}
+            onWeightChange={setWeightValue}
+            onWeightUnitChange={setWeightUnit}
+            testIdPrefix="product-variant-edit-weight"
+          />
+
           <TextField
             label="PMP (precio medio ponderado)"
             name="pv-edit-pmp-readonly"
@@ -677,6 +714,7 @@ export function EditProductVariantDialog({
             onRowsChange={setPriceRows}
             defaultIvaTaxIds={defaultIvaTaxIds}
             onOpenPmpCalculator={(rowKey) => setPmpCalculatorRowKey(rowKey)}
+            onOpenJewelryCalculator={(rowKey) => setJewelryCalculatorRowKey(rowKey)}
           />
           <div className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-muted/15 p-3 md:grid-cols-2">
             <Switch
@@ -732,18 +770,12 @@ export function EditProductVariantDialog({
           </div>
 
           <div className="rounded-lg border border-border bg-muted/10 p-3">
-            <p className="text-sm font-medium text-foreground">Peso y despacho (courier / ERP)</p>
+            <p className="text-sm font-medium text-foreground">Despacho (courier / ERP)</p>
             <p className="mb-3 text-xs text-muted-foreground">
-              Opcional: peso neto y bruto en kg; empaque L×W×H en cm; divisor K (p. ej. 5000) para peso volumétrico.
+              Opcional: peso bruto en kg; empaque L×W×H en cm; divisor K (p. ej. 5000) para peso volumétrico.
+              El peso neto de la pieza se define arriba (joyería).
             </p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <TextField
-                label="Peso neto (kg)"
-                name="pv-edit-net-kg"
-                value={netWeightKg}
-                onChange={(e) => setNetWeightKg(e.target.value)}
-                placeholder="Producto sin embalaje"
-              />
               <TextField
                 label="Peso bruto (kg)"
                 name="pv-edit-gross-kg"
@@ -804,6 +836,14 @@ export function EditProductVariantDialog({
         }
         ivaTaxes={ivaTaxes}
         onApply={handlePmpCalculatorApply}
+      />
+      <VariantJewelryPriceCalculatorDialog
+        open={jewelryCalculatorRowKey != null}
+        onClose={() => setJewelryCalculatorRowKey(null)}
+        weightGrams={weightGrams}
+        onWeightGramsChange={syncWeightFromGrams}
+        priceRowKey={jewelryCalculatorRowKey}
+        onApply={handleJewelryCalculatorApply}
       />
       <VariantAttributesPickerDialog
         open={attributesPickerOpen}

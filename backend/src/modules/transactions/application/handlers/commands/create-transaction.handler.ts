@@ -69,6 +69,7 @@ export class CreateTransactionCommandHandler implements ICommandHandler<CreateTr
       const documentNumber = await this.documentNumberService.allocateNext(
         command.branchId,
         command.transactionType as TransactionType,
+        companyId,
         manager,
       );
 
@@ -77,6 +78,7 @@ export class CreateTransactionCommandHandler implements ICommandHandler<CreateTr
         documentNumber,
         transactionType: command.transactionType,
         status: TransactionStatus.CONFIRMED,
+        companyId,
         branchId: command.branchId,
         userId: command.userId,
         pointOfSaleId: command.pointOfSaleId || null,

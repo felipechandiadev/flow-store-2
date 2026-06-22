@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - '8025:8025'
+      - '1025:1025'
+
+  kai-mail:
+    build: .
+    environment:
+      PORT: 3040
+      REDIS_HOST: host.docker.internal
+      REDIS_PORT: 6379
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      MAIL_FROM: noreply@kaistore.local
+      KAI_MAIL_API_KEY: dev-kai-mail-key
+    ports:
+      - '3040:3040'
+    depends_on:
+      - mailpit

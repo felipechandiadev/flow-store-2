@@ -50,6 +50,9 @@ function clientBackendBaseUrl(): string | null {
 }
 
 function wsPayloadToRow(payload: NotificationDeliveryWsPayload): NotificationRow | null {
+  const domain = payload.notification.domain;
+  const domainFilter = domain === "STOCK" ? "STOCK" : domain === "SALES" ? undefined : "STOCK";
+  if (domain !== "STOCK" && domain !== "SALES") return null;
   return inboxItemToRow(
     {
       deliveryId: payload.deliveryId,
@@ -58,7 +61,7 @@ function wsPayloadToRow(payload: NotificationDeliveryWsPayload): NotificationRow
       readAt: null,
       notification: payload.notification,
     },
-    "STOCK",
+    domainFilter,
   );
 }
 
@@ -76,9 +79,8 @@ export function NotificationsRealtimeProvider({ children }: { children: React.Re
   const refreshNotifications = useCallback(async () => {
     if (!token) return;
     const [countResult, inboxResult] = await Promise.allSettled([
-      fetchUnreadCount(token, activeCompanyId, "STOCK"),
+      fetchUnreadCount(token, activeCompanyId),
       fetchInbox(token, activeCompanyId, {
-        domain: "STOCK",
         status: "UNREAD",
         limit: 50,
       }),
@@ -91,7 +93,7 @@ export function NotificationsRealtimeProvider({ children }: { children: React.Re
     if (inboxResult.status === "fulfilled") {
       const rows = inboxResult.value
         .filter((item) => item.status === "UNREAD")
-        .map((item) => inboxItemToRow(item, "STOCK"))
+        .map((item) => inboxItemToRow(item))
         .filter((x): x is NotificationRow => x != null);
       setNotificationRows(rows);
     }
@@ -128,7 +130,8 @@ export function NotificationsRealtimeProvider({ children }: { children: React.Re
     socketRef.current = socket;
 
     const onDelivery = (payload: NotificationDeliveryWsPayload) => {
-      if (payload.notification.domain !== "STOCK") return;
+      const domain = payload.notification.domain;
+      if (domain !== "STOCK" && domain !== "SALES") return;
       if (payload.status !== "UNREAD") return;
 
       const row = wsPayloadToRow(payload);
@@ -142,7 +145,9 @@ export function NotificationsRealtimeProvider({ children }: { children: React.Re
           return next;
         });
       }
-      setStockRefreshToken((n) => n + 1);
+      if (domain === "STOCK") {
+        setStockRefreshToken((n) => n + 1);
+      }
     };
 
     const onAuthError = () => {
@@ -176,7 +181,7 @@ export function NotificationsRealtimeProvider({ children }: { children: React.Re
 
   const clearNotifications = useCallback(async () => {
     if (!token) return;
-    await markAllNotificationsRead(token, activeCompanyId, "STOCK");
+    await markAllNotificationsRead(token, activeCompanyId);
     setUnreadCount(0);
     setNotificationRows([]);
   }, [token, activeCompanyId]);

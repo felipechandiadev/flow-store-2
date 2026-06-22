@@ -31,6 +31,7 @@ const DEFAULT_COMPANY_PAYMENT_METHOD_IDS: Partial<
   [PaymentMethod.DEBIT_CARD]: 'e7b3c1a0-0001-4000-8000-000000000003',
   [PaymentMethod.TRANSFER]: 'e7b3c1a0-0001-4000-8000-000000000004',
   [PaymentMethod.CHECK]: 'e7b3c1a0-0001-4000-8000-000000000005',
+  [PaymentMethod.INTERNAL_CREDIT]: 'e7b3c1a0-0001-4000-8000-000000000006',
 };
 
 export function defaultCompanyPaymentMethodId(method: PaymentMethod): string {

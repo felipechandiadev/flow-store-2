@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppConfigModule } from '../../config/config.module';
 import { EShopTestimonial } from './domain/e-shop-testimonial.entity';
 import { EShopHeroSlide } from './domain/e-shop-hero-slide.entity';
+import { EShopFulfillmentMethod } from './domain/e-shop-fulfillment-method.entity';
 import { EShopService } from './application/e-shop.service';
 import { EShopPublicController } from './presentation/e-shop-public.controller';
 import { EShopAdminController } from './presentation/e-shop-admin.controller';
@@ -17,10 +18,20 @@ import { PriceListItem } from '@modules/price-list-items/domain/price-list-item.
 import { Storage } from '@modules/storages/domain/storage.entity';
 import { Category } from '@modules/categories/domain/category.entity';
 import { Brand } from '@modules/brands/domain/brand.entity';
+import { Customer } from '@modules/customers/domain/customer.entity';
+import { Person } from '@modules/persons/domain/person.entity';
+import { Transaction } from '@modules/transactions/domain/transaction.entity';
 import { CompaniesModule } from '@modules/companies/companies.module';
 import { MultimediaModule } from '@modules/multimedia/multimedia.module';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
+import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { EShopSchemaBootstrap } from './infrastructure/eshop-schema.bootstrap';
+import { EShopFulfillmentMethodsService } from './application/eshop-fulfillment-methods.service';
+import { EShopCustomerUpsertService } from './application/eshop-customer-upsert.service';
+import { EShopCheckoutOrderService } from './application/eshop-checkout-order.service';
+import { EShopOrderStatusService } from './application/eshop-order-status.service';
+import { EShopOrderNotificationService } from './application/eshop-order-notification.service';
+import { KaiMailClient } from '@shared/mail/kai-mail.client';
 
 @Module({
   imports: [
@@ -28,6 +39,7 @@ import { EShopSchemaBootstrap } from './infrastructure/eshop-schema.bootstrap';
     TypeOrmModule.forFeature([
       EShopTestimonial,
       EShopHeroSlide,
+      EShopFulfillmentMethod,
       ProductVariant,
       Product,
       Attribute,
@@ -38,13 +50,27 @@ import { EShopSchemaBootstrap } from './infrastructure/eshop-schema.bootstrap';
       Storage,
       Category,
       Brand,
+      Customer,
+      Person,
+      Transaction,
     ]),
     CompaniesModule,
     MultimediaModule,
     TransactionsModule,
+    NotificationsModule,
   ],
   controllers: [EShopPublicController, EShopAdminController],
-  providers: [EShopService, EShopStoreGuard, EShopSchemaBootstrap],
+  providers: [
+    EShopService,
+    EShopStoreGuard,
+    EShopSchemaBootstrap,
+    EShopFulfillmentMethodsService,
+    EShopCustomerUpsertService,
+    EShopCheckoutOrderService,
+    EShopOrderStatusService,
+    EShopOrderNotificationService,
+    KaiMailClient,
+  ],
   exports: [EShopService],
 })
 export class EShopModule {}

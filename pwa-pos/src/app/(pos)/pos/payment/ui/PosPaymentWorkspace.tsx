@@ -27,7 +27,7 @@ import type {
 } from "@/features/customers/types/customer-payment-sources.types";
 import { tryBuildCreditNotePaymentLine } from "@/features/pos-payment-methods/lib/apply-customer-linked-payment";
 import { paymentMethodLabelEs } from "@/features/pos-payment-methods/lib/payment-method-label";
-import { getCustomerPosPaymentSourcesAction } from "@/features/customers/actions/customers-pos.action";
+import { getCustomerPosDetailBundleAction, getCustomerPosPaymentSourcesAction } from "@/features/customers/actions/customers-pos.action";
 import PosCustomerPaymentSourcesPanel from "@/features/customers/ui/PosCustomerPaymentSourcesPanel";
 import type { PosCartLine } from "@/app/(pos)/pos/ui/PosCartLineCard";
 import type { PosCustomerSearchRow } from "@/features/customers/types/pos-customer.types";
@@ -39,7 +39,10 @@ import { readPosContextClient } from "@/features/session/lib/pos-context-storage
 import type { EffectivePaymentMethod } from "@/features/pos-payment-methods/types/effective-payment-method.types";
 import { getEffectivePosPaymentMethodsAction } from "@/features/pos-payment-methods/actions/payment-methods-pos.action";
 import { getCompanyDetailsAction } from "@/features/company/actions/company.action";
-import { getInternalCustomerCreditEnabledAction } from "@/features/company/actions/company-internal-customer-credit.action";
+import {
+  getInternalCustomerCreditContextAction,
+  type InternalCustomerCreditContext,
+} from "@/features/company/actions/company-internal-customer-credit.action";
 import type { CompanyDetails } from "@/features/company/infrastructure/company.request";
 import { SaveAsQuotationDialog } from "@/app/(pos)/pos/ui/SaveAsQuotationDialog";
 import { BackorderDepositDialog } from "@/app/(pos)/pos/ui/BackorderDepositDialog";
@@ -421,7 +424,13 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const [saveQuotationOpen, setSaveQuotationOpen] = useState(false);
   const [backorderDepositOpen, setBackorderDepositOpen] = useState(false);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
-  const [internalCreditEnabled, setInternalCreditEnabled] = useState(false);
+  const [internalCreditCtx, setInternalCreditCtx] =
+    useState<InternalCustomerCreditContext>({
+      enabled: false,
+      paymentMethodId: null,
+      paymentMethodLabel: null,
+    });
+  const [customerAvailableCredit, setCustomerAvailableCredit] = useState(0);
   const [successOpen, setSuccessOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<PosSaleReceiptData | null>(null);
   const [creditNoteSuccessOpen, setCreditNoteSuccessOpen] = useState(false);
@@ -528,8 +537,23 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   const methodsById = useMemo(() => {
     const map = new Map<string, EffectivePaymentMethod>();
     for (const m of effectiveMethods) map.set(m.companyPaymentMethodId, m);
+    const icId = internalCreditCtx.paymentMethodId;
+    if (internalCreditCtx.enabled && icId) {
+      map.set(icId, {
+        companyPaymentMethodId: icId,
+        method: "INTERNAL_CREDIT",
+        label: internalCreditCtx.paymentMethodLabel ?? "Crédito interno",
+        alias: null,
+        bankAccountKey: null,
+        requireReference: false,
+        preloadOnPaymentScreen: false,
+        preloadOrder: null,
+        isDefaultForChange: false,
+        displayOrder: 9999,
+      });
+    }
     return map;
-  }, [effectiveMethods]);
+  }, [effectiveMethods, internalCreditCtx]);
 
   const usedCreditNoteIds = useMemo(
     () =>
@@ -635,13 +659,48 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
           }))
         : FALLBACK_PAYMENT_OPTIONS.map((o) => ({ id: o.id, label: o.label }));
 
-    return base.filter((opt) => {
+    const filtered = base.filter((opt) => {
       const method = resolveMethodForOption(opt.id);
       if (isCustomerLinkedPaymentMethod(method)) return false;
       if (isNcPayoutMode && !isNcPayoutAllowedPaymentMethod(method)) return false;
       return true;
     });
-  }, [effectiveMethods, resolveMethodForOption, isNcPayoutMode]);
+
+    const icId = internalCreditCtx.paymentMethodId;
+    const canOfferInternalCredit =
+      internalCreditCtx.enabled &&
+      icId &&
+      hasSaleCustomer &&
+      customerAvailableCredit >= 1 &&
+      !isCollectMode &&
+      !isNcPayoutMode &&
+      !isReturnMode &&
+      !isEncargoMode &&
+      !isFulfillBackorderMode;
+
+    if (canOfferInternalCredit && !filtered.some((o) => o.id === icId)) {
+      return [
+        ...filtered,
+        {
+          id: icId,
+          label: internalCreditCtx.paymentMethodLabel ?? "Crédito interno",
+        },
+      ];
+    }
+
+    return filtered;
+  }, [
+    effectiveMethods,
+    resolveMethodForOption,
+    isNcPayoutMode,
+    internalCreditCtx,
+    hasSaleCustomer,
+    customerAvailableCredit,
+    isCollectMode,
+    isReturnMode,
+    isEncargoMode,
+    isFulfillBackorderMode,
+  ]);
 
   // Si el medio seleccionado es transferencia y el POS configuró una cuenta destino preferente,
   // precárgala en el diálogo (pero sin pisar una selección manual).
@@ -801,8 +860,29 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
   }, [isReturnMode]);
 
   useEffect(() => {
-    void getInternalCustomerCreditEnabledAction().then(setInternalCreditEnabled);
+    void getInternalCustomerCreditContextAction().then(setInternalCreditCtx);
   }, []);
+
+  useEffect(() => {
+    if (!saleCustomerId || !internalCreditCtx.enabled) {
+      setCustomerAvailableCredit(0);
+      return;
+    }
+    let cancelled = false;
+    void getCustomerPosDetailBundleAction(saleCustomerId).then((res) => {
+      if (cancelled) return;
+      if (res?.success && res.customer) {
+        setCustomerAvailableCredit(
+          Math.max(0, Math.round(Number(res.customer.availableCredit) || 0)),
+        );
+      } else {
+        setCustomerAvailableCredit(0);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [saleCustomerId, internalCreditCtx.enabled]);
 
   useEffect(() => {
     if (!isCollectMode) return;
@@ -1048,6 +1128,20 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       setAddAlert("Solo se admite efectivo, transferencia o cheque para devolver saldo de NC.");
       return;
     }
+    if (enumType === "INTERNAL_CREDIT") {
+      if (!saleCustomerId) {
+        setAddAlert("Selecciona un cliente para usar crédito interno.");
+        return;
+      }
+      const usedInternal = payments
+        .filter((p) => p.type === "INTERNAL_CREDIT")
+        .reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      const avail = Math.max(0, customerAvailableCredit - usedInternal);
+      if (amt > avail + 0.01) {
+        setAddAlert(`El monto supera el crédito disponible del cliente (${avail}).`);
+        return;
+      }
+    }
     if (enumType !== "CASH" && nonCashTotal + amt > amountToPay + 0.01) {
       setAddAlert(NON_CASH_LIMIT_MSG);
       return;
@@ -1086,6 +1180,9 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
     nonCashTotal,
     amountToPay,
     isNcPayoutMode,
+    saleCustomerId,
+    customerAvailableCredit,
+    payments,
   ]);
 
   const isFulfillBackorderAdvanceLine = useCallback(
@@ -2570,7 +2667,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
       <PosCreateCustomerDialog
         open={createCustomerOpen}
         onClose={() => setCreateCustomerOpen(false)}
-        internalCreditEnabled={internalCreditEnabled}
+        internalCreditEnabled={internalCreditCtx.enabled}
         onSuccess={(info) => {
           setCustomer({
             customerId: info.customerId,

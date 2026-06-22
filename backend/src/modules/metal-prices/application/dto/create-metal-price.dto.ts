@@ -1,4 +1,7 @@
-import { IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsDateString, IsIn } from 'class-validator';
+import { MetalType } from '../../domain/metal.enum';
+
+const METAL_TYPES = Object.values(MetalType);
 
 export class CreateMetalPriceDto {
   @IsDateString()
@@ -8,6 +11,7 @@ export class CreateMetalPriceDto {
   valueCLP: number;
 
   @IsString()
+  @IsIn(METAL_TYPES)
   metal: string;
 
   @IsOptional()

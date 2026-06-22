@@ -63,6 +63,34 @@ export class EShopSchemaBootstrap implements OnModuleInit {
         ALTER TABLE "e_shop_hero_slides"
         ADD COLUMN IF NOT EXISTS "text_color" character varying(7);
       `);
+      await this.dataSource.query(`
+        CREATE TABLE IF NOT EXISTS "e_shop_fulfillment_methods" (
+          "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+          "company_id" uuid NOT NULL,
+          "code" character varying(64) NOT NULL,
+          "name" character varying(120) NOT NULL,
+          "description" text,
+          "type" character varying(32) NOT NULL,
+          "price_flat" numeric(15,2),
+          "free_shipping_threshold" numeric(15,2),
+          "estimated_days_min" integer,
+          "estimated_days_max" integer,
+          "requires_address" boolean NOT NULL DEFAULT false,
+          "requires_phone" boolean NOT NULL DEFAULT false,
+          "instructions" text,
+          "pickup_branch_id" uuid,
+          "is_active" boolean NOT NULL DEFAULT true,
+          "sort_order" integer NOT NULL DEFAULT 0,
+          "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+          "updated_at" TIMESTAMP NOT NULL DEFAULT now(),
+          CONSTRAINT "PK_e_shop_fulfillment_methods" PRIMARY KEY ("id"),
+          CONSTRAINT "UQ_e_shop_fulfillment_methods_company_code" UNIQUE ("company_id", "code")
+        );
+      `);
+      await this.dataSource.query(`
+        CREATE INDEX IF NOT EXISTS "idx_e_shop_fulfillment_methods_company_id"
+        ON "e_shop_fulfillment_methods" ("company_id");
+      `);
       this.logger.log('eShop schema bootstrap OK');
     } catch (err) {
       this.logger.error(

@@ -367,6 +367,7 @@ export async function createProductVariantAction(
     maximumStockEnabled: input.maximumStockEnabled,
     reorderPoint: input.reorderPoint,
     reorderPointEnabled: input.reorderPointEnabled,
+    netWeightKg: input.netWeightKg,
   });
   if (r.success) {
     revalidatePath(PRODUCTS_PATH, "page");

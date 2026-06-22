@@ -10,6 +10,7 @@ import { PersonBankAccountDto } from '@modules/persons/application/dto/person-ba
 import {
   CompanyPaymentMethodConfig,
   buildDefaultCompanyCatalog,
+  defaultCompanyPaymentMethodId,
   validateCompanyPaymentMethods,
 } from '@modules/payment-methods-config';
 import { Company, type CompanyBankAccount } from '../domain/company.entity';
@@ -460,6 +461,84 @@ export class CompaniesService {
   }
 
   /**
+   * Política + medio empresa `INTERNAL_CREDIT` activo (para POS/operadores).
+   */
+  async getInternalCustomerCreditContext(companyId: string): Promise<{
+    internalCustomerCredit: CompanyInternalCustomerCreditSettings;
+    internalCreditPaymentMethod: {
+      id: string;
+      label: string;
+    } | null;
+  }> {
+    const internalCustomerCredit =
+      await this.getInternalCustomerCreditSettings(companyId);
+    if (!internalCustomerCredit.enabled) {
+      return { internalCustomerCredit, internalCreditPaymentMethod: null };
+    }
+    const catalog = await this.getPaymentMethods(companyId);
+    const row = catalog.find(
+      (m) => m.method === PaymentMethod.INTERNAL_CREDIT && m.isActive,
+    );
+    if (!row) {
+      return { internalCustomerCredit, internalCreditPaymentMethod: null };
+    }
+    return {
+      internalCustomerCredit,
+      internalCreditPaymentMethod: {
+        id: row.id,
+        label: row.alias?.trim() || 'Crédito interno',
+      },
+    };
+  }
+
+  /**
+   * Garantiza una fila `INTERNAL_CREDIT` en el catálogo empresa y devuelve su id.
+   */
+  private syncInternalCreditCatalogEntry(
+    settings: Record<string, any>,
+    active: boolean,
+  ): { settings: Record<string, any>; internalCreditCompanyIds: Set<string> } {
+    const internalCreditCompanyIds = new Set<string>();
+    let list: CompanyPaymentMethodConfig[];
+    if (Array.isArray(settings.paymentMethods)) {
+      try {
+        list = validateCompanyPaymentMethods(settings.paymentMethods);
+      } catch {
+        list = buildDefaultCompanyCatalog();
+      }
+    } else {
+      list = buildDefaultCompanyCatalog();
+    }
+
+    const idx = list.findIndex((m) => m.method === PaymentMethod.INTERNAL_CREDIT);
+    if (idx >= 0) {
+      const id = list[idx].id;
+      internalCreditCompanyIds.add(id);
+      list[idx] = { ...list[idx], isActive: active };
+    } else if (active) {
+      const id = defaultCompanyPaymentMethodId(PaymentMethod.INTERNAL_CREDIT);
+      internalCreditCompanyIds.add(id);
+      const maxOrder = list.reduce(
+        (max, m) => Math.max(max, m.displayOrder),
+        -1,
+      );
+      list.push({
+        id,
+        method: PaymentMethod.INTERNAL_CREDIT,
+        alias: null,
+        displayOrder: maxOrder + 1,
+        isActive: true,
+        requireReference: false,
+        bankAccountKey: null,
+        metadata: null,
+      });
+    }
+
+    settings.paymentMethods = list;
+    return { settings, internalCreditCompanyIds };
+  }
+
+  /**
    * Persiste `settings.internalCustomerCredit` y en cascada deja
    * `INTERNAL_CREDIT` en catálogo empresa y POS alineados con `enabled`.
    */
@@ -478,24 +557,10 @@ export class CompaniesService {
     const settings = { ...(company.settings ?? {}) };
     settings.internalCustomerCredit = validated;
 
-    const internalCreditCompanyIds = new Set<string>();
-    if (Array.isArray(settings.paymentMethods)) {
-      try {
-        const list = validateCompanyPaymentMethods(settings.paymentMethods);
-        const next = list.map((m) => {
-          if (m.method === PaymentMethod.INTERNAL_CREDIT) {
-            internalCreditCompanyIds.add(m.id);
-            return { ...m, isActive: active };
-          }
-          return m;
-        });
-        settings.paymentMethods = next;
-      } catch {
-        // catálogo inválido: no bloqueamos el guardado del flag
-      }
-    }
+    const { settings: nextSettings, internalCreditCompanyIds } =
+      this.syncInternalCreditCatalogEntry(settings, active);
 
-    company.settings = settings;
+    company.settings = nextSettings;
     await this.companyRepository.save(company);
 
     if (internalCreditCompanyIds.size > 0) {
@@ -660,6 +725,7 @@ export class CompaniesService {
     settings.eShopDefaultPriceListId = merged.eShopDefaultPriceListId;
     settings.eShopDefaultStorageId = merged.eShopDefaultStorageId;
     settings.eShopHeroSliderAutoplaySeconds = merged.eShopHeroSliderAutoplaySeconds;
+    settings.eShopStockPolicy = merged.eShopStockPolicy;
     company.settings = settings;
     await this.companyRepository.save(company);
     return sanitizeCompanyEShopFlatSettings(

@@ -287,7 +287,13 @@ export function UpdatePointOfSaleDialog({
             size="md"
             onClick={handleSubmit}
             disabled={
-              !name.trim() || isPending || !branchId || !hasBranches || !storageId || storeRoomOptions.length === 0
+              !name.trim() ||
+              isPending ||
+              loadingPayments ||
+              !branchId ||
+              !hasBranches ||
+              !storageId ||
+              storeRoomOptions.length === 0
             }
             data-test-id="pos-update-submit"
           >
