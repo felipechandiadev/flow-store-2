@@ -1,10 +1,11 @@
 #!/usr/bin/env ts-node
+/** Seed Joyarte — joyería demo (`npm run seed:joyarte`). */
 
 import * as path from 'path';
 import { NestFactory } from '@nestjs/core';
-import { DataSource, DeepPartial, IsNull, Not, Repository } from 'typeorm';
+import { DataSource, IsNull, Not, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
-import { MinimalSeedModule } from './minimal-seed.module';
+import { MinimalSeedModule } from '../minimal-seed.module';
 import { User, UserRole } from '@modules/users/domain/user.entity';
 import {
   Person,
@@ -56,17 +57,16 @@ import {
 } from '@modules/storages/domain/storage.entity';
 import { StockLevel } from '@modules/stock-levels/domain/stock-level.entity';
 import { TenantContext } from '@common/tenant/tenant.context';
-import { AppConfigService } from '../config/config.service';
+import { AppConfigService } from '../../config/config.service';
 import { MultimediaAsset } from '@modules/multimedia/domain/multimedia-asset.entity';
 import { MultimediaLink } from '@modules/multimedia/domain/multimedia-link.entity';
 import {
   cleanBackendPublicFolder,
-  SEED_COMPANY_LOGO_FILE,
-  seedDevCatalogMultimedia,
-  seedDevEshopHeroSlides,
-  seedDevEshopTestimonials,
+  seedCatalogMultimediaByProductName,
+  seedEshopHeroSlidesFromDefs,
+  seedEshopTestimonialsFromDefs,
   seedMultimediaFileLink,
-} from './seed-multimedia.util';
+} from '../seed-multimedia.util';
 import { EShopHeroSlide } from '@modules/e-shop/domain/e-shop-hero-slide.entity';
 import { EShopTestimonial } from '@modules/e-shop/domain/e-shop-testimonial.entity';
 import type { CompanyPaymentMethodConfig } from '@modules/payment-methods-config/domain/payment-method-config.types';
@@ -76,10 +76,9 @@ import {
   SEED_BRANCH_NAME,
   SEED_BRANCH_PHONE,
   SEED_CASH_HUBS,
-  SEED_DEV_COMPANY,
-  SEED_DEV_COMPANY_SECOND,
-  SEED_DEV_COMPANY_SECOND_ESHOP_SLUG,
-  SEED_DEV_SHAREHOLDERS,
+  SEED_JOYARTE_COMPANY,
+  SEED_JOYARTE_COMPANY_LOGO_FILE,
+  SEED_JOYARTE_SHAREHOLDERS,
   SEED_POS_NAMES,
   SEED_PRICE_LIST_ESHOP_NAME,
   SEED_PRICE_LIST_RETAIL_NAME,
@@ -88,30 +87,34 @@ import {
   SEED_STORAGE_NAME,
   buildSeedCompanyBankAccounts,
   buildSeedCompanyPaymentCatalog,
-  buildSeedCompanySettings,
   buildSeedEmployeeBankAccount,
-  buildSeedEshopPublicContact,
+  buildSeedJoyarteCompanySettings,
   buildSeedPosPaymentList,
-} from './seed-dev-config';
+} from './seed-joyarte-config';
 import {
-  SEED_DEV_ATTRIBUTES,
-  SEED_DEV_ATTRIBUTE_TALLA,
-  SEED_DEV_BRANDS,
-  SEED_DEV_CATEGORIES,
-  SEED_DEV_PRODUCTS,
-  SEED_DEV_ESHOP_FEATURED_PRODUCT_NAMES,
-  SEED_DEV_VARIANT_SKU_PREFIX,
-  collectSeedDevCatalogProductNames,
-  collectSeedDevCatalogSkus,
-  type SeedDevUnitKey,
-} from './seed-dev-catalog';
-import { runSeedBootstrapGuards } from './shared/seed-bootstrap.util';
+  SEED_JOYARTE_ASSETS_ROOT,
+  SEED_JOYARTE_ATTRIBUTES,
+  SEED_JOYARTE_BRANDS,
+  SEED_JOYARTE_CATEGORIES,
+  SEED_JOYARTE_ESHOP_FEATURED_PRODUCT_NAMES,
+  SEED_JOYARTE_VARIANT_SKU_PREFIX,
+  getJoyarteCatalogProductNames,
+  getJoyarteCatalogSkus,
+  loadJoyarteCatalogJson,
+  mapJoyarteCatalogToSeedProducts,
+} from './seed-joyarte-catalog';
+import { buildJoyarteProductImagesFromCatalog } from './seed-joyarte-catalog-images';
+import { buildJoyarteProductImagesForSeed } from './seed-joyarte-featured-product-images';
+import { SEED_JOYARTE_ESHOP_HERO_SLIDES } from './seed-joyarte-eshop-hero-slides';
+import { SEED_JOYARTE_ESHOP_TESTIMONIALS } from './seed-joyarte-eshop-testimonials';
+import { runSeedBootstrapGuards } from '../shared/seed-bootstrap.util';
 import {
   seedProductsFromDefinitions,
   syncSeedAttributes,
   syncSeedBrands,
   syncSeedCategories,
-} from './shared/seed-catalog.util';
+} from '../shared/seed-catalog.util';
+import type { SeedUnitKey } from '../shared/seed-catalog.types';
 
 const SEED_IVA_DESCRIPTION =
   'Impuesto al Valor Agregado sobre ventas, servicios e importaciones.';
@@ -143,24 +146,22 @@ const LEGACY_SEED_ATTRIBUTE_NAMES = ['AÑO', 'MARCA DE AUTO'] as const;
 
 const LEGACY_PRICE_LIST_NAMES = ['UNICA'] as const;
 
-function buildSeedAttributes(): readonly {
-  name: string;
-  options: readonly string[];
-  displayOrder: number;
-}[] {
-  return SEED_DEV_ATTRIBUTES.map((a) => ({
+function buildSeedAttributes() {
+  return SEED_JOYARTE_ATTRIBUTES.map((a) => ({
     name: a.name,
     options: [...a.options],
     displayOrder: a.displayOrder,
   }));
 }
 
-async function cleanupOrphanSeedDevCatalog(args: {
+async function cleanupOrphanJoyarteCatalog(args: {
   companyId: string;
   productRepo: Repository<Product>;
   variantRepo: Repository<ProductVariant>;
   priceListItemRepo: Repository<PriceListItem>;
   stockLevelRepo: Repository<StockLevel>;
+  allowedSkus: Set<string>;
+  allowedProductNames: Set<string>;
 }): Promise<void> {
   const {
     companyId,
@@ -168,9 +169,9 @@ async function cleanupOrphanSeedDevCatalog(args: {
     variantRepo,
     priceListItemRepo,
     stockLevelRepo,
+    allowedSkus,
+    allowedProductNames,
   } = args;
-  const allowedSkus = collectSeedDevCatalogSkus();
-  const allowedProductNames = collectSeedDevCatalogProductNames();
 
   const activeVariants = await variantRepo.find({
     where: { companyId, deletedAt: IsNull() },
@@ -178,7 +179,7 @@ async function cleanupOrphanSeedDevCatalog(args: {
 
   let removedVariants = 0;
   for (const variant of activeVariants) {
-    if (!variant.sku.startsWith(SEED_DEV_VARIANT_SKU_PREFIX)) {
+    if (!variant.sku.startsWith(SEED_JOYARTE_VARIANT_SKU_PREFIX)) {
       continue;
     }
     if (allowedSkus.has(variant.sku)) {
@@ -916,94 +917,6 @@ const SEED_EMPLOYEES: readonly {
   },
 ] as const;
 
-type SeedDevCompanyDef = {
-  razonSocial: string;
-  nombreFantasia: string;
-  rut: string;
-  mail: string;
-  phone: string;
-  address: string;
-  businessActivity: string;
-  defaultCurrency: string;
-};
-
-/** Empresa activa en BD sin catálogo/sucursales — para probar multi-RUT en admin. */
-async function upsertMinimalSeedCompany(
-  companyRepo: Repository<Company>,
-  def: SeedDevCompanyDef,
-  eShopPublicSlug: string,
-): Promise<Company> {
-  assertValidChileCompanyRut(def.rut, `seed company (${def.rut})`);
-
-  let row = await companyRepo.findOne({
-    where: { rut: def.rut, deletedAt: null as never },
-  });
-
-  if (!row) {
-    row = companyRepo.create({
-      razonSocial: def.razonSocial,
-      nombreFantasia: def.nombreFantasia,
-      businessActivity: def.businessActivity,
-      rut: def.rut,
-      address: def.address,
-      mail: def.mail,
-      phone: def.phone,
-      defaultCurrency: def.defaultCurrency,
-      isActive: true,
-    });
-    await companyRepo.save(row);
-    console.log(
-      `✅ Empresa mínima creada: id=${row.id} razonSocial='${def.razonSocial}' rut='${def.rut}'`,
-    );
-  } else {
-    row.razonSocial = def.razonSocial;
-    row.nombreFantasia = def.nombreFantasia;
-    row.businessActivity = def.businessActivity;
-    row.address = def.address;
-    row.mail = def.mail;
-    row.phone = def.phone;
-    await companyRepo.save(row);
-    console.log(
-      `✅ Empresa mínima ya existía: id=${row.id} rut='${row.rut}' (datos básicos actualizados)`,
-    );
-  }
-
-  const seedBankRows = buildSeedCompanyBankAccounts(row.razonSocial);
-  const byKey = new Map(
-    (row.bankAccounts ?? []).map((a) => [
-      a.accountKey ?? `${String(a.bankName)}_${a.accountNumber}`,
-      a,
-    ] as const),
-  );
-  for (const bankRow of seedBankRows) {
-    byKey.set(bankRow.accountKey!, bankRow);
-  }
-  row.bankAccounts = Array.from(byKey.values());
-
-  const seedCompanyPaymentCatalog = buildSeedCompanyPaymentCatalog();
-  const settings = buildSeedCompanySettings(
-    row.settings as Record<string, unknown> | undefined,
-    seedCompanyPaymentCatalog,
-  );
-  settings.eShopEnabled = true;
-  settings.eShopPublicSlug = eShopPublicSlug;
-  settings.companyIdentity = {
-    tagline: `Tienda ${def.nombreFantasia}`,
-  };
-  settings.publicContact = buildSeedEshopPublicContact(
-    eShopPublicSlug,
-    def.mail,
-    def.phone,
-  );
-  row.settings = settings;
-  await companyRepo.save(row);
-
-  console.log(
-    `✅ Empresa mínima lista: companyId=${row.id} eShop slug='${eShopPublicSlug}'`,
-  );
-  return row;
-}
-
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(MinimalSeedModule, {
     logger: ['error', 'warn', 'log'],
@@ -1053,18 +966,18 @@ async function bootstrap() {
     const password = process.env.SEED_ADMIN_PASSWORD || '098098';
     const email = process.env.SEED_ADMIN_EMAIL || 'admin@flowstore.local';
     const razonSocial =
-      process.env.SEED_COMPANY_RAZON_SOCIAL || SEED_DEV_COMPANY.razonSocial;
+      process.env.SEED_COMPANY_RAZON_SOCIAL || SEED_JOYARTE_COMPANY.razonSocial;
     const nombreFantasia =
-      process.env.SEED_NOMBRE_FANTASIA || SEED_DEV_COMPANY.nombreFantasia;
+      process.env.SEED_NOMBRE_FANTASIA || SEED_JOYARTE_COMPANY.nombreFantasia;
     const businessActivity =
-      process.env.SEED_BUSINESS_ACTIVITY || SEED_DEV_COMPANY.businessActivity;
-    const rut = process.env.SEED_COMPANY_RUT || SEED_DEV_COMPANY.rut;
+      process.env.SEED_BUSINESS_ACTIVITY || SEED_JOYARTE_COMPANY.businessActivity;
+    const rut = process.env.SEED_COMPANY_RUT || SEED_JOYARTE_COMPANY.rut;
     const companyAddress =
-      process.env.SEED_COMPANY_ADDRESS || SEED_DEV_COMPANY.address;
+      process.env.SEED_COMPANY_ADDRESS || SEED_JOYARTE_COMPANY.address;
     const companyMail =
-      process.env.SEED_COMPANY_MAIL || SEED_DEV_COMPANY.mail;
+      process.env.SEED_COMPANY_MAIL || SEED_JOYARTE_COMPANY.mail;
     const companyPhone =
-      process.env.SEED_COMPANY_PHONE || SEED_DEV_COMPANY.phone;
+      process.env.SEED_COMPANY_PHONE || SEED_JOYARTE_COMPANY.phone;
 
     assertValidChileCompanyRut(rut, 'SEED_COMPANY_RUT');
 
@@ -1080,7 +993,7 @@ async function bootstrap() {
         address: companyAddress,
         mail: companyMail,
         phone: companyPhone,
-        defaultCurrency: SEED_DEV_COMPANY.defaultCurrency,
+        defaultCurrency: SEED_JOYARTE_COMPANY.defaultCurrency,
         isActive: true,
       });
       await companyRepo.save(company);
@@ -1121,26 +1034,16 @@ async function bootstrap() {
    * cotizaciones y crédito interno. Se sincronizan en cada seed.
    */
     const seedCompanyPaymentCatalog = buildSeedCompanyPaymentCatalog();
-    company.settings = buildSeedCompanySettings(
+    company.settings = buildSeedJoyarteCompanySettings(
       company.settings as Record<string, unknown> | undefined,
       seedCompanyPaymentCatalog,
     );
-    const syncedSettings = company.settings as Record<string, unknown>;
-    const eShopSlug =
-      typeof syncedSettings.eShopPublicSlug === 'string'
-        ? syncedSettings.eShopPublicSlug
-        : 'demo';
-    syncedSettings.publicContact = buildSeedEshopPublicContact(
-      eShopSlug,
-      company.mail ?? SEED_DEV_COMPANY.mail,
-      company.phone ?? SEED_DEV_COMPANY.phone,
-    );
-    company.settings = syncedSettings;
     await companyRepo.save(company);
+    const syncedSettings = company.settings as Record<string, unknown>;
     console.log(
-      `✅ Settings empresa sincronizados: medios (${seedCompanyPaymentCatalog
+      `✅ Settings Joyarte sincronizados: medios (${seedCompanyPaymentCatalog
         .map((c) => c.method)
-        .join(', ')}), cotizaciones 10/20 días, cheques off, crédito interno off`,
+        .join(', ')}), eShop slug joyarte, tema jewelry`,
     );
     const publicContact = syncedSettings.publicContact as {
       email?: string;
@@ -1153,11 +1056,8 @@ async function bootstrap() {
       `✅ Contacto público eShop: email=${publicContact.email ?? '—'} phone=${publicContact.phone ?? '—'} instagram=${publicContact.instagram ?? '—'} tiktok=${publicContact.tiktok ?? '—'} facebook=${publicContact.facebook ?? '—'}`,
     );
 
-    await upsertMinimalSeedCompany(
-      companyRepo,
-      SEED_DEV_COMPANY_SECOND,
-      SEED_DEV_COMPANY_SECOND_ESHOP_SLUG,
-    );
+    const joyarteCatalog = loadJoyarteCatalogJson();
+    const joyarteProducts = mapJoyarteCatalogToSeedProducts(joyarteCatalog);
 
     /**
      * A partir de aquí, todo el resto del seed se ejecuta dentro del
@@ -1180,7 +1080,7 @@ async function bootstrap() {
         const logoAsset = await seedMultimediaFileLink({
           assetRepo: multimediaAssetRepo,
           linkRepo: multimediaLinkRepo,
-          sourceRelativePath: SEED_COMPANY_LOGO_FILE,
+          sourceRelativePath: SEED_JOYARTE_COMPANY_LOGO_FILE,
           localStoragePath: configService.storage.local.path,
           publicBasePath: configService.storage.publicBasePath,
           storageProvider: configService.storage.strategy,
@@ -1188,6 +1088,7 @@ async function bootstrap() {
           entityId: company.id,
           usageType: 'default',
           isPrimary: true,
+          assetsRoot: SEED_JOYARTE_ASSETS_ROOT,
         });
         console.log(
           `✅ Logo empresa seed enlazado (companyId=${company.id}, url=${logoAsset.publicUrl})`,
@@ -1802,7 +1703,6 @@ async function bootstrap() {
     await setCompanyDefaultUnit(baseUnit.id);
 
     /** Símbolos de unidad seed (empresa actual) para variantes y product.baseUnitId */
-    type SeedUnitKey = SeedDevUnitKey;
 
     const upsertSeedUnit = async (args: {
       symbol: string;
@@ -1914,8 +1814,8 @@ async function bootstrap() {
 
     const categoryByName = await syncSeedCategories(
       categoryRepo,
-      SEED_DEV_CATEGORIES,
-      'Seed dev',
+      SEED_JOYARTE_CATEGORIES,
+      'Seed Joyarte',
     );
 
     for (const legacyName of LEGACY_SEED_ATTRIBUTE_NAMES) {
@@ -1929,11 +1829,8 @@ async function bootstrap() {
     const attributesByName = await syncSeedAttributes(
       attributeRepo,
       buildSeedAttributes(),
-      'Seed dev',
+      'Seed Joyarte',
     );
-    if (!attributesByName.has(SEED_DEV_ATTRIBUTE_TALLA.name)) {
-      throw new Error('Seed dev: atributo Talla no sincronizado');
-    }
 
     for (const legacyName of LEGACY_PRICE_LIST_NAMES) {
       const legacy = await priceListRepo.findOne({
@@ -1999,13 +1896,13 @@ async function bootstrap() {
     const brandIdByName = await syncSeedBrands(
       brandRepo,
       company.id,
-      SEED_DEV_BRANDS,
-      'Seed dev',
+      SEED_JOYARTE_BRANDS,
+      'Seed Joyarte',
     );
-    console.log(`✅ Marcas desarrollo sincronizadas: ${SEED_DEV_BRANDS.length}`);
+    console.log(`✅ Marcas Joyarte sincronizadas: ${SEED_JOYARTE_BRANDS.length}`);
 
-    const { variantCount: devVariantCount, stockByVariantId: devStockByVariantId } =
-      await seedProductsFromDefinitions(SEED_DEV_PRODUCTS, {
+    const { variantCount: joyarteVariantCount, stockByVariantId: joyarteStockByVariantId } =
+      await seedProductsFromDefinitions(joyarteProducts, {
         companyId: company.id,
         productRepo,
         variantRepo,
@@ -2018,21 +1915,25 @@ async function bootstrap() {
         listaMinoristaId: listaMinorista.id,
         listaMayoristaId: listaMayorista.id,
         listaEshopId: listaEshop.id,
-        logPrefix: 'Seed dev',
+        logPrefix: 'Seed Joyarte',
       });
 
-    console.log(`✅ Catálogo desarrollo: ${devVariantCount} variante(s) en ${SEED_DEV_PRODUCTS.length} producto(s)`);
+    console.log(
+      `✅ Catálogo Joyarte: ${joyarteVariantCount} variante(s) en ${joyarteProducts.length} producto(s)`,
+    );
 
     await productRepo.update({ companyId: company.id }, { visibleInEShop: true });
     await variantRepo.update({ companyId: company.id }, { visibleInEShop: true });
     console.log('✅ eShop: todos los productos y variantes marcados visibleInEShop=true');
 
-    await cleanupOrphanSeedDevCatalog({
+    await cleanupOrphanJoyarteCatalog({
       companyId: company.id,
       productRepo,
       variantRepo,
       priceListItemRepo,
       stockLevelRepo: dataSource.getRepository(StockLevel),
+      allowedSkus: getJoyarteCatalogSkus(joyarteCatalog),
+      allowedProductNames: getJoyarteCatalogProductNames(joyarteCatalog),
     });
 
     await variantRepo.update(
@@ -2051,7 +1952,7 @@ async function bootstrap() {
       settings.eShopDefaultStorageId = seedSalaVenta.id;
 
       const featuredProductIds: string[] = [];
-      for (const productName of SEED_DEV_ESHOP_FEATURED_PRODUCT_NAMES) {
+      for (const productName of SEED_JOYARTE_ESHOP_FEATURED_PRODUCT_NAMES) {
         const featuredProduct = await productRepo.findOne({
           where: { name: productName, companyId: company.id },
         });
@@ -2066,9 +1967,9 @@ async function bootstrap() {
       settings.eShopFeaturedProductIds = featuredProductIds;
       settings.eShopFeaturedProductVariantIds = [];
 
-      if (featuredProductIds.length < SEED_DEV_ESHOP_FEATURED_PRODUCT_NAMES.length) {
+      if (featuredProductIds.length < SEED_JOYARTE_ESHOP_FEATURED_PRODUCT_NAMES.length) {
         console.warn(
-          `⚠️ Seed dev: solo ${featuredProductIds.length}/${SEED_DEV_ESHOP_FEATURED_PRODUCT_NAMES.length} producto(s) destacados eShop encontrados`,
+          `⚠️ Seed Joyarte: solo ${featuredProductIds.length}/${SEED_JOYARTE_ESHOP_FEATURED_PRODUCT_NAMES.length} producto(s) destacados eShop encontrados`,
         );
       }
 
@@ -2089,21 +1990,28 @@ async function bootstrap() {
       seedImages: configService.storage.strategy === 'local',
     };
 
-    await seedDevCatalogMultimedia({
+    await seedCatalogMultimediaByProductName({
       productRepo,
-      variantRepo,
-      attributeRepo: dataSource.getRepository(Attribute),
       ...seedMultimediaParams,
+      images: buildJoyarteProductImagesForSeed(joyarteCatalog),
+      assetsRoot: SEED_JOYARTE_ASSETS_ROOT,
+      logLabel: 'Joyarte',
     });
 
-    await seedDevEshopHeroSlides({
+    await seedEshopHeroSlidesFromDefs({
       heroSlideRepo: dataSource.getRepository(EShopHeroSlide),
       ...seedMultimediaParams,
+      slides: SEED_JOYARTE_ESHOP_HERO_SLIDES,
+      assetsRoot: SEED_JOYARTE_ASSETS_ROOT,
+      logLabel: 'Joyarte',
     });
 
-    await seedDevEshopTestimonials({
+    await seedEshopTestimonialsFromDefs({
       testimonialRepo: dataSource.getRepository(EShopTestimonial),
       ...seedMultimediaParams,
+      testimonials: SEED_JOYARTE_ESHOP_TESTIMONIALS,
+      assetsRoot: SEED_JOYARTE_ASSETS_ROOT,
+      logLabel: 'Joyarte',
     });
 
     const priceListsJson = [
@@ -2154,7 +2062,7 @@ async function bootstrap() {
       select: ['id'],
     });
     for (const v of trackedVariants) {
-      const physicalQty = devStockByVariantId.get(v.id) ?? 12;
+      const physicalQty = joyarteStockByVariantId.get(v.id) ?? 12;
       let sl = await stockLevelRepo.findOne({
         where: { productVariantId: v.id, storageId: seedSalaVenta.id },
       });
@@ -2441,7 +2349,7 @@ async function bootstrap() {
 
     const seedShareholderPersonIds = new Set<string>();
 
-    for (const sh of SEED_DEV_SHAREHOLDERS) {
+    for (const sh of SEED_JOYARTE_SHAREHOLDERS) {
       let person = await personRepo.findOne({
         where: { documentNumber: sh.documentNumber, deletedAt: null as never },
       });
@@ -2616,17 +2524,17 @@ async function bootstrap() {
       documentNumber: '33333333-3',
     });
 
-    console.log('✅ Seed mínimo OK. Tres usuarios listos:');
+    console.log('✅ Seed Joyarte OK. Tres usuarios listos:');
     console.log(`   • superadmin / ${seedPassword}   (SUPER_ADMIN, protegido)`);
     console.log(`   • ${userName} / ${seedPassword}        (ADMIN de la empresa)`);
     console.log(`   • operador / ${seedPassword}    (OPERATOR de la empresa)`);
     console.log(
-      `   • Empresas en BD: «${SEED_DEV_COMPANY.nombreFantasia}» (${SEED_DEV_COMPANY.rut}, eShop demo) + «${SEED_DEV_COMPANY_SECOND.nombreFantasia}» (${SEED_DEV_COMPANY_SECOND.rut}, eShop ${SEED_DEV_COMPANY_SECOND_ESHOP_SLUG})`,
+      `   • Empresa: «${SEED_JOYARTE_COMPANY.nombreFantasia}» (${SEED_JOYARTE_COMPANY.rut}, eShop joyarte, tema jewelry)`,
     );
       },
     );
   } catch (error) {
-    console.error('❌ Error ejecutando seed mínimo:', error);
+    console.error('❌ Error ejecutando seed Joyarte:', error);
     process.exitCode = 1;
   } finally {
     await app.close();

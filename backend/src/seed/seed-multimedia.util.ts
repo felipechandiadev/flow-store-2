@@ -63,8 +63,10 @@ export async function seedMultimediaFileLink(params: {
   usageType?: string;
   isPrimary?: boolean;
   attributeId?: string | null;
+  assetsRoot?: string;
 }): Promise<MultimediaAsset> {
-  const sourcePath = path.join(SEED_ASSETS_ROOT, params.sourceRelativePath);
+  const root = params.assetsRoot ?? SEED_ASSETS_ROOT;
+  const sourcePath = path.join(root, params.sourceRelativePath);
   const buffer = await fs.readFile(sourcePath);
   const ext = path.extname(sourcePath).toLowerCase();
   const mimeType = MIME_BY_EXT[ext] ?? 'application/octet-stream';
@@ -108,9 +110,12 @@ export async function seedMultimediaFileLink(params: {
   return asset;
 }
 
-async function seedAssetFileExists(relativePath: string): Promise<boolean> {
+async function seedAssetFileExists(
+  relativePath: string,
+  assetsRoot: string = SEED_ASSETS_ROOT,
+): Promise<boolean> {
   try {
-    await access(path.join(SEED_ASSETS_ROOT, relativePath));
+    await access(path.join(assetsRoot, relativePath));
     return true;
   } catch {
     return false;
@@ -347,4 +352,190 @@ function mapHeroSlideDef(companyId: string, def: SeedDevEshopHeroSlideDef) {
     overlayOpacity: def.overlayOpacity,
     textColor: def.textColor,
   };
+}
+
+type GenericHeroSlideDef = {
+  key: string;
+  title: string;
+  subtitle: string;
+  ctaLabel: string;
+  ctaHref: string;
+  ctaStyle: SeedDevEshopHeroSlideDef['ctaStyle'];
+  textAlign: SeedDevEshopHeroSlideDef['textAlign'];
+  overlayOpacity: number;
+  textColor: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  imageFile?: string;
+};
+
+type GenericTestimonialDef = {
+  key: string;
+  clientName: string;
+  rating: number;
+  message: string;
+  sortOrder: number;
+  imageFile?: string;
+};
+
+export async function seedEshopHeroSlidesFromDefs(params: {
+  heroSlideRepo: Repository<EShopHeroSlide>;
+  assetRepo: Repository<MultimediaAsset>;
+  linkRepo: Repository<MultimediaLink>;
+  companyId: string;
+  localStoragePath: string;
+  publicBasePath: string;
+  storageProvider: 'local' | 'cloudflare';
+  seedImages: boolean;
+  slides: readonly GenericHeroSlideDef[];
+  assetsRoot: string;
+  logLabel: string;
+}): Promise<void> {
+  await params.heroSlideRepo.delete({ companyId: params.companyId });
+
+  let linkedImages = 0;
+  for (const def of params.slides) {
+    const slide = await params.heroSlideRepo.save(
+      params.heroSlideRepo.create(mapHeroSlideDef(params.companyId, def)),
+    );
+
+    if (!params.seedImages || !def.imageFile) {
+      continue;
+    }
+    if (!(await seedAssetFileExists(def.imageFile, params.assetsRoot))) {
+      console.warn(
+        `⚠️ ${params.logLabel}: imagen hero «${def.key}» no encontrada (${def.imageFile}); slide sin imagen`,
+      );
+      continue;
+    }
+
+    await seedMultimediaFileLink({
+      assetRepo: params.assetRepo,
+      linkRepo: params.linkRepo,
+      sourceRelativePath: def.imageFile,
+      localStoragePath: params.localStoragePath,
+      publicBasePath: params.publicBasePath,
+      storageProvider: params.storageProvider,
+      entityType: ESHOP_HERO_SLIDE_MULTIMEDIA_ENTITY,
+      entityId: slide.id,
+      usageType: 'default',
+      isPrimary: true,
+      assetsRoot: params.assetsRoot,
+    });
+    linkedImages += 1;
+  }
+
+  console.log(
+    `✅ Hero slides ${params.logLabel}: ${params.slides.length} slide(s), ${linkedImages} con imagen`,
+  );
+}
+
+export async function seedEshopTestimonialsFromDefs(params: {
+  testimonialRepo: Repository<EShopTestimonial>;
+  assetRepo: Repository<MultimediaAsset>;
+  linkRepo: Repository<MultimediaLink>;
+  companyId: string;
+  localStoragePath: string;
+  publicBasePath: string;
+  storageProvider: 'local' | 'cloudflare';
+  seedImages: boolean;
+  testimonials: readonly GenericTestimonialDef[];
+  assetsRoot: string;
+  logLabel: string;
+}): Promise<void> {
+  await params.testimonialRepo.delete({ companyId: params.companyId });
+
+  let linkedImages = 0;
+  for (const def of params.testimonials) {
+    const row = await params.testimonialRepo.save(
+      params.testimonialRepo.create(mapTestimonialDef(params.companyId, def)),
+    );
+
+    if (!params.seedImages || !def.imageFile) {
+      continue;
+    }
+    if (!(await seedAssetFileExists(def.imageFile, params.assetsRoot))) {
+      console.warn(
+        `⚠️ ${params.logLabel}: avatar testimonio «${def.key}» no encontrado (${def.imageFile}); sin imagen`,
+      );
+      continue;
+    }
+
+    await seedMultimediaFileLink({
+      assetRepo: params.assetRepo,
+      linkRepo: params.linkRepo,
+      sourceRelativePath: def.imageFile,
+      localStoragePath: params.localStoragePath,
+      publicBasePath: params.publicBasePath,
+      storageProvider: params.storageProvider,
+      entityType: ESHOP_TESTIMONIAL_MULTIMEDIA_ENTITY,
+      entityId: row.id,
+      usageType: 'default',
+      isPrimary: true,
+      assetsRoot: params.assetsRoot,
+    });
+    linkedImages += 1;
+  }
+
+  console.log(
+    `✅ Testimonios ${params.logLabel}: ${params.testimonials.length} registro(s), ${linkedImages} con avatar`,
+  );
+}
+
+export async function seedCatalogMultimediaByProductName(params: {
+  productRepo: Repository<Product>;
+  assetRepo: Repository<MultimediaAsset>;
+  linkRepo: Repository<MultimediaLink>;
+  companyId: string;
+  localStoragePath: string;
+  publicBasePath: string;
+  storageProvider: 'local' | 'cloudflare';
+  seedImages: boolean;
+  images: readonly { productName: string; imageFile: string }[];
+  assetsRoot: string;
+  logLabel: string;
+}): Promise<void> {
+  if (!params.seedImages) {
+    console.log(`⏭️ Imágenes catálogo ${params.logLabel} omitidas (storage no local)`);
+    return;
+  }
+
+  let linkedProducts = 0;
+  for (const def of params.images) {
+    const product = await params.productRepo.findOne({
+      where: { name: def.productName, companyId: params.companyId },
+    });
+    if (!product) {
+      console.warn(
+        `⚠️ ${params.logLabel}: producto «${def.productName}» no encontrado; imagen omitida`,
+      );
+      continue;
+    }
+    if (!(await seedAssetFileExists(def.imageFile, params.assetsRoot))) {
+      console.warn(
+        `⚠️ ${params.logLabel}: imagen «${def.productName}» no encontrada (${def.imageFile})`,
+      );
+      continue;
+    }
+
+    await params.linkRepo.delete({ entityType: 'product', entityId: product.id });
+    await seedMultimediaFileLink({
+      assetRepo: params.assetRepo,
+      linkRepo: params.linkRepo,
+      sourceRelativePath: def.imageFile,
+      localStoragePath: params.localStoragePath,
+      publicBasePath: params.publicBasePath,
+      storageProvider: params.storageProvider,
+      entityType: 'product',
+      entityId: product.id,
+      usageType: 'primary-image',
+      isPrimary: true,
+      assetsRoot: params.assetsRoot,
+    });
+    linkedProducts += 1;
+  }
+
+  console.log(
+    `✅ Imágenes catálogo ${params.logLabel}: ${linkedProducts}/${params.images.length} producto(s)`,
+  );
 }
