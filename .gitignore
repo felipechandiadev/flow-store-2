@@ -20,6 +20,7 @@ build/
 **/dist/
 **/build/
 **/.vite/
+**/.next/
 
 # Local environment files
 .env
