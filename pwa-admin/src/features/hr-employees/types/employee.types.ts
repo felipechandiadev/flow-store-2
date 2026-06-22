@@ -9,7 +9,27 @@ export type EmployeePersonSummary = {
   phone?: string | null;
 };
 
+export type EmployeePersonDetail = EmployeePersonSummary & {
+  address?: string | null;
+};
+
 export type EmployeeBranchSummary = {
+  id: string;
+  name?: string | null;
+};
+
+export type EmployeeResultCenterSummary = {
+  id: string;
+  name?: string | null;
+  code?: string | null;
+};
+
+export type EmployeeOrganizationalUnitSummary = {
+  id: string;
+  name?: string | null;
+};
+
+export type EmployeeCompanySummary = {
   id: string;
   name?: string | null;
 };
@@ -30,7 +50,69 @@ export type EmployeeGridRow = {
   branch?: EmployeeBranchSummary | null;
 };
 
+export type EmployeeDetailView = {
+  id: string;
+  personId: string;
+  companyId?: string;
+  branchId?: string | null;
+  resultCenterId?: string | null;
+  organizationalUnitId?: string | null;
+  employmentType?: string;
+  status?: string;
+  hireDate?: string;
+  terminationDate?: string | null;
+  baseSalary?: string | null;
+  person?: EmployeePersonDetail | null;
+  branch?: EmployeeBranchSummary | null;
+  resultCenter?: EmployeeResultCenterSummary | null;
+  organizationalUnit?: EmployeeOrganizationalUnitSummary | null;
+  company?: EmployeeCompanySummary | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type UpdateEmployeePersonPayload = {
+  firstName?: string;
+  lastName?: string;
+  documentType?: "RUN" | "PASSPORT" | "DNI";
+  documentNumber?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+};
+
+export type UpdateEmployeePayload = {
+  branchId?: string | null;
+  resultCenterId?: string | null;
+  organizationalUnitId?: string | null;
+  employmentType?: string;
+  status?: string;
+  terminationDate?: string | null;
+  baseSalary?: string | null;
+};
+
+export type ResultCenterListItem = {
+  id: string;
+  name: string;
+  code?: string | null;
+};
+
 export type EmployeeListResult = {
   success: boolean;
   data: EmployeeGridRow[];
 };
+
+export function employeeDisplayName(
+  row: Pick<EmployeeGridRow | EmployeeDetailView, "person"> & { personId?: string },
+): string {
+  const p = row.person;
+  if (!p) {
+    return row.personId?.trim() || "—";
+  }
+  const business = p.businessName?.trim();
+  if (business) {
+    return business;
+  }
+  const full = [p.firstName, p.lastName].filter(Boolean).join(" ").trim();
+  return full || "—";
+}

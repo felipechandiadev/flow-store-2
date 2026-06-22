@@ -55,10 +55,18 @@ describe('OperationalExpensesController (Integration)', () => {
       .send({
         companyId: '11111111-1111-4111-8111-111111111111',
         categoryId: '22222222-2222-4222-8222-222222222222',
+        supplierId: '55555555-5555-4555-8555-555555555555',
         name: 'Gasto de prueba',
         referenceNumber: 'REF-1',
         operationDate: '2026-04-19',
         createdBy: '33333333-3333-4333-8333-333333333333',
+        documentKind: 'SUPPLIER_INVOICE',
+        fiscalAmounts: { subtotal: 10000, taxAmount: 1900, total: 11900 },
+        supplierDocumentPayment: {
+          mode: 'PENDING',
+          paidLines: [],
+          scheduledLines: [],
+        },
         metadata: {
           attachments: ['/legacy/file.pdf'],
         },
@@ -77,10 +85,18 @@ describe('OperationalExpensesController (Integration)', () => {
       .send({
         companyId: '11111111-1111-4111-8111-111111111111',
         categoryId: '22222222-2222-4222-8222-222222222222',
+        supplierId: '55555555-5555-4555-8555-555555555555',
         name: 'Gasto de prueba',
         referenceNumber: 'REF-1',
         operationDate: '2026-04-19',
         createdBy: '33333333-3333-4333-8333-333333333333',
+        documentKind: 'SUPPLIER_INVOICE',
+        fiscalAmounts: { subtotal: 10000, taxAmount: 1900, total: 11900 },
+        supplierDocumentPayment: {
+          mode: 'PENDING',
+          paidLines: [],
+          scheduledLines: [],
+        },
         metadata: {
           notes: 'ok',
         },
@@ -88,18 +104,22 @@ describe('OperationalExpensesController (Integration)', () => {
       })
       .expect(201);
 
-    expect(service.create).toHaveBeenCalledWith({
-      companyId: '11111111-1111-4111-8111-111111111111',
-      categoryId: '22222222-2222-4222-8222-222222222222',
-      referenceNumber: 'REF-1',
-      name: 'Gasto de prueba',
-      operationDate: '2026-04-19',
-      createdBy: '33333333-3333-4333-8333-333333333333',
-      metadata: {
-        notes: 'ok',
-      },
-      multimediaAssetIds: ['44444444-4444-4444-8444-444444444444'],
-    });
+    expect(service.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: '11111111-1111-4111-8111-111111111111',
+        categoryId: '22222222-2222-4222-8222-222222222222',
+        supplierId: '55555555-5555-4555-8555-555555555555',
+        referenceNumber: 'REF-1',
+        name: 'Gasto de prueba',
+        operationDate: '2026-04-19',
+        createdBy: '33333333-3333-4333-8333-333333333333',
+        documentKind: 'SUPPLIER_INVOICE',
+        metadata: {
+          notes: 'ok',
+        },
+        multimediaAssetIds: ['44444444-4444-4444-8444-444444444444'],
+      }),
+    );
   });
 
   it('should reject unknown query params on list', async () => {

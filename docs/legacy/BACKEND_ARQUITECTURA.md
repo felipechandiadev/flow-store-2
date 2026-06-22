@@ -400,7 +400,7 @@ Al crear un nuevo `TransactionType` o flujo de pago:
 1. Definir tipo en `transaction.entity.ts` / enums.
 2. Registrar prefijo en `document-prefixes.ts` si genera folio.
 3. Hook de agregación padre-hijo si aplica (ej. `ParentPaymentAggregateService`).
-4. Documentar el modelo de negocio en `docs/` si es un concepto nuevo (ej. `docs/CUENTAS_POR_PAGAR_MODELO.md`).
+4. Documentar el modelo de negocio en `docs/project/` o `docs/legacy/` si es un concepto nuevo (ej. `CUENTAS_POR_PAGAR_MODELO.md`).
 
 ---
 
@@ -448,7 +448,7 @@ Ejecutar según scripts del `package.json` del backend. Preferir tests de **comp
 | `BACKEND_INSTRUCTIONS.md` | Reglas resumidas para agentes / Copilot |
 | `backend/docs/architecture-migration-tasks.md` | Estado de migración CQRS por módulo |
 | `backend/docs/SALE_TRANSACTION_FLOW.md` | Flujo de venta |
-| `docs/CUENTAS_POR_PAGAR_MODELO.md` | Modelo de obligaciones de pago |
+| `CUENTAS_POR_PAGAR_MODELO.md` | Modelo de obligaciones de pago |
 | `backend/src/common/tenant/tenant.guard.ts` | Implementación auth + tenant |
 | `backend/src/modules/transactions/` | Módulo de referencia CQRS + event store |
 

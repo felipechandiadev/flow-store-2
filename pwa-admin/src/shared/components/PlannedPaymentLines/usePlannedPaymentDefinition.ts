@@ -171,7 +171,7 @@ export function usePlannedPaymentDefinition(args: UsePlannedPaymentDefinitionArg
       return;
     }
     if (paymentMode === "COMPLETED") {
-      setScheduledLines([]);
+      setScheduledLines((prev) => (prev.length === 0 ? prev : []));
       if (!manualPaidLockRef.current) {
         setPaidLines([
           newImmediatePaymentLine({
@@ -188,12 +188,12 @@ export function usePlannedPaymentDefinition(args: UsePlannedPaymentDefinitionArg
       return;
     }
     if (paymentMode === "PENDING") {
-      setPaidLines([]);
-      setScheduledLines([]);
+      setPaidLines((prev) => (prev.length === 0 ? prev : []));
+      setScheduledLines((prev) => (prev.length === 0 ? prev : []));
       return;
     }
     if (paymentMode === "PENDING_SCHEDULED") {
-      setPaidLines([]);
+      setPaidLines((prev) => (prev.length === 0 ? prev : []));
       if (!manualSchedLockRef.current) {
         setScheduledLines((prev) => {
           if (prev.length > 0) {
@@ -210,10 +210,10 @@ export function usePlannedPaymentDefinition(args: UsePlannedPaymentDefinitionArg
       return;
     }
     if (paymentMode === "PARTIAL") {
-      setPaidLines([]);
+      setPaidLines((prev) => (prev.length === 0 ? prev : []));
       if (!manualSchedLockRef.current) {
         if (!partialAmountDefined) {
-          setScheduledLines([]);
+          setScheduledLines((prev) => (prev.length === 0 ? prev : []));
         } else {
           setScheduledLines([
             newScheduledPaymentLine({

@@ -6,4 +6,4 @@
 - **Prohibido** `fetch` al backend desde componentes cliente (excepto casos documentados).
 - Hero: **hardcodeado** en `src/features/e-shop-storefront/constants/hero.ts` — no API ni BD.
 - Reutilizar UI: `import { Button, IconButton } from "@/shared/admin-shared"`.
-- UX obligatoria: ver `docs/KAISTORE_E-SHOP_DEVELOPMENT_GUIDE.md` §7.0.
+- UX obligatoria: ver `docs/legacy/KAISTORE_E-SHOP_DEVELOPMENT_GUIDE.md` §7.0.

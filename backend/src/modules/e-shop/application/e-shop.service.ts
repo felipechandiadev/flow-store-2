@@ -25,6 +25,7 @@ import { EShopTestimonial } from '../domain/e-shop-testimonial.entity';
 import { EShopHeroSlide, type EShopHeroSlideCtaStyle, type EShopHeroSlideTextAlign } from '../domain/e-shop-hero-slide.entity';
 import { ESHOP_TESTIMONIAL_MULTIMEDIA_ENTITY } from '../domain/e-shop-testimonial.constants';
 import { ESHOP_HERO_SLIDE_MULTIMEDIA_ENTITY } from '../domain/e-shop-hero-slide.constants';
+import { resolveEShopTheme } from '@modules/companies/domain/company-eshop-theme.types';
 import type { EShopStoreContext } from './eshop-store.context';
 import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
 import { CompaniesService } from '@modules/companies/application/companies.service';
@@ -136,6 +137,7 @@ export class EShopService {
       eShopEnabled: store.eShop.eShopEnabled,
       eShopFreeShippingThreshold: store.eShop.eShopFreeShippingThreshold,
       eShopFeaturedProductVariantIds: store.eShop.eShopFeaturedProductVariantIds,
+      theme: resolveEShopTheme(store.companySettings),
     };
   }
 

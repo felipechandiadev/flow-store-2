@@ -52,6 +52,7 @@ export class EShopStoreGuard implements CanActivate {
         settings: company.settings as Record<string, unknown>,
       }),
       companyIdentity: identity,
+      companySettings: settings,
     };
 
     request.eshopStore = ctx;

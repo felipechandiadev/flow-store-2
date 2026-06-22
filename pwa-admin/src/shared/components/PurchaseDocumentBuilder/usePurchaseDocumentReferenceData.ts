@@ -46,10 +46,15 @@ export type PurchaseDocumentReferenceState =
  * Catálogo de proveedores, almacenes, impuestos y primera sucursal (para asiento).
  * Fuera del RSC para no acoplar la página de compras al tiempo de esas APIs.
  */
-export function usePurchaseDocumentReferenceData(): PurchaseDocumentReferenceState {
-  const [state, setState] = useState<PurchaseDocumentReferenceState>({ status: "loading" });
+export function usePurchaseDocumentReferenceData(enabled = true): PurchaseDocumentReferenceState {
+  const [state, setState] = useState<PurchaseDocumentReferenceState>(
+    enabled ? { status: "loading" } : { status: "loading" },
+  );
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
     let cancelled = false;
 
     void (async () => {
@@ -88,7 +93,7 @@ export function usePurchaseDocumentReferenceData(): PurchaseDocumentReferenceSta
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enabled]);
 
   return state;
 }

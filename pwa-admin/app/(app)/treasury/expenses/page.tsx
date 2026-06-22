@@ -44,7 +44,6 @@ export default async function Page({
           rows={result.rows}
           total={result.total}
           categories={result.categories}
-          suppliers={result.suppliers}
         />
       </Suspense>
     </div>

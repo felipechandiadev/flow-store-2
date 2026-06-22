@@ -2,19 +2,14 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 import { SearchTransactionsQuery } from '@modules/transactions/application/queries/search-transactions.query';
 import { FindTransactionQuery } from '@modules/transactions/application/queries/find-transaction.query';
-import { TransactionType, PaymentStatus } from '@modules/transactions/domain/transaction.entity';
-import { CreateTransactionDto } from '@modules/transactions/application/dto/create-transaction.dto';
-import { TransactionsService } from '@modules/transactions/application/transactions.service';
-import {
-  applyDteNumberToSupplierDocumentDto,
-  normalizeDteNumberFromBody,
-} from '@modules/transactions/presentation/helpers/supplier-dte-create.helper';
+import { TransactionType } from '@modules/transactions/domain/transaction.entity';
+import { SupplierFiscalDocumentCreateService } from '@modules/transactions/application/services/supplier-fiscal-document-create.service';
 
 @Controller('supplier-honorarium-receipts')
 export class SupplierHonorariumReceiptsController {
   constructor(
     private readonly queryBus: QueryBus,
-    private readonly transactionsService: TransactionsService,
+    private readonly supplierFiscalDocumentCreate: SupplierFiscalDocumentCreateService,
   ) {}
 
   @Get()
@@ -52,36 +47,19 @@ export class SupplierHonorariumReceiptsController {
 
   @Post()
   async create(@Body() body: any) {
-    const dto = new CreateTransactionDto();
-    dto.transactionType = TransactionType.SUPPLIER_HONORARIUM_RECEIPT;
-    dto.branchId = body.branchId;
-    dto.userId = body.userId;
-    dto.supplierId = body.supplierId;
-    dto.storageId = body.storageId ?? undefined;
-    dto.subtotal = Number(body.subtotal ?? 0) || 0;
-    dto.taxAmount = Number(body.taxAmount ?? 0) || 0;
-    dto.discountAmount = Number(body.discountAmount ?? 0) || 0;
-    dto.total = Number(body.total ?? 0) || 0;
-    dto.paymentMethod = body.paymentMethod;
-    dto.paymentStatus = body.paymentStatus as PaymentStatus | undefined;
-    dto.amountPaid = Number(body.amountPaid ?? 0) || 0;
-    dto.changeAmount = body.changeAmount ?? undefined;
-    dto.notes = body.notes ?? undefined;
-    dto.externalReference = body.externalReference ?? undefined;
-    dto.relatedTransactionId = body.relatedTransactionId ?? undefined;
-    applyDteNumberToSupplierDocumentDto(body, dto);
-    const dteNumber = normalizeDteNumberFromBody(body);
-    dto.metadata = {
-      ...(body.metadata ?? {}),
-      origin: 'SUPPLIER_HONORARIUM_RECEIPT',
-      ...(dteNumber ? { dteNumber } : {}),
-      links: {
-        purchaseOrderId: body?.metadata?.links?.purchaseOrderId ?? null,
-        receptionId: body?.metadata?.links?.receptionId ?? null,
-        stockInTransactionId: body?.metadata?.links?.stockInTransactionId ?? null,
+    return this.supplierFiscalDocumentCreate.createFromHttpBody({
+      ...body,
+      transactionType: TransactionType.SUPPLIER_HONORARIUM_RECEIPT,
+      paymentOrigin: 'SUPPLIER_HONORARIUM_RECEIPT_PAYMENT',
+      metadata: {
+        ...(body.metadata ?? {}),
+        origin: 'SUPPLIER_HONORARIUM_RECEIPT',
+        links: {
+          purchaseOrderId: body?.metadata?.links?.purchaseOrderId ?? null,
+          receptionId: body?.metadata?.links?.receptionId ?? null,
+          stockInTransactionId: body?.metadata?.links?.stockInTransactionId ?? null,
+        },
       },
-    };
-    dto.lines = Array.isArray(body.lines) ? body.lines : [];
-    return this.transactionsService.createTransaction(dto);
+    });
   }
 }

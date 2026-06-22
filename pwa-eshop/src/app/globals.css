@@ -1,19 +1,21 @@
 @import "tailwindcss";
 
 /**
- * Fuentes sin descarga en build (evita fallar si no hay red).
+ * Tipografía: Inter (cuerpo) + League Spartan (titulares), autohospedadas con next/font/local.
+ * Ver src/shared/fonts/eshop-fonts.ts — sin CDN externo ni descarga en runtime del build.
  */
 :root {
-  --font-geist-sans:
-    ui-sans-serif, system-ui, sans-serif, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
+  --font-inter-fallback:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
     "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  --font-display-fallback: var(--font-inter-fallback);
   --font-geist-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
 
   color-scheme: light;
 
-  /* Fuente de verdad (cambia en @media dark); @theme referencia var(--fs-*) */
+  /* Fallback si la API no envía tema; EShopThemeShell sobrescribe --fs-* en runtime. */
   --fs-primary: #002b59;
   --fs-background: #ffffff;
   --fs-surface: #ffffff;
@@ -63,7 +65,8 @@
  * Tailwind v4: utilidades apuntan a --fs-* para que dark mode en :root las actualice.
  */
 @theme inline {
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter), var(--font-inter-fallback);
+  --font-display: var(--font-display), var(--font-display-fallback);
   --font-mono: var(--font-geist-mono);
 
   --app-topbar-height: 3.75rem;
@@ -91,13 +94,25 @@
 
 @layer base {
   html {
-    font-family: var(--font-geist-sans);
+    font-family: var(--font-sans);
   }
 
   body {
-    font-family: var(--font-geist-sans);
+    font-family: var(--font-sans);
     background-color: var(--fs-background);
     color: var(--fs-foreground);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
   }
 
   .container {

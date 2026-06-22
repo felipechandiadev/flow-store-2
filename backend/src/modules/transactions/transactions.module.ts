@@ -58,7 +58,11 @@ import { SupplierFiscalDocumentPaymentAggregateService } from './application/ser
 import { ParentPaymentAggregateService } from './application/services/parent-payment-aggregate.service';
 import { AccountsPayableService } from './application/services/accounts-payable.service';
 import { SupplierDocumentPaymentPlanService } from './application/services/supplier-document-payment-plan.service';
+import { SupplierDocumentFolioGuardService } from './application/services/supplier-document-folio-guard.service';
+import { SupplierFiscalDocumentCreateService } from './application/services/supplier-fiscal-document-create.service';
+import { OperatingExpensePaymentPlanService } from './application/services/operating-expense-payment-plan.service';
 import { ChecksModule } from '@modules/checks/checks.module';
+import { OperationalExpense } from '@modules/operational-expenses/domain/operational-expense.entity';
 
 // Inventory CQRS
 import { inventoryCommandHandlers } from './application/commands/inventory';
@@ -88,6 +92,7 @@ import { CancelBackorderService } from './application/cancel-backorder.service';
       Customer,
       CustomerOrmEntity,
       Tax,
+      OperationalExpense,
     ]),
     LedgerEntriesModule,
     AccountingPeriodsModule,
@@ -119,6 +124,9 @@ import { CancelBackorderService } from './application/cancel-backorder.service';
     ParentPaymentAggregateService,
     AccountsPayableService,
     SupplierDocumentPaymentPlanService,
+    SupplierDocumentFolioGuardService,
+    SupplierFiscalDocumentCreateService,
+    OperatingExpensePaymentPlanService,
     PurchaseOrdersService,
     TransactionsService, // Adapter for backward compatibility
     TransactionsServiceAdapter,
@@ -158,6 +166,9 @@ import { CancelBackorderService } from './application/cancel-backorder.service';
     ParentPaymentAggregateService,
     AccountsPayableService,
     SupplierDocumentPaymentPlanService,
+    SupplierDocumentFolioGuardService,
+    SupplierFiscalDocumentCreateService,
+    OperatingExpensePaymentPlanService,
     DocumentNumberService,
   ],
 })

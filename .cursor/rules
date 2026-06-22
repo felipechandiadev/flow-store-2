@@ -34,8 +34,9 @@ Estas reglas guían a los agentes de Cursor/Copilot para desarrollar y mantener 
 - **Anti-Patrones**: Fetch en UI, lógica en actions, mezclar patrones.
 
 ## 🔴 Reglas Críticas Globales
-- **Siempre** leer `WEBADMIN_FRONTEND_GUIDE.md` para frontend.
-- **Siempre** leer `BACKEND_INSTRUCTIONS.md` para backend.
+- **Siempre** leer `docs/project/ARQUITECTURA_Y_ECOSISTEMA.md` para visión general del proyecto.
+- **Siempre** leer `docs/legacy/WEBADMIN_FRONTEND_GUIDE.md` para frontend.
+- **Siempre** leer `docs/legacy/BACKEND_INSTRUCTIONS.md` para backend.
 - **Siempre** usar token en fetches backend.
 - **Nunca** romper capas o patrones.
 - **Siempre** validar con Zod/class-validator.
@@ -48,5 +49,4 @@ Estas reglas guían a los agentes de Cursor/Copilot para desarrollar y mantener 
 - [ ] Código versionado en Git.
 
 ## 🧾 Conclusión
-Sigue estas reglas al pie de la letra. Si dudas, consulta las guías completas. Mantén consistencia para evitar deuda técnica.</content>
-<parameter name="filePath">/Users/felipe/dev/flow-store-2/.cursor/rules
+Sigue estas reglas al pie de la letra. Si dudas, consulta las guías completas. Mantén consistencia para evitar deuda técnica.

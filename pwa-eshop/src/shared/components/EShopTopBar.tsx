@@ -40,7 +40,7 @@ export function EShopTopBar({ companyName, companyLogoUrl }: Props) {
   const showLogo = Boolean(companyLogoUrl?.trim()) && !logoFailed;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-primary text-white">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
         <Link href="/" className="flex min-w-0 items-center gap-2">
           {showLogo ? (
@@ -48,24 +48,30 @@ export function EShopTopBar({ companyName, companyLogoUrl }: Props) {
               companyName={companyName}
               logoUrl={companyLogoUrl}
               size="sm"
+              onPrimary
               onError={() => setLogoFailed(true)}
             />
           ) : null}
-          <span className="truncate text-sm font-semibold text-primary">{companyName}</span>
+          <span className="truncate text-sm font-semibold text-white">{companyName}</span>
         </Link>
         <nav className="hidden items-center gap-6 md:flex">
           {NAV.map((item) => (
             <Link
               key={navKey(item)}
               href={navHref(item, pathname)}
-              className="text-sm text-muted-foreground hover:text-foreground"
+              className="text-sm text-white/80 hover:text-white"
             >
               {item.label}
             </Link>
           ))}
         </nav>
         <div className="relative">
-          <IconButton icon="ShoppingCart" variant="outlined" ariaLabel="Abrir carrito" onClick={openDrawer} />
+          <IconButton
+            icon="ShoppingCart"
+            variant="secondary"
+            ariaLabel="Abrir carrito"
+            onClick={openDrawer}
+          />
           {itemCount > 0 ? (
             <span className="absolute -right-1 -top-1 flex h-5 min-w-5 translate-x-[7px] items-center justify-center rounded-full bg-secondary px-1 text-[10px] font-bold text-primary">
               {itemCount > 99 ? "99+" : itemCount}

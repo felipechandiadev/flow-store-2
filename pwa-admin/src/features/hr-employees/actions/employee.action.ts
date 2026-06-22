@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { EmployeeRequest } from "../infrastructure/employee.request";
-import type { EmployeeGridRow } from "../types/employee.types";
+import type {
+  EmployeeDetailView,
+  EmployeeGridRow,
+  ResultCenterListItem,
+  UpdateEmployeePayload,
+  UpdateEmployeePersonPayload,
+} from "../types/employee.types";
 
 const EMPLOYEES_PATH = "/hr/employees";
 
@@ -28,6 +34,87 @@ export async function listEmployeesForGridAction(opts: {
   companyId?: string;
 } = {}): Promise<EmployeeGridRow[]> {
   return EmployeeRequest.list(opts);
+}
+
+export async function getEmployeeDetailAction(
+  employeeId: string,
+): Promise<{ success: true; employee: EmployeeDetailView } | { success: false; error: string }> {
+  const id = employeeId?.trim();
+  if (!id) {
+    return { success: false, error: "Empleado no especificado." };
+  }
+  try {
+    const employee = await EmployeeRequest.getById(id);
+    if (!employee) {
+      return { success: false, error: "No se encontró el empleado." };
+    }
+    return { success: true, employee };
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "No se pudo cargar el detalle del empleado.",
+    };
+  }
+}
+
+export async function updateEmployeePersonAction(
+  personId: string,
+  employeeId: string,
+  payload: UpdateEmployeePersonPayload,
+): Promise<{ success: true; employee: EmployeeDetailView } | { success: false; error: string }> {
+  const fn = payload.firstName?.trim() ?? "";
+  if (!fn) {
+    return { success: false, error: "El nombre es obligatorio." };
+  }
+  const personRes = await EmployeeRequest.updatePerson(personId, {
+    ...payload,
+    firstName: fn,
+    lastName: payload.lastName?.trim() || undefined,
+    documentNumber: payload.documentNumber?.trim() || undefined,
+    email: payload.email?.trim() || undefined,
+    phone: payload.phone?.trim() || undefined,
+    address: payload.address?.trim() || undefined,
+  });
+  if (!personRes.success) {
+    return personRes;
+  }
+  const detailRes = await getEmployeeDetailAction(employeeId);
+  if (!detailRes.success) {
+    return detailRes;
+  }
+  revalidatePath(EMPLOYEES_PATH, "page");
+  return {
+    success: true,
+    employee: {
+      ...detailRes.employee,
+      person: personRes.person,
+    },
+  };
+}
+
+export async function updateEmployeeAction(
+  employeeId: string,
+  payload: UpdateEmployeePayload,
+): Promise<{ success: true; employee: EmployeeDetailView } | { success: false; error: string }> {
+  const id = employeeId?.trim();
+  if (!id) {
+    return { success: false, error: "Empleado no especificado." };
+  }
+  if (payload.status === "TERMINATED") {
+    const term = payload.terminationDate?.trim();
+    if (!term) {
+      return { success: false, error: "Indique la fecha de término para empleados terminados." };
+    }
+  }
+  const res = await EmployeeRequest.update(id, payload);
+  if (res.success) {
+    revalidatePath(EMPLOYEES_PATH, "page");
+  }
+  return res;
+}
+
+export async function listResultCentersForEmployeeAction(): Promise<ResultCenterListItem[]> {
+  return EmployeeRequest.listResultCenters();
 }
 
 export async function createEmployeeAction(

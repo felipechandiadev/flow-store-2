@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { eshopFontClassName } from "@/shared/fonts/eshop-fonts";
 import "./globals.css";
 
 const THEME_COLOR = "#002B59";
@@ -42,7 +43,7 @@ const registerServiceWorkerInProduction = process.env.NODE_ENV === "production";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es-CL" className="h-full antialiased">
+    <html lang="es-CL" className={`h-full antialiased ${eshopFontClassName}`}>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />

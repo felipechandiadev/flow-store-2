@@ -175,7 +175,7 @@ Un local con salón + cocina + delivery puede pagar **~$58.000+ CLP/mes** antes 
 | Hueco | Impacto |
 |-------|---------|
 | **Sin emisión DTE SII en ventas** | POS usa documento tipo `TICKET`; no sustituye Bsale en Chile sin integración fiscal |
-| **Sin Webpay / pasarela en eShop** | Checkout crea venta; no cobra online (ver `docs/KAISTORE_E-SHOP_PHASE2_BACKLOG.md`) |
+| **Sin Webpay / pasarela en eShop** | Checkout crea venta; no cobra online (ver `KAISTORE_E-SHOP_PHASE2_BACKLOG.md`) |
 | **CxP / CxC / EEFF en admin** | Varias rutas con `ErpPlaceholderPage` |
 | **Sin lotes / vencimiento en stock** | Excluye perecederos (alimentos, farmacia, cosmética) |
 | **Sin Shopify / WooCommerce** | No hay conectores en código |
@@ -465,13 +465,13 @@ Muchos restaurantes pagan **Fudo (~$35k–58k) + facturador/ERP**. KaiStore pued
 
 | Documento / ruta | Contenido |
 |------------------|-----------|
-| `docs/KAISTORE_ROADMAP.md` | **Roadmap de producto** (P1–P6 núcleo; Webpay y SII al final) |
+| `KAISTORE_ROADMAP.md` | **Roadmap de producto** (P1–P6 núcleo; Webpay y SII al final) |
 | `Análisis Competitivo ERP Bsale.md` | Análisis estratégico fuente (Bsale) |
 | `Análisis Competitivo Fudo para KaiStore.md` | Análisis estratégico fuente (Fudo) |
 | `backend/src/modules/recipes/` | BOM / recetas (PREPARADO, ELABORADO) |
 | `pwa-pos` + `print-service-client` | Base POS e impresión |
-| `docs/KAISTORE_E-SHOP_DEVELOPMENT_GUIDE.md` | Guía desarrollo eShop |
-| `docs/KAISTORE_E-SHOP_PHASE2_BACKLOG.md` | Backlog tienda post-MVP |
+| `KAISTORE_E-SHOP_DEVELOPMENT_GUIDE.md` | Guía desarrollo eShop |
+| `KAISTORE_E-SHOP_PHASE2_BACKLOG.md` | Backlog tienda post-MVP |
 | `pwa-admin/docs/CONTABILIDAD_SECCIONES.md` | Secciones contables y placeholders |
 | `backend/docs/SALE_TRANSACTION_FLOW.md` | Flujo ventas |
 | `README.md` | Puertos y arranque monorepo |

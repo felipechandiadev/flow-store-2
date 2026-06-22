@@ -126,6 +126,12 @@ export const mainMenuItems: SideBarMenuItem[] = [
     requiresEShopEnabled: true,
     children: [
       {
+        id: 'eshop-appearance',
+        label: 'Apariencia',
+        url: '/e-shop/appearance',
+        requiresEShopEnabled: true,
+      },
+      {
         id: 'eshop-hero',
         label: 'Hero / Slider',
         url: '/e-shop/hero-slides',

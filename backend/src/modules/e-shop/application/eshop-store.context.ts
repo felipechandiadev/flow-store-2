@@ -9,4 +9,5 @@ export type EShopStoreContext = {
   eShop: CompanyEShopFlatSettings;
   publicContact: CompanyPublicContactSettings;
   companyIdentity: CompanyIdentitySettings;
+  companySettings: Record<string, unknown>;
 };

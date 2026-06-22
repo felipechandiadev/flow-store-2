@@ -89,6 +89,7 @@ import {
   buildSeedCompanyBankAccounts,
   buildSeedCompanyPaymentCatalog,
   buildSeedCompanySettings,
+  buildSeedEmployeeBankAccount,
   buildSeedEshopPublicContact,
   buildSeedPosPaymentList,
 } from './seed-dev-config';
@@ -2919,6 +2920,19 @@ async function bootstrap() {
         person.phone = item.person.phone;
         person.address = item.person.address;
       }
+      const displayName = `${item.person.firstName} ${item.person.lastName}`.trim();
+      const seedBankRow = buildSeedEmployeeBankAccount(
+        displayName,
+        item.person.documentNumber,
+      );
+      const bankByKey = new Map(
+        (person.bankAccounts ?? []).map((a) => [
+          a.accountKey ?? `${String(a.bankName)}_${a.accountNumber}`,
+          a,
+        ] as const),
+      );
+      bankByKey.set(seedBankRow.accountKey!, seedBankRow);
+      person.bankAccounts = Array.from(bankByKey.values());
       person = await personRepo.save(person);
 
       let employee = await employeeRepo.findOne({
@@ -2948,9 +2962,8 @@ async function bootstrap() {
         employee.baseSalary = item.employee.baseSalary;
       }
       employee = await employeeRepo.save(employee);
-      const displayName = `${person.firstName} ${person.lastName}`.trim();
       console.log(
-        `✅ Empleado «${displayName}» sincronizado: id=${employee.id} tipo=${employee.employmentType} estado=${employee.status} sueldo=${employee.baseSalary ?? '—'}`,
+        `✅ Empleado «${displayName}» sincronizado: id=${employee.id} tipo=${employee.employmentType} estado=${employee.status} sueldo=${employee.baseSalary ?? '—'} cuenta=${seedBankRow.accountNumber}`,
       );
     }
 

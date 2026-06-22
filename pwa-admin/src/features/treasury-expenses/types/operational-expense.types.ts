@@ -5,6 +5,19 @@ export type OperationalExpenseStatus =
   | "REJECTED"
   | "CANCELLED";
 
+export type OperationalExpensePaymentStatus =
+  | "PENDING"
+  | "PAID"
+  | "PARTIAL"
+  | "OVERDUE"
+  | "VOIDED";
+
+export type OperationalExpenseDocumentKind =
+  | "SUPPLIER_INVOICE"
+  | "SUPPLIER_RECEIPT"
+  | "SUPPLIER_HONORARIUM_RECEIPT"
+  | "OTHER";
+
 export type OperationalExpenseGridRow = {
   id: string;
   companyId: string;
@@ -14,15 +27,15 @@ export type OperationalExpenseGridRow = {
   referenceNumber: string | null;
   operationDate: string;
   status: OperationalExpenseStatus;
+  paymentStatus?: OperationalExpensePaymentStatus | null;
+  documentKind?: OperationalExpenseDocumentKind | null;
   description: string | null;
   branchId?: string | null;
   supplierId?: string | null;
+  supplierName?: string | null;
   employeeId?: string | null;
-  /** Monto neto del documento tributario vinculado (si existe). */
   netAmount?: number;
-  /** Impuestos del documento tributario vinculado (si existe). */
   taxAmount?: number;
-  /** Total del documento tributario vinculado (si existe). */
   totalAmount?: number;
   createdAt?: string;
 };
@@ -37,31 +50,53 @@ export type SupplierOption = {
   name: string;
 };
 
+export type OperationalExpenseFiscalAmounts = {
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  taxId?: string | null;
+};
+
+export type OperationalExpenseCreatePayload = {
+  name: string;
+  categoryId: string;
+  supplierId: string;
+  referenceNumber: string;
+  operationDate: string;
+  description?: string;
+  documentKind: OperationalExpenseDocumentKind;
+  fiscalAmounts: OperationalExpenseFiscalAmounts;
+  supplierDocumentPayment: {
+    mode: string;
+    partialPaidAmount?: number;
+    paidLines: unknown[];
+    scheduledLines: unknown[];
+  };
+};
+
+/** @deprecated Legacy create shape */
 export type OperationalExpenseLinkedDteKind =
   | "SUPPLIER_INVOICE"
   | "SUPPLIER_RECEIPT"
   | "SUPPLIER_HONORARIUM_RECEIPT";
 
-export type OperationalExpenseCreatePlannedPayment = {
-  dueDate: string;
-  amount: number;
-  /** Medio de pago; omitir en cuotas programadas (se define al ejecutar el pago). */
-  paymentMethod?: "CASH" | "TRANSFER" | "CHECK";
-  companyBankAccountKey?: string | null;
-  supplierBankAccountKey?: string | null;
-  chequeNumber?: string | null;
-  chequeBankName?: string | null;
-  chequeDrawerName?: string | null;
-  chequeDueDate?: string | null;
+export const OPERATIONAL_EXPENSE_DOCUMENT_KIND_LABELS: Record<
+  OperationalExpenseDocumentKind,
+  string
+> = {
+  SUPPLIER_INVOICE: "Factura",
+  SUPPLIER_RECEIPT: "Boleta",
+  SUPPLIER_HONORARIUM_RECEIPT: "Boleta honorarios",
+  OTHER: "Otro",
 };
 
-export type OperationalExpenseCreateLinkedTributaryDocument = {
-  kind: OperationalExpenseLinkedDteKind;
-  dteNumber?: string;
-  netAmount: number;
-  totalAmount: number;
-  taxAmount: number;
-  taxId?: string | null;
-  plannedPayments: OperationalExpenseCreatePlannedPayment[];
+export const OPERATIONAL_EXPENSE_PAYMENT_STATUS_LABELS: Record<
+  OperationalExpensePaymentStatus,
+  string
+> = {
+  PENDING: "Pendiente",
+  PARTIAL: "Parcial",
+  OVERDUE: "Vencida",
+  PAID: "Pagada",
+  VOIDED: "Anulada",
 };
-

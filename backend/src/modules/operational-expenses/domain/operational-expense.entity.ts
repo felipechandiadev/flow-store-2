@@ -15,6 +15,14 @@ import { ExpenseCategory } from '@modules/expense-categories/domain/expense-cate
 import { Supplier } from '@modules/suppliers/domain/supplier.entity';
 import { Employee } from '@modules/employees/domain/employee.entity';
 import { User } from '@modules/users/domain/user.entity';
+import { PaymentStatus } from '@modules/transactions/domain/transaction.entity';
+
+export enum OperationalExpenseDocumentKind {
+  SUPPLIER_INVOICE = 'SUPPLIER_INVOICE',
+  SUPPLIER_RECEIPT = 'SUPPLIER_RECEIPT',
+  SUPPLIER_HONORARIUM_RECEIPT = 'SUPPLIER_HONORARIUM_RECEIPT',
+  OTHER = 'OTHER',
+}
 
 export interface OperationalExpenseMediaAsset {
   id: string;
@@ -113,6 +121,22 @@ export class OperationalExpense {
     default: OperationalExpenseStatus.DRAFT,
   })
   status!: OperationalExpenseStatus;
+
+  @Column({
+    type: 'enum',
+    enum: OperationalExpenseDocumentKind,
+    nullable: true,
+  })
+  documentKind?: OperationalExpenseDocumentKind | null;
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  paymentStatus?: PaymentStatus | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  supplierFiscalDocumentTransactionId?: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  operatingExpenseTransactionId?: string | null;
 
   @Column({ type: 'json', nullable: true })
   metadata?: OperationalExpenseMetadata | null;

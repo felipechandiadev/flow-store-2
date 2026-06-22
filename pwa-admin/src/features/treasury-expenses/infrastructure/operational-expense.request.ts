@@ -2,8 +2,9 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth/auth-options";
 import type {
   ExpenseCategoryOption,
-  OperationalExpenseCreateLinkedTributaryDocument,
+  OperationalExpenseDocumentKind,
   OperationalExpenseGridRow,
+  OperationalExpensePaymentStatus,
   OperationalExpenseStatus,
   SupplierOption,
 } from "../types/operational-expense.types";
@@ -57,9 +58,43 @@ function normalizeExpense(row: unknown): OperationalExpenseGridRow | null {
     }
   }
 
+  let supplierName: string | null = null;
+  const supplierRaw = o.supplier;
+  if (supplierRaw && typeof supplierRaw === "object") {
+    const s = supplierRaw as Record<string, unknown>;
+    const person = s.person && typeof s.person === "object" ? (s.person as Record<string, unknown>) : null;
+    const alias = s.alias != null ? String(s.alias).trim() : "";
+    const businessName = person?.businessName != null ? String(person.businessName).trim() : "";
+    const fullName = [person?.firstName, person?.lastName].filter(Boolean).map(String).join(" ").trim();
+    supplierName = alias || businessName || fullName || null;
+  }
+
   const rawStatus = o.status != null ? String(o.status) : "DRAFT";
   const allowed = new Set(["DRAFT", "PENDING_APPROVAL", "APPROVED", "REJECTED", "CANCELLED"]);
   const status = (allowed.has(rawStatus) ? rawStatus : "DRAFT") as OperationalExpenseStatus;
+
+  const rawPaymentStatus = o.paymentStatus != null ? String(o.paymentStatus) : null;
+  const paymentAllowed = new Set(["PENDING", "PAID", "PARTIAL", "OVERDUE", "VOIDED"]);
+  const paymentStatus =
+    rawPaymentStatus && paymentAllowed.has(rawPaymentStatus)
+      ? (rawPaymentStatus as OperationalExpensePaymentStatus)
+      : null;
+
+  const rawDocKind = o.documentKind != null ? String(o.documentKind) : null;
+  const docKindAllowed = new Set([
+    "SUPPLIER_INVOICE",
+    "SUPPLIER_RECEIPT",
+    "SUPPLIER_HONORARIUM_RECEIPT",
+    "OTHER",
+  ]);
+  const documentKind =
+    rawDocKind && docKindAllowed.has(rawDocKind)
+      ? (rawDocKind as OperationalExpenseDocumentKind)
+      : null;
+
+  const netFromRow = o.netAmount != null ? Number(o.netAmount) : undefined;
+  const taxFromRow = o.taxAmount != null ? Number(o.taxAmount) : undefined;
+  const totalFromRow = o.totalAmount != null ? Number(o.totalAmount) : undefined;
 
   const metadata = o.metadata;
   const linked =
@@ -70,18 +105,25 @@ function normalizeExpense(row: unknown): OperationalExpenseGridRow | null {
     linked && typeof linked === "object" && !Array.isArray(linked)
       ? (linked as Record<string, unknown>)
       : null;
+
   const netAmount =
-    linkedAmounts?.netAmount != null && Number.isFinite(Number(linkedAmounts.netAmount))
-      ? Number(linkedAmounts.netAmount)
-      : undefined;
+    netFromRow != null && Number.isFinite(netFromRow)
+      ? netFromRow
+      : linkedAmounts?.netAmount != null && Number.isFinite(Number(linkedAmounts.netAmount))
+        ? Number(linkedAmounts.netAmount)
+        : undefined;
   const taxAmount =
-    linkedAmounts?.taxAmount != null && Number.isFinite(Number(linkedAmounts.taxAmount))
-      ? Number(linkedAmounts.taxAmount)
-      : undefined;
+    taxFromRow != null && Number.isFinite(taxFromRow)
+      ? taxFromRow
+      : linkedAmounts?.taxAmount != null && Number.isFinite(Number(linkedAmounts.taxAmount))
+        ? Number(linkedAmounts.taxAmount)
+        : undefined;
   const totalAmount =
-    linkedAmounts?.totalAmount != null && Number.isFinite(Number(linkedAmounts.totalAmount))
-      ? Number(linkedAmounts.totalAmount)
-      : undefined;
+    totalFromRow != null && Number.isFinite(totalFromRow)
+      ? totalFromRow
+      : linkedAmounts?.totalAmount != null && Number.isFinite(Number(linkedAmounts.totalAmount))
+        ? Number(linkedAmounts.totalAmount)
+        : undefined;
 
   return {
     id,
@@ -92,9 +134,12 @@ function normalizeExpense(row: unknown): OperationalExpenseGridRow | null {
     referenceNumber,
     operationDate,
     status,
+    paymentStatus,
+    documentKind,
     description: o.description != null && String(o.description).trim() ? String(o.description).trim() : null,
     branchId: o.branchId != null ? String(o.branchId) : null,
     supplierId: o.supplierId != null ? String(o.supplierId) : null,
+    supplierName,
     employeeId: o.employeeId != null ? String(o.employeeId) : null,
     netAmount,
     taxAmount,
@@ -181,39 +226,41 @@ export class OperationalExpenseRequest {
     companyId: string;
     name: string;
     categoryId: string;
-    referenceNumber?: string;
+    supplierId: string;
+    referenceNumber: string;
     operationDate: string;
     createdBy: string;
     description?: string;
     status?: OperationalExpenseStatus;
-    supplierId?: string;
-    metadata?: {
-      linkedTributaryDocument?: OperationalExpenseCreateLinkedTributaryDocument;
+    documentKind: OperationalExpenseDocumentKind;
+    fiscalAmounts: {
+      subtotal: number;
+      taxAmount: number;
+      total: number;
+      taxId?: string;
+    };
+    supplierDocumentPayment: {
+      mode: string;
+      partialPaidAmount?: number;
+      paidLines: unknown[];
+      scheduledLines: unknown[];
     };
   }): Promise<{ success: true; id: string } | { success: false; error: string }> {
     const headers = await authHeaders();
-    const payload: Record<string, unknown> = {
+    const payload = {
       companyId: body.companyId,
       name: body.name.trim(),
       categoryId: body.categoryId,
+      supplierId: body.supplierId,
+      referenceNumber: body.referenceNumber.trim(),
       operationDate: body.operationDate,
       createdBy: body.createdBy,
-      status: body.status ?? "DRAFT",
+      status: body.status ?? "APPROVED",
+      documentKind: body.documentKind,
+      fiscalAmounts: body.fiscalAmounts,
+      supplierDocumentPayment: body.supplierDocumentPayment,
+      ...(body.description?.trim() ? { description: body.description.trim() } : {}),
     };
-    if (body.referenceNumber?.trim()) {
-      payload.referenceNumber = body.referenceNumber.trim();
-    }
-    if (body.description?.trim()) {
-      payload.description = body.description.trim();
-    }
-    if (body.supplierId?.trim()) {
-      payload.supplierId = body.supplierId.trim();
-    }
-    if (body.metadata?.linkedTributaryDocument) {
-      payload.metadata = {
-        linkedTributaryDocument: body.metadata.linkedTributaryDocument,
-      };
-    }
     try {
       const res = await fetch(apiUrl("operating-expenses"), {
         method: "POST",
@@ -281,4 +328,3 @@ export class OperationalExpenseRequest {
     }
   }
 }
-

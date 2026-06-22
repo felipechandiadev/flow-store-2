@@ -1,140 +1,121 @@
+import { BadRequestException } from '@nestjs/common';
 import { OperationalExpensesService } from '@modules/operational-expenses/application/operational-expenses.service';
-import { OperationalExpensesRepository } from '@modules/operational-expenses/infrastructure/operational-expenses.repository';
-import { MultimediaServiceAdapter } from '@modules/multimedia/application/services/multimedia.service.adapter';
+import {
+  OperationalExpenseDocumentKind,
+  OperationalExpenseStatus,
+} from '@modules/operational-expenses/domain/operational-expense.entity';
+import { PaymentStatus } from '@modules/transactions/domain/transaction.entity';
 
-describe('OperationalExpensesService', () => {
-  let service: OperationalExpensesService;
-  let repository: {
-    findAll: jest.Mock;
-    findOne: jest.Mock;
-    create: jest.Mock;
-    update: jest.Mock;
-    remove: jest.Mock;
-    count: jest.Mock;
-  };
-  let multimediaService: {
-    listByEntity: jest.Mock;
-    link: jest.Mock;
-    unlink: jest.Mock;
+describe('OperationalExpensesService.create', () => {
+  const baseDto = {
+    companyId: 'company-1',
+    categoryId: 'cat-1',
+    supplierId: 'sup-1',
+    name: 'Gasto test',
+    referenceNumber: 'F-100',
+    operationDate: '2026-06-01',
+    createdBy: 'user-1',
+    documentKind: OperationalExpenseDocumentKind.SUPPLIER_INVOICE,
+    fiscalAmounts: { subtotal: 10000, taxAmount: 1900, total: 11900 },
+    supplierDocumentPayment: {
+      mode: 'PENDING',
+      paidLines: [],
+      scheduledLines: [],
+    },
   };
 
-  beforeEach(() => {
-    repository = {
-      findAll: jest.fn(),
-      findOne: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      remove: jest.fn(),
-      count: jest.fn(),
+  function buildService(deps: Partial<Record<string, unknown>> = {}) {
+    const repository = {
+      create: jest.fn(async (data: unknown) => ({ id: 'oe-1', ...(data as object) })),
+      update: jest.fn(async () => ({})),
+      remove: jest.fn(async () => undefined),
+      findOne: jest.fn(async () => ({
+        id: 'oe-1',
+        status: OperationalExpenseStatus.APPROVED,
+        paymentStatus: PaymentStatus.PENDING,
+      })),
     };
-    multimediaService = {
-      listByEntity: jest.fn(),
+    const multimediaService = {
       link: jest.fn(),
-      unlink: jest.fn(),
+      listByEntity: jest.fn(async () => []),
+    };
+    const supplierFiscalDocumentCreate = {
+      create: jest.fn(async () => ({
+        fiscalDocId: 'fiscal-1',
+        paymentStatus: PaymentStatus.PENDING,
+        transaction: { id: 'fiscal-1' },
+      })),
+    };
+    const operatingExpensePaymentPlan = {
+      createWithPaymentPlan: jest.fn(async () => ({
+        operatingExpenseTransactionId: 'op-tx-1',
+        paymentStatus: PaymentStatus.PENDING,
+      })),
+    };
+    const branchRepo = {
+      findOne: jest.fn(async () => ({ id: 'branch-1', companyId: 'company-1' })),
+    };
+    const transactionRepo = {
+      findOne: jest.fn(async () => null),
     };
 
-    service = new OperationalExpensesService(
-      repository as unknown as OperationalExpensesRepository,
-      multimediaService as unknown as MultimediaServiceAdapter,
+    const service = new OperationalExpensesService(
+      ((deps.repository as typeof repository) ?? repository) as any,
+      ((deps.multimediaService as typeof multimediaService) ?? multimediaService) as any,
+      ((deps.supplierFiscalDocumentCreate as typeof supplierFiscalDocumentCreate) ??
+        supplierFiscalDocumentCreate) as any,
+      ((deps.operatingExpensePaymentPlan as typeof operatingExpensePaymentPlan) ??
+        operatingExpensePaymentPlan) as any,
+      ((deps.branchRepo as typeof branchRepo) ?? branchRepo) as any,
+      ((deps.transactionRepo as typeof transactionRepo) ?? transactionRepo) as any,
     );
-  });
 
-  it('should create expense and link multimedia assets', async () => {
-    repository.create.mockResolvedValueOnce({
-      id: 'oe-1',
-      referenceNumber: 'REF-1',
-      metadata: { notes: 'ok' },
-    });
-    multimediaService.link.mockResolvedValue(undefined);
-    multimediaService.listByEntity.mockResolvedValueOnce([
-      { id: 'asset-1', publicUrl: '/multimedia/files/a1', mimeType: 'application/pdf', kind: 'document' },
-    ]);
+    return {
+      service,
+      repository,
+      supplierFiscalDocumentCreate,
+      operatingExpensePaymentPlan,
+    };
+  }
 
-    const result = await service.create({
-      companyId: 'company-1',
-      categoryId: 'category-1',
-      name: 'Gasto de prueba',
-      referenceNumber: 'REF-1',
-      operationDate: '2026-04-19',
-      createdBy: 'user-1',
-      metadata: {
-        notes: 'ok',
-      } as any,
-      multimediaAssetIds: ['asset-1'],
-    });
-
-    expect(repository.create).toHaveBeenCalledWith(
+  it('crea OE aprobado con factura fiscal y paymentStatus', async () => {
+    const { service, supplierFiscalDocumentCreate, repository } = buildService();
+    await service.create(baseDto as any);
+    expect(supplierFiscalDocumentCreate.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        metadata: { notes: 'ok' },
+        transactionType: 'SUPPLIER_INVOICE',
+        dteNumber: 'F-100',
       }),
     );
-    expect(multimediaService.link).toHaveBeenCalledWith({
-      assetId: 'asset-1',
-      entityType: 'operational-expense',
-      entityId: 'oe-1',
-      usageType: 'attachment',
-      sortOrder: 0,
-    });
-    expect(result).toMatchObject({
-      id: 'oe-1',
-      mediaAssets: [
-        {
-          id: 'asset-1',
-          publicUrl: '/multimedia/files/a1',
-          mimeType: 'application/pdf',
-          kind: 'document',
-        },
-      ],
-    });
-  });
-
-  it('should update expense and replace linked multimedia assets when provided', async () => {
-    repository.findOne.mockResolvedValueOnce({ id: 'oe-1' });
-    repository.update.mockResolvedValueOnce({ id: 'oe-1', metadata: { notes: 'updated' } });
-    multimediaService.listByEntity
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 'old-asset' }])
-      .mockResolvedValueOnce([
-        { id: 'asset-9', publicUrl: '/multimedia/files/a9', mimeType: 'image/png', kind: 'image' },
-      ]);
-    multimediaService.unlink.mockResolvedValue(undefined);
-    multimediaService.link.mockResolvedValue(undefined);
-
-    const result = await service.update('oe-1', {
-      metadata: {
-        notes: 'updated',
-      } as any,
-      multimediaAssetIds: ['asset-9'],
-    });
-
     expect(repository.update).toHaveBeenCalledWith(
       'oe-1',
       expect.objectContaining({
-        metadata: { notes: 'updated' },
+        supplierFiscalDocumentTransactionId: 'fiscal-1',
+        paymentStatus: PaymentStatus.PENDING,
       }),
     );
-    expect(multimediaService.unlink).toHaveBeenCalledWith({
-      assetId: 'old-asset',
-      entityType: 'operational-expense',
-      entityId: 'oe-1',
-    });
-    expect(multimediaService.link).toHaveBeenCalledWith({
-      assetId: 'asset-9',
-      entityType: 'operational-expense',
-      entityId: 'oe-1',
-      usageType: 'attachment',
-      sortOrder: 0,
-    });
-    expect(result).toMatchObject({
-      id: 'oe-1',
-      mediaAssets: [
-        {
-          id: 'asset-9',
-          publicUrl: '/multimedia/files/a9',
-          mimeType: 'image/png',
-          kind: 'image',
-        },
-      ],
-    });
+  });
+
+  it('crea OE tipo OTHER con plan de pago operativo', async () => {
+    const { service, operatingExpensePaymentPlan } = buildService();
+    await service.create({
+      ...baseDto,
+      documentKind: OperationalExpenseDocumentKind.OTHER,
+      supplierDocumentPayment: {
+        mode: 'PENDING_SCHEDULED',
+        paidLines: [],
+        scheduledLines: [{ dueDate: '2026-07-01', amount: 11900 }],
+      },
+    } as any);
+    expect(operatingExpensePaymentPlan.createWithPaymentPlan).toHaveBeenCalled();
+  });
+
+  it('hace rollback del OE si falla la creación fiscal', async () => {
+    const { service, repository, supplierFiscalDocumentCreate } = buildService();
+    supplierFiscalDocumentCreate.create.mockRejectedValue(
+      new BadRequestException('folio duplicado'),
+    );
+    await expect(service.create(baseDto as any)).rejects.toThrow('folio duplicado');
+    expect(repository.remove).toHaveBeenCalledWith('oe-1');
   });
 });

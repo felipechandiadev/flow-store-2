@@ -7,7 +7,7 @@ import { CompanyRequest } from "@/features/settings-branches/infrastructure/comp
 import { OperationalExpenseRequest } from "../infrastructure/operational-expense.request";
 import type {
   ExpenseCategoryOption,
-  OperationalExpenseCreateLinkedTributaryDocument,
+  OperationalExpenseCreatePayload,
   OperationalExpenseGridRow,
   OperationalExpenseStatus,
   SupplierOption,
@@ -46,8 +46,10 @@ export async function listOperationalExpensesForGrid(params?: {
       r.name,
       r.referenceNumber,
       r.categoryName,
+      r.supplierName,
       r.description ?? "",
       r.status,
+      r.paymentStatus ?? "",
       r.operationDate,
     ]
       .join(" ")
@@ -58,15 +60,9 @@ export async function listOperationalExpensesForGrid(params?: {
   return { rows, total: rows.length, categories, suppliers };
 }
 
-export async function createOperationalExpenseAction(input: {
-  name: string;
-  categoryId: string;
-  referenceNumber?: string;
-  operationDate: string;
-  description?: string;
-  supplierId?: string;
-  linkedTributaryDocument?: OperationalExpenseCreateLinkedTributaryDocument;
-}): Promise<{ success: true; id: string } | { success: false; error: string }> {
+export async function createOperationalExpenseAction(
+  input: OperationalExpenseCreatePayload,
+): Promise<{ success: true; id: string } | { success: false; error: string }> {
   const company = await CompanyRequest.getCurrent();
   if (!company?.id) {
     return { success: false, error: "No hay empresa activa configurada." };
@@ -89,46 +85,55 @@ export async function createOperationalExpenseAction(input: {
   if (!UUID_RE.test(input.categoryId)) {
     return { success: false, error: "Debe seleccionar una categoría válida." };
   }
+  if (!UUID_RE.test(input.supplierId)) {
+    return { success: false, error: "Debe seleccionar un proveedor válido." };
+  }
+  if (!input.referenceNumber.trim()) {
+    return { success: false, error: "La referencia (folio) es obligatoria." };
+  }
   if (!input.operationDate.trim()) {
     return { success: false, error: "La fecha de operación es obligatoria." };
   }
 
-  if (input.linkedTributaryDocument) {
-    if (!UUID_RE.test(input.supplierId ?? "")) {
-      return {
-        success: false,
-        error: "Con documento tributario debe indicar un proveedor válido.",
-      };
-    }
-    const d = input.linkedTributaryDocument;
-    if (d.netAmount < 0.01 || d.totalAmount < 0.01) {
-      return { success: false, error: "Los montos del documento deben ser mayores a cero." };
-    }
-    if (!d.plannedPayments?.length) {
-      return { success: false, error: "Debe definir al menos una línea de pago planificado." };
-    }
-    const sum = d.plannedPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-    if (Math.abs(sum - d.totalAmount) > 1) {
-      return {
-        success: false,
-        error: "La suma de los pagos planificados debe coincidir con el total del documento.",
-      };
-    }
+  const amounts = input.fiscalAmounts;
+  if (!amounts || amounts.total < 0.01) {
+    return { success: false, error: "El total debe ser mayor a cero." };
+  }
+
+  const payment = input.supplierDocumentPayment;
+  const paidSum = (payment.paidLines ?? []).reduce(
+    (s, l) => s + (Number((l as { amount?: number }).amount) || 0),
+    0,
+  );
+  const schedSum = (payment.scheduledLines ?? []).reduce(
+    (s, l) => s + (Number((l as { amount?: number }).amount) || 0),
+    0,
+  );
+  if (payment.mode === "COMPLETED" && Math.abs(paidSum - amounts.total) > 1) {
+    return { success: false, error: "El pago debe igualar el total del documento." };
+  }
+  if (payment.mode === "PENDING_SCHEDULED" && Math.abs(schedSum - amounts.total) > 1) {
+    return { success: false, error: "Las cuotas deben sumar el total del documento." };
   }
 
   const result = await OperationalExpenseRequest.create({
     companyId: company.id,
     name: input.name,
     categoryId: input.categoryId,
-    referenceNumber: input.referenceNumber,
+    supplierId: input.supplierId,
+    referenceNumber: input.referenceNumber.trim(),
     operationDate: input.operationDate,
     description: input.description?.trim() || undefined,
-    supplierId: input.supplierId?.trim() || undefined,
     createdBy: userId,
-    status: "DRAFT",
-    ...(input.linkedTributaryDocument
-      ? { metadata: { linkedTributaryDocument: input.linkedTributaryDocument } }
-      : {}),
+    status: "APPROVED",
+    documentKind: input.documentKind,
+    fiscalAmounts: {
+      subtotal: amounts.subtotal,
+      taxAmount: amounts.taxAmount,
+      total: amounts.total,
+      taxId: amounts.taxId ?? undefined,
+    },
+    supplierDocumentPayment: input.supplierDocumentPayment,
   });
 
   if (result.success) {
@@ -136,4 +141,3 @@ export async function createOperationalExpenseAction(input: {
   }
   return result;
 }
-

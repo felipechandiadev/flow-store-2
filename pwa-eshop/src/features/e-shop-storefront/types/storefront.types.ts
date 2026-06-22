@@ -1,3 +1,24 @@
+export type EShopThemeTokenKey =
+  | "primary"
+  | "secondary"
+  | "background"
+  | "foreground"
+  | "accent"
+  | "border"
+  | "surface"
+  | "active"
+  | "muted"
+  | "mutedForeground";
+
+export type EShopThemeTokens = Record<EShopThemeTokenKey, string>;
+
+export type EShopTemplateId = "classic" | "minimal" | "bold" | "warm";
+
+export type EShopResolvedTheme = {
+  templateId: EShopTemplateId;
+  tokens: EShopThemeTokens;
+};
+
 export type EShopStorefront = {
   companyName: string;
   companyLogoUrl: string | null;
@@ -15,6 +36,7 @@ export type EShopStorefront = {
   eShopFreeShippingThreshold: number | null;
   eShopFeaturedProductIds?: string[];
   eShopFeaturedProductVariantIds: string[];
+  theme?: EShopResolvedTheme;
 };
 
 export type EShopProductCard = {

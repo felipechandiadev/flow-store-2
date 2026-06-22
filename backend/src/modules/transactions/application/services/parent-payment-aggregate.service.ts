@@ -7,6 +7,7 @@ import {
   TransactionType,
   PaymentStatus,
 } from '../../domain/transaction.entity';
+import { OperationalExpense } from '@modules/operational-expenses/domain/operational-expense.entity';
 
 const FISCAL_PARENT_TYPES: TransactionType[] = [
   TransactionType.SUPPLIER_INVOICE,
@@ -37,6 +38,8 @@ export class ParentPaymentAggregateService {
   constructor(
     @InjectRepository(Transaction)
     private readonly txRepo: Repository<Transaction>,
+    @InjectRepository(OperationalExpense)
+    private readonly operationalExpenseRepo: Repository<OperationalExpense>,
   ) {}
 
   async recalculateParentPaymentStatus(parentTransactionId: string): Promise<void> {
@@ -78,6 +81,34 @@ export class ParentPaymentAggregateService {
 
     await this.txRepo.update(parentTransactionId, {
       amountPaid: sumPaid,
+      paymentStatus,
+    });
+
+    await this.syncLinkedOperationalExpensePaymentStatus(
+      parent,
+      paymentStatus,
+    );
+  }
+
+  private async syncLinkedOperationalExpensePaymentStatus(
+    parent: Transaction,
+    paymentStatus: PaymentStatus,
+  ): Promise<void> {
+    const meta = parent.metadata as Record<string, unknown> | null | undefined;
+    const links =
+      meta?.links && typeof meta.links === 'object'
+        ? (meta.links as Record<string, unknown>)
+        : null;
+    const fromLinks = links?.operationalExpenseId;
+    const fromMeta = meta?.operationalExpenseId;
+    const operationalExpenseId =
+      (typeof fromLinks === 'string' && fromLinks.trim()) ||
+      (typeof fromMeta === 'string' && fromMeta.trim()) ||
+      null;
+    if (!operationalExpenseId) {
+      return;
+    }
+    await this.operationalExpenseRepo.update(operationalExpenseId, {
       paymentStatus,
     });
   }

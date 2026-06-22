@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto';
-import { AccountTypeName, BankName } from '@modules/persons/domain/person.entity';
+import {
+  AccountTypeName,
+  BankName,
+  type PersonBankAccount,
+} from '@modules/persons/domain/person.entity';
 import type { CompanyBankAccount } from '@modules/companies/domain/company.entity';
 import { PaymentMethod } from '@modules/transactions/domain/transaction.entity';
 import type {
@@ -162,6 +166,23 @@ export function buildSeedCompanyBankAccounts(
   ];
 }
 
+/** Cuenta bancaria principal para personas empleadas en seed dev (nómina / transferencia). */
+export function buildSeedEmployeeBankAccount(
+  accountHolderName: string,
+  documentNumber: string,
+): PersonBankAccount {
+  const digits = documentNumber.replace(/\D/g, '').slice(-10).padStart(10, '0');
+  return {
+    accountKey: `seed-employee-${digits}`,
+    bankName: BankName.BANCO_ESTADO,
+    accountType: AccountTypeName.CUENTA_VISTA,
+    accountNumber: digits,
+    accountHolderName,
+    isPrimary: true,
+    notes: 'Cuenta seed para liquidaciones',
+  };
+}
+
 const COMPANY_PAYMENT_METHODS: PaymentMethod[] = [
   PaymentMethod.CASH,
   PaymentMethod.CREDIT_CARD,
@@ -256,6 +277,8 @@ export function buildSeedCompanySettings(
     eShopDefaultBranchId: null,
     eShopDefaultPriceListId: null,
     eShopDefaultStorageId: null,
+    eShopTemplateId: 'classic',
+    eShopThemeTokenOverrides: {},
     companyIdentity: {
       tagline: 'Tu tienda en línea',
       brandManifest:

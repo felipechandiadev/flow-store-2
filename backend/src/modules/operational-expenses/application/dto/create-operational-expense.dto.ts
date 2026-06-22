@@ -9,9 +9,35 @@ import {
   IsArray,
   IsObject,
   Validate,
+  ValidateNested,
+  IsNumber,
+  Min,
 } from 'class-validator';
-import { OperationalExpenseStatus } from '../../domain/operational-expense.entity';
+import { Type } from 'class-transformer';
+import {
+  OperationalExpenseDocumentKind,
+  OperationalExpenseStatus,
+} from '../../domain/operational-expense.entity';
 import { ForbidLegacyAttachmentsConstraint } from './forbid-legacy-attachments.constraint';
+import { SupplierDocumentPaymentPlanDto } from '@modules/transactions/application/dto/supplier-document-payment-plan.dto';
+
+export class OperationalExpenseFiscalAmountsDto {
+  @IsNumber()
+  @Min(0)
+  subtotal!: number;
+
+  @IsNumber()
+  @Min(0)
+  taxAmount!: number;
+
+  @IsNumber()
+  @Min(0.01)
+  total!: number;
+
+  @IsOptional()
+  @IsUUID()
+  taxId?: string;
+}
 
 export class CreateOperationalExpenseDto {
   @IsNotEmpty()
@@ -30,9 +56,9 @@ export class CreateOperationalExpenseDto {
   @IsUUID()
   categoryId!: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsUUID()
-  supplierId?: string;
+  supplierId!: string;
 
   @IsOptional()
   @IsUUID()
@@ -43,10 +69,10 @@ export class CreateOperationalExpenseDto {
   @MaxLength(120)
   name!: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
   @MaxLength(60)
-  referenceNumber?: string;
+  referenceNumber!: string;
 
   @IsOptional()
   @IsString()
@@ -59,6 +85,18 @@ export class CreateOperationalExpenseDto {
   @IsOptional()
   @IsEnum(OperationalExpenseStatus)
   status?: OperationalExpenseStatus;
+
+  @IsNotEmpty()
+  @IsEnum(OperationalExpenseDocumentKind)
+  documentKind!: OperationalExpenseDocumentKind;
+
+  @ValidateNested()
+  @Type(() => OperationalExpenseFiscalAmountsDto)
+  fiscalAmounts!: OperationalExpenseFiscalAmountsDto;
+
+  @ValidateNested()
+  @Type(() => SupplierDocumentPaymentPlanDto)
+  supplierDocumentPayment!: SupplierDocumentPaymentPlanDto;
 
   @IsOptional()
   @IsObject()

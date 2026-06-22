@@ -8,10 +8,11 @@ import { OperationalExpensesRepository } from './infrastructure/operational-expe
 import { MultimediaModule } from '@modules/multimedia/multimedia.module';
 import { TransactionsModule } from '@modules/transactions/transactions.module';
 import { Branch } from '@modules/branches/domain/branch.entity';
+import { Transaction } from '@modules/transactions/domain/transaction.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([OperationalExpense, Branch]),
+    TypeOrmModule.forFeature([OperationalExpense, Branch, Transaction]),
     CqrsModule,
     MultimediaModule,
     TransactionsModule,

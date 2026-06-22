@@ -113,6 +113,7 @@ import { EShopDefaultStorageBackfill1756460000000 } from '../migrations/17564600
 import { CompanyPublicContactBackfill1756470000000 } from '../migrations/1756470000000-CompanyPublicContactBackfill';
 import { CompanyIdentityBackfill1756480000000 } from '../migrations/1756480000000-CompanyIdentityBackfill';
 import { CustomerCreditNotePayoutTransactionType1756490000000 } from '../migrations/1756490000000-CustomerCreditNotePayoutTransactionType';
+import { OperationalExpenseDocumentKindAndPaymentStatus1756500000000 } from '../migrations/1756500000000-OperationalExpenseDocumentKindAndPaymentStatus';
 import { EShopTestimonial } from '@modules/e-shop/domain/e-shop-testimonial.entity';
 import { EShopHeroSlide } from '@modules/e-shop/domain/e-shop-hero-slide.entity';
 import { Notification } from '@modules/notifications/domain/notification.entity';
@@ -248,6 +249,7 @@ export const AppDataSource = new DataSource({
     CompanyPublicContactBackfill1756470000000,
     CompanyIdentityBackfill1756480000000,
     CustomerCreditNotePayoutTransactionType1756490000000,
+    OperationalExpenseDocumentKindAndPaymentStatus1756500000000,
   ],
   migrationsTableName: 'typeorm_migrations',
   logging: process.env.DB_LOGGING === 'true',

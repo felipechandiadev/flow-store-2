@@ -10,7 +10,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 **Cómo solicitarlo:** decir *patrón **Colección admin***, *CRUD estilo sucursales*, o *igual que `/settings/branches`*.
 
-**Referencia de código:** `app/(app)/settings/branches/` (página + componentes) y `src/features/settings-branches/` (acciones, capas, types). Detalle de arquitectura: `../WEBADMIN_INSTRUCTIONS.md` y `.instructions/webadmin.instruction`.
+**Referencia de código:** `app/(app)/settings/branches/` (página + componentes) y `src/features/settings-branches/` (acciones, capas, types). Detalle de arquitectura: `../docs/legacy/WEBADMIN_INSTRUCTIONS.md` y `.instructions/webadmin.instruction`.
 
 - **Flujo de datos obligatorio:** componentes cliente / RSC → **Server Actions** (`"use server"` en `src/features/{feature}/actions/*.action.ts`) → **use cases** (`application/*.usecase.ts`) → **validación** (Zod en `domain/*.entity.ts`) → **infraestructura** (`infrastructure/*.request.ts`: único lugar de `fetch` a `BACKEND_API_URL` + `Authorization: Bearer …`) → API Nest bajo `/api/...`. **Prohibido** llamar al backend con `fetch` desde componentes cliente, hooks o rutas de solo UI.
 - **Carga inicial de la pantalla:** `page.tsx` como **RSC** que obtiene la lista vía una función exportada del `*.action.ts` (p. ej. `listEntitiesForPage()`), que a su vez usa el use case de listado. Usar `export const dynamic = "force-dynamic"` cuando haya **mutaciones** y `revalidatePath` para que la lista se renueve en cada vuelta relevante.
@@ -38,4 +38,4 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **IconButton** en **cards** (pies de `Card`, acciones con icono en tarjetas): **solo** `variant="action"` (el `Card` aplica esto a acciones con `icon` + `ariaLabel`).
 - **Formularios con `TextField`:** el `placeholder` de cada campo debe ser **el mismo texto que el `label`**; no textos de ejemplo en el placeholder (norma en `webadmin.instruction`).
 - **Indicadores de carga (loading):** cualquier UI de carga reutilizable —`loading.tsx` de segmentos, `Suspense` fallback, `dynamic({ loading: ... })`, bloques mientras se obtienen datos, etc.— debe usar el componente compartido **`DotProgress`** (`@/shared/components/DotProgress/DotProgress` o reexport de `@/shared/components`). **No** usar `animate-spin` a mano, “skeletons” de spinner custom ni texto solo «Cargando…» sin `DotProgress`, salvo excepción explícita. El **`loading` integrado de `Button`** (icono de spinner en el propio botón) sigue siendo el patrón de ese control.
-- Ver también `.instructions/webadmin.instruction` e `../WEBADMIN_INSTRUCTIONS.md` para el resto de reglas del frontend admin.
+- Ver también `.instructions/webadmin.instruction` e `../docs/legacy/WEBADMIN_INSTRUCTIONS.md` para el resto de reglas del frontend admin.

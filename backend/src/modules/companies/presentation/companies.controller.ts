@@ -362,4 +362,39 @@ export class CompaniesController {
     );
     return { success: true, eShopSettings };
   }
+
+  @Get('companies/:id/eshop-theme')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async getCompanyEShopTheme(@Param('id') id: string) {
+    const data = await this.companiesService.getEShopThemeSettings(id);
+    return { success: true, ...data };
+  }
+
+  @Patch('companies/:id/eshop-theme')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async replaceCompanyEShopTheme(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const incoming =
+      body && typeof body === 'object' && 'theme' in (body as object)
+        ? (body as { theme: Record<string, unknown> }).theme
+        : (body as Record<string, unknown>);
+    const theme = await this.companiesService.replaceEShopThemeSettings(id, {
+      templateId:
+        typeof incoming.templateId === 'string'
+          ? (incoming.templateId as import('../domain/company-eshop-theme.types').EShopTemplateId)
+          : undefined,
+      tokenOverrides:
+        incoming.tokenOverrides && typeof incoming.tokenOverrides === 'object'
+          ? (incoming.tokenOverrides as import('../domain/company-eshop-theme.types').EShopThemeTokenOverrides)
+          : undefined,
+    });
+    const resolved = (
+      await this.companiesService.getEShopThemeSettings(id)
+    ).resolved;
+    return { success: true, theme, resolved };
+  }
 }

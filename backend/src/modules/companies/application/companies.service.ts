@@ -44,6 +44,12 @@ import {
   sanitizeCompanyEShopFlatSettings,
 } from '../domain/company-eshop-flat.types';
 import {
+  type CompanyEShopThemeSettings,
+  listEShopThemePresetsForAdmin,
+  resolveEShopTheme,
+  sanitizeCompanyEShopThemeSettings,
+} from '../domain/company-eshop-theme.types';
+import {
   CompanyIdentitySettings,
   resolveCompanyIdentity,
   sanitizeCompanyIdentity,
@@ -649,6 +655,56 @@ export class CompaniesService {
     return sanitizeCompanyEShopFlatSettings(
       company.settings as Record<string, unknown>,
     );
+  }
+
+  async getEShopThemeSettings(companyId: string): Promise<{
+    theme: CompanyEShopThemeSettings;
+    resolved: ReturnType<typeof resolveEShopTheme>;
+    presets: ReturnType<typeof listEShopThemePresetsForAdmin>;
+  }> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    const settings = company.settings as Record<string, unknown>;
+    const theme = sanitizeCompanyEShopThemeSettings(settings);
+    return {
+      theme,
+      resolved: resolveEShopTheme(settings),
+      presets: listEShopThemePresetsForAdmin(),
+    };
+  }
+
+  async replaceEShopThemeSettings(
+    companyId: string,
+    raw: Partial<CompanyEShopThemeSettings>,
+  ): Promise<CompanyEShopThemeSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+
+    const current = sanitizeCompanyEShopThemeSettings(
+      company.settings as Record<string, unknown>,
+    );
+    const merged: CompanyEShopThemeSettings = {
+      templateId: raw.templateId ?? current.templateId,
+      tokenOverrides: {
+        ...current.tokenOverrides,
+        ...(raw.tokenOverrides ?? {}),
+      },
+    };
+    const sanitized = sanitizeCompanyEShopThemeSettings({
+      eShopTemplateId: merged.templateId,
+      eShopThemeTokenOverrides: merged.tokenOverrides,
+    });
+
+    const settings = { ...(company.settings ?? {}) };
+    settings.eShopTemplateId = sanitized.templateId;
+    settings.eShopThemeTokenOverrides = sanitized.tokenOverrides;
+    company.settings = settings;
+    await this.companyRepository.save(company);
+    return sanitized;
   }
 
   async addBankAccount(

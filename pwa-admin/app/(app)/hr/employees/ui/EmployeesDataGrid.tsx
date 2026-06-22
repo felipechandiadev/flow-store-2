@@ -4,10 +4,21 @@ import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import DataGrid from "@/shared/components/DataGrid/DataGrid";
 import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
-import Badge, { type BadgeVariant } from "@/shared/components/Badge/Badge";
+import Badge from "@/shared/components/Badge/Badge";
+import IconButton from "@/shared/components/IconButton/IconButton";
 import type { EmployeeGridRow } from "@/features/hr-employees/types/employee.types";
+import { employeeDisplayName } from "@/features/hr-employees/types/employee.types";
 import type { BranchListItem } from "@/features/settings-branches/types/branch.types";
 import { CreateEmployeeDialog } from "./CreateEmployeeDialog";
+import { EmployeeDetailDialog } from "./EmployeeDetailDialog";
+import {
+  documentLine,
+  EMPLOYEE_EMPLOYMENT_LABEL,
+  EMPLOYEE_STATUS_LABEL,
+  employeeStatusBadgeVariant,
+  formatDateOnlySlash,
+  formatMoneyClp,
+} from "./employee-detail/employee-detail-labels";
 
 type EmployeesDataGridProps = {
   rows: EmployeeGridRow[];
@@ -15,102 +26,40 @@ type EmployeesDataGridProps = {
   branches: BranchListItem[];
 };
 
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
-function formatDateOnlySlash(value: string | null | undefined): string {
-  if (!value?.trim()) {
-    return "—";
-  }
-  const trimmed = value.trim();
-  const isoDate = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoDate) {
-    const [, y, m, d] = isoDate;
-    return `${d}/${m}/${y}`;
-  }
-  const dt = new Date(trimmed);
-  if (Number.isNaN(dt.getTime())) {
-    return "—";
-  }
-  return `${pad2(dt.getDate())}/${pad2(dt.getMonth() + 1)}/${dt.getFullYear()}`;
-}
-
-function formatMoneyClp(value: string | null | undefined): string {
-  if (value == null || String(value).trim() === "") {
-    return "—";
-  }
-  const n = Number(value);
-  if (!Number.isFinite(n)) {
-    return "—";
-  }
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
-
-function displayName(row: EmployeeGridRow): string {
-  const p = row.person;
-  if (!p) {
-    return row.personId?.trim() || "—";
-  }
-  const business = p.businessName?.trim();
-  if (business) {
-    return business;
-  }
-  const full = [p.firstName, p.lastName].filter(Boolean).join(" ").trim();
-  return full || "—";
-}
-
-function documentLine(row: EmployeeGridRow): string {
-  const p = row.person;
-  if (!p?.documentNumber?.trim()) {
-    return "—";
-  }
-  const dt = p.documentType?.trim() || "—";
-  return `${dt}: ${p.documentNumber}`;
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  ACTIVE: "Activo",
-  SUSPENDED: "Suspendido",
-  TERMINATED: "Terminado",
-};
-
-const EMPLOYMENT_LABEL: Record<string, string> = {
-  FULL_TIME: "Jornada completa",
-  PART_TIME: "Part time",
-  CONTRACTOR: "Contratista",
-  TEMPORARY: "Temporal",
-  INTERN: "Práctica",
-};
-
-function statusBadgeVariant(status: string): BadgeVariant {
-  if (status === "ACTIVE") return "success-outlined";
-  if (status === "SUSPENDED") return "warning-outlined";
-  if (status === "TERMINATED") return "secondary-outlined";
-  return "secondary-outlined";
-}
-
 export default function EmployeesDataGrid({ rows, total, branches }: EmployeesDataGridProps) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
+  const [detailEmployeeId, setDetailEmployeeId] = useState<string | null>(null);
 
   const onSuccess = useCallback(async () => {
     await router.refresh();
   }, [router]);
 
-  const columns: DataGridColumn[] = useMemo(
-    () => [
+  const columns: DataGridColumn[] = useMemo(() => {
+    function EmployeeActionsCell({ row }: { row: unknown }) {
+      const r = row as EmployeeGridRow;
+      return (
+        <div className="flex items-center justify-center" data-test-id={`employees-row-actions-${r.id}`}>
+          <IconButton
+            icon="MoreHorizontal"
+            variant="action"
+            size="sm"
+            ariaLabel="Ver detalle del empleado"
+            onClick={() => setDetailEmployeeId(r.id)}
+            data-test-id={`employees-row-detail-${r.id}`}
+          />
+        </div>
+      );
+    }
+
+    return [
       {
         field: "displayName",
         headerName: "Nombre",
         sortable: false,
         minWidth: 220,
         flex: 1,
-        valueGetter: ({ row }) => displayName(row as EmployeeGridRow),
+        valueGetter: ({ row }) => employeeDisplayName(row as EmployeeGridRow),
       },
       {
         field: "document",
@@ -118,7 +67,7 @@ export default function EmployeesDataGrid({ rows, total, branches }: EmployeesDa
         sortable: false,
         minWidth: 150,
         width: 170,
-        valueGetter: ({ row }) => documentLine(row as EmployeeGridRow),
+        valueGetter: ({ row }) => documentLine((row as EmployeeGridRow).person),
       },
       {
         field: "email",
@@ -157,7 +106,7 @@ export default function EmployeesDataGrid({ rows, total, branches }: EmployeesDa
         width: 150,
         valueGetter: ({ row }) => {
           const k = String((row as EmployeeGridRow).employmentType || "");
-          return EMPLOYMENT_LABEL[k] ?? (k || "—");
+          return EMPLOYEE_EMPLOYMENT_LABEL[k] ?? (k || "—");
         },
       },
       {
@@ -176,17 +125,26 @@ export default function EmployeesDataGrid({ rows, total, branches }: EmployeesDa
         valueGetter: ({ row }) => String((row as EmployeeGridRow).status || ""),
         renderCell: ({ value }) => {
           const key = String(value || "");
-          const label = STATUS_LABEL[key] ?? (key || "—");
+          const label = EMPLOYEE_STATUS_LABEL[key] ?? (key || "—");
           return (
-            <Badge variant={statusBadgeVariant(key)} size="sm">
+            <Badge variant={employeeStatusBadgeVariant(key)}>
               {label}
             </Badge>
           );
         },
       },
-    ],
-    [],
-  );
+      {
+        field: "actions",
+        headerName: "",
+        width: 72,
+        minWidth: 72,
+        align: "center",
+        sortable: false,
+        filterable: false,
+        actionComponent: EmployeeActionsCell,
+      },
+    ];
+  }, []);
 
   return (
     <>
@@ -202,12 +160,19 @@ export default function EmployeesDataGrid({ rows, total, branches }: EmployeesDa
         showFilterButton={false}
         showSearch={false}
         onAddClick={() => setCreateOpen(true)}
+        pinActionsColumn
         data-test-id="employees-data-grid"
       />
       <CreateEmployeeDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSuccess={onSuccess}
+        branches={branches}
+      />
+      <EmployeeDetailDialog
+        open={detailEmployeeId != null}
+        employeeId={detailEmployeeId}
+        onClose={() => setDetailEmployeeId(null)}
         branches={branches}
       />
     </>

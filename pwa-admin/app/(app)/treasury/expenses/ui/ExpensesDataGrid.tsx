@@ -7,7 +7,10 @@ import type { DataGridColumn } from "@/shared/components/DataGrid/DataGrid";
 import type {
   ExpenseCategoryOption,
   OperationalExpenseGridRow,
-  SupplierOption,
+} from "@/features/treasury-expenses/types/operational-expense.types";
+import {
+  OPERATIONAL_EXPENSE_DOCUMENT_KIND_LABELS,
+  OPERATIONAL_EXPENSE_PAYMENT_STATUS_LABELS,
 } from "@/features/treasury-expenses/types/operational-expense.types";
 import { CreateOperationalExpenseDialog } from "./CreateOperationalExpenseDialog";
 
@@ -15,7 +18,6 @@ type ExpensesDataGridProps = {
   rows: OperationalExpenseGridRow[];
   total: number;
   categories: ExpenseCategoryOption[];
-  suppliers: SupplierOption[];
 };
 
 function fmtClp(n: number | null | undefined): string {
@@ -28,7 +30,7 @@ function fmtClp(n: number | null | undefined): string {
   }).format(v);
 }
 
-export default function ExpensesDataGrid({ rows, total, categories, suppliers }: ExpensesDataGridProps) {
+export default function ExpensesDataGrid({ rows, total, categories }: ExpensesDataGridProps) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -44,18 +46,34 @@ export default function ExpensesDataGrid({ rows, total, categories, suppliers }:
         field: "referenceNumber",
         headerName: "Referencia",
         sortable: true,
-        minWidth: 160,
+        minWidth: 140,
         valueGetter: ({ row }) => (row as OperationalExpenseGridRow).referenceNumber || "—",
+      },
+      {
+        field: "documentKind",
+        headerName: "Documento",
+        sortable: false,
+        width: 140,
+        valueGetter: ({ row }) => {
+          const kind = (row as OperationalExpenseGridRow).documentKind;
+          return kind ? OPERATIONAL_EXPENSE_DOCUMENT_KIND_LABELS[kind] : "—";
+        },
       },
       {
         field: "supplierName",
         headerName: "Proveedor",
         sortable: false,
         minWidth: 180,
+        valueGetter: ({ row }) => (row as OperationalExpenseGridRow).supplierName || "—",
+      },
+      {
+        field: "paymentStatus",
+        headerName: "Estado pago",
+        sortable: false,
+        width: 120,
         valueGetter: ({ row }) => {
-          const r = row as OperationalExpenseGridRow;
-          const s = suppliers.find((x) => x.id === r.supplierId);
-          return s?.name ?? "—";
+          const ps = (row as OperationalExpenseGridRow).paymentStatus;
+          return ps ? OPERATIONAL_EXPENSE_PAYMENT_STATUS_LABELS[ps] : "—";
         },
       },
       {
@@ -131,7 +149,6 @@ export default function ExpensesDataGrid({ rows, total, categories, suppliers }:
         onClose={() => setCreateOpen(false)}
         onSuccess={onSuccess}
         categoryOptions={categories}
-        supplierOptions={suppliers}
       />
     </>
   );

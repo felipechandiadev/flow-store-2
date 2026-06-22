@@ -18,10 +18,10 @@ La modalidad se define **al cargar cada app** vía variables de entorno (ver § 
 
 | Documento | Contenido |
 |-----------|-----------|
-| `docs/ANALISIS_COMPETITIVO_BSALE_VS_KAISTORE.md` | Bsale, Fudo vs KaiStore; contexto de mercado |
-| `docs/KAISTORE_E-SHOP_PHASE2_BACKLOG.md` | Detalle ítems tienda |
-| `docs/KAISTORE_E-SHOP_DEVELOPMENT_GUIDE.md` | Guía técnica eShop |
-| `docs/Definición Módulo SII KaiStore.md` | Especificación fiscal (fase final) |
+| `ANALISIS_COMPETITIVO_BSALE_VS_KAISTORE.md` | Bsale, Fudo vs KaiStore; contexto de mercado |
+| `KAISTORE_E-SHOP_PHASE2_BACKLOG.md` | Detalle ítems tienda |
+| `KAISTORE_E-SHOP_DEVELOPMENT_GUIDE.md` | Guía técnica eShop |
+| `Definición Módulo SII KaiStore.md` | Especificación fiscal (fase final) |
 | `pwa-admin/docs/CONTABILIDAD_SECCIONES.md` | Pantallas contables y placeholders |
 
 ---
@@ -262,7 +262,7 @@ Ver detalle por pantalla en `pwa-admin/docs/CONTABILIDAD_SECCIONES.md`.
 
 **Dependencias:** ideal **después de Webpay** para eShop (devengo al percibir pago). POS puede adelantarse si hay cobro en tienda sin pasarela.
 
-**Documentación:** `docs/Definición Módulo SII KaiStore.md`.
+**Documentación:** `Definición Módulo SII KaiStore.md`.
 
 **Esfuerzo orientativo:** 12–20 semanas (según proveedor y certificación).
 
@@ -270,7 +270,7 @@ Ver detalle por pantalla en `pwa-admin/docs/CONTABILIDAD_SECCIONES.md`.
 
 ## Fase KaiFood — Gastronomía (modalidad `kaifood`)
 
-Vertical restaurante / bar / dark kitchen. Compite con **Fudo** (ver `docs/ANALISIS_COMPETITIVO_BSALE_VS_KAISTORE.md` §6bis). Requiere **K0** (env) antes de features de salón.
+Vertical restaurante / bar / dark kitchen. Compite con **Fudo** (ver `ANALISIS_COMPETITIVO_BSALE_VS_KAISTORE.md` §6bis). Requiere **K0** (env) antes de features de salón.
 
 **Apps:** `pwa-admin` (configuración), `pwa-pos` (mesero / caja), `backend` (dominio). `pwa-eshop` opcional para menú delivery (fase posterior).
 

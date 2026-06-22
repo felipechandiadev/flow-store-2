@@ -7,14 +7,12 @@ import { Button } from "@/shared/components/Button";
 import { TextField } from "@/shared/components/TextField/TextField";
 import Select from "@/shared/components/Select/Select";
 import type { Option } from "@/shared/components/Select";
-import Switch from "@/shared/components/Switch/Switch";
 import AutoComplete from "@/shared/components/AutoComplete/AutoComplete";
 import type { Option as AutoOption } from "@/shared/components/AutoComplete/AutoComplete";
 import { createOperationalExpenseAction } from "@/features/treasury-expenses/actions/operational-expense.action";
 import type {
   ExpenseCategoryOption,
-  OperationalExpenseLinkedDteKind,
-  SupplierOption,
+  OperationalExpenseDocumentKind,
 } from "@/features/treasury-expenses/types/operational-expense.types";
 import { usePurchaseDocumentReferenceData } from "@/shared/components/PurchaseDocumentBuilder/usePurchaseDocumentReferenceData";
 import type { SupplierGridRow } from "@/features/purchasing-suppliers/types/supplier.types";
@@ -35,7 +33,6 @@ type CreateOperationalExpenseDialogProps = {
   onClose: () => void;
   onSuccess?: () => void | Promise<void>;
   categoryOptions: ExpenseCategoryOption[];
-  supplierOptions: SupplierOption[];
 };
 
 function isoDateToday(): string {
@@ -46,10 +43,11 @@ const EMPTY_SUPPLIERS: SupplierGridRow[] = [];
 const EMPTY_TAXES: TaxListItem[] = [];
 const EMPTY_COMPANY_BANKS: CompanyBankAccountItem[] = [];
 
-const DTE_KIND_OPTIONS: Option[] = [
-  { id: "SUPPLIER_INVOICE", label: "Factura de proveedor" },
-  { id: "SUPPLIER_RECEIPT", label: "Boleta de proveedor" },
-  { id: "SUPPLIER_HONORARIUM_RECEIPT", label: "Boleta de honorarios" },
+const DOCUMENT_KIND_OPTIONS: Option[] = [
+  { id: "SUPPLIER_INVOICE", label: "Factura" },
+  { id: "SUPPLIER_RECEIPT", label: "Boleta" },
+  { id: "SUPPLIER_HONORARIUM_RECEIPT", label: "Boleta honorarios" },
+  { id: "OTHER", label: "Otro" },
 ];
 
 export function CreateOperationalExpenseDialog({
@@ -57,78 +55,82 @@ export function CreateOperationalExpenseDialog({
   onClose,
   onSuccess,
   categoryOptions,
-  supplierOptions,
 }: CreateOperationalExpenseDialogProps) {
-  const reference = usePurchaseDocumentReferenceData();
+  const reference = usePurchaseDocumentReferenceData(open);
   const suppliers = reference.status === "ready" ? reference.suppliers : EMPTY_SUPPLIERS;
   const taxes = reference.status === "ready" ? reference.taxes : EMPTY_TAXES;
   const companyBankAccounts =
     reference.status === "ready" ? reference.companyBankAccounts : EMPTY_COMPANY_BANKS;
+  const cashHubs = reference.status === "ready" ? reference.cashHubs : [];
   const referenceError = reference.status === "error" ? reference.message : null;
-  const referenceLoading = reference.status === "loading";
+  const referenceLoading = open && reference.status === "loading";
 
   const [name, setName] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [supplierId, setSupplierId] = useState<string | null>(null);
+  const [documentKind, setDocumentKind] = useState<OperationalExpenseDocumentKind>("SUPPLIER_INVOICE");
+  const [supplierOpt, setSupplierOpt] = useState<AutoOption | null>(null);
   const [operationDate, setOperationDate] = useState(isoDateToday());
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const [linkToDte, setLinkToDte] = useState(false);
-  const [dteKind, setDteKind] = useState<OperationalExpenseLinkedDteKind>("SUPPLIER_INVOICE");
-  const [linkedSupplierOpt, setLinkedSupplierOpt] = useState<AutoOption | null>(null);
-  const [dteNumber, setDteNumber] = useState("");
   const [netStr, setNetStr] = useState("0");
   const [totalStr, setTotalStr] = useState("0");
   const lastAmountField = useRef<"net" | "total">("net");
+
   const [paymentPayload, setPaymentPayload] = useState<PlannedPaymentPayload>({
-    mode: "PENDING_SCHEDULED",
+    mode: "PENDING",
     paidLines: [],
     scheduledLines: [],
   });
-  const [paymentValid, setPaymentValid] = useState(false);
+  const [paymentValid, setPaymentValid] = useState(true);
+  const [paymentPlanError, setPaymentPlanError] = useState<string | null>(null);
 
   const selectOptions: Option[] = useMemo(
     () => categoryOptions.map((c) => ({ id: c.id, label: c.name })),
     [categoryOptions],
   );
-  const supplierSelectOptions: Option[] = useMemo(
-    () => supplierOptions.map((s) => ({ id: s.id, label: s.name })),
-    [supplierOptions],
-  );
 
   const activeSuppliers = useMemo(() => suppliers.filter((s) => s.isActive !== false), [suppliers]);
   const iva = useMemo(() => pickIvaTaxForLines(taxes), [taxes]);
   const retention = useMemo(() => pickHonorariumRetentionTaxForLines(taxes), [taxes]);
-  const usesHonorarium = dteKind === "SUPPLIER_HONORARIUM_RECEIPT";
-  const ivaRate = iva.rate;
-  const retentionRate = retention.rate;
-  const rateForAmounts = usesHonorarium ? retentionRate : ivaRate;
+  const usesHonorarium = documentKind === "SUPPLIER_HONORARIUM_RECEIPT";
+  const rateForAmounts = usesHonorarium ? retention.rate : iva.rate;
 
-  const supplierOptionsLinked: AutoOption[] = useMemo(
+  const supplierOptions: AutoOption[] = useMemo(
     () => activeSuppliers.map((s: SupplierGridRow) => ({ id: s.id, label: supplierOptionLabel(s) })),
     [activeSuppliers],
   );
 
-  const selectedLinkedSupplier = useMemo(() => {
-    const sid = linkedSupplierOpt?.id != null ? String(linkedSupplierOpt.id) : "";
+  const selectedSupplier = useMemo(() => {
+    const sid = supplierOpt?.id != null ? String(supplierOpt.id) : "";
     if (!sid) {
       return null;
     }
     return activeSuppliers.find((s) => s.id === sid) ?? null;
-  }, [linkedSupplierOpt?.id, activeSuppliers]);
+  }, [supplierOpt?.id, activeSuppliers]);
 
   const payeeBankAccounts = useMemo(() => {
-    const raw = selectedLinkedSupplier?.person?.bankAccounts;
+    const raw = selectedSupplier?.person?.bankAccounts;
     return raw != null && raw.length > 0 ? raw : [];
-  }, [selectedLinkedSupplier?.person?.bankAccounts]);
+  }, [selectedSupplier?.person?.bankAccounts]);
+
+  const cashHubOptions: Option[] = useMemo(
+    () => cashHubs.map((h) => ({ id: h.id, label: h.name?.trim() || h.id })),
+    [cashHubs],
+  );
+
+  const paymentSchedule = useMemo(
+    () => ({ kind: "monthly-chain" as const, anchorDate: operationDate }),
+    [operationDate],
+  );
 
   const onPaymentStateChange = useCallback(
     (state: { payload: PlannedPaymentPayload; valid: boolean; error: string | null }) => {
       setPaymentPayload(state.payload);
       setPaymentValid(state.valid);
+      setPaymentPlanError(state.error);
     },
     [],
   );
@@ -140,19 +142,17 @@ export function CreateOperationalExpenseDialog({
     setName("");
     setReferenceNumber("");
     setCategoryId(categoryOptions[0]?.id ?? null);
-    setSupplierId(null);
+    setDocumentKind("SUPPLIER_INVOICE");
+    setSupplierOpt(null);
     setOperationDate(isoDateToday());
     setDescription("");
     setError(null);
-    setLinkToDte(false);
-    setDteKind("SUPPLIER_INVOICE");
-    setLinkedSupplierOpt(null);
-    setDteNumber("");
     setNetStr("0");
     setTotalStr("0");
     lastAmountField.current = "net";
-    setPaymentPayload({ mode: "PENDING_SCHEDULED", paidLines: [], scheduledLines: [] });
-    setPaymentValid(false);
+    setPaymentPayload({ mode: "PENDING", paidLines: [], scheduledLines: [] });
+    setPaymentValid(true);
+    setPaymentPlanError(null);
   }, [open, categoryOptions]);
 
   const onNetChange = useCallback(
@@ -192,7 +192,7 @@ export function CreateOperationalExpenseDialog({
   );
 
   useEffect(() => {
-    if (!linkToDte) {
+    if (!open) {
       return;
     }
     if (lastAmountField.current === "net") {
@@ -218,18 +218,12 @@ export function CreateOperationalExpenseDialog({
         setTotalStr(String(p.total));
       }
     }
-  }, [linkToDte, usesHonorarium, rateForAmounts]);
+  }, [open, usesHonorarium, rateForAmounts]);
 
   const net = Math.max(0, Math.round(Number(netStr) || 0));
   const total = Math.max(0, Math.round(Number(totalStr) || 0));
   const taxAmount = total - net;
-
-  const paymentsValid = useMemo(() => {
-    if (!linkToDte || !linkedSupplierOpt?.id) {
-      return true;
-    }
-    return paymentValid;
-  }, [linkToDte, linkedSupplierOpt?.id, paymentValid]);
+  const taxIdForLink = usesHonorarium ? retention.taxId : iva.taxId;
 
   const handleClose = () => {
     if (isPending) {
@@ -247,65 +241,43 @@ export function CreateOperationalExpenseDialog({
           setError("Seleccione una categoría.");
           return;
         }
-        const sidSubmit = linkToDte
-          ? linkedSupplierOpt?.id != null
-            ? String(linkedSupplierOpt.id).trim()
-            : ""
-          : supplierId != null
-            ? String(supplierId).trim()
-            : "";
-
-        if (linkToDte) {
-          if (referenceLoading || reference.status === "error") {
-            setError(referenceError ?? "No se pudieron cargar datos de compras (proveedores, impuestos).");
-            return;
-          }
-          if (!sidSubmit) {
-            setError("Seleccione un proveedor para el documento tributario.");
-            return;
-          }
-          if (!dteNumber.trim()) {
-            setError("Indique el folio del documento tributario.");
-            return;
-          }
-          if (net <= 0 || total <= 0) {
-            setError("Indique monto neto y total mayores a cero.");
-            return;
-          }
-          if (!paymentsValid) {
-            setError(
-              "Revise cada cuota: montos mayores a cero, fecha de vencimiento y suma igual al total.",
-            );
-            return;
-          }
+        if (referenceLoading || reference.status === "error") {
+          setError(referenceError ?? "No se pudieron cargar datos de compras.");
+          return;
         }
-
-        const taxIdForLink = usesHonorarium ? retention.taxId : iva.taxId;
-        const plannedPayments = paymentPayload.scheduledLines.map((l) => ({
-          dueDate: l.dueDate,
-          amount: l.amount,
-        }));
+        const supplierId = supplierOpt?.id != null ? String(supplierOpt.id).trim() : "";
+        if (!supplierId) {
+          setError("Seleccione un proveedor.");
+          return;
+        }
+        if (!referenceNumber.trim()) {
+          setError("Indique la referencia (folio del documento).");
+          return;
+        }
+        if (net <= 0 || total <= 0) {
+          setError("Indique montos neto y total mayores a cero.");
+          return;
+        }
+        if (!paymentValid) {
+          setError(paymentPlanError ?? "Revise el plan de pago del documento.");
+          return;
+        }
 
         const r = await createOperationalExpenseAction({
           name: name.trim(),
           categoryId,
-          referenceNumber: referenceNumber.trim() || undefined,
+          supplierId,
+          referenceNumber: referenceNumber.trim(),
           operationDate,
           description,
-          supplierId: sidSubmit || undefined,
-          ...(linkToDte
-            ? {
-                linkedTributaryDocument: {
-                  kind: dteKind,
-                  dteNumber: dteNumber.trim(),
-                  netAmount: net,
-                  totalAmount: total,
-                  taxAmount,
-                  taxId: taxIdForLink ?? null,
-                  plannedPayments,
-                },
-              }
-            : {}),
+          documentKind,
+          fiscalAmounts: {
+            subtotal: net,
+            taxAmount,
+            total,
+            taxId: taxIdForLink ?? null,
+          },
+          supplierDocumentPayment: paymentPayload,
         });
         if (r.success) {
           await onSuccess?.();
@@ -317,16 +289,19 @@ export function CreateOperationalExpenseDialog({
     });
   };
 
-  const canSubmitResolved =
-    Boolean(name.trim() && categoryId && operationDate && !isPending) &&
-    (!linkToDte ||
-      (!referenceLoading &&
-        reference.status !== "error" &&
-        Boolean(linkedSupplierOpt?.id) &&
-        dteNumber.trim().length > 0 &&
-        net > 0 &&
-        total > 0 &&
-        paymentsValid));
+  const canSubmitResolved = Boolean(
+    name.trim() &&
+      categoryId &&
+      operationDate &&
+      supplierOpt?.id &&
+      referenceNumber.trim().length > 0 &&
+      net > 0 &&
+      total > 0 &&
+      !isPending &&
+      !referenceLoading &&
+      reference.status !== "error" &&
+      paymentValid,
+  );
 
   return (
     <Dialog
@@ -365,15 +340,6 @@ export function CreateOperationalExpenseDialog({
           data-test-id="operational-expense-name"
         />
 
-        <TextField
-          label="Referencia"
-          name="operating-expense-reference"
-          value={referenceNumber}
-          onChange={(e) => setReferenceNumber(e.target.value)}
-          placeholder="Referencia"
-          data-test-id="operational-expense-reference"
-        />
-
         <Select
           label="Categoría de gasto"
           name="operating-expense-category"
@@ -384,113 +350,43 @@ export function CreateOperationalExpenseDialog({
           data-test-id="operational-expense-category"
         />
 
-        <Switch
-          label="Vincular con documento tributario (DTE)"
-          checked={linkToDte}
-          onChange={(checked) => {
-            setLinkToDte(checked);
-            if (!checked) {
-              setLinkedSupplierOpt(null);
-              setPaymentPayload({ mode: "PENDING_SCHEDULED", paidLines: [], scheduledLines: [] });
-              setPaymentValid(false);
-            }
-          }}
-          labelPosition="right"
-          data-test-id="operating-expense-link-dte"
+        {referenceError ? (
+          <p className="text-sm text-error" role="alert">
+            {referenceError}
+          </p>
+        ) : null}
+
+        <AutoComplete
+          label="Proveedor"
+          name="operating-expense-supplier"
+          placeholder={referenceLoading ? "Cargando…" : "Buscar o seleccionar…"}
+          options={supplierOptions}
+          value={supplierOpt}
+          onChange={(opt) => setSupplierOpt(opt)}
+          alwaysShowLabel
+          disabled={referenceLoading || Boolean(referenceError)}
+          data-test-id="operating-expense-supplier"
         />
 
-        {!linkToDte ? (
-          <Select
-            label="Proveedor (opcional)"
-            name="operating-expense-supplier"
-            value={supplierId}
-            onChange={(id) => setSupplierId(id == null ? null : String(id))}
-            options={supplierSelectOptions}
-            placeholder="Proveedor (opcional)"
-            allowClear
-            data-test-id="operating-expense-supplier"
-          />
-        ) : null}
+        <Select
+          label="DTE/Documento"
+          name="operating-expense-document-kind"
+          value={documentKind}
+          onChange={(id) => setDocumentKind(String(id) as OperationalExpenseDocumentKind)}
+          options={DOCUMENT_KIND_OPTIONS}
+          required
+          data-test-id="operating-expense-document-kind"
+        />
 
-        {linkToDte ? (
-          <div className="flex flex-col gap-4 rounded-md border border-border/60 p-3">
-            <p className="text-sm font-medium text-foreground">Documento tributario</p>
-            {referenceError ? (
-              <p className="text-sm text-error" role="alert">
-                {referenceError}
-              </p>
-            ) : null}
-            <Select
-              label="Tipo de documento"
-              name="operating-expense-dte-kind"
-              value={dteKind}
-              onChange={(id) => setDteKind(String(id) as OperationalExpenseLinkedDteKind)}
-              options={DTE_KIND_OPTIONS}
-              required
-              data-test-id="operating-expense-dte-kind"
-            />
-            <AutoComplete
-              label="Proveedor"
-              name="operating-expense-dte-supplier"
-              placeholder={referenceLoading ? "Cargando…" : "Buscar o seleccionar…"}
-              options={supplierOptionsLinked}
-              value={linkedSupplierOpt}
-              onChange={(opt) => setLinkedSupplierOpt(opt)}
-              alwaysShowLabel
-              disabled={referenceLoading || Boolean(referenceError)}
-              data-test-id="operating-expense-dte-supplier"
-            />
-            <TextField
-              label="Folio DTE"
-              name="operating-expense-dte-folio"
-              value={dteNumber}
-              onChange={(e) => setDteNumber(e.target.value)}
-              required
-              data-test-id="operating-expense-dte-folio"
-            />
-            <TextField
-              label="Monto neto"
-              name="operating-expense-dte-net"
-              type="currency"
-              currencySymbol="$"
-              startSymbol="$"
-              value={netStr}
-              onChange={onNetChange}
-              data-test-id="operating-expense-dte-net"
-            />
-            <TextField
-              label={usesHonorarium ? "Total (bruto, incluye retención)" : "Total (incluye IVA)"}
-              name="operating-expense-dte-total"
-              type="currency"
-              currencySymbol="$"
-              startSymbol="$"
-              value={totalStr}
-              onChange={onTotalChange}
-              data-test-id="operating-expense-dte-total"
-            />
-            <p className="text-xs text-muted-foreground">
-              {usesHonorarium
-                ? `Retención honorarios (${retentionRate}%): líquido = total × (1 − tasa/100).`
-                : `IVA (${ivaRate}%): montos coherentes con el impuesto "IVA" del catálogo.`}
-            </p>
-
-            <PlannedPaymentPlanSection
-              disabled={referenceLoading || Boolean(referenceError) || !linkedSupplierOpt?.id}
-              total={total}
-              immediatePaymentDate={operationDate}
-              payeeSelected={Boolean(linkedSupplierOpt?.id)}
-              payeeBankAccounts={payeeBankAccounts}
-              companyBankAccounts={companyBankAccounts}
-              schedule={{ kind: "monthly-chain" }}
-              scheduledLinesBehavior="term-chain"
-              allowedModes={["PENDING_SCHEDULED"]}
-              sectionTitle="Cuotas de pago"
-              totalLabel="total del documento"
-              onStateChange={onPaymentStateChange}
-              data-test-id="operating-expense-payment-plan"
-            />
-          </div>
-        ) : null}
+        <TextField
+          label="Referencia"
+          name="operating-expense-reference"
+          value={referenceNumber}
+          onChange={(e) => setReferenceNumber(e.target.value)}
+          required
+          placeholder="Número de factura, boleta u otro documento"
+          data-test-id="operational-expense-reference"
+        />
 
         <TextField
           label="Fecha de operación"
@@ -501,6 +397,48 @@ export function CreateOperationalExpenseDialog({
           required
           placeholder="Fecha de operación"
           data-test-id="operating-expense-date"
+        />
+
+        <TextField
+          label="Monto neto"
+          name="operating-expense-net"
+          type="currency"
+          currencySymbol="$"
+          startSymbol="$"
+          value={netStr}
+          onChange={onNetChange}
+          data-test-id="operating-expense-net"
+        />
+        <TextField
+          label={usesHonorarium ? "Total (bruto, incluye retención)" : "Total (incluye IVA)"}
+          name="operating-expense-total"
+          type="currency"
+          currencySymbol="$"
+          startSymbol="$"
+          value={totalStr}
+          onChange={onTotalChange}
+          data-test-id="operating-expense-total"
+        />
+        <p className="text-xs text-muted-foreground">
+          {usesHonorarium
+            ? `Retención honorarios (${retention.rate}%): líquido = total × (1 − tasa/100).`
+            : `IVA (${iva.rate}%): montos coherentes con el impuesto "IVA" del catálogo.`}
+        </p>
+
+        <PlannedPaymentPlanSection
+          disabled={referenceLoading || Boolean(referenceError) || !supplierOpt?.id}
+          total={total}
+          immediatePaymentDate={operationDate}
+          payeeSelected={Boolean(supplierOpt?.id)}
+          payeeBankAccounts={payeeBankAccounts}
+          companyBankAccounts={companyBankAccounts}
+          cashHubOptions={cashHubOptions}
+          schedule={paymentSchedule}
+          scheduledLinesBehavior="term-chain"
+          sectionTitle="Plan de pago"
+          totalLabel="total del documento"
+          onStateChange={onPaymentStateChange}
+          data-test-id="operating-expense-payment-plan"
         />
 
         <TextField

@@ -11,12 +11,12 @@ Proyecto full-stack para Flow Store: Backend en NestJS con CQRS/DDD y Frontend w
 ```
 flow-store-2/
 ├── backend/                    # Backend NestJS
-│   ├── src/                    # Código fuente
-│   ├── package.json            # Dependencias
-│   └── WEBADMIN_FRONTEND_GUIDE.md  # Guía frontend (copia)
-├── WEBADMIN_FRONTEND_GUIDE.md  # Guía completa frontend
-├── BACKEND_INSTRUCTIONS.md     # Instrucciones para agentes Copilot (backend)
-├── WEBADMIN_INSTRUCTIONS.md    # Instrucciones para agentes Copilot (frontend)
+├── pwa-admin/                  # Admin web (Next.js)
+├── pwa-pos/                    # POS
+├── pwa-eshop/                  # Tienda pública
+├── docs/                       # Documentación del proyecto
+│   ├── project/                # Documentación viva (arquitectura, ecosistema)
+│   └── legacy/                 # Guías históricas y especificaciones detalladas
 └── README.md                   # Este archivo
 ```
 
@@ -34,7 +34,7 @@ flow-store-2/
    npx create-next-app web-admin --typescript --tailwind --app
    cd web-admin
    npm install next-pwa @tanstack/react-query next-auth zod zustand
-   # Configurar .env.local según WEBADMIN_FRONTEND_GUIDE.md
+   # Configurar .env.local según docs/legacy/WEBADMIN_FRONTEND_GUIDE.md
    npm run dev  # Puerto 3031
    ```
 
@@ -52,13 +52,18 @@ flow-store-2/
    # npm run seed:legacy   # Parabrisas / vidrios (opcional)
    ```
 
+## 📖 Documentación
+- **Arquitectura y ecosistema:** `docs/project/ARQUITECTURA_Y_ECOSISTEMA.md`
+- **Módulos y servicios backend:** `docs/project/MODULOS_Y_SERVICIOS_BACKEND.md`
+- **Índice completo:** `docs/README.md`
+
 ## 📖 Instrucciones para Agentes de Copilot
 - **Siempre** lee y sigue `.instructions/backend.instruction` para desarrollo backend.
 - **Siempre** lee y sigue `.instructions/webadmin.instruction` para desarrollo frontend.
-- Consulta `WEBADMIN_FRONTEND_GUIDE.md` para detalles completos.
+- Consulta `docs/legacy/WEBADMIN_FRONTEND_GUIDE.md` para detalles completos de frontend.
 
 ## 🔧 Configuración
-- Variables de entorno: Ver `WEBADMIN_FRONTEND_GUIDE.md` sección 🌍.
+- Variables de entorno: Ver `docs/legacy/WEBADMIN_FRONTEND_GUIDE.md` sección 🌍.
 - Base de datos: Configurar PostgreSQL en backend.
 
 ## 🤝 Contribución
@@ -67,5 +72,4 @@ flow-store-2/
 - Commits descriptivos.
 
 ## 📄 Licencia
-Proyecto interno - Sin licencia pública.</content>
-<parameter name="filePath">/Users/felipe/dev/flow-store-2/README.md
+Proyecto interno - Sin licencia pública.
