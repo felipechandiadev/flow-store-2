@@ -24,6 +24,8 @@
   --fs-active: #0a7cad;
   --fs-accent: #0a7cad;
   --fs-secondary: #04c9e6;
+  --fs-chrome: #002b59;
+  --fs-chrome-foreground: #ffffff;
   --fs-muted: #6b7280;
   --fs-muted-foreground: #6b7280;
   --fs-success: #4caf50;
@@ -43,6 +45,8 @@
   --color-active: var(--fs-active);
   --color-accent: var(--fs-accent);
   --color-secondary: var(--fs-secondary);
+  --color-chrome: var(--fs-chrome);
+  --color-chrome-foreground: var(--fs-chrome-foreground);
   --color-muted: var(--fs-muted);
   --color-muted-foreground: var(--fs-muted-foreground);
   --color-success: var(--fs-success);
@@ -80,6 +84,8 @@
   --color-active: var(--fs-active);
   --color-accent: var(--fs-accent);
   --color-secondary: var(--fs-secondary);
+  --color-chrome: var(--fs-chrome);
+  --color-chrome-foreground: var(--fs-chrome-foreground);
   --color-muted: var(--fs-muted);
   --color-muted-foreground: var(--fs-muted-foreground);
   --color-success: var(--fs-success);

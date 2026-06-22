@@ -1,6 +1,9 @@
 import { EShopCartProvider } from "@/features/e-shop-cart/EShopCartProvider";
 import { getStorefrontAction } from "@/features/e-shop-storefront/actions/storefront.action";
 import { EShopApiError } from "@/features/e-shop-storefront/infrastructure/eshop-api-error";
+import { isLightHexColor } from "@/features/e-shop-storefront/lib/is-light-hex-color";
+import { CLASSIC_THEME_FALLBACK } from "@/features/e-shop-storefront/lib/build-theme-css-vars";
+import { DEFAULT_ESHOP_TOP_BAR } from "@/features/e-shop-storefront/lib/default-eshop-shell";
 import { EShopThemeShell } from "@/features/e-shop-storefront/ui/EShopThemeShell";
 import { EShopTopBar } from "@/shared/components/EShopTopBar";
 import { EShopCartDrawer } from "@/shared/components/EShopCartDrawer";
@@ -26,6 +29,10 @@ export default async function StoreLayout({ children }: { children: React.ReactN
     throw e;
   }
 
+  const chrome =
+    storefront.theme?.tokens.chrome ?? CLASSIC_THEME_FALLBACK.tokens.chrome;
+  const chromeIsLight = isLightHexColor(chrome);
+
   return (
     <EShopThemeShell theme={storefront.theme}>
       <EShopCartProvider initialFreeShippingThreshold={storefront.eShopFreeShippingThreshold}>
@@ -33,6 +40,8 @@ export default async function StoreLayout({ children }: { children: React.ReactN
         <EShopTopBar
           companyName={storefront.companyName}
           companyLogoUrl={storefront.companyLogoUrl}
+          topBar={storefront.topBar ?? DEFAULT_ESHOP_TOP_BAR}
+          chromeIsLight={chromeIsLight}
         />
         <main className="w-full flex-1">{children}</main>
         <EShopFooter storefront={storefront} />

@@ -397,4 +397,62 @@ export class CompaniesController {
     ).resolved;
     return { success: true, theme, resolved };
   }
+
+  @Get('companies/:id/eshop-topbar')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async getCompanyEShopTopBar(@Param('id') id: string) {
+    const data = await this.companiesService.getEShopTopBarSettings(id);
+    return { success: true, ...data };
+  }
+
+  @Patch('companies/:id/eshop-topbar')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async replaceCompanyEShopTopBar(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const incoming =
+      body && typeof body === 'object' && 'topBar' in (body as object)
+        ? (body as { topBar: Record<string, unknown> }).topBar
+        : (body as Record<string, unknown>);
+    const topBar = await this.companiesService.replaceEShopTopBarSettings(
+      id,
+      incoming as import('../domain/company-eshop-topbar.types').CompanyEShopTopBarSettings,
+    );
+    const resolved = (
+      await this.companiesService.getEShopTopBarSettings(id)
+    ).resolved;
+    return { success: true, topBar, resolved };
+  }
+
+  @Get('companies/:id/eshop-footer')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async getCompanyEShopFooter(@Param('id') id: string) {
+    const data = await this.companiesService.getEShopFooterSettings(id);
+    return { success: true, ...data };
+  }
+
+  @Patch('companies/:id/eshop-footer')
+  @AdminOnly()
+  @AllowAdminWithoutCompany()
+  async replaceCompanyEShopFooter(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const incoming =
+      body && typeof body === 'object' && 'footer' in (body as object)
+        ? (body as { footer: Record<string, unknown> }).footer
+        : (body as Record<string, unknown>);
+    const footer = await this.companiesService.replaceEShopFooterSettings(
+      id,
+      incoming as import('../domain/company-eshop-footer.types').CompanyEShopFooterSettings,
+    );
+    const resolved = (
+      await this.companiesService.getEShopFooterSettings(id)
+    ).resolved;
+    return { success: true, footer, resolved };
+  }
 }

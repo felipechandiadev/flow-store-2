@@ -11,6 +11,8 @@ import type {
   PosPaymentMethodConfig,
 } from '@modules/payment-methods-config/domain/payment-method-config.types';
 import { DocumentType } from '@modules/persons/domain/person.entity';
+import { buildDefaultCompanyEShopTopBarSettings } from '@modules/companies/domain/company-eshop-topbar.types';
+import { buildDefaultCompanyEShopFooterSettings } from '@modules/companies/domain/company-eshop-footer.types';
 
 /** Empresa genérica de desarrollo — «Mi Empresa». */
 export const SEED_DEV_COMPANY = {
@@ -279,6 +281,8 @@ export function buildSeedCompanySettings(
     eShopDefaultStorageId: null,
     eShopTemplateId: 'classic',
     eShopThemeTokenOverrides: {},
+    eShopTopBar: buildDefaultCompanyEShopTopBarSettings(),
+    eShopFooter: buildDefaultCompanyEShopFooterSettings(),
     companyIdentity: {
       tagline: 'Tu tienda en línea',
       brandManifest:

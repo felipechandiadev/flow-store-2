@@ -203,7 +203,7 @@ pwa-admin/
 - Catálogo vía endpoints públicos `e-shop/*`.
 - Comparte componentes/preview con admin (`admin-shared`, eshop-preview en admin).
 - Checkout crea venta en backend; pasarela de pago online en backlog (fase posterior).
-- **Tema visual:** plantillas de color por empresa (`eShopTemplateId` + tokens) vía API storefront; configuración en admin `/e-shop/appearance`. Ver [IF-06](../implementaciones-futuras/IF-06-eshop-plantillas-y-tema.md).
+- **Tema visual:** plantillas de color por empresa (`eShopTemplateId` + tokens) vía API storefront; configuración en admin `/e-shop/appearance`. Topbar y footer editables en `/e-shop/topbar` y `/e-shop/footer`. Ver [IF-06](../implementaciones-futuras/IF-06-eshop-plantillas-y-tema.md) e [IF-07](../implementaciones-futuras/IF-07-eshop-topbar-footer.md).
 
 Guía técnica: `docs/legacy/KAISTORE_E-SHOP_DEVELOPMENT_GUIDE.md`.
 

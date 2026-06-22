@@ -50,6 +50,16 @@ import {
   sanitizeCompanyEShopThemeSettings,
 } from '../domain/company-eshop-theme.types';
 import {
+  type CompanyEShopTopBarSettings,
+  resolveEShopTopBar,
+  sanitizeCompanyEShopTopBarSettings,
+} from '../domain/company-eshop-topbar.types';
+import {
+  type CompanyEShopFooterSettings,
+  resolveEShopFooter,
+  sanitizeCompanyEShopFooterSettings,
+} from '../domain/company-eshop-footer.types';
+import {
   CompanyIdentitySettings,
   resolveCompanyIdentity,
   sanitizeCompanyIdentity,
@@ -705,6 +715,93 @@ export class CompaniesService {
     company.settings = settings;
     await this.companyRepository.save(company);
     return sanitized;
+  }
+
+  async getEShopTopBarSettings(companyId: string): Promise<{
+    topBar: CompanyEShopTopBarSettings;
+    resolved: CompanyEShopTopBarSettings;
+  }> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    const settings = company.settings as Record<string, unknown>;
+    const topBar = sanitizeCompanyEShopTopBarSettings(settings?.eShopTopBar);
+    return {
+      topBar,
+      resolved: resolveEShopTopBar(settings),
+    };
+  }
+
+  async replaceEShopTopBarSettings(
+    companyId: string,
+    raw: Partial<CompanyEShopTopBarSettings>,
+  ): Promise<CompanyEShopTopBarSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+
+    const current = sanitizeCompanyEShopTopBarSettings(
+      (company.settings as Record<string, unknown>)?.eShopTopBar,
+    );
+    const merged = sanitizeCompanyEShopTopBarSettings({
+      showLogo: raw.showLogo ?? current.showLogo,
+      showCompanyName: raw.showCompanyName ?? current.showCompanyName,
+      showCart: raw.showCart ?? current.showCart,
+      navLinks: raw.navLinks ?? current.navLinks,
+    });
+
+    const settings = { ...(company.settings ?? {}) };
+    settings.eShopTopBar = merged;
+    company.settings = settings;
+    await this.companyRepository.save(company);
+    return merged;
+  }
+
+  async getEShopFooterSettings(companyId: string): Promise<{
+    footer: CompanyEShopFooterSettings;
+    resolved: CompanyEShopFooterSettings;
+  }> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+    const settings = company.settings as Record<string, unknown>;
+    const footer = sanitizeCompanyEShopFooterSettings(settings?.eShopFooter);
+    return {
+      footer,
+      resolved: resolveEShopFooter(settings),
+    };
+  }
+
+  async replaceEShopFooterSettings(
+    companyId: string,
+    raw: Partial<CompanyEShopFooterSettings>,
+  ): Promise<CompanyEShopFooterSettings> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company) throw new NotFoundException('Empresa no encontrada');
+
+    const current = sanitizeCompanyEShopFooterSettings(
+      (company.settings as Record<string, unknown>)?.eShopFooter,
+    );
+    const merged = sanitizeCompanyEShopFooterSettings({
+      showLogo: raw.showLogo ?? current.showLogo,
+      showTagline: raw.showTagline ?? current.showTagline,
+      showBrandManifest: raw.showBrandManifest ?? current.showBrandManifest,
+      showContactBlock: raw.showContactBlock ?? current.showContactBlock,
+      showSocialLinks: raw.showSocialLinks ?? current.showSocialLinks,
+      copyrightSuffix: raw.copyrightSuffix ?? current.copyrightSuffix,
+      linkGroups: raw.linkGroups ?? current.linkGroups,
+    });
+
+    const settings = { ...(company.settings ?? {}) };
+    settings.eShopFooter = merged;
+    company.settings = settings;
+    await this.companyRepository.save(company);
+    return merged;
   }
 
   async addBankAccount(

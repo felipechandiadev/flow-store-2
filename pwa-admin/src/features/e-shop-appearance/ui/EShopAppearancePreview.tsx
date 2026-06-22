@@ -13,8 +13,8 @@ export function EShopAppearancePreview({ resolved }: Props) {
       style={buildThemePreviewStyle(resolved.tokens)}
     >
       <div
-        className="flex items-center justify-between px-4 py-3 text-sm text-white"
-        style={{ backgroundColor: "var(--fs-primary)" }}
+        className="flex items-center justify-between px-4 py-3 text-sm"
+        style={{ backgroundColor: "var(--fs-chrome)", color: "var(--fs-chrome-foreground)" }}
       >
         <span className="font-semibold">Mi tienda</span>
         <span className="rounded-md px-2 py-1 text-xs" style={{ backgroundColor: "var(--fs-secondary)", color: "var(--fs-primary)" }}>
@@ -39,6 +39,12 @@ export function EShopAppearancePreview({ resolved }: Props) {
         >
           Comprar ahora
         </button>
+      </div>
+      <div
+        className="px-4 py-3 text-center text-xs"
+        style={{ backgroundColor: "var(--fs-chrome)", color: "var(--fs-chrome-foreground)" }}
+      >
+        Footer
       </div>
     </div>
   );

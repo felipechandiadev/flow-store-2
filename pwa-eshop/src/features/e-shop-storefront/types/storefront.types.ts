@@ -1,3 +1,39 @@
+export type EShopNavLinkKind = "route" | "anchor" | "external";
+
+export type EShopNavLink = {
+  id: string;
+  label: string;
+  kind: EShopNavLinkKind;
+  href: string;
+  enabled: boolean;
+  order: number;
+};
+
+export type CompanyEShopTopBarSettings = {
+  showLogo: boolean;
+  showCompanyName: boolean;
+  showCart: boolean;
+  navLinks: EShopNavLink[];
+};
+
+export type EShopFooterLinkGroup = {
+  id: string;
+  title: string;
+  links: EShopNavLink[];
+  order: number;
+  enabled: boolean;
+};
+
+export type CompanyEShopFooterSettings = {
+  showLogo: boolean;
+  showTagline: boolean;
+  showBrandManifest: boolean;
+  showContactBlock: boolean;
+  showSocialLinks: boolean;
+  copyrightSuffix?: string;
+  linkGroups: EShopFooterLinkGroup[];
+};
+
 export type EShopThemeTokenKey =
   | "primary"
   | "secondary"
@@ -5,6 +41,8 @@ export type EShopThemeTokenKey =
   | "foreground"
   | "accent"
   | "border"
+  | "chrome"
+  | "chromeForeground"
   | "surface"
   | "active"
   | "muted"
@@ -12,7 +50,7 @@ export type EShopThemeTokenKey =
 
 export type EShopThemeTokens = Record<EShopThemeTokenKey, string>;
 
-export type EShopTemplateId = "classic" | "minimal" | "bold" | "warm";
+export type EShopTemplateId = "classic" | "minimal" | "bold" | "warm" | "jewelry";
 
 export type EShopResolvedTheme = {
   templateId: EShopTemplateId;
@@ -37,6 +75,8 @@ export type EShopStorefront = {
   eShopFeaturedProductIds?: string[];
   eShopFeaturedProductVariantIds: string[];
   theme?: EShopResolvedTheme;
+  topBar?: CompanyEShopTopBarSettings;
+  footer?: CompanyEShopFooterSettings;
 };
 
 export type EShopProductCard = {

@@ -43,6 +43,7 @@ Registro de **capacidades planificadas** que aún no forman parte del producto e
 | IF-04 | Cuentas por pagar en POS | Diseño | [IF-04-pos-cuentas-por-pagar.md](./IF-04-pos-cuentas-por-pagar.md) |
 | IF-05 | Crédito de clientes en POS | Diseño | [IF-05-pos-credito-clientes.md](./IF-05-pos-credito-clientes.md) |
 | IF-06 | eShop — plantillas y tema dinámico | Hecho (F1) | [IF-06-eshop-plantillas-y-tema.md](./IF-06-eshop-plantillas-y-tema.md) |
+| IF-07 | eShop — Topbar y Footer administrables | Hecho (F1) | [IF-07-eshop-topbar-footer.md](./IF-07-eshop-topbar-footer.md) |
 
 ---
 

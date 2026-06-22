@@ -25,6 +25,7 @@ Hoja de ruta para iniciativas documentadas en `docs/implementaciones-futuras/`. 
 | IF-04 | [CxP en POS](./IF-04-pos-cuentas-por-pagar.md) | P2 | F0 — Diseño | Diseño |
 | IF-05 | [Crédito clientes POS](./IF-05-pos-credito-clientes.md) | P1 | F0 — Diseño | Diseño |
 | IF-06 | [eShop plantillas y tema](./IF-06-eshop-plantillas-y-tema.md) | P1 | F1 — Tokens | Hecho (F1) |
+| IF-07 | [eShop topbar y footer](./IF-07-eshop-topbar-footer.md) | P1 | F1 — Shell | Hecho (F1) |
 
 ### Orden de implementación sugerido
 
@@ -288,6 +289,25 @@ Hoja de ruta para iniciativas documentadas en `docs/implementaciones-futuras/`. 
 | IF-06.T20 | `fontPreset` whitelist | P3 | ⬜ | |
 | IF-06.T21 | `borderRadius` token | P3 | ⬜ | |
 | IF-06.T22 | Dark mode por tienda | P3 | ⬜ | |
+
+---
+
+## IF-07 · eShop — Topbar y Footer
+
+**Objetivo:** admin de enlaces, toggles y columnas de footer; menú móvil en tienda; colores en IF-06.
+
+**Dependencias:** IF-06 F1 (token `chrome`).
+
+### F1 — Shell administrable (entregado)
+
+| ID | Tarea | Prioridad | Estado | Notas |
+|----|-------|-----------|--------|-------|
+| IF-07.T1 | Dominio nav + topbar + footer + sanitize | P1 | ✅ | `eShopTopBar`, `eShopFooter` |
+| IF-07.T2 | API GET/PATCH + `topBar`/`footer` en storefront | P1 | ✅ | |
+| IF-07.T3 | `EShopTopBar` + `EShopFooter` dinámicos | P1 | ✅ | |
+| IF-07.T4 | `EShopMobileNav` hamburger | P1 | ✅ | |
+| IF-07.T5 | Admin `/e-shop/topbar` y `/e-shop/footer` | P1 | ✅ | |
+| IF-07.T6 | IF-07 doc + seed + verificación | P2 | ✅ | |
 
 ---
 

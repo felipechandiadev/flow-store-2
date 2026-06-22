@@ -8,6 +8,8 @@ const TOKEN_CSS_VAR: Record<keyof EShopThemeTokens, string> = {
   surface: "--fs-surface",
   foreground: "--fs-foreground",
   border: "--fs-border",
+  chrome: "--fs-chrome",
+  chromeForeground: "--fs-chrome-foreground",
   active: "--fs-active",
   accent: "--fs-accent",
   muted: "--fs-muted",
@@ -31,6 +33,8 @@ export function buildThemeCssVars(tokens: EShopThemeTokens): CSSProperties {
   style["--color-secondary"] = tokens.secondary;
   style["--color-muted"] = tokens.muted;
   style["--color-muted-foreground"] = tokens.mutedForeground;
+  style["--color-chrome"] = tokens.chrome;
+  style["--color-chrome-foreground"] = tokens.chromeForeground;
   return style as CSSProperties;
 }
 
@@ -43,6 +47,8 @@ export const CLASSIC_THEME_FALLBACK: EShopResolvedTheme = {
     surface: "#ffffff",
     foreground: "#131615",
     border: "#c1c1c2",
+    chrome: "#002b59",
+    chromeForeground: "#ffffff",
     active: "#0a7cad",
     accent: "#0a7cad",
     muted: "#6b7280",

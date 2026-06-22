@@ -32,6 +32,15 @@ function mergeResolved(
   }
   if (theme.tokenOverrides.background) tokens.surface = theme.tokenOverrides.background;
   if (theme.tokenOverrides.accent) tokens.active = theme.tokenOverrides.accent;
+  if (theme.tokenOverrides.chrome) {
+    tokens.chromeForeground =
+      Number.parseInt(theme.tokenOverrides.chrome.slice(1, 3), 16) * 0.299 +
+        Number.parseInt(theme.tokenOverrides.chrome.slice(3, 5), 16) * 0.587 +
+        Number.parseInt(theme.tokenOverrides.chrome.slice(5, 7), 16) * 0.114 >
+      158
+        ? tokens.foreground
+        : "#ffffff";
+  }
   return { templateId: theme.templateId, tokens };
 }
 
@@ -95,7 +104,7 @@ export function EShopAppearanceForm({ companyId, initial }: Props) {
                   data-test-id={`eshop-template-${preset.id}`}
                 >
                   <div className="mb-3 flex gap-1">
-                    {(["primary", "secondary", "accent"] as const).map((k) => (
+                    {(["primary", "secondary", "chrome"] as const).map((k) => (
                       <span
                         key={k}
                         className="h-6 w-6 rounded-full border border-border/50"

@@ -5,79 +5,90 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { IconButton } from "@/shared/admin-shared";
 import { useEShopCart } from "@/features/e-shop-cart/EShopCartProvider";
+import type { CompanyEShopTopBarSettings } from "@/features/e-shop-storefront/types/storefront.types";
+import {
+  eshopNavLinkKey,
+  resolveEShopNavHref,
+  sortEnabledNavLinks,
+} from "@/features/e-shop-storefront/lib/resolve-nav-href";
 import { EShopCompanyLogo } from "@/shared/components/EShopCompanyLogo";
+import { EShopMobileNav } from "@/shared/components/EShopMobileNav";
 
 type Props = {
   companyName: string;
   companyLogoUrl: string | null;
+  topBar: CompanyEShopTopBarSettings;
+  chromeIsLight?: boolean;
 };
 
-type NavItem =
-  | { label: string; kind: "home-anchor"; anchor: string }
-  | { label: string; kind: "route"; href: string };
-
-const NAV: NavItem[] = [
-  { label: "Productos", kind: "route", href: "/productos" },
-  { label: "Encuéntranos", kind: "home-anchor", anchor: "#donde-estamos" },
-  { label: "Nosotros", kind: "route", href: "/nosotros" },
-];
-
-function navHref(item: NavItem, pathname: string): string {
-  if (item.kind === "route") {
-    return item.href;
-  }
-  return pathname === "/" ? item.anchor : `/${item.anchor}`;
-}
-
-function navKey(item: NavItem): string {
-  return item.kind === "route" ? item.href : item.anchor;
-}
-
-export function EShopTopBar({ companyName, companyLogoUrl }: Props) {
+export function EShopTopBar({
+  companyName,
+  companyLogoUrl,
+  topBar,
+  chromeIsLight = false,
+}: Props) {
   const pathname = usePathname();
   const { itemCount, openDrawer } = useEShopCart();
   const [logoFailed, setLogoFailed] = useState(false);
-  const showLogo = Boolean(companyLogoUrl?.trim()) && !logoFailed;
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const showLogo = topBar.showLogo && Boolean(companyLogoUrl?.trim()) && !logoFailed;
+  const navLinks = sortEnabledNavLinks(topBar.navLinks);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-primary text-white">
+    <header className="sticky top-0 z-40 border-b border-chrome-foreground/10 bg-chrome text-chrome-foreground">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
-        <Link href="/" className="flex min-w-0 items-center gap-2">
-          {showLogo ? (
-            <EShopCompanyLogo
-              companyName={companyName}
-              logoUrl={companyLogoUrl}
-              size="sm"
-              onPrimary
-              onError={() => setLogoFailed(true)}
-            />
-          ) : null}
-          <span className="truncate text-sm font-semibold text-white">{companyName}</span>
-        </Link>
-        <nav className="hidden items-center gap-6 md:flex">
-          {NAV.map((item) => (
+        <div className="flex min-w-0 items-center gap-2">
+          <EShopMobileNav
+            navLinks={topBar.navLinks}
+            pathname={pathname}
+            open={mobileOpen}
+            onOpenChange={setMobileOpen}
+          />
+          <Link href="/" className="flex min-w-0 items-center gap-2">
+            {showLogo ? (
+              <EShopCompanyLogo
+                companyName={companyName}
+                logoUrl={companyLogoUrl}
+                size="sm"
+                onPrimary={!chromeIsLight}
+                onError={() => setLogoFailed(true)}
+              />
+            ) : null}
+            {topBar.showCompanyName ? (
+              <span className="truncate text-sm font-semibold text-chrome-foreground">
+                {companyName}
+              </span>
+            ) : null}
+          </Link>
+        </div>
+        <nav className="hidden items-center gap-6 md:flex" aria-label="Navegación principal">
+          {navLinks.map((item) => (
             <Link
-              key={navKey(item)}
-              href={navHref(item, pathname)}
-              className="text-sm text-white/80 hover:text-white"
+              key={eshopNavLinkKey(item)}
+              href={resolveEShopNavHref(item, pathname)}
+              className="text-sm text-chrome-foreground/80 hover:text-chrome-foreground"
             >
               {item.label}
             </Link>
           ))}
         </nav>
-        <div className="relative">
-          <IconButton
-            icon="ShoppingCart"
-            variant="secondary"
-            ariaLabel="Abrir carrito"
-            onClick={openDrawer}
-          />
-          {itemCount > 0 ? (
-            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 translate-x-[7px] items-center justify-center rounded-full bg-secondary px-1 text-[10px] font-bold text-primary">
-              {itemCount > 99 ? "99+" : itemCount}
-            </span>
-          ) : null}
-        </div>
+        {topBar.showCart ? (
+          <div className="relative">
+            <IconButton
+              icon="ShoppingCart"
+              variant="secondary"
+              ariaLabel="Abrir carrito"
+              onClick={openDrawer}
+            />
+            {itemCount > 0 ? (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 translate-x-[7px] items-center justify-center rounded-full border-2 border-chrome bg-secondary px-1 text-[10px] font-bold text-primary">
+                {itemCount > 99 ? "99+" : itemCount}
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          <div className="w-10 md:hidden" aria-hidden />
+        )}
       </div>
     </header>
   );

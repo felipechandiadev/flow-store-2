@@ -132,6 +132,18 @@ export const mainMenuItems: SideBarMenuItem[] = [
         requiresEShopEnabled: true,
       },
       {
+        id: 'eshop-topbar',
+        label: 'Topbar',
+        url: '/e-shop/topbar',
+        requiresEShopEnabled: true,
+      },
+      {
+        id: 'eshop-footer',
+        label: 'Footer',
+        url: '/e-shop/footer',
+        requiresEShopEnabled: true,
+      },
+      {
         id: 'eshop-hero',
         label: 'Hero / Slider',
         url: '/e-shop/hero-slides',
