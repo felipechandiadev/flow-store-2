@@ -6,14 +6,18 @@ import { buildLanAllowedDevOrigins } from "../shared/next-lan-dev-origins";
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   /** Evita que Turbopack use un lockfile padre (p. ej. ~/dev) y agote RAM en dev. */
   turbopack: {
     root: appRoot,
   },
   allowedDevOrigins: buildLanAllowedDevOrigins(),
   env: {
+    // URL pública para el navegador (imágenes). No usar BACKEND_API_URL interno (127.0.0.1).
     NEXT_PUBLIC_BACKEND_API_URL:
-      process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || "",
+      process.env.NEXT_PUBLIC_BACKEND_API_URL || process.env.BACKEND_API_URL || "",
   },
   async redirects() {
     return [

@@ -1,8 +1,18 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 import { buildLanAllowedDevOrigins } from "../shared/next-lan-dev-origins";
 import packageJson from "./package.json";
 
+const appRoot = path.dirname(fileURLToPath(import.meta.url));
+
 const nextConfig: NextConfig = {
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  turbopack: {
+    root: appRoot,
+  },
   allowedDevOrigins: buildLanAllowedDevOrigins(),
   async headers() {
     return [

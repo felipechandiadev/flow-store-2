@@ -101,7 +101,7 @@ export default function CashClosingResultPageClient() {
     if (!snapshot) return;
 
     let cancelled = false;
-    let printTimer: ReturnType<typeof setTimeout> | undefined;
+    let printTimer: number | undefined;
     setPrintCtxReady(false);
 
     void (async () => {

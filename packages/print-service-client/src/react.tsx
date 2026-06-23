@@ -198,16 +198,14 @@ export function usePrintServiceConnection(opts: UsePrintServiceConnectionOptions
     (partial: Omit<PrintServiceNotification, "id" | "read" | "at" | "level">) => {
       if (opts.enableInAppNotifications === false) return;
       setNotifications((prev) => {
-        const next: PrintServiceNotification[] = [
-          {
-            id: newNotificationId(),
-            at: Date.now(),
-            read: false,
-            level: "error",
-            ...partial,
-          },
-          ...prev,
-        ].slice(0, 30);
+        const entry: PrintServiceNotification = {
+          ...partial,
+          id: newNotificationId(),
+          at: Date.now(),
+          read: false,
+          level: "error",
+        };
+        const next: PrintServiceNotification[] = [entry, ...prev].slice(0, 30);
         persistNotifications(next);
         return next;
       });

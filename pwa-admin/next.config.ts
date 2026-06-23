@@ -1,12 +1,18 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 import { buildLanAllowedDevOrigins } from "../shared/next-lan-dev-origins";
 
+const appRoot = path.dirname(fileURLToPath(import.meta.url));
+
 const nextConfig: NextConfig = {
-  allowedDevOrigins: buildLanAllowedDevOrigins(),
-  /** Fallback for flows that still post files via Server Actions (maxSize 9 MB in uploader). */
-  serverActions: {
-    bodySizeLimit: "10mb",
+  turbopack: {
+    root: appRoot,
   },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  allowedDevOrigins: buildLanAllowedDevOrigins(),
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",

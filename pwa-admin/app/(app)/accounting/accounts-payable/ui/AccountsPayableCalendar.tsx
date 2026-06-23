@@ -40,10 +40,9 @@ export default function AccountsPayableCalendar({ rows, onPay, onDetails }: Prop
   const [month, setMonth] = useState(() => new Date());
 
   const items: MonthlyCalendarItem[] = useMemo(() => {
-    return rows
-      .map((r) => {
+    return rows.flatMap((r) => {
         const date = toIsoDateOnly(r.dueDate);
-        if (!date) return null;
+        if (!date) return [];
         const doc = r.parentDocumentNumber || r.documentNumber || "—";
         const overdue = Boolean(r.isOverdue) || r.status === "OVERDUE";
         const paid = r.status === "PAID";
@@ -53,7 +52,7 @@ export default function AccountsPayableCalendar({ rows, onPay, onDetails }: Prop
             ? "border-[color:var(--color-error)] bg-[color:var(--color-error)]/10"
             : "border-[color:var(--color-info)] bg-[color:var(--color-info)]/10";
 
-        return {
+        return [{
           id: r.id,
           date,
           content: (
@@ -95,9 +94,8 @@ export default function AccountsPayableCalendar({ rows, onPay, onDetails }: Prop
               </div>
             </div>
           ),
-        } satisfies MonthlyCalendarItem;
-      })
-      .filter((x): x is MonthlyCalendarItem => x != null);
+        } satisfies MonthlyCalendarItem];
+      });
   }, [rows, onDetails, onPay]);
 
   return (

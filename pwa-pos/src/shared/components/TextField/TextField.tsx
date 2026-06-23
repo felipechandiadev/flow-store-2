@@ -42,6 +42,8 @@ interface TextFieldProps {
   rows?: number;
   readOnly?: boolean;
   disabled?: boolean;
+  /** Tooltip nativo del input (p. ej. explicar solo lectura). */
+  title?: string;
   min?: number | string;
   max?: number | string;
   step?: number | string;
@@ -95,6 +97,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   required = false,
   readOnly = false,
   disabled = false,
+  title,
   labelStyle,
   placeholderColor,
   currencySymbol = "$", // Default: peso chileno
@@ -603,6 +606,7 @@ export const TextField: React.FC<TextFieldProps> = ({
           required={required}
           readOnly={readOnly}
           disabled={disabled}
+          title={title}
           autoComplete={autoComplete || "off"}
           style={{
             resize: 'none',
@@ -640,6 +644,7 @@ export const TextField: React.FC<TextFieldProps> = ({
             required={required}
             readOnly={readOnly}
             disabled={disabled}
+            title={title}
             autoComplete={autoComplete || "off"}
             inputMode={useTextInputForSelectOnFocusNumber ? (inputMode ?? "numeric") : inputMode}
             min={

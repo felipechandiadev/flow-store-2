@@ -296,7 +296,7 @@ export default function CompleteAccountsPayablePaymentDialog({
                 <Select
                   label="Cuenta de origen"
                   value={bankAccountKey}
-                  onChange={setBankAccountKey}
+                  onChange={(id) => setBankAccountKey(id == null ? null : String(id))}
                   options={companyAccountOptions}
                   placeholder="Seleccione cuenta"
                   data-test-id="ap-complete-bank-account"
@@ -306,7 +306,7 @@ export default function CompleteAccountsPayablePaymentDialog({
                     <Select
                       label="Cuenta de destino"
                       value={destAccountKey}
-                      onChange={setDestAccountKey}
+                      onChange={(id) => setDestAccountKey(id == null ? null : String(id))}
                       options={supplierAccountOptions}
                       placeholder={
                         supplierAccountOptions.length ? "Seleccione cuenta" : "Sin cuentas de destino"
@@ -341,7 +341,7 @@ export default function CompleteAccountsPayablePaymentDialog({
                   <Select
                     label="Cuenta empresa (cheque)"
                     value={bankAccountKey}
-                    onChange={setBankAccountKey}
+                    onChange={(id) => setBankAccountKey(id == null ? null : String(id))}
                     options={companyAccountOptions}
                     placeholder={
                       companyAccountOptions.length ? "Seleccione cuenta" : "Sin cuentas en empresa"
@@ -384,7 +384,7 @@ export default function CompleteAccountsPayablePaymentDialog({
               <Select
                 label="Centro de efectivo"
                 value={cashHubId}
-                onChange={setCashHubId}
+                onChange={(id) => setCashHubId(id == null ? null : String(id))}
                 options={cashHubOptions}
                 placeholder={cashHubOptions.length ? "Seleccione centro" : "No hay centros configurados"}
                 data-test-id="ap-complete-cash-hub"

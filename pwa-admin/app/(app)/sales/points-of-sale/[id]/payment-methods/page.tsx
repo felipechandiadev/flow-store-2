@@ -6,10 +6,10 @@ import { PosPaymentMethodsEditor } from "./components/PosPaymentMethodsEditor";
 
 export const dynamic = "force-dynamic";
 
-type PageProps = { params: { id: string } };
+type PageProps = { params: Promise<{ id: string }> };
 
 export default async function Page({ params }: PageProps) {
-  const id = params.id;
+  const { id } = await params;
 
   const list = await PointOfSaleRequest.findAll(true);
   if (!list.success) {

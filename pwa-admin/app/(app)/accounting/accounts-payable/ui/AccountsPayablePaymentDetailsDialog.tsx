@@ -135,7 +135,7 @@ export default function AccountsPayablePaymentDetailsDialog({ open, row, onClose
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="info-outlined">{paymentType}</Badge>
-            {parentType !== "—" ? <Badge variant="neutral-outlined">{parentType}</Badge> : null}
+            {parentType !== "—" ? <Badge variant="secondary-outlined">{parentType}</Badge> : null}
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

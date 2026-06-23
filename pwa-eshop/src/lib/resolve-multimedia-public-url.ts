@@ -1,8 +1,15 @@
 import { getServerBackendApiBase } from "./backend-api-url";
 
+/** Base pública para `<img src>` (navegador). No usar 127.0.0.1. */
+function getPublicBackendApiBase(): string {
+  const pub = process.env.NEXT_PUBLIC_BACKEND_API_URL?.trim();
+  if (pub) return pub.replace(/\/$/, "");
+  return getServerBackendApiBase();
+}
+
 /**
  * El backend guarda rutas relativas (`/multimedia/files/...`).
- * En `<img src>` hay que prefijar la URL del API.
+ * En `<img src>` hay que prefijar la URL pública del API.
  */
 export function resolveMultimediaPublicUrl(publicUrl: string | null | undefined): string | null {
   const u = publicUrl?.trim();
@@ -11,7 +18,7 @@ export function resolveMultimediaPublicUrl(publicUrl: string | null | undefined)
 
   let base: string;
   try {
-    base = getServerBackendApiBase();
+    base = getPublicBackendApiBase();
   } catch {
     return u;
   }

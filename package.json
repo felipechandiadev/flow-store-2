@@ -8,7 +8,8 @@
     "dev:eshop": "bash scripts/dev-all.sh eshop",
     "dev:infra": "bash scripts/dev-infra.sh",
     "dev:apps": "bash scripts/dev-apps.sh all",
-    "dev:apps:eshop": "bash scripts/dev-apps.sh eshop"
+    "dev:apps:eshop": "bash scripts/dev-apps.sh eshop",
+    "env:dev": "bash envs/sync-dev-envs.sh"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

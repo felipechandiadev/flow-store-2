@@ -960,7 +960,7 @@ export default function PosPaymentWorkspace({ initialCustomerSearch }: Props) {
         if (isNcPayoutMode && !isNcPayoutAllowedPaymentMethod(m.method)) return false;
         return true;
       });
-      const preloadLines =
+      const preloadLines: PosPaymentLine[] =
         preload.length > 0
           ? preload.map((m) => ({
               id: makePaymentLineId(),

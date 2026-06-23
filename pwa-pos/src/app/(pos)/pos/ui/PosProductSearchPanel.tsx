@@ -486,7 +486,6 @@ export default function PosProductSearchPanel({
             label="Lista de precios"
             placeholder="Lista de precios"
             density="compact"
-            labelLayout="stack"
             value={draftPriceListId || null}
             onChange={(id) => setDraftPriceListId(id ? String(id) : "")}
             options={priceListOptions.map((p) => ({ id: p.id, label: p.name }))}
