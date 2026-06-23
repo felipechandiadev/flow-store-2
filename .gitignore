@@ -8,7 +8,7 @@ backend/*.tsbuildinfo
 # Local folders not to push
 proyecto-reportes/
 print-service/
-scripts/
+/scripts/
 data-to-seed/
 
 # Dependencies and build artifacts
