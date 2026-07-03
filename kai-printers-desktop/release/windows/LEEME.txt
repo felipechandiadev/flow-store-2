@@ -14,4 +14,4 @@ KaiPrinters 1.0.2 — Windows x64 (portable)
 
 Instalador con asistente (.exe setup):
   Compila en una PC Windows con: npm run tauri:build
-  O dispara el workflow GitHub: print-service-release
+  O dispara el workflow GitHub: kai-printers-desktop-release
